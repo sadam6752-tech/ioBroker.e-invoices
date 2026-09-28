@@ -345,26 +345,41 @@ export async function renderInvoicePdf(
 		doc.font('Helvetica');
 		rowY += 20;
 
-		// Company footer: 4 boxes pinned to the page bottom (address, contact, bank, tax)
+		// Company footer: 4 boxes pinned to the page bottom (address, contact, bank, tax).
+		// Custom texts from the company profile win; otherwise auto from company data.
 		if (template.showFooterBoxes ?? true) {
-			const boxes: string[][] = [
-				[invoice.seller.name, invoice.seller.street, `${invoice.seller.zip} ${invoice.seller.city}`],
-				[
-					invoice.seller.phone ?? '',
-					invoice.seller.website ?? '',
-					template.showEmail ? (invoice.seller.email ?? '') : '',
-				],
-				[
-					invoice.seller.bankName ?? '',
-					invoice.seller.iban ?? '',
-					invoice.seller.bic ? `BIC: ${invoice.seller.bic}` : '',
-				],
-				[
-					invoice.seller.vatId ? `USt. ID: ${invoice.seller.vatId}` : '',
-					invoice.seller.taxNumber ? `Steuernr.: ${invoice.seller.taxNumber}` : '',
-					...(template.headerExtra ? template.headerExtra.split('\n').slice(0, 3) : []),
-				],
-			].map(lines => lines.filter(line => line.trim() !== ''));
+			const rawBoxes: unknown = invoice.seller.footerBoxes;
+			const customBoxes: string[] | null =
+				Array.isArray(rawBoxes) &&
+				rawBoxes.length === 4 &&
+				rawBoxes.some(box => typeof box === 'string' && box.trim() !== '')
+					? rawBoxes.filter((box): box is string => typeof box === 'string')
+					: null;
+			const boxes: string[][] = customBoxes
+				? customBoxes.map(box =>
+						box
+							.split('\n')
+							.map(line => line.trim())
+							.slice(0, 4),
+					)
+				: [
+						[invoice.seller.name, invoice.seller.street, `${invoice.seller.zip} ${invoice.seller.city}`],
+						[
+							invoice.seller.phone ?? '',
+							invoice.seller.website ?? '',
+							template.showEmail ? (invoice.seller.email ?? '') : '',
+						],
+						[
+							invoice.seller.bankName ?? '',
+							invoice.seller.iban ?? '',
+							invoice.seller.bic ? `BIC: ${invoice.seller.bic}` : '',
+						],
+						[
+							invoice.seller.vatId ? `USt. ID: ${invoice.seller.vatId}` : '',
+							invoice.seller.taxNumber ? `Steuernr.: ${invoice.seller.taxNumber}` : '',
+							...(template.headerExtra ? template.headerExtra.split('\n').slice(0, 3) : []),
+						],
+					].map(lines => lines.filter(line => line.trim() !== ''));
 			const maxLines = Math.max(1, ...boxes.map(lines => lines.length));
 			const need = 8 + maxLines * 10 + 6;
 			const bottom = doc.page.height - 50;

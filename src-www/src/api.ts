@@ -14,6 +14,7 @@ export interface Party {
 	customerNumber?: string;
 	contactName?: string;
 	bankName?: string;
+	footerBoxes?: string[];
 	iban?: string;
 	bic?: string;
 }

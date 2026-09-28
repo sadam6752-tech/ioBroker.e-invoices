@@ -3,7 +3,9 @@ import { api, esc, type CompanyProfile, type Party } from '../api';
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
 
 function field(obj: Party, key: keyof Party, label: string): string {
-	return `<label>${label}<input data-f="${key}" value="${esc(obj[key] ?? '')}" /></label>`;
+	const value = obj[key];
+	const text = Array.isArray(value) ? value.join('\n') : (value ?? '');
+	return `<label>${label}<input data-f="${key}" value="${esc(text)}" /></label>`;
 }
 
 /** Company page: seller master data, used as wizard default. */
@@ -37,6 +39,16 @@ export async function company(root: HTMLElement): Promise<void> {
 			<div class="grid2">${field(p, 'vatId', 'USt-IdNr.')}${field(p, 'taxNumber', 'Steuernummer')}</div>
 			<div class="grid2">${field(p, 'bankName', 'Bankname')}${field(p, 'iban', 'IBAN')}</div>
 			<label>BIC<input data-f="bic" value="${esc(p.bic ?? '')}" /></label>
+			<h3>Fußzeilen-Boxen (Rechnung unten)</h3>
+			<p class="muted">Leer lassen = automatisch aus den Firmendaten (Adresse, Kontakt, Bank, Steuer). Je Box eine Zeile pro Zeile.</p>
+			<div class="grid2">
+				<label>Box 1 – Adresse<textarea data-fbox="0" rows="3">${esc((p.footerBoxes ?? [])[0] ?? '')}</textarea></label>
+				<label>Box 2 – Kontakt<textarea data-fbox="1" rows="3">${esc((p.footerBoxes ?? [])[1] ?? '')}</textarea></label>
+			</div>
+			<div class="grid2">
+				<label>Box 3 – Bank<textarea data-fbox="2" rows="3">${esc((p.footerBoxes ?? [])[2] ?? '')}</textarea></label>
+				<label>Box 4 – Steuer<textarea data-fbox="3" rows="3">${esc((p.footerBoxes ?? [])[3] ?? '')}</textarea></label>
+			</div>
 			${message ? `<p class="${isError ? 'error' : ''}">${esc(message)}</p>` : ''}
 			<div class="row"><button id="c-save">Speichern</button></div>
 		</div>`;
@@ -46,6 +58,14 @@ export async function company(root: HTMLElement): Promise<void> {
 			root.querySelectorAll<HTMLInputElement>('input[data-f]').forEach(el => {
 				(profile as unknown as Record<string, string>)[el.dataset.f!] = el.value;
 			});
+			const boxes: string[] = [0, 1, 2, 3].map(
+				i => root.querySelector<HTMLTextAreaElement>(`textarea[data-fbox="${i}"]`)?.value ?? '',
+			);
+			if (boxes.some(box => box.trim() !== '')) {
+				profile.footerBoxes = boxes;
+			} else {
+				delete profile.footerBoxes;
+			}
 			const name = root.querySelector<HTMLInputElement>('#c-name')?.value.trim() || 'Meine Firma';
 			try {
 				if (current) {

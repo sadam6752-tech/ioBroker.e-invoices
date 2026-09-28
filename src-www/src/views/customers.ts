@@ -3,7 +3,9 @@ import { api, esc, type CompanyProfile, type Party } from '../api';
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
 
 function field(obj: Party, key: keyof Party, label: string): string {
-	return `<label>${label}<input data-f="${key}" value="${esc(obj[key] ?? '')}" /></label>`;
+	const value = obj[key];
+	const text = Array.isArray(value) ? value.join('\n') : (value ?? '');
+	return `<label>${label}<input data-f="${key}" value="${esc(text)}" /></label>`;
 }
 
 /** Customers page: buyer master data list, create, edit, delete. */

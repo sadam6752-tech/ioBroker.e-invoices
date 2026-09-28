@@ -34,6 +34,8 @@ export interface Party {
 	contactName?: string;
 	/** Bank name (optional, footer display only). */
 	bankName?: string;
+	/** Footer boxes override (4 entries, lines separated by \n). Empty = auto from company data. */
+	footerBoxes?: string[];
 	/** IBAN of the seller (recommended for payment block). */
 	iban?: string;
 	/** BIC of the seller (optional). */

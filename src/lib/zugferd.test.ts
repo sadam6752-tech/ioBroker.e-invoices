@@ -277,6 +277,30 @@ describe('zugferd => sku, details and phone', function () {
 	});
 });
 
+describe('pdf => custom footer boxes', () => {
+	it('renders company footer texts instead of auto data', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const created = db.createDraft(
+				draft({
+					seller: {
+						...seller,
+						footerBoxes: ['Box Eins\nZeile zwei', 'Box Zwei', '', 'Box Vier'],
+					},
+				}),
+			);
+			const issued = db.issueDraft(created.id);
+			const pdf = await renderInvoicePdf(issued);
+			const text = pdfText(pdf).replace(/\s+/g, '');
+			expect(text).to.contain('BoxEins');
+			expect(text).to.contain('BoxVier');
+		} finally {
+			db.close();
+		}
+	});
+});
+
 describe('validation => tampered xml', function () {
 	this.timeout(60000);
 
