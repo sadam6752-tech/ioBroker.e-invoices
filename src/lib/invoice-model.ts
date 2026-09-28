@@ -24,8 +24,14 @@ export interface Party {
 	taxNumber?: string;
 	/** Contact e-mail (optional, needed for delivery). */
 	email?: string;
+	/** Phone number (optional, header display + BT-42/BT-57). */
+	phone?: string;
+	/** Website URL (optional, header display only). */
+	website?: string;
 	/** Customer number, mapped to BT-10 Buyer reference (optional, `-` fallback). */
 	customerNumber?: string;
+	/** Contact person (optional, header/meta display only). */
+	contactName?: string;
 	/** IBAN of the seller (recommended for payment block). */
 	iban?: string;
 	/** BIC of the seller (optional). */
@@ -36,6 +42,10 @@ export interface Party {
 export interface InvoiceLine {
 	/** Human-readable description, handelsübliche Bezeichnung (Pflicht). */
 	description: string;
+	/** Article/SKU number (optional, BT-155, shown as Art.Nr.). */
+	sku?: string;
+	/** Detail text, second row under the description (optional, BT-154). */
+	details?: string;
 	/** Quantity (Pflicht, > 0). */
 	quantity: number;
 	/** Unit, e.g. `Stk`, `Std`, `kg` (recommended). */

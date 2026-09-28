@@ -1,6 +1,10 @@
 import { api, esc, eur, type DraftInput, type Invoice, type InvoiceLine, type Party } from '../api';
 
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
+const emptyLine = (): InvoiceLine => ({ description: '', quantity: 1, unit: 'Stk', unitPriceNet: 0, vatRate: 19 });
+
+/** localStorage key for the unsent wizard state (survives reloads/back). */
+const STORAGE_KEY = 'einv-wizard-v1';
 
 interface WizardState {
 	step: number;
@@ -14,10 +18,48 @@ interface WizardState {
 	notes: string;
 	draftId: string | null;
 	error: string;
+	savedAt: string;
 }
 
 function today(): string {
 	return new Date().toISOString().slice(0, 10);
+}
+
+function freshState(): WizardState {
+	return {
+		step: 0,
+		seller: emptyParty(),
+		buyer: emptyParty(),
+		lines: [emptyLine()],
+		issueDate: today(),
+		deliveryDate: today(),
+		dueDate: '',
+		documentTitle: 'Rechnung',
+		notes: '',
+		draftId: null,
+		error: '',
+		savedAt: new Date().toISOString(),
+	};
+}
+
+function hasContent(s: WizardState): boolean {
+	return (
+		s.seller.name.trim() !== '' ||
+		s.buyer.name.trim() !== '' ||
+		s.lines.some(l => l.description.trim() !== '' || l.unitPriceNet !== 0)
+	);
+}
+
+function loadSaved(): WizardState | null {
+	try {
+		const raw = localStorage.getItem(STORAGE_KEY);
+		if (!raw) return null;
+		const parsed = JSON.parse(raw) as Partial<WizardState>;
+		if (!parsed || !Array.isArray(parsed.lines) || !parsed.seller || !parsed.buyer) return null;
+		return { ...freshState(), ...parsed, error: '', step: Math.min(Number(parsed.step) || 0, 3) };
+	} catch {
+		return null;
+	}
 }
 
 function partyFields(prefix: string, p: Party, withTax: boolean): string {
@@ -32,6 +74,14 @@ function partyFields(prefix: string, p: Party, withTax: boolean): string {
 			<label>Land<input data-p="${prefix}" data-f="country" value="${esc(p.country)}" /></label>
 			<label>E-Mail<input data-p="${prefix}" data-f="email" value="${esc(p.email)}" /></label>
 		</div>
+		<div class="grid2">
+			<label>Telefon<input data-p="${prefix}" data-f="phone" value="${esc(p.phone)}" /></label>
+			${
+				withTax
+					? `<label>Webseite<input data-p="${prefix}" data-f="website" value="${esc(p.website)}" /></label>`
+					: `<label>Ansprechpartner<input data-p="${prefix}" data-f="contactName" value="${esc(p.contactName)}" /></label>`
+			}
+		</div>
 		${
 			withTax
 				? `<div class="grid2">
@@ -43,42 +93,61 @@ function partyFields(prefix: string, p: Party, withTax: boolean): string {
 		}`;
 }
 
+const DOC_TITLES = ['Rechnung', 'Abschlagsrechnung', 'Schlussrechnung', 'Gutschrift'];
+
 /** Multi-step invoice wizard: seller -> buyer -> lines -> review/issue. */
 export function wizard(root: HTMLElement): void {
-	const s: WizardState = {
-		step: 0,
-		seller: emptyParty(),
-		buyer: emptyParty(),
-		lines: [{ description: '', quantity: 1, unit: 'Stk', unitPriceNet: 0, vatRate: 19 }],
-		issueDate: today(),
-		deliveryDate: today(),
-		dueDate: '',
-		documentTitle: 'Rechnung',
-		notes: '',
-		draftId: null,
-		error: '',
-	};
+	let s = freshState();
+	const saved = loadSaved();
+	if (saved && hasContent(saved) && !saved.draftId) {
+		root.innerHTML = `<div class="card"><h3>Weiter bearbeiten?</h3>
+			<p class="muted">Ungesendeter Entwurf vom ${esc(saved.savedAt.slice(0, 16).replace('T', ' '))} gefunden.</p>
+			<div class="row"><button id="w-resume">Fortsetzen</button><button class="secondary" id="w-discard">Verwerfen</button></div>
+		</div>`;
+		root.querySelector('#w-resume')?.addEventListener('click', () => {
+			s = saved;
+			render();
+		});
+		root.querySelector('#w-discard')?.addEventListener('click', () => {
+			localStorage.removeItem(STORAGE_KEY);
+			render();
+		});
+		return;
+	}
+	if (saved && hasContent(saved)) {
+		s = saved;
+	}
+
+	function persist(): void {
+		try {
+			localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...s, error: '', savedAt: new Date().toISOString() }));
+		} catch {
+			// storage full/blocked — wizard still works, just without resume
+		}
+	}
 
 	function collect(): void {
 		root.querySelectorAll<HTMLInputElement>('input[data-p]').forEach(el => {
 			const target = el.dataset.p === 'seller' ? s.seller : s.buyer;
 			(target as unknown as Record<string, string>)[el.dataset.f!] = el.value;
 		});
-		root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input[data-l],select[data-l]').forEach(el => {
+		root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input[data-l],select[data-l],textarea[data-l]').forEach(el => {
 			const [idx, field] = el.dataset.l!.split('.');
 			const line = s.lines[Number(idx)];
+			if (!line) return;
 			if (field === 'quantity' || field === 'unitPriceNet' || field === 'vatRate') {
 				(line as unknown as Record<string, number>)[field] = Number(el.value);
 			} else {
 				(line as unknown as Record<string, string>)[field] = el.value;
 			}
 		});
-		const get = (id: string): string => root.querySelector<HTMLInputElement>(`#${id}`)?.value ?? '';
+		const get = (id: string): string => root.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value ?? '';
 		s.issueDate = get('w-issue') || s.issueDate;
 		s.deliveryDate = get('w-delivery') || s.deliveryDate;
 		s.dueDate = get('w-due');
 		s.documentTitle = get('w-title') || 'Rechnung';
 		s.notes = root.querySelector<HTMLTextAreaElement>('#w-notes')?.value ?? '';
+		persist();
 	}
 
 	function stepsBar(): string {
@@ -92,22 +161,32 @@ export function wizard(root: HTMLElement): void {
 		if (s.step === 0) body = `<div class="card"><h3>Verkäufer</h3>${partyFields('seller', s.seller, true)}</div>`;
 		if (s.step === 1) body = `<div class="card"><h3>Käufer</h3>${partyFields('buyer', s.buyer, false)}</div>`;
 		if (s.step === 2) {
-			body = `<div class="card"><h3>Positionen</h3>
-				<table class="lines"><tr><th>Beschreibung</th><th>Menge</th><th>Einheit</th><th>Preis netto</th><th>USt %</th><th></th></tr>
+			body = `<div class="card"><h3>Positionen & Termine</h3>
+				<label>Dokumenttyp<select id="w-title">
+					${DOC_TITLES.map(t => `<option ${t === s.documentTitle ? 'selected' : ''}>${t}</option>`).join('')}
+				</select></label>
 				${s.lines
 					.map(
-						(l, i) => `<tr>
-					<td><input data-l="${i}.description" value="${esc(l.description)}" /></td>
-					<td><input data-l="${i}.quantity" type="number" min="0" step="any" value="${l.quantity}" style="width:70px" /></td>
-					<td><input data-l="${i}.unit" value="${esc(l.unit)}" style="width:60px" /></td>
-					<td><input data-l="${i}.unitPriceNet" type="number" min="0" step="0.01" value="${l.unitPriceNet}" style="width:90px" /></td>
-					<td><select data-l="${i}.vatRate">
-						${[19, 7, 0].map(r => `<option ${r === l.vatRate ? 'selected' : ''}>${r}</option>`).join('')}
-					</select></td>
-					<td><button class="secondary" data-del="${i}">✕</button></td>
-				</tr>`,
+						(l, i) => `<div class="card" style="background:var(--bg)">
+					<div class="grid2">
+						<label>Bezeichnung<input data-l="${i}.description" value="${esc(l.description)}" /></label>
+						<label>Art.Nr.<input data-l="${i}.sku" value="${esc(l.sku)}" /></label>
+					</div>
+					<label>Detailzeile<textarea data-l="${i}.details" rows="1">${esc(l.details)}</textarea></label>
+					<div class="grid2">
+						<label>Menge<input data-l="${i}.quantity" type="number" min="0" step="any" value="${l.quantity}" /></label>
+						<label>Einheit<input data-l="${i}.unit" value="${esc(l.unit)}" /></label>
+					</div>
+					<div class="grid2">
+						<label>Preis netto<input data-l="${i}.unitPriceNet" type="number" min="0" step="0.01" value="${l.unitPriceNet}" /></label>
+						<label>USt %<select data-l="${i}.vatRate">
+							${[19, 7, 0].map(r => `<option ${r === l.vatRate ? 'selected' : ''}>${r}</option>`).join('')}
+						</select></label>
+					</div>
+					<button class="secondary" data-del="${i}">Position entfernen</button>
+				</div>`,
 					)
-					.join('')}</table>
+					.join('')}
 				<p><button class="secondary" id="w-add">+ Position</button></p>
 				<div class="grid2">
 					<label>Ausstellungsdatum<input id="w-issue" type="date" value="${esc(s.issueDate)}" /></label>
@@ -121,9 +200,9 @@ export function wizard(root: HTMLElement): void {
 			const net = s.lines.reduce((a, l) => a + l.quantity * l.unitPriceNet, 0);
 			const tax = s.lines.reduce((a, l) => a + (l.quantity * l.unitPriceNet * l.vatRate) / 100, 0);
 			body = `<div class="card"><h3>Prüfen & Ausstellen</h3>
-				<p>${esc(s.seller.name || '—')} → ${esc(s.buyer.name || '—')} · ${s.lines.length} Positionen</p>
+				<p><strong>${esc(s.documentTitle)}</strong> · ${esc(s.seller.name || '—')} → ${esc(s.buyer.name || '—')} · ${s.lines.length} Positionen</p>
 				<p><strong>ca. ${eur(Math.round((net + tax) * 100) / 100)}</strong> <span class="muted">(exakte Summen + Validierung serverseitig)</span></p>
-				<div id="w-result"></div>
+				<p class="muted">Ausstellen vergibt endgültig die Rechnungsnummer — danach ist keine Änderung mehr möglich (GoBD).</p>
 			</div>`;
 		}
 		root.innerHTML = `${stepsBar()}${body}
@@ -131,6 +210,7 @@ export function wizard(root: HTMLElement): void {
 			<div class="row">
 				${s.step > 0 ? `<button class="secondary" id="w-back">Zurück</button>` : ''}
 				${s.step < 3 ? `<button id="w-next">Weiter</button>` : `<button id="w-save">Entwurf speichern</button><button id="w-issue">Ausstellen</button>`}
+				<button class="secondary" id="w-clear">Verwerfen</button>
 			</div>`;
 
 		root.querySelector('#w-back')?.addEventListener('click', () => {
@@ -141,21 +221,30 @@ export function wizard(root: HTMLElement): void {
 			s.step++;
 			render();
 		});
+		root.querySelector('#w-clear')?.addEventListener('click', () => {
+			if (!window.confirm('Eingaben verwerfen?')) return;
+			localStorage.removeItem(STORAGE_KEY);
+			s = freshState();
+			render();
+		});
 		root.querySelector('#w-add')?.addEventListener('click', () => {
 			collect();
-			s.lines.push({ description: '', quantity: 1, unit: 'Stk', unitPriceNet: 0, vatRate: 19 });
+			s.lines.push(emptyLine());
 			render();
 		});
 		root.querySelectorAll('[data-del]').forEach(btn =>
 			btn.addEventListener('click', () => {
 				collect();
 				s.lines.splice(Number((btn as HTMLElement).dataset.del), 1);
-				if (s.lines.length === 0) s.lines.push({ description: '', quantity: 1, unit: 'Stk', unitPriceNet: 0, vatRate: 19 });
+				if (s.lines.length === 0) s.lines.push(emptyLine());
 				render();
 			}),
 		);
 		root.querySelector('#w-save')?.addEventListener('click', () => void save(false));
-		root.querySelector('#w-issue')?.addEventListener('click', () => void save(true));
+		root.querySelector('#w-issue')?.addEventListener('click', () => {
+			if (!window.confirm('Wirklich ausstellen? Danach ist keine Änderung mehr möglich (GoBD).')) return;
+			void save(true);
+		});
 	}
 
 	async function save(issue: boolean): Promise<void> {
@@ -179,15 +268,56 @@ export function wizard(root: HTMLElement): void {
 			} else {
 				inv = await api.create(input);
 				s.draftId = inv.id;
+				persist();
 			}
 			if (issue) {
 				inv = await api.issue(inv.id);
+				localStorage.removeItem(STORAGE_KEY);
 			}
 			location.hash = `#/invoices/${inv.id}`;
 		} catch (e) {
 			s.error = (e as Error).message;
 			render();
 		}
+	}
+
+	// Persist every keystroke without re-rendering (survives reload/back).
+	root.addEventListener('input', () => {
+		try {
+			collectSilent();
+		} catch {
+			// ignore
+		}
+	});
+
+	function collectSilent(): void {
+		root.querySelectorAll<HTMLInputElement>('input[data-p]').forEach(el => {
+			const target = el.dataset.p === 'seller' ? s.seller : s.buyer;
+			(target as unknown as Record<string, string>)[el.dataset.f!] = el.value;
+		});
+		root.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+			'input[data-l],select[data-l],textarea[data-l]',
+		).forEach(el => {
+			const [idx, field] = (el as HTMLElement).dataset.l!.split('.');
+			const line = s.lines[Number(idx)];
+			if (!line) return;
+			if (field === 'quantity' || field === 'unitPriceNet' || field === 'vatRate') {
+				(line as unknown as Record<string, number>)[field] = Number((el as HTMLInputElement).value);
+			} else {
+				(line as unknown as Record<string, string>)[field] = (el as HTMLInputElement).value;
+			}
+		});
+		const get = (id: string): string =>
+			root.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value ?? '';
+		const issue = get('w-issue');
+		const delivery = get('w-delivery');
+		if (issue) s.issueDate = issue;
+		if (delivery) s.deliveryDate = delivery;
+		s.dueDate = get('w-due');
+		const title = get('w-title');
+		if (title) s.documentTitle = title;
+		s.notes = root.querySelector<HTMLTextAreaElement>('#w-notes')?.value ?? s.notes;
+		persist();
 	}
 
 	render();

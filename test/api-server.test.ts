@@ -4,9 +4,7 @@
  * runs without js-controller via supertest + temp database.
  */
 import { expect } from 'chai';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import request from 'supertest';
 import { createApiServer } from '../src/lib/api-server';
 import { InvoiceDatabase } from '../src/lib/db';
@@ -45,13 +43,11 @@ const draftBody = {
 
 describe('api => invoices', function () {
 	this.timeout(60000);
-	let dir = '';
 	let db: InvoiceDatabase;
 	let app: ReturnType<typeof createApiServer>;
 
 	before(() => {
-		dir = mkdtempSync(join(tmpdir(), 'einv-api-'));
-		db = new InvoiceDatabase(join(dir, 'invoices.db'));
+		db = new InvoiceDatabase(':memory:');
 		db.migrate();
 		const files = new Map<string, Buffer>();
 		const store = {
@@ -73,7 +69,6 @@ describe('api => invoices', function () {
 
 	after(() => {
 		db.close();
-		rmSync(dir, { recursive: true, force: true });
 	});
 
 	it('health reports ok with counts', async () => {
@@ -137,14 +132,12 @@ describe('api => invoices', function () {
 });
 
 describe('api => auth', () => {
-	let dir = '';
 	let db: InvoiceDatabase;
 	let openApp: ReturnType<typeof createApiServer>;
 	let closedApp: ReturnType<typeof createApiServer>;
 
 	before(() => {
-		dir = mkdtempSync(join(tmpdir(), 'einv-api-auth-'));
-		db = new InvoiceDatabase(join(dir, 'invoices.db'));
+		db = new InvoiceDatabase(':memory:');
 		db.migrate();
 		const quiet = { info: (): void => undefined, error: (): void => undefined };
 		const stubStorage = {
@@ -157,7 +150,6 @@ describe('api => auth', () => {
 
 	after(() => {
 		db.close();
-		rmSync(dir, { recursive: true, force: true });
 	});
 
 	it('leaves the API open without a token', async () => {
@@ -175,13 +167,11 @@ describe('api => auth', () => {
 
 describe('api => backup', function () {
 	this.timeout(60000);
-	let dir = '';
 	let db: InvoiceDatabase;
 	let app: ReturnType<typeof createApiServer>;
 
 	before(() => {
-		dir = mkdtempSync(join(tmpdir(), 'einv-api-bak-'));
-		db = new InvoiceDatabase(join(dir, 'invoices.db'));
+		db = new InvoiceDatabase(':memory:');
 		db.migrate();
 		const files = new Map<string, Buffer>();
 		app = createApiServer({
@@ -206,7 +196,6 @@ describe('api => backup', function () {
 
 	after(() => {
 		db.close();
-		rmSync(dir, { recursive: true, force: true });
 	});
 
 	it('creates, lists, downloads and restores backups', async () => {
@@ -238,13 +227,11 @@ describe('api => backup', function () {
 
 describe('api => templates', function () {
 	this.timeout(60000);
-	let dir = '';
 	let db: InvoiceDatabase;
 	let app: ReturnType<typeof createApiServer>;
 
 	before(() => {
-		dir = mkdtempSync(join(tmpdir(), 'einv-api-tpl-'));
-		db = new InvoiceDatabase(join(dir, 'invoices.db'));
+		db = new InvoiceDatabase(':memory:');
 		db.migrate();
 		const files = new Map<string, Buffer>();
 		app = createApiServer({
@@ -269,7 +256,6 @@ describe('api => templates', function () {
 
 	after(() => {
 		db.close();
-		rmSync(dir, { recursive: true, force: true });
 	});
 
 	it('CRUD, Pflichtfeld-Wächter, Vorschau und Logo', async () => {
@@ -298,7 +284,7 @@ describe('api => templates', function () {
 		expect(preview.headers['content-type']).to.contain('application/pdf');
 		await request(app).post('/api/templates/preview').send({ definition: badDef }).expect(400);
 
-		const png = readFileSync(join('admin', 'e-invoices.png'));
+		const png = readFileSync('admin/e-invoices.png');
 		const withLogo = await request(app)
 			.post(`/api/templates/${first.body.id}/logo`)
 			.send({ filename: 'logo.png', mime: 'image/png', dataBase64: png.toString('base64') })

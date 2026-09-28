@@ -9,13 +9,18 @@ export interface Party {
 	vatId?: string;
 	taxNumber?: string;
 	email?: string;
+	phone?: string;
+	website?: string;
 	customerNumber?: string;
+	contactName?: string;
 	iban?: string;
 	bic?: string;
 }
 
 export interface InvoiceLine {
 	description: string;
+	sku?: string;
+	details?: string;
 	quantity: number;
 	unit: string;
 	unitPriceNet: number;

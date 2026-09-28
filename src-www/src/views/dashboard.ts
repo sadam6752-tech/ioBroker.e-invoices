@@ -39,8 +39,8 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 					<span>${esc(i.buyer.name || '—')}</span>
 					<span>${eur(i.totals.grossTotal)}</span>
 					<a href="#/invoices/${esc(i.id)}">Ansehen</a>
-					${i.pdfPath ? `<a href="${api.pdfUrl(i.id)}" target="_blank">PDF</a>` : ''}
-					${i.xml ? `<a href="${api.xmlUrl(i.id)}" target="_blank">XML</a>` : ''}
+					${i.pdfPath ? `<a href="${api.pdfUrl(i.id)}" download="${esc(i.number ?? 'rechnung')}.pdf">PDF ↓</a>` : ''}
+					${i.xml ? `<a href="${api.xmlUrl(i.id)}" download="${esc(i.number ?? 'rechnung')}.xml">XML ↓</a>` : ''}
 				</div></div>`,
 					)
 					.join('') || `<div class="card muted">Keine Rechnungen gefunden.</div>`;

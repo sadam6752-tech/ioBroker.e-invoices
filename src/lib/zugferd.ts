@@ -123,7 +123,13 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 			electronicAddress: invoice.seller.email?.trim()
 				? { value: invoice.seller.email.trim(), schemeID: 'EM' }
 				: undefined,
-			contact: invoice.seller.email?.trim() ? { email: invoice.seller.email.trim() } : undefined,
+			contact:
+				invoice.seller.email?.trim() || invoice.seller.phone?.trim()
+					? {
+							email: invoice.seller.email?.trim() || undefined,
+							phone: invoice.seller.phone?.trim() || undefined,
+						}
+					: undefined,
 		},
 		buyer: {
 			name: invoice.buyer.name,
@@ -136,6 +142,13 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 			electronicAddress: invoice.buyer.email?.trim()
 				? { value: invoice.buyer.email.trim(), schemeID: 'EM' }
 				: undefined,
+			contact:
+				invoice.buyer.email?.trim() || invoice.buyer.phone?.trim()
+					? {
+							email: invoice.buyer.email?.trim() || undefined,
+							phone: invoice.buyer.phone?.trim() || undefined,
+						}
+					: undefined,
 		},
 		lines: invoice.lines.map((line, index) => {
 			const discount = line.discountPercent ?? 0;
@@ -143,6 +156,8 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 			return {
 				id: String(index + 1),
 				name: line.description,
+				description: line.details?.trim() || undefined,
+				sellerAssignedId: line.sku?.trim() || undefined,
 				quantity: line.quantity,
 				unitCode: mapUnitCode(line.unit || 'Stk'),
 				unitPrice: netUnit,

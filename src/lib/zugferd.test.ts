@@ -5,9 +5,7 @@
  */
 import { extractXml } from '@stackforge-eu/factur-x';
 import { expect } from 'chai';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { inflateSync } from 'node:zlib';
 import { InvoiceDatabase, type StoredInvoice } from './db';
 import type { InvoiceDraftInput, Party } from './invoice-model';
 import { embedHybridPdf, generateInvoiceXml, mapUnitCode, mapVatCategory, resolveProfile } from './zugferd';
@@ -59,37 +57,45 @@ function draft(overrides: Partial<InvoiceDraftInput> = {}): InvoiceDraftInput {
 }
 
 /**
- * Issues a draft in an isolated temp database.
+ * Extracts searchable text from a pdfkit PDF: page streams are flate
+ * compressed and text runs are hex encoded (<414243>) with kerning gaps
+ * that may split words. Returns raw, inflated and joined-fragment text.
  *
- * @param input - Draft content to issue.
+ * @param pdf - Rendered PDF bytes.
  */
-function issueInTempDb(input: InvoiceDraftInput): { dir: string; db: InvoiceDatabase; invoice: StoredInvoice } {
-	const dir = mkdtempSync(join(tmpdir(), 'einv-p3-'));
-	const db = new InvoiceDatabase(join(dir, 'invoices.db'));
-	db.migrate();
-	const created = db.createDraft(input);
-	const invoice = db.issueDraft(created.id, 2026);
-	return { dir, db, invoice };
+function pdfText(pdf: Buffer): string {
+	const raw = pdf.toString('latin1');
+	const parts = [raw];
+	const fragments: string[] = [];
+	for (const match of raw.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+		try {
+			const text = inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1');
+			parts.push(
+				text.replace(/<([0-9a-fA-F]+)>/g, (_found, hex: string) => {
+					const decoded = Buffer.from(hex, 'hex').toString('latin1');
+					fragments.push(decoded);
+					return decoded;
+				}),
+			);
+		} catch {
+			// not a flate stream (e.g. embedded files)
+		}
+	}
+	parts.push(fragments.join(''));
+	return parts.join('\n');
 }
 
 /**
- * Removes a temp dir, retrying on Windows file locks (better-sqlite3
- * WAL handles may linger briefly after close).
+ * Issues a draft in an isolated in-memory database (no files, no locks).
  *
- * @param dir - Directory to remove.
+ * @param input - Draft content to issue.
  */
-function removeTempDir(dir: string): void {
-	for (let attempt = 1; attempt <= 5; attempt++) {
-		try {
-			rmSync(dir, { recursive: true, force: true });
-			return;
-		} catch (error) {
-			if (attempt === 5) {
-				throw error;
-			}
-			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
-		}
-	}
+function issueInMemoryDb(input: InvoiceDraftInput): { db: InvoiceDatabase; invoice: StoredInvoice } {
+	const db = new InvoiceDatabase(':memory:');
+	db.migrate();
+	const created = db.createDraft(input);
+	const invoice = db.issueDraft(created.id, 2026);
+	return { db, invoice };
 }
 
 describe('zugferd => mapping helpers', () => {
@@ -109,18 +115,15 @@ describe('zugferd => mapping helpers', () => {
 
 describe('zugferd => standard EN16931 invoice', function () {
 	this.timeout(60000);
-	let ctx: { dir: string; db: InvoiceDatabase; invoice: StoredInvoice } | null = null;
+	let ctx: { db: InvoiceDatabase; invoice: StoredInvoice } | null = null;
 
 	afterEach(() => {
 		ctx?.db.close();
-		if (ctx) {
-			removeTempDir(ctx.dir);
-			ctx = null;
-		}
+		ctx = null;
 	});
 
 	it('generates XSD-valid XML with all Pflicht markers', async () => {
-		ctx = issueInTempDb(draft());
+		ctx = issueInMemoryDb(draft());
 		const { xml } = await generateInvoiceXml(ctx.invoice);
 		expect(xml).to.contain('CrossIndustryInvoice');
 		expect(xml).to.contain(ctx.invoice.number ?? 'NUMBER-MISSING');
@@ -136,7 +139,7 @@ describe('zugferd => standard EN16931 invoice', function () {
 	});
 
 	it('embeds XML into PDF and round-trips it', async () => {
-		ctx = issueInTempDb(draft());
+		ctx = issueInMemoryDb(draft());
 		const { xml } = await generateInvoiceXml(ctx.invoice);
 		const sight = await renderInvoicePdf(ctx.invoice);
 		expect(sight.subarray(0, 4).toString()).to.equal('%PDF');
@@ -154,10 +157,9 @@ describe('zugferd => mixed-rates BASIC invoice', function () {
 	this.timeout(60000);
 
 	it('validates a discounted 19/7% invoice under BASIC', async () => {
-		const dir = mkdtempSync(join(tmpdir(), 'einv-p3-'));
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
 		try {
-			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
-			db.migrate();
 			const created = db.createDraft(
 				draft({
 					lines: [
@@ -181,9 +183,8 @@ describe('zugferd => mixed-rates BASIC invoice', function () {
 			const check = await validateArtifacts(basic, xml);
 			expect(check.formatErrors).to.deep.equal([]);
 			expect(check.businessErrors).to.deep.equal([]);
-			db.close();
 		} finally {
-			removeTempDir(dir);
+			db.close();
 		}
 	});
 });
@@ -192,10 +193,9 @@ describe('zugferd => exempt small invoice', function () {
 	this.timeout(60000);
 
 	it('validates a 0% exempt invoice with reason', async () => {
-		const dir = mkdtempSync(join(tmpdir(), 'einv-p3-'));
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
 		try {
-			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
-			db.migrate();
 			const created = db.createDraft(
 				draft({
 					lines: [
@@ -217,9 +217,54 @@ describe('zugferd => exempt small invoice', function () {
 			const check = await validateArtifacts(issued, xml);
 			expect(check.formatErrors).to.deep.equal([]);
 			expect(check.businessErrors).to.deep.equal([]);
-			db.close();
 		} finally {
-			removeTempDir(dir);
+			db.close();
+		}
+	});
+});
+
+describe('zugferd => sku, details and phone', function () {
+	this.timeout(60000);
+
+	it('maps Art.Nr, Detailzeile and Telefon into CII', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const created = db.createDraft(
+				draft({
+					seller: { ...seller, phone: '+49 30 12345', website: 'https://muster.example' },
+					lines: [
+						{
+							description: 'Produkt A',
+							sku: 'ABC123',
+							details: 'Detaillierte Beschreibung',
+							quantity: 4,
+							unit: 'Stk',
+							unitPriceNet: 19.95,
+							vatRate: 19,
+						},
+					],
+				}),
+			);
+			const issued = db.issueDraft(created.id, 2026);
+			const { xml } = await generateInvoiceXml(issued);
+			expect(xml).to.contain('ABC123');
+			expect(xml).to.contain('Detaillierte Beschreibung');
+			expect(xml).to.contain('+49 30 12345');
+			const check = await validateArtifacts(issued, xml);
+			expect(check.formatErrors).to.deep.equal([]);
+			expect(check.businessErrors).to.deep.equal([]);
+
+			const pdf = await renderInvoicePdf(issued);
+			const text = pdfText(pdf).replace(/\s+/g, '');
+			expect(text).to.contain('ABC123');
+			expect(text).to.contain('DetaillierteBeschreibung');
+			expect(text).to.contain('Zwischensummenetto');
+			expect(text).to.contain('Gesamtbetragbrutto');
+			expect(text).to.contain('28.09.2026');
+			expect(text).to.contain('+493012345');
+		} finally {
+			db.close();
 		}
 	});
 });
@@ -228,15 +273,14 @@ describe('validation => tampered xml', function () {
 	this.timeout(60000);
 
 	it('flags business errors when markers are missing', async () => {
-		const { dir, db, invoice } = issueInTempDb(draft());
+		const { db, invoice } = issueInMemoryDb(draft());
 		try {
 			const { xml } = await generateInvoiceXml(invoice);
 			const tampered = xml.split(invoice.number ?? 'NUMBER-MISSING').join('2000-9999');
 			const check = await validateArtifacts(invoice, tampered);
 			expect(check.businessErrors.length).to.be.greaterThan(0);
-			db.close();
 		} finally {
-			removeTempDir(dir);
+			db.close();
 		}
 	});
 });

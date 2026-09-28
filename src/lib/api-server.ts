@@ -211,7 +211,9 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				res.status(404).json({ error: 'No XML for this invoice (not issued yet?)' });
 				return;
 			}
-			res.type('application/xml').send(invoice.xml);
+			res.type('application/xml');
+			res.set('Content-Disposition', `attachment; filename="${invoice.number ?? invoice.id}.xml"`);
+			res.send(invoice.xml);
 		}),
 	);
 
@@ -225,7 +227,9 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			}
 			try {
 				const data = await storage.read(invoice.pdfPath);
-				res.type('application/pdf').send(data);
+				res.type('application/pdf');
+				res.set('Content-Disposition', `inline; filename="${invoice.number ?? invoice.id}.pdf"`);
+				res.send(data);
 			} catch {
 				res.status(404).json({ error: `Artifact file missing: ${invoice.pdfPath}` });
 			}

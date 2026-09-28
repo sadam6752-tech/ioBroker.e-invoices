@@ -13,6 +13,11 @@ interface Template {
 		footerText: string;
 		showArchiveHint: boolean;
 		showPageNumbers: boolean;
+		showTagline: boolean;
+		introText: string;
+		closingText: string;
+		signatureName: string;
+		headerExtra: string;
 		blocks: Record<string, boolean>;
 		logo?: { path: string; position: string; widthMm: number };
 	};
@@ -58,6 +63,13 @@ export async function templates(root: HTMLElement): Promise<void> {
 		<label><input type="checkbox" data-f="showCustomerNumber" ${d.showCustomerNumber ? 'checked' : ''} style="width:auto" /> Kundennr. (BT-10)</label>
 		<label><input type="checkbox" data-f="showPaymentTerms" ${d.showPaymentTerms ? 'checked' : ''} style="width:auto" /> Zahlungsbedingungen</label>
 		<label><input type="checkbox" data-f="showArchiveHint" ${d.showArchiveHint ? 'checked' : ''} style="width:auto" /> §14b-Archivhinweis</label>
+		<label><input type="checkbox" data-f="showTagline" ${d.showTagline !== false ? 'checked' : ''} style="width:auto" /> Adress-Tagline</label>
+		<label>Einleitungssatz<textarea id="t-intro">${esc(d.introText ?? '')}</textarea></label>
+		<label>Schlusssatz<textarea id="t-closing">${esc(d.closingText ?? '')}</textarea></label>
+		<div class="grid2">
+			<label>Unterschrift (Name)<input id="t-sign" value="${esc(d.signatureName ?? '')}" /></label>
+			<label>Kopfzusatz (z.B. Geschäftsführer)<input id="t-hextra" value="${esc(d.headerExtra ?? '')}" /></label>
+		</div>
 		<label>Fußzeile<textarea id="t-footer">${esc(d.footerText)}</textarea></label>
 		<div class="grid2">
 			<label>Logo-Position<select id="t-lpos">
@@ -168,10 +180,14 @@ export async function templates(root: HTMLElement): Promise<void> {
 		for (const k of FREE) {
 			def.blocks[k] = root.querySelector<HTMLInputElement>(`[data-f="blocks.${k}"]`)?.checked ?? def.blocks[k];
 		}
-		for (const k of ['showEmail', 'showCustomerNumber', 'showPaymentTerms', 'showArchiveHint', 'showPageNumbers'] as const) {
+		for (const k of ['showEmail', 'showCustomerNumber', 'showPaymentTerms', 'showArchiveHint', 'showPageNumbers', 'showTagline'] as const) {
 			(def as unknown as Record<string, boolean>)[k] = root.querySelector<HTMLInputElement>(`[data-f="${k}"]`)?.checked ?? false;
 		}
 		def.footerText = root.querySelector<HTMLTextAreaElement>('#t-footer')?.value ?? '';
+		(def as unknown as Record<string, string>).introText = root.querySelector<HTMLTextAreaElement>('#t-intro')?.value ?? '';
+		(def as unknown as Record<string, string>).closingText = root.querySelector<HTMLTextAreaElement>('#t-closing')?.value ?? '';
+		(def as unknown as Record<string, string>).signatureName = root.querySelector<HTMLInputElement>('#t-sign')?.value ?? '';
+		(def as unknown as Record<string, string>).headerExtra = root.querySelector<HTMLInputElement>('#t-hextra')?.value ?? '';
 		if (def.logo) {
 			def.logo.position = (root.querySelector<HTMLSelectElement>('#t-lpos')?.value ?? 'right') as 'left' | 'right' | 'center';
 			def.logo.widthMm = Number(root.querySelector<HTMLInputElement>('#t-lw')?.value ?? 30);

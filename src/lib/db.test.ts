@@ -1,6 +1,7 @@
 /**
  * Unit tests for the SQLite persistence layer (P1).
- * Each test uses an isolated temp database file.
+ * In-memory databases (no files, no Windows locks); one file-based test
+ * covers real file creation.
  */
 import { expect } from 'chai';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -38,8 +39,15 @@ function draft(overrides: Partial<InvoiceDraftInput> = {}): InvoiceDraftInput {
 	};
 }
 
+/** Opens a migrated in-memory database. */
+function openMemoryDb(): InvoiceDatabase {
+	const db = new InvoiceDatabase(':memory:');
+	db.migrate();
+	return db;
+}
+
 describe('db => migrations', () => {
-	it('migrates a fresh database to the latest version', () => {
+	it('migrates a fresh file database to the latest version', () => {
 		const dir = mkdtempSync(join(tmpdir(), 'einv-'));
 		try {
 			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
@@ -54,26 +62,20 @@ describe('db => migrations', () => {
 	});
 
 	it('migrate is idempotent', () => {
-		const dir = mkdtempSync(join(tmpdir(), 'einv-'));
+		const db = openMemoryDb();
 		try {
-			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
-			db.migrate();
 			db.migrate();
 			expect(db.currentVersion()).to.equal(2);
-			db.close();
 		} finally {
-			rmSync(dir, { recursive: true, force: true });
+			db.close();
 		}
 	});
 });
 
 describe('db => drafts and issue flow', () => {
 	it('creates, updates, issues and numbers sequentially', () => {
-		const dir = mkdtempSync(join(tmpdir(), 'einv-'));
+		const db = openMemoryDb();
 		try {
-			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
-			db.migrate();
-
 			const first = db.createDraft(draft());
 			expect(first.status).to.equal('draft');
 			expect(first.number).to.equal(null);
@@ -92,39 +94,32 @@ describe('db => drafts and issue flow', () => {
 
 			expect(() => db.updateDraft(first.id, {})).to.throw();
 			expect(db.countByStatus()).to.deep.equal({ draft: 0, issued: 2, cancelled: 0 });
-			db.close();
 		} finally {
-			rmSync(dir, { recursive: true, force: true });
+			db.close();
 		}
 	});
 
 	it('refuses to issue incomplete drafts', () => {
-		const dir = mkdtempSync(join(tmpdir(), 'einv-'));
+		const db = openMemoryDb();
 		try {
-			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
-			db.migrate();
 			const bad = db.createDraft(draft({ lines: [] }));
 			expect(() => db.issueDraft(bad.id, 2026)).to.throw(/issuable|line/i);
-			db.close();
 		} finally {
-			rmSync(dir, { recursive: true, force: true });
+			db.close();
 		}
 	});
 
 	it('lists and filters invoices', () => {
-		const dir = mkdtempSync(join(tmpdir(), 'einv-'));
+		const db = openMemoryDb();
 		try {
-			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
-			db.migrate();
 			const one = db.createDraft(draft());
 			db.createDraft(draft());
 			db.issueDraft(one.id, 2026);
 			expect(db.listInvoices({ status: 'issued' })).to.have.lengthOf(1);
 			expect(db.listInvoices({ status: 'draft' })).to.have.lengthOf(1);
 			expect(db.listInvoices({ query: 'Kunde' })).to.have.lengthOf(2);
-			db.close();
 		} finally {
-			rmSync(dir, { recursive: true, force: true });
+			db.close();
 		}
 	});
 });

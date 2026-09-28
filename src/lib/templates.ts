@@ -64,6 +64,16 @@ export interface LayoutTemplate {
 	showArchiveHint: boolean;
 	/** Show page numbers. */
 	showPageNumbers: boolean;
+	/** Show the auto address tagline under the header. */
+	showTagline: boolean;
+	/** Intro sentence under the title (max 300 chars). */
+	introText: string;
+	/** Closing sentence above the greeting (max 300 chars). */
+	closingText: string;
+	/** Signature name under the greeting (max 80 chars, seller fallback). */
+	signatureName: string;
+	/** Extra header lines, e.g. Geschäftsführer (max 200 chars). */
+	headerExtra: string;
 	/** Content block toggles. */
 	blocks: TemplateBlocks;
 }
@@ -79,6 +89,11 @@ export const DEFAULT_TEMPLATE: LayoutTemplate = {
 	footerText: '',
 	showArchiveHint: false,
 	showPageNumbers: false,
+	showTagline: true,
+	introText: 'Hiermit stelle ich Ihnen folgende Positionen in Rechnung.',
+	closingText: 'Bei Rückfragen stehe ich selbstverständlich jederzeit gerne zur Verfügung.',
+	signatureName: '',
+	headerExtra: '',
 	blocks: { title: true, meta: true, parties: true, positions: true, totals: true, payment: true, notes: true },
 };
 
@@ -118,6 +133,7 @@ export function validateTemplate(template: unknown): string[] {
 		'showPaymentTerms',
 		'showArchiveHint',
 		'showPageNumbers',
+		'showTagline',
 	] as const) {
 		if (typeof t[key] !== 'boolean') {
 			errors.push(`${key} muss true/false sein`);
@@ -125,6 +141,20 @@ export function validateTemplate(template: unknown): string[] {
 	}
 	if (typeof t.footerText !== 'string' || t.footerText.length > 500) {
 		errors.push('Fußzeile muss Text mit max. 500 Zeichen sein');
+	}
+	for (const [key, max] of [
+		['introText', 300],
+		['closingText', 300],
+		['headerExtra', 200],
+	] as const) {
+		const value: unknown = t[key];
+		if (typeof value !== 'string' || value.length > max) {
+			errors.push(`${key} muss Text mit max. ${max} Zeichen sein`);
+		}
+	}
+	const signature: unknown = t.signatureName;
+	if (typeof signature !== 'string' || signature.length > 80) {
+		errors.push('signatureName muss Text mit max. 80 Zeichen sein');
 	}
 	const blocks = t.blocks as Record<string, unknown> | undefined;
 	if (!blocks) {

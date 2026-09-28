@@ -28,11 +28,12 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			${inv.notes ? `<p class="muted">Notiz: ${esc(inv.notes)}</p>` : ''}
 			</div>
 			<div class="card"><div class="row">
-				${inv.status === 'draft' ? `<button id="d-issue">Ausstellen</button>` : ''}
+				${inv.status === 'draft' ? `<button id="d-issue">Ausstellen</button><span class="muted">Danach nicht mehr änderbar.</span>` : ''}
 				<button class="secondary" id="d-validate">Validieren</button>
-				${inv.pdfPath ? `<a class="btn secondary" href="${api.pdfUrl(inv.id)}" target="_blank">PDF</a>` : ''}
-				${inv.xml ? `<a class="btn secondary" href="${api.xmlUrl(inv.id)}" target="_blank">XML</a>` : ''}
-				${inv.xlsxPath ? `<a class="btn secondary" href="${api.xlsxUrl(inv.id)}" target="_blank">Excel</a>` : ''}
+				${inv.pdfPath ? `<a class="btn secondary" href="${api.pdfUrl(inv.id)}" target="_blank" rel="noopener">PDF ansehen</a>` : ''}
+				${inv.pdfPath ? `<a class="btn secondary" href="${api.pdfUrl(inv.id)}" download="${esc(inv.number ?? 'rechnung')}.pdf">PDF ↓</a>` : ''}
+				${inv.xml ? `<a class="btn secondary" href="${api.xmlUrl(inv.id)}" download="${esc(inv.number ?? 'rechnung')}.xml">XML ↓</a>` : ''}
+				${inv.xlsxPath ? `<a class="btn secondary" href="${api.xlsxUrl(inv.id)}" download="${esc(inv.number ?? 'rechnung')}.xlsx">Excel ↓</a>` : ''}
 			</div><div id="d-out"></div></div>`;
 
 		const out = root.querySelector('#d-out')!;
@@ -49,6 +50,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			}
 		});
 		root.querySelector('#d-issue')?.addEventListener('click', async () => {
+			if (!window.confirm('Wirklich ausstellen? Danach ist keine Änderung mehr möglich (GoBD).')) return;
 			try {
 				const issued = await api.issue(inv.id);
 				location.hash = `#/invoices/${issued.id}`;

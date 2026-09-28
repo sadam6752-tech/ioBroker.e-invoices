@@ -33,6 +33,11 @@ const DEFAULT_TEMPLATE = {
   footerText: "",
   showArchiveHint: false,
   showPageNumbers: false,
+  showTagline: true,
+  introText: "Hiermit stelle ich Ihnen folgende Positionen in Rechnung.",
+  closingText: "Bei R\xFCckfragen stehe ich selbstverst\xE4ndlich jederzeit gerne zur Verf\xFCgung.",
+  signatureName: "",
+  headerExtra: "",
   blocks: { title: true, meta: true, parties: true, positions: true, totals: true, payment: true, notes: true }
 };
 const ARCHIVE_HINT = "Hinweis: Diese Rechnung ist vom Leistungsempf\xE4nger zwei Jahre aufzubewahren (\xA7 14b Abs. 1 Satz 5 UStG).";
@@ -60,7 +65,8 @@ function validateTemplate(template) {
     "showCustomerNumber",
     "showPaymentTerms",
     "showArchiveHint",
-    "showPageNumbers"
+    "showPageNumbers",
+    "showTagline"
   ]) {
     if (typeof t[key] !== "boolean") {
       errors.push(`${key} muss true/false sein`);
@@ -68,6 +74,20 @@ function validateTemplate(template) {
   }
   if (typeof t.footerText !== "string" || t.footerText.length > 500) {
     errors.push("Fu\xDFzeile muss Text mit max. 500 Zeichen sein");
+  }
+  for (const [key, max] of [
+    ["introText", 300],
+    ["closingText", 300],
+    ["headerExtra", 200]
+  ]) {
+    const value = t[key];
+    if (typeof value !== "string" || value.length > max) {
+      errors.push(`${key} muss Text mit max. ${max} Zeichen sein`);
+    }
+  }
+  const signature = t.signatureName;
+  if (typeof signature !== "string" || signature.length > 80) {
+    errors.push("signatureName muss Text mit max. 80 Zeichen sein");
   }
   const blocks = t.blocks;
   if (!blocks) {

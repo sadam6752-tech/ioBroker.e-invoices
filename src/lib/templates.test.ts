@@ -2,9 +2,6 @@
  * P4c tests: Pflichtfeld-Wächter and template persistence.
  */
 import { expect } from 'chai';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { InvoiceDatabase } from './db';
 import { DEFAULT_TEMPLATE, validateTemplate, type LayoutTemplate } from './templates';
 
@@ -52,11 +49,9 @@ describe('templates => validateTemplate', () => {
 
 describe('templates => database', () => {
 	it('seeds, versions, switches and protects templates', () => {
-		const dir = mkdtempSync(join(tmpdir(), 'einv-tpl-'));
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
 		try {
-			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
-			db.migrate();
-
 			const seeded = db.ensureDefaultTemplate();
 			expect(seeded.isDefault).to.equal(true);
 			expect(seeded.name).to.equal('Standard');
@@ -80,17 +75,15 @@ describe('templates => database', () => {
 			expect(() =>
 				db.createTemplate('Bad', { ...valid(), blocks: { ...valid().blocks, totals: false } }),
 			).to.throw(/Invalid template/);
-			db.close();
 		} finally {
-			rmSync(dir, { recursive: true, force: true });
+			db.close();
 		}
 	});
 
 	it('refuses to delete templates referenced by invoices', () => {
-		const dir = mkdtempSync(join(tmpdir(), 'einv-tpl-'));
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
 		try {
-			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
-			db.migrate();
 			db.ensureDefaultTemplate();
 			const other = db.createTemplate('Zweit', { ...valid(), name: 'Zweit' });
 			const created = db.createDraft({
@@ -104,9 +97,8 @@ describe('templates => database', () => {
 			const issued = db.issueDraft(created.id, 2026);
 			db.attachIssueArtifacts(issued.id, { xml: '<x/>', pdfPath: 'p.pdf', templateId: other.id });
 			expect(() => db.deleteTemplate(other.id)).to.throw(/referenced/i);
-			db.close();
 		} finally {
-			rmSync(dir, { recursive: true, force: true });
+			db.close();
 		}
 	});
 });

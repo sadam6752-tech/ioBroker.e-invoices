@@ -174,17 +174,21 @@ function createApiServer(deps) {
   app.get(
     "/api/invoices/:id.xml",
     route((req, res) => {
+      var _a;
       const invoice = db.getInvoice(routeParam(req, "id"));
       if (!(invoice == null ? void 0 : invoice.xml)) {
         res.status(404).json({ error: "No XML for this invoice (not issued yet?)" });
         return;
       }
-      res.type("application/xml").send(invoice.xml);
+      res.type("application/xml");
+      res.set("Content-Disposition", `attachment; filename="${(_a = invoice.number) != null ? _a : invoice.id}.xml"`);
+      res.send(invoice.xml);
     })
   );
   app.get(
     "/api/invoices/:id.pdf",
     route(async (req, res) => {
+      var _a;
       const invoice = db.getInvoice(routeParam(req, "id"));
       if (!(invoice == null ? void 0 : invoice.pdfPath)) {
         res.status(404).json({ error: "No PDF for this invoice (not issued yet?)" });
@@ -192,7 +196,9 @@ function createApiServer(deps) {
       }
       try {
         const data = await storage.read(invoice.pdfPath);
-        res.type("application/pdf").send(data);
+        res.type("application/pdf");
+        res.set("Content-Disposition", `inline; filename="${(_a = invoice.number) != null ? _a : invoice.id}.pdf"`);
+        res.send(data);
       } catch {
         res.status(404).json({ error: `Artifact file missing: ${invoice.pdfPath}` });
       }

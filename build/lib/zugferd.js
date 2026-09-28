@@ -63,7 +63,7 @@ function mapVatCategory(vatRate) {
   return import_factur_x.VatCategoryCode.STANDARD_RATE;
 }
 function toFacturXInput(invoice) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
   if (!invoice.number) {
     throw new Error("Invoice has no number yet \u2014 issue it before generating XML");
   }
@@ -95,7 +95,10 @@ function toFacturXInput(invoice) {
       },
       taxRegistrations: sellerTax.length > 0 ? sellerTax : void 0,
       electronicAddress: ((_f = invoice.seller.email) == null ? void 0 : _f.trim()) ? { value: invoice.seller.email.trim(), schemeID: "EM" } : void 0,
-      contact: ((_g = invoice.seller.email) == null ? void 0 : _g.trim()) ? { email: invoice.seller.email.trim() } : void 0
+      contact: ((_g = invoice.seller.email) == null ? void 0 : _g.trim()) || ((_h = invoice.seller.phone) == null ? void 0 : _h.trim()) ? {
+        email: ((_i = invoice.seller.email) == null ? void 0 : _i.trim()) || void 0,
+        phone: ((_j = invoice.seller.phone) == null ? void 0 : _j.trim()) || void 0
+      } : void 0
     },
     buyer: {
       name: invoice.buyer.name,
@@ -105,15 +108,21 @@ function toFacturXInput(invoice) {
         postalCode: invoice.buyer.zip,
         country: invoice.buyer.country || "DE"
       },
-      electronicAddress: ((_h = invoice.buyer.email) == null ? void 0 : _h.trim()) ? { value: invoice.buyer.email.trim(), schemeID: "EM" } : void 0
+      electronicAddress: ((_k = invoice.buyer.email) == null ? void 0 : _k.trim()) ? { value: invoice.buyer.email.trim(), schemeID: "EM" } : void 0,
+      contact: ((_l = invoice.buyer.email) == null ? void 0 : _l.trim()) || ((_m = invoice.buyer.phone) == null ? void 0 : _m.trim()) ? {
+        email: ((_n = invoice.buyer.email) == null ? void 0 : _n.trim()) || void 0,
+        phone: ((_o = invoice.buyer.phone) == null ? void 0 : _o.trim()) || void 0
+      } : void 0
     },
     lines: invoice.lines.map((line, index) => {
-      var _a2;
+      var _a2, _b2, _c2;
       const discount = (_a2 = line.discountPercent) != null ? _a2 : 0;
       const netUnit = Math.round(line.unitPriceNet * (1 - discount / 100) * 100) / 100;
       return {
         id: String(index + 1),
         name: line.description,
+        description: ((_b2 = line.details) == null ? void 0 : _b2.trim()) || void 0,
+        sellerAssignedId: ((_c2 = line.sku) == null ? void 0 : _c2.trim()) || void 0,
         quantity: line.quantity,
         unitCode: mapUnitCode(line.unit || "Stk"),
         unitPrice: netUnit,
@@ -146,11 +155,11 @@ function toFacturXInput(invoice) {
     }),
     payment: {
       meansCode: "58",
-      iban: ((_i = invoice.seller.iban) == null ? void 0 : _i.trim()) || void 0,
-      bic: ((_j = invoice.seller.bic) == null ? void 0 : _j.trim()) || void 0,
+      iban: ((_p = invoice.seller.iban) == null ? void 0 : _p.trim()) || void 0,
+      bic: ((_q = invoice.seller.bic) == null ? void 0 : _q.trim()) || void 0,
       paymentReference: invoice.number,
-      dueDate: (_k = invoice.dueDate) != null ? _k : void 0,
-      termsDescription: (_l = invoice.paymentTerms) != null ? _l : void 0
+      dueDate: (_r = invoice.dueDate) != null ? _r : void 0,
+      termsDescription: (_s = invoice.paymentTerms) != null ? _s : void 0
     },
     delivery: {
       date: invoice.deliveryDate.split("..")[0]

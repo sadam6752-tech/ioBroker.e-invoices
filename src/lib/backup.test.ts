@@ -2,9 +2,6 @@
  * P5 tests: backup roundtrip and corrupt-backup handling.
  */
 import { expect } from 'chai';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { createBackup, restoreBackup, type BackupStorage } from './backup';
 import { InvoiceDatabase } from './db';
 import { issueInvoiceWithArtifacts } from './issue-service';
@@ -51,11 +48,11 @@ describe('backup => roundtrip', function () {
 	this.timeout(60000);
 
 	it('backs up and restores everything', async () => {
-		const dirA = mkdtempSync(join(tmpdir(), 'einv-bak-a-'));
-		const dirB = mkdtempSync(join(tmpdir(), 'einv-bak-b-'));
+		const dbA = new InvoiceDatabase(':memory:');
+		dbA.migrate();
+		const dbB = new InvoiceDatabase(':memory:');
+		dbB.migrate();
 		try {
-			const dbA = new InvoiceDatabase(join(dirA, 'invoices.db'));
-			dbA.migrate();
 			const storeA = memoryStorage();
 			const invoiceId = await seedIssued(dbA, storeA);
 
@@ -65,8 +62,6 @@ describe('backup => roundtrip', function () {
 			expect(backup.manifest.files.length).to.be.greaterThan(0);
 			expect(backup.data.subarray(0, 2).toString()).to.equal('PK');
 
-			const dbB = new InvoiceDatabase(join(dirB, 'invoices.db'));
-			dbB.migrate();
 			const storeB = memoryStorage();
 			const summary = await restoreBackup(dbB, storeB, backup.data, quiet);
 			expect(summary.invoices).to.equal(1);
@@ -80,29 +75,24 @@ describe('backup => roundtrip', function () {
 			expect(dbB.listTemplates().length).to.be.greaterThan(0);
 			const pdf = await storeB.read(restored?.pdfPath ?? 'missing');
 			expect(pdf.subarray(0, 4).toString()).to.equal('%PDF');
-
+		} finally {
 			dbA.close();
 			dbB.close();
-		} finally {
-			rmSync(dirA, { recursive: true, force: true });
-			rmSync(dirB, { recursive: true, force: true });
 		}
 	});
 });
 
 describe('backup => corrupt input', () => {
 	it('rejects garbage and tampered zips without touching data', async () => {
-		const dirA = mkdtempSync(join(tmpdir(), 'einv-bak-a-'));
-		const dirB = mkdtempSync(join(tmpdir(), 'einv-bak-b-'));
+		const dbA = new InvoiceDatabase(':memory:');
+		dbA.migrate();
+		const dbB = new InvoiceDatabase(':memory:');
+		dbB.migrate();
 		try {
-			const dbA = new InvoiceDatabase(join(dirA, 'invoices.db'));
-			dbA.migrate();
 			const storeA = memoryStorage();
 			await seedIssued(dbA, storeA);
 			const backup = await createBackup(dbA, storeA, quiet, '0.0.0-test');
 
-			const dbB = new InvoiceDatabase(join(dirB, 'invoices.db'));
-			dbB.migrate();
 			const storeB = memoryStorage();
 
 			await restoreBackup(dbB, storeB, Buffer.from('definitely-no-zip'), quiet).then(
@@ -126,12 +116,9 @@ describe('backup => corrupt input', () => {
 				},
 			);
 			expect(dbB.listInvoices()).to.have.lengthOf(0);
-
+		} finally {
 			dbA.close();
 			dbB.close();
-		} finally {
-			rmSync(dirA, { recursive: true, force: true });
-			rmSync(dirB, { recursive: true, force: true });
 		}
 	});
 });
