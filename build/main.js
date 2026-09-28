@@ -372,7 +372,7 @@ class EInvoices extends utils.Adapter {
         version: import_package.version,
         authToken: this.config.authToken || void 0
       });
-      const wwwDir = (0, import_node_path.join)(__dirname, "../../www");
+      const wwwDir = (0, import_node_path.join)(__dirname, "../www");
       if ((0, import_api_server.attachStatic)(app, wwwDir)) {
         this.log.info(`PWA bundle served from ${wwwDir}`);
       } else {
