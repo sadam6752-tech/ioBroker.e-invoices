@@ -128,6 +128,23 @@ export const MIGRATIONS: Migration[] = [
 			)`,
 		],
 	},
+	{
+		version: 5,
+		name: 'products',
+		sql: [
+			`CREATE TABLE IF NOT EXISTS products (
+				id TEXT PRIMARY KEY,
+				sku TEXT NOT NULL DEFAULT '',
+				name TEXT NOT NULL,
+				details TEXT NOT NULL DEFAULT '',
+				unit TEXT NOT NULL DEFAULT 'Stk',
+				unit_price_net REAL NOT NULL DEFAULT 0,
+				vat_rate REAL NOT NULL DEFAULT 19,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`,
+		],
+	},
 ];
 
 /** Highest schema version defined. */

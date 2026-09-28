@@ -244,6 +244,59 @@ describe('api => customers', () => {
 	});
 });
 
+describe('api => products', () => {
+	let db: InvoiceDatabase;
+	let app: ReturnType<typeof createApiServer>;
+
+	before(() => {
+		db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const quiet = { info: (): void => undefined, error: (): void => undefined };
+		app = createApiServer({
+			db,
+			storage: {
+				write: (): Promise<void> => Promise.resolve(),
+				read: (): Promise<Buffer> => Promise.reject(new Error('empty')),
+			},
+			log: quiet,
+			version: '0.0.0-test',
+		});
+	});
+
+	after(() => {
+		db.close();
+	});
+
+	it('creates, reads, updates and deletes products', async () => {
+		const empty = await request(app).get('/api/products').expect(200);
+		expect(empty.body).to.deep.equal([]);
+
+		const created = await request(app)
+			.post('/api/products')
+			.send({ sku: 'ABC123', name: 'Produkt A', unit: 'Stk', unitPriceNet: 19.95, vatRate: 19 })
+			.expect(201);
+		const read = await request(app)
+			.get(`/api/products/${created.body.id as string}`)
+			.expect(200);
+		expect(read.body.sku).to.equal('ABC123');
+
+		const updated = await request(app)
+			.put(`/api/products/${created.body.id as string}`)
+			.send({ unitPriceNet: 21.5 })
+			.expect(200);
+		expect(updated.body.unitPriceNet).to.equal(21.5);
+
+		await request(app)
+			.delete(`/api/products/${created.body.id as string}`)
+			.expect(200);
+		await request(app)
+			.get(`/api/products/${created.body.id as string}`)
+			.expect(404);
+		await request(app).post('/api/products').send({ name: '  ' }).expect(400);
+		await request(app).post('/api/products').send({ name: 'X', vatRate: 16 }).expect(400);
+	});
+});
+
 describe('api => auth', () => {
 	let db: InvoiceDatabase;
 	let openApp: ReturnType<typeof createApiServer>;

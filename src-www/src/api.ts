@@ -83,6 +83,16 @@ export interface CompanyProfile {
 	isDefault: boolean;
 }
 
+export interface Product {
+	id: string;
+	sku: string;
+	name: string;
+	details: string;
+	unit: string;
+	unitPriceNet: number;
+	vatRate: number;
+}
+
 export interface ValidationOutcome {
 	formatErrors: string[];
 	businessErrors: string[];
@@ -213,6 +223,14 @@ export const api = {
 		update: (id: string, patch: { name?: string; profile?: Party }) =>
 			request<CompanyProfile>(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
 		remove: (id: string) => request<{ ok: boolean }>(`/api/customers/${id}`, { method: 'DELETE' }),
+	},
+	products: {
+		list: () => request<Product[]>('/api/products'),
+		create: (item: { sku?: string; name: string; details?: string; unit?: string; unitPriceNet?: number; vatRate?: number }) =>
+			request<Product>('/api/products', { method: 'POST', body: JSON.stringify(item) }),
+		update: (id: string, patch: { sku?: string; name?: string; details?: string; unit?: string; unitPriceNet?: number; vatRate?: number }) =>
+			request<Product>(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
+		remove: (id: string) => request<{ ok: boolean }>(`/api/products/${id}`, { method: 'DELETE' }),
 	},
 	exportUrl: (params: Record<string, string> = {}) => {
 		const q = new URLSearchParams(params).toString();

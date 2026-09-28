@@ -47,7 +47,7 @@ describe('db => migrations', () => {
 	it('migrates a fresh database to the latest version', () => {
 		const db = openMemoryDb();
 		try {
-			expect(db.currentVersion()).to.equal(4);
+			expect(db.currentVersion()).to.equal(5);
 			const columns = db.tableColumns('invoices');
 			expect(columns).to.contain('payment_terms');
 			expect(columns).to.contain('employee_code');
@@ -61,7 +61,7 @@ describe('db => migrations', () => {
 		const db = openMemoryDb();
 		try {
 			db.migrate();
-			expect(db.currentVersion()).to.equal(4);
+			expect(db.currentVersion()).to.equal(5);
 		} finally {
 			db.close();
 		}
@@ -190,6 +190,37 @@ describe('db => customers', () => {
 			expect(db.getCustomer(created.id)).to.equal(null);
 			expect(() => db.deleteCustomer('nope')).to.throw(/not found/i);
 			expect(() => db.createCustomer('  ', customer)).to.throw(/name/i);
+		} finally {
+			db.close();
+		}
+	});
+});
+
+describe('db => products', () => {
+	it('creates, updates, lists and deletes catalog items', () => {
+		const db = openMemoryDb();
+		try {
+			expect(db.listProducts()).to.deep.equal([]);
+			const created = db.createProduct({
+				sku: 'ABC123',
+				name: 'Produkt A',
+				details: 'Detail',
+				unit: 'Stk',
+				unitPriceNet: 19.95,
+				vatRate: 19,
+			});
+			expect(db.getProduct(created.id)?.sku).to.equal('ABC123');
+			const updated = db.updateProduct(created.id, { unitPriceNet: 21.5 });
+			expect(updated.unitPriceNet).to.equal(21.5);
+			expect(updated.name).to.equal('Produkt A');
+			db.createProduct({ name: 'Beratung', unit: 'Std', unitPriceNet: 100, vatRate: 19 });
+			expect(db.listProducts().map(p => p.name)).to.deep.equal(['Beratung', 'Produkt A']);
+			db.deleteProduct(created.id);
+			expect(db.getProduct(created.id)).to.equal(null);
+			expect(() => db.deleteProduct('nope')).to.throw(/not found/i);
+			expect(() => db.createProduct({ name: '  ' })).to.throw(/name/i);
+			expect(() => db.createProduct({ name: 'X', vatRate: 16 })).to.throw(/VAT/i);
+			expect(() => db.createProduct({ name: 'X', unitPriceNet: -1 })).to.throw(/price/i);
 		} finally {
 			db.close();
 		}

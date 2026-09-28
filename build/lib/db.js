@@ -104,6 +104,19 @@ function mapCustomerRow(row) {
     updatedAt: row.updated_at
   };
 }
+function mapProductRow(row) {
+  return {
+    id: row.id,
+    sku: row.sku,
+    name: row.name,
+    details: row.details,
+    unit: row.unit,
+    unitPriceNet: row.unit_price_net,
+    vatRate: row.vat_rate,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
 class InvoiceDatabase {
   db;
   /**
@@ -627,6 +640,7 @@ class InvoiceDatabase {
       templates: this.listTemplates(),
       companies: this.listCompanyProfiles(),
       customers: this.listCustomers(),
+      products: this.listProducts(),
       attachments: attachments.map((row) => ({
         id: row.id,
         invoiceId: row.invoice_id,
@@ -654,13 +668,14 @@ class InvoiceDatabase {
       }
     }
     const run = this.db.transaction(() => {
-      var _a, _b, _c, _d, _e, _f, _g;
+      var _a, _b, _c, _d, _e, _f, _g, _h;
       this.db.prepare(`DELETE FROM attachments`).run();
       this.db.prepare(`DELETE FROM invoices`).run();
       this.db.prepare(`DELETE FROM counters`).run();
       this.db.prepare(`DELETE FROM templates`).run();
       this.db.prepare(`DELETE FROM company_profiles`).run();
       this.db.prepare(`DELETE FROM customers`).run();
+      this.db.prepare(`DELETE FROM products`).run();
       for (const counter of (_a = dump.counters) != null ? _a : []) {
         const employee = (0, import_invoice_model.normalizeEmployeeCode)((_b = counter.employee) != null ? _b : "00");
         this.db.prepare(`INSERT INTO counters (year, employee, last_seq) VALUES (?, ?, ?)`).run(counter.year, employee, counter.last_seq);
@@ -734,7 +749,23 @@ class InvoiceDatabase {
           customer.updatedAt
         );
       }
-      for (const attachment of (_g = dump.attachments) != null ? _g : []) {
+      for (const product of (_g = dump.products) != null ? _g : []) {
+        this.db.prepare(
+          `INSERT INTO products (id, sku, name, details, unit, unit_price_net, vat_rate, created_at, updated_at)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).run(
+          product.id,
+          product.sku,
+          product.name,
+          product.details,
+          product.unit,
+          product.unitPriceNet,
+          product.vatRate,
+          product.createdAt,
+          product.updatedAt
+        );
+      }
+      for (const attachment of (_h = dump.attachments) != null ? _h : []) {
         this.db.prepare(
           `INSERT INTO attachments (invoice_id, filename, mime, size, data, created_at)
 						VALUES (?, ?, ?, ?, ?, ?)`
@@ -966,6 +997,106 @@ class InvoiceDatabase {
       throw new Error(`Customer not found: ${id}`);
     }
     this.db.prepare(`DELETE FROM customers WHERE id = ?`).run(id);
+  }
+  /**
+   * Creates a catalog product/service.
+   *
+   * @param item - Catalog content.
+   */
+  createProduct(item) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+    if (!((_a = item.name) == null ? void 0 : _a.trim())) {
+      throw new Error("Product needs a name");
+    }
+    if (item.vatRate !== void 0 && ![0, 7, 19].includes(item.vatRate)) {
+      throw new Error("VAT rate must be 0, 7 or 19");
+    }
+    if (((_b = item.unitPriceNet) != null ? _b : 0) < 0) {
+      throw new Error("Unit price must be >= 0");
+    }
+    const id = (0, import_node_crypto.randomUUID)();
+    const stamp = nowIso();
+    this.db.prepare(
+      `INSERT INTO products (id, sku, name, details, unit, unit_price_net, vat_rate, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      (_d = (_c = item.sku) == null ? void 0 : _c.trim()) != null ? _d : "",
+      item.name.trim(),
+      (_f = (_e = item.details) == null ? void 0 : _e.trim()) != null ? _f : "",
+      ((_g = item.unit) == null ? void 0 : _g.trim()) || "Stk",
+      (_h = item.unitPriceNet) != null ? _h : 0,
+      (_i = item.vatRate) != null ? _i : 19,
+      stamp,
+      stamp
+    );
+    const created = this.getProduct(id);
+    if (!created) {
+      throw new Error("Product was not stored");
+    }
+    return created;
+  }
+  /**
+   * Loads one catalog product by id.
+   *
+   * @param id - Product UUID.
+   */
+  getProduct(id) {
+    const row = this.db.prepare(`SELECT * FROM products WHERE id = ?`).get(id);
+    return row ? mapProductRow(row) : null;
+  }
+  /**
+   * Lists catalog products by name.
+   */
+  listProducts() {
+    const rows = this.db.prepare(`SELECT * FROM products ORDER BY name ASC`).all();
+    return rows.map(mapProductRow);
+  }
+  /**
+   * Updates a catalog product.
+   *
+   * @param id - Product UUID.
+   * @param patch - Partial update.
+   */
+  updateProduct(id, patch) {
+    var _a, _b, _c, _d;
+    const current = this.getProduct(id);
+    if (!current) {
+      throw new Error(`Product not found: ${id}`);
+    }
+    const next = {
+      sku: patch.sku !== void 0 ? patch.sku.trim() : current.sku,
+      name: ((_a = patch.name) == null ? void 0 : _a.trim()) || current.name,
+      details: patch.details !== void 0 ? patch.details : current.details,
+      unit: ((_b = patch.unit) == null ? void 0 : _b.trim()) || current.unit,
+      unitPriceNet: (_c = patch.unitPriceNet) != null ? _c : current.unitPriceNet,
+      vatRate: (_d = patch.vatRate) != null ? _d : current.vatRate
+    };
+    if (![0, 7, 19].includes(next.vatRate)) {
+      throw new Error("VAT rate must be 0, 7 or 19");
+    }
+    if (next.unitPriceNet < 0) {
+      throw new Error("Unit price must be >= 0");
+    }
+    this.db.prepare(
+      `UPDATE products SET sku = ?, name = ?, details = ?, unit = ?, unit_price_net = ?, vat_rate = ?, updated_at = ? WHERE id = ?`
+    ).run(next.sku, next.name, next.details, next.unit, next.unitPriceNet, next.vatRate, nowIso(), id);
+    const updated = this.getProduct(id);
+    if (!updated) {
+      throw new Error("Product update failed");
+    }
+    return updated;
+  }
+  /**
+   * Deletes a catalog product.
+   *
+   * @param id - Product UUID.
+   */
+  deleteProduct(id) {
+    if (!this.getProduct(id)) {
+      throw new Error(`Product not found: ${id}`);
+    }
+    this.db.prepare(`DELETE FROM products WHERE id = ?`).run(id);
   }
 }
 // Annotate the CommonJS export names for ESM import in node:

@@ -48,6 +48,8 @@ export interface LayoutTemplate {
 	version: 1;
 	/** Display name. */
 	name: string;
+	/** Linked company profile for previews (optional). */
+	companyId?: string;
 	/** Logo reference (optional). */
 	logo?: TemplateLogo;
 	/** Hex colors. */
@@ -169,6 +171,10 @@ export function validateTemplate(template: unknown): string[] {
 	const signature: unknown = t.signatureName;
 	if (signature !== undefined && (typeof signature !== 'string' || signature.length > 80)) {
 		errors.push('signatureName muss Text mit max. 80 Zeichen sein');
+	}
+	const companyId: unknown = t.companyId;
+	if (companyId !== undefined && (typeof companyId !== 'string' || companyId.length > 80)) {
+		errors.push('companyId muss Text mit max. 80 Zeichen sein');
 	}
 	const blocks = t.blocks as Record<string, unknown> | undefined;
 	if (!blocks) {

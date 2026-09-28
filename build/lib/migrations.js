@@ -129,6 +129,23 @@ const MIGRATIONS = [
 				updated_at TEXT NOT NULL
 			)`
     ]
+  },
+  {
+    version: 5,
+    name: "products",
+    sql: [
+      `CREATE TABLE IF NOT EXISTS products (
+				id TEXT PRIMARY KEY,
+				sku TEXT NOT NULL DEFAULT '',
+				name TEXT NOT NULL,
+				details TEXT NOT NULL DEFAULT '',
+				unit TEXT NOT NULL DEFAULT 'Stk',
+				unit_price_net REAL NOT NULL DEFAULT 0,
+				vat_rate REAL NOT NULL DEFAULT 19,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`
+    ]
   }
 ];
 const LATEST_SCHEMA_VERSION = MIGRATIONS.reduce((max, item) => Math.max(max, item.version), 0);

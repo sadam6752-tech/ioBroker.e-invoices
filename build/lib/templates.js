@@ -98,6 +98,10 @@ function validateTemplate(template) {
   if (signature !== void 0 && (typeof signature !== "string" || signature.length > 80)) {
     errors.push("signatureName muss Text mit max. 80 Zeichen sein");
   }
+  const companyId = t.companyId;
+  if (companyId !== void 0 && (typeof companyId !== "string" || companyId.length > 80)) {
+    errors.push("companyId muss Text mit max. 80 Zeichen sein");
+  }
   const blocks = t.blocks;
   if (!blocks) {
     errors.push("blocks-Objekt fehlt");

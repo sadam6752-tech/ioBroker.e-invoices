@@ -1,4 +1,4 @@
-import { api, esc, eur, type CompanyProfile, type DraftInput, type Invoice, type InvoiceLine, type Party } from '../api';
+import { api, esc, eur, type CompanyProfile, type DraftInput, type Invoice, type InvoiceLine, type Party, type Product } from '../api';
 
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
 const emptyLine = (): InvoiceLine => ({ description: '', quantity: 1, unit: 'Stk', unitPriceNet: 0, vatRate: 19 });
@@ -118,6 +118,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 	const isEdit = !!editId;
 	let companies: CompanyProfile[] = [];
 	let customers: CompanyProfile[] = [];
+	let catalog: Product[] = [];
 	if (editId) {
 		root.innerHTML = `<div class="card">Lade Entwurf…</div>`;
 		void api
@@ -198,6 +199,13 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				if (s.step === 1 && !root.querySelector('#w-customer')) render();
 			})
 			.catch(() => undefined);
+		void api.products
+			.list()
+			.then(list => {
+				catalog = list;
+				if (s.step === 2 && !root.querySelector('#w-catalog')) render();
+			})
+			.catch(() => undefined);
 	}
 
 	function persist(): void {
@@ -219,7 +227,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			const [idx, field] = el.dataset.l!.split('.');
 			const line = s.lines[Number(idx)];
 			if (!line) return;
-			if (field === 'quantity' || field === 'unitPriceNet' || field === 'vatRate') {
+			if (field === 'quantity' || field === 'unitPriceNet' || field === 'vatRate' || field === 'discountPercent') {
 				(line as unknown as Record<string, number>)[field] = Number(el.value);
 			} else {
 				(line as unknown as Record<string, string>)[field] = el.value;
@@ -273,6 +281,13 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				<label>Dokumenttyp<select id="w-title">
 					${DOC_TITLES.map(t => `<option ${t === s.documentTitle ? 'selected' : ''}>${t}</option>`).join('')}
 				</select></label>
+				${
+					catalog.length > 0
+						? `<div class="row"><label style="flex:1">Aus Positionen übernehmen<select id="w-catalog">
+							${catalog.map(p => `<option value="${esc(p.id)}">${esc(p.sku ? `${p.sku} · ` : '')}${esc(p.name)}</option>`).join('')}
+						</select></label><button class="secondary" id="w-take" style="align-self:end">Übernehmen</button></div>`
+						: ''
+				}
 				${s.lines
 					.map(
 						(l, i) => `<div class="card" style="background:var(--bg)">
@@ -287,6 +302,9 @@ export function wizard(root: HTMLElement, editId?: string): void {
 					</div>
 					<div class="grid2">
 						<label>Preis netto<input data-l="${i}.unitPriceNet" type="number" min="0" step="0.01" value="${l.unitPriceNet}" /></label>
+						<label>Rabatt %<input data-l="${i}.discountPercent" type="number" min="0" max="100" step="0.1" value="${l.discountPercent ?? 0}" /></label>
+					</div>
+					<div class="grid2">
 						<label>USt %<select data-l="${i}.vatRate">
 							${[19, 7, 0].map(r => `<option ${r === l.vatRate ? 'selected' : ''}>${r}</option>`).join('')}
 						</select></label>
@@ -366,6 +384,23 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			s.lines.push(emptyLine());
 			render();
 		});
+		root.querySelector('#w-take')?.addEventListener('click', () => {
+			collect();
+			const id = root.querySelector<HTMLSelectElement>('#w-catalog')?.value ?? '';
+			const found = catalog.find(p => p.id === id);
+			if (found) {
+				s.lines.push({
+					description: found.name,
+					sku: found.sku || undefined,
+					details: found.details || undefined,
+					quantity: 1,
+					unit: found.unit,
+					unitPriceNet: found.unitPriceNet,
+					vatRate: found.vatRate,
+				});
+			}
+			render();
+		});
 		root.querySelectorAll('[data-del]').forEach(btn =>
 			btn.addEventListener('click', () => {
 				collect();
@@ -443,7 +478,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			const [idx, field] = (el as HTMLElement).dataset.l!.split('.');
 			const line = s.lines[Number(idx)];
 			if (!line) return;
-			if (field === 'quantity' || field === 'unitPriceNet' || field === 'vatRate') {
+			if (field === 'quantity' || field === 'unitPriceNet' || field === 'vatRate' || field === 'discountPercent') {
 				(line as unknown as Record<string, number>)[field] = Number((el as HTMLInputElement).value);
 			} else {
 				(line as unknown as Record<string, string>)[field] = (el as HTMLInputElement).value;

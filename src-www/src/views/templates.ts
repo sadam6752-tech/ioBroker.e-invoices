@@ -6,6 +6,7 @@ interface Template {
 	version: number;
 	definition: Record<string, unknown> & {
 		name: string;
+		companyId?: string;
 		colors: { primary: string; text: string; muted: string };
 		showEmail: boolean;
 		showCustomerNumber: boolean;
@@ -34,6 +35,13 @@ export async function templates(root: HTMLElement): Promise<void> {
 	let items: Template[] = [];
 	let editing: Template | null = null;
 	let error = '';
+	let companies: { id: string; name: string }[] = [];
+	try {
+		const res = await apiFetch('/api/company-profiles');
+		if (res.ok) companies = (await res.json()) as { id: string; name: string }[];
+	} catch {
+		// company link stays optional
+	}
 
 	async function reload(): Promise<void> {
 		items = await apiList();
@@ -54,6 +62,10 @@ export async function templates(root: HTMLElement): Promise<void> {
 			} style="width:auto" /> ${label}${locked ? ' (Pflicht)' : ''}</label>`;
 		return `
 		<label>Name<input id="t-name" value="${esc(t.name)}" /></label>
+		<label>Verknüpfte Firma (für Vorschau)<select id="t-company">
+			<option value="">– Musterfirma –</option>
+			${companies.map(c => `<option value="${esc(c.id)}" ${t.definition.companyId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+		</select></label>
 		<div class="grid2">
 			<label>Primärfarbe<input id="t-c1" type="color" value="${esc(d.colors.primary)}" /></label>
 			<label>Textfarbe<input id="t-c2" type="color" value="${esc(d.colors.text)}" /></label>
@@ -222,6 +234,12 @@ export async function templates(root: HTMLElement): Promise<void> {
 			(def as unknown as Record<string, boolean>)[k] = root.querySelector<HTMLInputElement>(`[data-f="${k}"]`)?.checked ?? false;
 		}
 		def.footerText = root.querySelector<HTMLTextAreaElement>('#t-footer')?.value ?? '';
+		const formCompany = root.querySelector<HTMLSelectElement>('#t-company')?.value ?? '';
+		if (formCompany) {
+			(def as unknown as Record<string, string>).companyId = formCompany;
+		} else {
+			delete (def as unknown as Record<string, unknown>).companyId;
+		}
 		(def as unknown as Record<string, string>).introText = root.querySelector<HTMLTextAreaElement>('#t-intro')?.value ?? '';
 		(def as unknown as Record<string, string>).closingText = root.querySelector<HTMLTextAreaElement>('#t-closing')?.value ?? '';
 		(def as unknown as Record<string, string>).signatureName = root.querySelector<HTMLInputElement>('#t-sign')?.value ?? '';

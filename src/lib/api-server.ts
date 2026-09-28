@@ -7,7 +7,14 @@
  */
 import express, { type Express, type Request, type Response } from 'express';
 import { existsSync, statSync } from 'node:fs';
-import type { InvoiceDatabase, StoredCompanyProfile, StoredCustomer, StoredInvoice } from './db';
+import type {
+	InvoiceDatabase,
+	NewProduct,
+	ProductPatch,
+	StoredCompanyProfile,
+	StoredCustomer,
+	StoredInvoice,
+} from './db';
 import {
 	blankDraft,
 	calcTotals,
@@ -338,24 +345,32 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	app.post(
 		'/api/templates/preview',
 		route(async (req, res) => {
-			const body = (req.body ?? {}) as { definition?: unknown };
+			const body = (req.body ?? {}) as { definition?: unknown; companyId?: unknown };
 			const errors = validateTemplate(body.definition);
 			if (errors.length > 0) {
 				res.status(400).json({ error: errors.join(' | ') });
 				return;
 			}
 			const definition = body.definition as LayoutTemplate;
+			const companyId = typeof body.companyId === 'string' ? body.companyId : definition.companyId;
+			let seller = {
+				name: 'Muster GmbH',
+				street: 'Beispielstr. 1',
+				zip: '10115',
+				city: 'Berlin',
+				country: 'DE',
+				vatId: 'DE123456789',
+				iban: 'DE02120300000000202051',
+				email: 'rechnung@muster.example',
+			};
+			if (companyId) {
+				const company = db.getCompanyProfile(companyId) ?? db.getDefaultCompanyProfile();
+				if (company?.profile.name.trim()) {
+					seller = { ...seller, ...company.profile };
+				}
+			}
 			const sample = previewInvoice({
-				seller: {
-					name: 'Muster GmbH',
-					street: 'Beispielstr. 1',
-					zip: '10115',
-					city: 'Berlin',
-					country: 'DE',
-					vatId: 'DE123456789',
-					iban: 'DE02120300000000202051',
-					email: 'rechnung@muster.example',
-				},
+				seller,
 				buyer: {
 					name: 'Kunde AG',
 					street: 'Kundenweg 5',
@@ -699,6 +714,56 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		route((req, res) => {
 			try {
 				db.deleteCustomer(routeParam(req, 'cid'));
+				res.json({ ok: true });
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.get('/api/products', (_req, res) => {
+		res.json(db.listProducts());
+	});
+
+	app.post(
+		'/api/products',
+		route((req, res) => {
+			try {
+				res.status(201).json(db.createProduct((req.body ?? {}) as NewProduct));
+			} catch (error) {
+				res.status(400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.get(
+		'/api/products/:pid',
+		route((req, res) => {
+			const product = db.getProduct(routeParam(req, 'pid'));
+			if (!product) {
+				res.status(404).json({ error: 'Product not found' });
+				return;
+			}
+			res.json(product);
+		}),
+	);
+
+	app.put(
+		'/api/products/:pid',
+		route((req, res) => {
+			try {
+				res.json(db.updateProduct(routeParam(req, 'pid'), (req.body ?? {}) as ProductPatch));
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.delete(
+		'/api/products/:pid',
+		route((req, res) => {
+			try {
+				db.deleteProduct(routeParam(req, 'pid'));
 				res.json({ ok: true });
 			} catch (error) {
 				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });

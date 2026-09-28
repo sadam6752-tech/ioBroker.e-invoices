@@ -339,6 +339,86 @@ function mapCustomerRow(row: CustomerRow): StoredCustomer {
 	};
 }
 
+/** Stored product/service catalog item. */
+export interface StoredProduct {
+	/** Item UUID. */
+	id: string;
+	/** Article number. */
+	sku: string;
+	/** Description. */
+	name: string;
+	/** Detail text. */
+	details: string;
+	/** Unit. */
+	unit: string;
+	/** Net unit price in EUR. */
+	unitPriceNet: number;
+	/** VAT rate in percent. */
+	vatRate: number;
+	/** Creation timestamp. */
+	createdAt: string;
+	/** Last update timestamp. */
+	updatedAt: string;
+}
+
+/** New catalog item content. */
+export interface NewProduct {
+	/** Article number. */
+	sku?: string;
+	/** Description (required). */
+	name: string;
+	/** Detail text. */
+	details?: string;
+	/** Unit. */
+	unit?: string;
+	/** Net unit price in EUR. */
+	unitPriceNet?: number;
+	/** VAT rate in percent. */
+	vatRate?: number;
+}
+
+interface ProductRow {
+	id: string;
+	sku: string;
+	name: string;
+	details: string;
+	unit: string;
+	unit_price_net: number;
+	vat_rate: number;
+	created_at: string;
+	updated_at: string;
+}
+
+function mapProductRow(row: ProductRow): StoredProduct {
+	return {
+		id: row.id,
+		sku: row.sku,
+		name: row.name,
+		details: row.details,
+		unit: row.unit,
+		unitPriceNet: row.unit_price_net,
+		vatRate: row.vat_rate,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+/** Partial catalog item update. */
+export interface ProductPatch {
+	/** Article number. */
+	sku?: string;
+	/** Description. */
+	name?: string;
+	/** Detail text. */
+	details?: string;
+	/** Unit. */
+	unit?: string;
+	/** Net unit price in EUR. */
+	unitPriceNet?: number;
+	/** VAT rate in percent. */
+	vatRate?: number;
+}
+
 /** Full database content for backup/restore. */
 export interface DatabaseDump {
 	/** Dump format version, always 1. */
@@ -359,6 +439,8 @@ export interface DatabaseDump {
 	companies: StoredCompanyProfile[];
 	/** All customers. */
 	customers: StoredCustomer[];
+	/** All catalog products. */
+	products: StoredProduct[];
 }
 
 /** Backup log entry. */
@@ -987,6 +1069,7 @@ export class InvoiceDatabase {
 			templates: this.listTemplates(),
 			companies: this.listCompanyProfiles(),
 			customers: this.listCustomers(),
+			products: this.listProducts(),
 			attachments: attachments.map(row => ({
 				id: row.id,
 				invoiceId: row.invoice_id,
@@ -1021,6 +1104,7 @@ export class InvoiceDatabase {
 			this.db.prepare(`DELETE FROM templates`).run();
 			this.db.prepare(`DELETE FROM company_profiles`).run();
 			this.db.prepare(`DELETE FROM customers`).run();
+			this.db.prepare(`DELETE FROM products`).run();
 			for (const counter of dump.counters ?? []) {
 				const employee = normalizeEmployeeCode((counter as { employee?: string }).employee ?? '00');
 				this.db
@@ -1102,6 +1186,24 @@ export class InvoiceDatabase {
 						JSON.stringify(customer.profile),
 						customer.createdAt,
 						customer.updatedAt,
+					);
+			}
+			for (const product of dump.products ?? []) {
+				this.db
+					.prepare(
+						`INSERT INTO products (id, sku, name, details, unit, unit_price_net, vat_rate, created_at, updated_at)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					)
+					.run(
+						product.id,
+						product.sku,
+						product.name,
+						product.details,
+						product.unit,
+						product.unitPriceNet,
+						product.vatRate,
+						product.createdAt,
+						product.updatedAt,
 					);
 			}
 			for (const attachment of dump.attachments ?? []) {
@@ -1373,5 +1475,112 @@ export class InvoiceDatabase {
 			throw new Error(`Customer not found: ${id}`);
 		}
 		this.db.prepare(`DELETE FROM customers WHERE id = ?`).run(id);
+	}
+
+	/**
+	 * Creates a catalog product/service.
+	 *
+	 * @param item - Catalog content.
+	 */
+	public createProduct(item: NewProduct): StoredProduct {
+		if (!item.name?.trim()) {
+			throw new Error('Product needs a name');
+		}
+		if (item.vatRate !== undefined && ![0, 7, 19].includes(item.vatRate)) {
+			throw new Error('VAT rate must be 0, 7 or 19');
+		}
+		if ((item.unitPriceNet ?? 0) < 0) {
+			throw new Error('Unit price must be >= 0');
+		}
+		const id = randomUUID();
+		const stamp = nowIso();
+		this.db
+			.prepare(
+				`INSERT INTO products (id, sku, name, details, unit, unit_price_net, vat_rate, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			)
+			.run(
+				id,
+				item.sku?.trim() ?? '',
+				item.name.trim(),
+				item.details?.trim() ?? '',
+				item.unit?.trim() || 'Stk',
+				item.unitPriceNet ?? 0,
+				item.vatRate ?? 19,
+				stamp,
+				stamp,
+			);
+		const created = this.getProduct(id);
+		if (!created) {
+			throw new Error('Product was not stored');
+		}
+		return created;
+	}
+
+	/**
+	 * Loads one catalog product by id.
+	 *
+	 * @param id - Product UUID.
+	 */
+	public getProduct(id: string): StoredProduct | null {
+		const row = this.db.prepare(`SELECT * FROM products WHERE id = ?`).get(id) as ProductRow | undefined;
+		return row ? mapProductRow(row) : null;
+	}
+
+	/**
+	 * Lists catalog products by name.
+	 */
+	public listProducts(): StoredProduct[] {
+		const rows = this.db.prepare(`SELECT * FROM products ORDER BY name ASC`).all() as ProductRow[];
+		return rows.map(mapProductRow);
+	}
+
+	/**
+	 * Updates a catalog product.
+	 *
+	 * @param id - Product UUID.
+	 * @param patch - Partial update.
+	 */
+	public updateProduct(id: string, patch: ProductPatch): StoredProduct {
+		const current = this.getProduct(id);
+		if (!current) {
+			throw new Error(`Product not found: ${id}`);
+		}
+		const next = {
+			sku: patch.sku !== undefined ? patch.sku.trim() : current.sku,
+			name: patch.name?.trim() || current.name,
+			details: patch.details !== undefined ? patch.details : current.details,
+			unit: patch.unit?.trim() || current.unit,
+			unitPriceNet: patch.unitPriceNet ?? current.unitPriceNet,
+			vatRate: patch.vatRate ?? current.vatRate,
+		};
+		if (![0, 7, 19].includes(next.vatRate)) {
+			throw new Error('VAT rate must be 0, 7 or 19');
+		}
+		if (next.unitPriceNet < 0) {
+			throw new Error('Unit price must be >= 0');
+		}
+		this.db
+			.prepare(
+				`UPDATE products SET sku = ?, name = ?, details = ?, unit = ?, unit_price_net = ?, vat_rate = ?, updated_at = ? WHERE id = ?`,
+			)
+			.run(next.sku, next.name, next.details, next.unit, next.unitPriceNet, next.vatRate, nowIso(), id);
+		const updated = this.getProduct(id);
+		if (!updated) {
+			throw new Error('Product update failed');
+		}
+		return updated;
+	}
+
+	/**
+	 * Deletes a catalog product.
+	 *
+	 * @param id - Product UUID.
+	 */
+	public deleteProduct(id: string): void {
+		if (!this.getProduct(id)) {
+			throw new Error(`Product not found: ${id}`);
+		}
+		this.db.prepare(`DELETE FROM products WHERE id = ?`).run(id);
 	}
 }

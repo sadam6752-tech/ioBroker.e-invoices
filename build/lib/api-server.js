@@ -302,7 +302,7 @@ function createApiServer(deps) {
   app.post(
     "/api/templates/preview",
     route(async (req, res) => {
-      var _a, _b;
+      var _a, _b, _c;
       const body = (_a = req.body) != null ? _a : {};
       const errors = (0, import_templates.validateTemplate)(body.definition);
       if (errors.length > 0) {
@@ -310,17 +310,25 @@ function createApiServer(deps) {
         return;
       }
       const definition = body.definition;
+      const companyId = typeof body.companyId === "string" ? body.companyId : definition.companyId;
+      let seller = {
+        name: "Muster GmbH",
+        street: "Beispielstr. 1",
+        zip: "10115",
+        city: "Berlin",
+        country: "DE",
+        vatId: "DE123456789",
+        iban: "DE02120300000000202051",
+        email: "rechnung@muster.example"
+      };
+      if (companyId) {
+        const company = (_b = db.getCompanyProfile(companyId)) != null ? _b : db.getDefaultCompanyProfile();
+        if (company == null ? void 0 : company.profile.name.trim()) {
+          seller = { ...seller, ...company.profile };
+        }
+      }
       const sample = previewInvoice({
-        seller: {
-          name: "Muster GmbH",
-          street: "Beispielstr. 1",
-          zip: "10115",
-          city: "Berlin",
-          country: "DE",
-          vatId: "DE123456789",
-          iban: "DE02120300000000202051",
-          email: "rechnung@muster.example"
-        },
+        seller,
         buyer: {
           name: "Kunde AG",
           street: "Kundenweg 5",
@@ -342,7 +350,7 @@ function createApiServer(deps) {
         paymentTerms: "Zahlbar innerhalb von 14 Tagen ohne Abzug."
       });
       let logo;
-      if ((_b = definition.logo) == null ? void 0 : _b.path) {
+      if ((_c = definition.logo) == null ? void 0 : _c.path) {
         try {
           logo = { data: await storage.read(definition.logo.path) };
         } catch {
@@ -646,6 +654,53 @@ function createApiServer(deps) {
     route((req, res) => {
       try {
         db.deleteCustomer(routeParam(req, "cid"));
+        res.json({ ok: true });
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.get("/api/products", (_req, res) => {
+    res.json(db.listProducts());
+  });
+  app.post(
+    "/api/products",
+    route((req, res) => {
+      var _a;
+      try {
+        res.status(201).json(db.createProduct((_a = req.body) != null ? _a : {}));
+      } catch (error) {
+        res.status(400).json({ error: error.message });
+      }
+    })
+  );
+  app.get(
+    "/api/products/:pid",
+    route((req, res) => {
+      const product = db.getProduct(routeParam(req, "pid"));
+      if (!product) {
+        res.status(404).json({ error: "Product not found" });
+        return;
+      }
+      res.json(product);
+    })
+  );
+  app.put(
+    "/api/products/:pid",
+    route((req, res) => {
+      var _a;
+      try {
+        res.json(db.updateProduct(routeParam(req, "pid"), (_a = req.body) != null ? _a : {}));
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.delete(
+    "/api/products/:pid",
+    route((req, res) => {
+      try {
+        db.deleteProduct(routeParam(req, "pid"));
         res.json({ ok: true });
       } catch (error) {
         res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
