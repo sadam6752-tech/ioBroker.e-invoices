@@ -282,6 +282,17 @@ export async function renderInvoicePdf(
 			rowY += 8;
 		}
 
+		// Long separator line under the last position
+		if (template.blocks.positions && invoice.lines.length > 0) {
+			if (rowY > 740) {
+				newPage();
+			}
+			doc.save();
+			doc.moveTo(left, rowY).lineTo(right, rowY).strokeColor(colors.text).lineWidth(0.75).stroke();
+			doc.restore();
+			rowY += 10;
+		}
+
 		// Totals with German labels
 		if (template.blocks.totals) {
 			if (rowY > 700) {

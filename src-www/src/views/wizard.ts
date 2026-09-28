@@ -31,6 +31,8 @@ interface WizardState {
 	draftId: string | null;
 	selectedCompany: string | null;
 	selectedCustomer: string | null;
+	/** True once the user changed something (prefill alone does not count). */
+	dirty: boolean;
 	error: string;
 	savedAt: string;
 }
@@ -54,6 +56,7 @@ function freshState(): WizardState {
 		draftId: null,
 		selectedCompany: null,
 		selectedCustomer: null,
+		dirty: false,
 		error: '',
 		savedAt: new Date().toISOString(),
 	};
@@ -61,9 +64,10 @@ function freshState(): WizardState {
 
 function hasContent(s: WizardState): boolean {
 	return (
-		s.seller.name.trim() !== '' ||
-		s.buyer.name.trim() !== '' ||
-		s.lines.some(l => l.description.trim() !== '' || l.unitPriceNet !== 0)
+		s.dirty &&
+		(s.seller.name.trim() !== '' ||
+			s.buyer.name.trim() !== '' ||
+			s.lines.some(l => l.description.trim() !== '' || l.unitPriceNet !== 0))
 	);
 }
 
@@ -210,6 +214,10 @@ export function wizard(root: HTMLElement, editId?: string): void {
 
 	function persist(): void {
 		try {
+			if (!s.dirty) {
+				localStorage.removeItem(STORAGE_KEY);
+				return;
+			}
 			// edit sessions never leak their draft id into the "new" resume slot
 			const stored = isEdit ? { ...s, draftId: null } : s;
 			localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...stored, error: '', savedAt: new Date().toISOString() }));
@@ -374,13 +382,13 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			render();
 		});
 		root.querySelector('#w-clear')?.addEventListener('click', () => {
-			if (!window.confirm('Eingaben verwerfen?')) return;
+			if (!window.confirm('Eingaben verwerfen und zur Übersicht?')) return;
 			localStorage.removeItem(STORAGE_KEY);
-			s = freshState();
-			render();
+			location.hash = '#/';
 		});
 		root.querySelector('#w-add')?.addEventListener('click', () => {
 			collect();
+			s.dirty = true;
 			s.lines.push(emptyLine());
 			render();
 		});
@@ -404,6 +412,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		root.querySelectorAll('[data-del]').forEach(btn =>
 			btn.addEventListener('click', () => {
 				collect();
+				s.dirty = true;
 				s.lines.splice(Number((btn as HTMLElement).dataset.del), 1);
 				if (s.lines.length === 0) s.lines.push(emptyLine());
 				render();
@@ -445,11 +454,14 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			} else {
 				inv = await api.create(input);
 				s.draftId = inv.id;
-				persist();
 			}
 			if (issue) {
 				inv = await api.issue(inv.id);
+			}
+			try {
 				localStorage.removeItem(STORAGE_KEY);
+			} catch {
+				// ignore
 			}
 			location.hash = `#/invoices/${inv.id}`;
 		} catch (e) {
@@ -468,6 +480,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 	});
 
 	function collectSilent(): void {
+		s.dirty = true;
 		root.querySelectorAll<HTMLInputElement>('input[data-p]').forEach(el => {
 			const target = el.dataset.p === 'seller' ? s.seller : s.buyer;
 			(target as unknown as Record<string, string>)[el.dataset.f!] = el.value;
