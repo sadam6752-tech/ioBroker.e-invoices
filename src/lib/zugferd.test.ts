@@ -232,7 +232,12 @@ describe('zugferd => sku, details and phone', function () {
 		try {
 			const created = db.createDraft(
 				draft({
-					seller: { ...seller, phone: '+49 30 12345', website: 'https://muster.example' },
+					seller: {
+						...seller,
+						phone: '+49 30 12345',
+						website: 'https://muster.example',
+						bankName: 'Musterbank',
+					},
 					lines: [
 						{
 							description: 'Produkt A',
@@ -263,6 +268,9 @@ describe('zugferd => sku, details and phone', function () {
 			expect(text).to.contain('Gesamtbetragbrutto');
 			expect(text).to.contain('28.09.2026');
 			expect(text).to.contain('+493012345');
+			expect(text).to.contain('79,80');
+			expect(text).to.contain('Musterbank');
+			expect(text).to.contain('USt.ID:');
 		} finally {
 			db.close();
 		}

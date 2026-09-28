@@ -13,6 +13,7 @@ interface Template {
 		footerText: string;
 		showArchiveHint: boolean;
 		showPageNumbers: boolean;
+		showFooterBoxes: boolean;
 		showTagline: boolean;
 		introText: string;
 		closingText: string;
@@ -63,6 +64,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 		<label><input type="checkbox" data-f="showCustomerNumber" ${d.showCustomerNumber ? 'checked' : ''} style="width:auto" /> Kundennr. (BT-10)</label>
 		<label><input type="checkbox" data-f="showPaymentTerms" ${d.showPaymentTerms ? 'checked' : ''} style="width:auto" /> Zahlungsbedingungen</label>
 		<label><input type="checkbox" data-f="showArchiveHint" ${d.showArchiveHint ? 'checked' : ''} style="width:auto" /> §14b-Archivhinweis</label>
+		<label><input type="checkbox" data-f="showFooterBoxes" ${d.showFooterBoxes !== false ? 'checked' : ''} style="width:auto" /> Firmen-Fußzeile (4 Boxen)</label>
 		<label><input type="checkbox" data-f="showPageNumbers" ${d.showPageNumbers ? 'checked' : ''} style="width:auto" /> Seitenzahlen (ab 2 Seiten)</label>
 		<label><input type="checkbox" data-f="showTagline" ${d.showTagline !== false ? 'checked' : ''} style="width:auto" /> Adress-Tagline</label>
 		<label>Einleitungssatz<textarea id="t-intro">${esc(d.introText ?? '')}</textarea></label>
@@ -196,7 +198,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 		for (const k of FREE) {
 			def.blocks[k] = root.querySelector<HTMLInputElement>(`[data-f="blocks.${k}"]`)?.checked ?? def.blocks[k];
 		}
-		for (const k of ['showEmail', 'showCustomerNumber', 'showPaymentTerms', 'showArchiveHint', 'showPageNumbers', 'showTagline'] as const) {
+		for (const k of ['showEmail', 'showCustomerNumber', 'showPaymentTerms', 'showArchiveHint', 'showPageNumbers', 'showTagline', 'showFooterBoxes'] as const) {
 			(def as unknown as Record<string, boolean>)[k] = root.querySelector<HTMLInputElement>(`[data-f="${k}"]`)?.checked ?? false;
 		}
 		def.footerText = root.querySelector<HTMLTextAreaElement>('#t-footer')?.value ?? '';

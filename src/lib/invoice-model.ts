@@ -32,6 +32,8 @@ export interface Party {
 	customerNumber?: string;
 	/** Contact person (optional, header/meta display only). */
 	contactName?: string;
+	/** Bank name (optional, footer display only). */
+	bankName?: string;
 	/** IBAN of the seller (recommended for payment block). */
 	iban?: string;
 	/** BIC of the seller (optional). */

@@ -23,6 +23,19 @@ export function formatEur(value: number): string {
 }
 
 /**
+ * Formats amounts German style (comma decimals + €) for the sight PDF.
+ * The XML always keeps the dot format; this is display only.
+ *
+ * @param value - Amount in EUR.
+ */
+export function formatEurDe(value: number): string {
+	return `${value.toFixed(2).replace('.', ',')} €`;
+}
+
+/** Light gray for table header cells and the total row. */
+const HEADER_GRAY = '#D9D9D9';
+
+/**
  * Formats ISO dates German style (DD.MM.YYYY) for display.
  * XML keeps ISO; this is sight-component only.
  *
@@ -212,16 +225,23 @@ export async function renderInvoicePdf(
 			rowY = 60;
 		};
 		const headerRow = (): void => {
+			const height = 17;
+			doc.save();
+			doc.rect(left - 2, rowY - 3, colX.qty - 2 - (left - 2), height).fill(colors.primary);
+			doc.rect(colX.qty - 2, rowY - 3, right + 2 - (colX.qty - 2), height).fill(HEADER_GRAY);
+			doc.restore();
 			doc.font('Helvetica-Bold').fontSize(9);
+			doc.fillColor('#FFFFFF');
 			doc.text('Pos.', colX.pos, rowY);
 			doc.text('Art.Nr.', colX.sku, rowY);
 			doc.text('Bezeichnung', colX.name, rowY);
+			doc.fillColor(colors.text);
 			doc.text('Menge', colX.qty, rowY);
 			doc.text('Einheit', colX.unit, rowY);
 			doc.text('E-Preis', colX.price, rowY);
 			doc.text('Gesamt', colX.total, rowY, { width: totalW, align: 'right' });
 			doc.font('Helvetica').fontSize(10);
-			rowY += 15;
+			rowY += 19;
 		};
 		if (template.blocks.positions) {
 			headerRow();
@@ -241,8 +261,8 @@ export async function renderInvoicePdf(
 				doc.font('Helvetica');
 				doc.text(`${line.quantity}`, colX.qty, rowY);
 				doc.text(line.unit, colX.unit, rowY, { width: 40 });
-				doc.text(formatEur(netUnit), colX.price, rowY, { width: 66 });
-				doc.text(formatEur(amount), colX.total, rowY, { width: totalW, align: 'right' });
+				doc.text(formatEurDe(netUnit), colX.price, rowY, { width: 66 });
+				doc.text(formatEurDe(amount), colX.total, rowY, { width: totalW, align: 'right' });
 				rowY += 13;
 				if (line.details?.trim()) {
 					doc.fontSize(8).fillColor(colors.muted);
@@ -268,18 +288,21 @@ export async function renderInvoicePdf(
 				newPage();
 			}
 			doc.text('Zwischensumme netto', colX.price - 60, rowY, { width: 130, align: 'right' });
-			doc.text(formatEur(totals.netTotal), colX.total, rowY, { width: totalW, align: 'right' });
+			doc.text(formatEurDe(totals.netTotal), colX.total, rowY, { width: totalW, align: 'right' });
 			rowY += 14;
 			for (const entry of totals.breakdown) {
 				doc.text(`zzgl. ${entry.vatRate} % MwSt.`, colX.price - 60, rowY, { width: 130, align: 'right' });
-				doc.text(formatEur(entry.tax), colX.total, rowY, { width: totalW, align: 'right' });
+				doc.text(formatEurDe(entry.tax), colX.total, rowY, { width: totalW, align: 'right' });
 				rowY += 14;
 			}
+			doc.save();
+			doc.rect(colX.price - 64, rowY - 3, right + 2 - (colX.price - 64), 18).fill(HEADER_GRAY);
+			doc.restore();
 			doc.font('Helvetica-Bold');
 			doc.text('Gesamtbetrag brutto', colX.price - 60, rowY, { width: 130, align: 'right' });
-			doc.text(formatEur(totals.grossTotal), colX.total, rowY, { width: totalW, align: 'right' });
+			doc.text(formatEurDe(totals.grossTotal), colX.total, rowY, { width: totalW, align: 'right' });
 			doc.font('Helvetica');
-			rowY += 22;
+			rowY += 24;
 		}
 
 		// Exemption reason always (Pflicht bei 0 %)
@@ -321,6 +344,47 @@ export async function renderInvoicePdf(
 		doc.font('Helvetica-Bold').text(signature, left, rowY, { width: pageWidth });
 		doc.font('Helvetica');
 		rowY += 20;
+
+		// Company footer: 4 boxes (address, contact, bank, tax)
+		if (template.showFooterBoxes ?? true) {
+			if (rowY > 720) {
+				newPage();
+			}
+			doc.save();
+			doc.moveTo(left, rowY).lineTo(right, rowY).strokeColor(colors.muted).lineWidth(0.5).stroke();
+			doc.restore();
+			rowY += 8;
+			const colW = pageWidth / 4;
+			const boxes: string[][] = [
+				[invoice.seller.name, invoice.seller.street, `${invoice.seller.zip} ${invoice.seller.city}`],
+				[
+					invoice.seller.phone ?? '',
+					invoice.seller.website ?? '',
+					template.showEmail ? (invoice.seller.email ?? '') : '',
+				],
+				[
+					invoice.seller.bankName ?? '',
+					invoice.seller.iban ?? '',
+					invoice.seller.bic ? `BIC: ${invoice.seller.bic}` : '',
+				],
+				[
+					invoice.seller.vatId ? `USt. ID: ${invoice.seller.vatId}` : '',
+					invoice.seller.taxNumber ? `Steuernr.: ${invoice.seller.taxNumber}` : '',
+					...(template.headerExtra ? template.headerExtra.split('\n').slice(0, 3) : []),
+				],
+			];
+			let maxLines = 1;
+			boxes.forEach((lines, index) => {
+				const shown = lines.filter(line => line.trim() !== '');
+				maxLines = Math.max(maxLines, shown.length);
+				doc.fontSize(8);
+				shown.forEach((line, lineIndex) => {
+					doc.text(line, left + index * colW, rowY + lineIndex * 10, { width: colW - 8 });
+				});
+			});
+			doc.fontSize(10);
+			rowY += maxLines * 10 + 8;
+		}
 
 		if (template.showArchiveHint) {
 			doc.fontSize(9).fillColor(colors.muted).text(ARCHIVE_HINT, left, rowY, { width: pageWidth });

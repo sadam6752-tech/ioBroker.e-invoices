@@ -33,6 +33,7 @@ const DEFAULT_TEMPLATE = {
   footerText: "",
   showArchiveHint: false,
   showPageNumbers: false,
+  showFooterBoxes: true,
   showTagline: true,
   introText: "Hiermit stelle ich Ihnen folgende Positionen in Rechnung.",
   closingText: "Bei R\xFCckfragen stehe ich selbstverst\xE4ndlich jederzeit gerne zur Verf\xFCgung.",
@@ -65,11 +66,15 @@ function validateTemplate(template) {
     "showCustomerNumber",
     "showPaymentTerms",
     "showArchiveHint",
-    "showPageNumbers"
+    "showPageNumbers",
+    "showTagline"
   ]) {
     if (typeof t[key] !== "boolean") {
       errors.push(`${key} muss true/false sein`);
     }
+  }
+  if (t.showFooterBoxes !== void 0 && typeof t.showFooterBoxes !== "boolean") {
+    errors.push("showFooterBoxes muss true/false sein");
   }
   if (t.showTagline !== void 0 && typeof t.showTagline !== "boolean") {
     errors.push("showTagline muss true/false sein");

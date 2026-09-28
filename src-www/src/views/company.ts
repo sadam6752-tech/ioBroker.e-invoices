@@ -35,7 +35,8 @@ export async function company(root: HTMLElement): Promise<void> {
 			<div class="grid2">${field(p, 'country', 'Land')}${field(p, 'email', 'E-Mail')}</div>
 			<div class="grid2">${field(p, 'phone', 'Telefon')}${field(p, 'website', 'Webseite')}</div>
 			<div class="grid2">${field(p, 'vatId', 'USt-IdNr.')}${field(p, 'taxNumber', 'Steuernummer')}</div>
-			<div class="grid2">${field(p, 'iban', 'IBAN')}${field(p, 'bic', 'BIC')}</div>
+			<div class="grid2">${field(p, 'bankName', 'Bankname')}${field(p, 'iban', 'IBAN')}</div>
+			<label>BIC<input data-f="bic" value="${esc(p.bic ?? '')}" /></label>
 			${message ? `<p class="${isError ? 'error' : ''}">${esc(message)}</p>` : ''}
 			<div class="row"><button id="c-save">Speichern</button></div>
 		</div>`;

@@ -13,6 +13,7 @@ export interface Party {
 	website?: string;
 	customerNumber?: string;
 	contactName?: string;
+	bankName?: string;
 	iban?: string;
 	bic?: string;
 }

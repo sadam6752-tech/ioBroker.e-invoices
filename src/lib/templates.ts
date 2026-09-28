@@ -64,6 +64,8 @@ export interface LayoutTemplate {
 	showArchiveHint: boolean;
 	/** Show page numbers. */
 	showPageNumbers: boolean;
+	/** Show the 4-box company footer (address, contact, bank, tax). */
+	showFooterBoxes: boolean;
 	/** Show the auto address tagline under the header. */
 	showTagline: boolean;
 	/** Intro sentence under the title (max 300 chars). */
@@ -89,6 +91,7 @@ export const DEFAULT_TEMPLATE: LayoutTemplate = {
 	footerText: '',
 	showArchiveHint: false,
 	showPageNumbers: false,
+	showFooterBoxes: true,
 	showTagline: true,
 	introText: 'Hiermit stelle ich Ihnen folgende Positionen in Rechnung.',
 	closingText: 'Bei Rückfragen stehe ich selbstverständlich jederzeit gerne zur Verfügung.',
@@ -140,6 +143,12 @@ export function validateTemplate(template: unknown): string[] {
 		if (typeof t[key] !== 'boolean') {
 			errors.push(`${key} muss true/false sein`);
 		}
+	}
+	if (t.showTagline !== undefined && typeof t.showTagline !== 'boolean') {
+		errors.push('showTagline muss true/false sein');
+	}
+	if (t.showFooterBoxes !== undefined && typeof t.showFooterBoxes !== 'boolean') {
+		errors.push('showFooterBoxes muss true/false sein');
 	}
 	if (t.showTagline !== undefined && typeof t.showTagline !== 'boolean') {
 		errors.push('showTagline muss true/false sein');
