@@ -345,16 +345,8 @@ export async function renderInvoicePdf(
 		doc.font('Helvetica');
 		rowY += 20;
 
-		// Company footer: 4 boxes (address, contact, bank, tax)
+		// Company footer: 4 boxes pinned to the page bottom (address, contact, bank, tax)
 		if (template.showFooterBoxes ?? true) {
-			if (rowY > 720) {
-				newPage();
-			}
-			doc.save();
-			doc.moveTo(left, rowY).lineTo(right, rowY).strokeColor(colors.muted).lineWidth(0.5).stroke();
-			doc.restore();
-			rowY += 8;
-			const colW = pageWidth / 4;
 			const boxes: string[][] = [
 				[invoice.seller.name, invoice.seller.street, `${invoice.seller.zip} ${invoice.seller.city}`],
 				[
@@ -372,18 +364,28 @@ export async function renderInvoicePdf(
 					invoice.seller.taxNumber ? `Steuernr.: ${invoice.seller.taxNumber}` : '',
 					...(template.headerExtra ? template.headerExtra.split('\n').slice(0, 3) : []),
 				],
-			];
-			let maxLines = 1;
+			].map(lines => lines.filter(line => line.trim() !== ''));
+			const maxLines = Math.max(1, ...boxes.map(lines => lines.length));
+			const need = 8 + maxLines * 10 + 6;
+			const bottom = doc.page.height - 50;
+			let footTop = Math.max(rowY + 6, bottom - need);
+			if (footTop + need > bottom + 2) {
+				newPage();
+				footTop = doc.page.height - 50 - need;
+			}
+			doc.save();
+			doc.moveTo(left, footTop).lineTo(right, footTop).strokeColor(colors.muted).lineWidth(0.5).stroke();
+			doc.restore();
+			footTop += 8;
+			const colW = pageWidth / 4;
+			doc.fontSize(8);
 			boxes.forEach((lines, index) => {
-				const shown = lines.filter(line => line.trim() !== '');
-				maxLines = Math.max(maxLines, shown.length);
-				doc.fontSize(8);
-				shown.forEach((line, lineIndex) => {
-					doc.text(line, left + index * colW, rowY + lineIndex * 10, { width: colW - 8 });
+				lines.forEach((line, lineIndex) => {
+					doc.text(line, left + index * colW, footTop + lineIndex * 10, { width: colW - 8 });
 				});
 			});
 			doc.fontSize(10);
-			rowY += maxLines * 10 + 8;
+			rowY = footTop + maxLines * 10 + 8;
 		}
 
 		if (template.showArchiveHint) {

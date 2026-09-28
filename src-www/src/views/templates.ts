@@ -103,7 +103,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 		</div>
 		${editing ? `<div class="card"><h3>${esc(editing.id === 'neu' ? 'Neue Vorlage' : editing.name)}</h3>${formHtml(editing)}
 			${error ? `<p class="error">${esc(error)}</p>` : ''}
-			<div class="row"><button id="t-save">Speichern</button><button class="secondary" id="t-cancel">Abbrechen</button></div>
+			<div class="row"><button id="t-save">Speichern</button><button class="secondary" id="t-preview">Vorschau (Entwurf)</button><button class="secondary" id="t-cancel">Abbrechen</button></div>
 		</div>` : ''}`;
 
 		root.querySelector('#t-new')?.addEventListener('click', async () => {
@@ -187,10 +187,30 @@ export async function templates(root: HTMLElement): Promise<void> {
 			render();
 		});
 		root.querySelector('#t-save')?.addEventListener('click', () => void save());
+		root.querySelector('#t-preview')?.addEventListener('click', async () => {
+			const collected = collectForm();
+			if (!collected) return;
+			try {
+				const res = await apiFetch('/api/templates/preview', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ definition: collected.definition }),
+				});
+				if (!res.ok) {
+					const j = (await res.json().catch(() => ({}))) as { error?: string };
+					throw new Error(j.error ?? 'Vorschau fehlgeschlagen');
+				}
+				window.open(URL.createObjectURL(await res.blob()), '_blank');
+			} catch (e) {
+				error = (e as Error).message;
+				render();
+			}
+		});
 	}
 
-	async function save(): Promise<void> {
-		if (!editing) return;
+	/** Reads the edit form into a definition (used by save + draft preview). */
+	function collectForm(): { name: string; definition: Template['definition'] } | null {
+		if (!editing) return null;
 		const def = structuredClone(editing.definition);
 		def.name = (root.querySelector<HTMLInputElement>('#t-name')?.value ?? def.name).trim();
 		def.colors.primary = root.querySelector<HTMLInputElement>('#t-c1')?.value ?? def.colors.primary;
@@ -210,8 +230,15 @@ export async function templates(root: HTMLElement): Promise<void> {
 			def.logo.position = (root.querySelector<HTMLSelectElement>('#t-lpos')?.value ?? 'right') as 'left' | 'right' | 'center';
 			def.logo.widthMm = Number(root.querySelector<HTMLInputElement>('#t-lw')?.value ?? 30);
 		}
+		return { name: def.name, definition: def };
+	}
+
+	async function save(): Promise<void> {
+		const collected = collectForm();
+		if (!collected) return;
+		const def = collected.definition;
 		try {
-			let id = editing.id;
+			let id = editing!.id;
 			if (id === 'neu') {
 				const res = await apiFetch('/api/templates', {
 					method: 'POST',

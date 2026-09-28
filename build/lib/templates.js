@@ -66,12 +66,14 @@ function validateTemplate(template) {
     "showCustomerNumber",
     "showPaymentTerms",
     "showArchiveHint",
-    "showPageNumbers",
-    "showTagline"
+    "showPageNumbers"
   ]) {
     if (typeof t[key] !== "boolean") {
       errors.push(`${key} muss true/false sein`);
     }
+  }
+  if (t.showTagline !== void 0 && typeof t.showTagline !== "boolean") {
+    errors.push("showTagline muss true/false sein");
   }
   if (t.showFooterBoxes !== void 0 && typeof t.showFooterBoxes !== "boolean") {
     errors.push("showFooterBoxes muss true/false sein");
