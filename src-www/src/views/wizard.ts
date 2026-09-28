@@ -1,4 +1,4 @@
-import { api, esc, eur, type DraftInput, type Invoice, type InvoiceLine, type Party } from '../api';
+import { api, esc, eur, type CompanyProfile, type DraftInput, type Invoice, type InvoiceLine, type Party } from '../api';
 
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
 const emptyLine = (): InvoiceLine => ({ description: '', quantity: 1, unit: 'Stk', unitPriceNet: 0, vatRate: 19 });
@@ -130,6 +130,14 @@ export function wizard(root: HTMLElement): void {
 	if (saved && hasContent(saved)) {
 		s = saved;
 	}
+	let companies: CompanyProfile[] = [];
+	void api.company
+		.list()
+		.then(list => {
+			companies = list;
+			if (s.step === 0 && !root.querySelector('#w-company')) render();
+		})
+		.catch(() => undefined);
 	if (!hasContent(s)) {
 		// fresh wizard: prefill seller from the company profile (set once on Firma page)
 		void api.company
@@ -184,7 +192,18 @@ export function wizard(root: HTMLElement): void {
 	function render(): void {
 		collect();
 		let body = '';
-		if (s.step === 0) body = `<div class="card"><h3>Verkäufer</h3>${partyFields('seller', s.seller, true)}</div>`;
+		if (s.step === 0) {
+			body = `<div class="card"><h3>Verkäufer</h3>
+				${
+					companies.length > 0
+						? `<label>Aus Firma übernehmen<select id="w-company">
+							<option value="">– manuell eingeben –</option>
+							${companies.map(c => `<option value="${esc(c.id)}">${esc(c.name)}${c.isDefault ? ' (Standard)' : ''}</option>`).join('')}
+						</select></label>`
+						: `<p class="muted">Tipp: Unter <a href="#/company">Firma</a> einmal anlegen, dann hier auswählbar.</p>`
+				}
+				${partyFields('seller', s.seller, true)}</div>`;
+		}
 		if (s.step === 1) body = `<div class="card"><h3>Käufer</h3>${partyFields('buyer', s.buyer, false)}</div>`;
 		if (s.step === 2) {
 			body = `<div class="card"><h3>Positionen & Termine</h3>
@@ -243,6 +262,15 @@ export function wizard(root: HTMLElement): void {
 		root.querySelector('#w-back')?.addEventListener('click', () => {
 			s.step--;
 			render();
+		});
+		root.querySelector('#w-company')?.addEventListener('change', () => {
+			const id = root.querySelector<HTMLSelectElement>('#w-company')?.value ?? '';
+			const found = companies.find(c => c.id === id);
+			if (found) {
+				collect();
+				s.seller = { ...s.seller, ...found.profile };
+				render();
+			}
 		});
 		root.querySelector('#w-next')?.addEventListener('click', () => {
 			s.step++;
