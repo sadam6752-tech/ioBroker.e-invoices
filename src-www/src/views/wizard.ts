@@ -148,7 +148,7 @@ export function wizard(root: HTMLElement): void {
 				if (profile && !s.seller.name.trim() && profile.profile.name.trim()) {
 					s.seller = { ...s.seller, ...profile.profile };
 					s.selectedCompany = profile.id;
-					render();
+					render(true);
 				}
 			})
 			.catch(() => undefined);
@@ -192,8 +192,8 @@ export function wizard(root: HTMLElement): void {
 		return `<div class="steps">${names.map((n, i) => `<span class="${i === s.step ? 'on' : ''}">${i + 1}. ${n}</span>`).join('')}</div>`;
 	}
 
-	function render(): void {
-		collect();
+	function render(preserve = false): void {
+		if (!preserve) collect();
 		let body = '';
 		if (s.step === 0) {
 			body = `<div class="card"><h3>Verkäufer</h3>
@@ -270,10 +270,9 @@ export function wizard(root: HTMLElement): void {
 			const id = root.querySelector<HTMLSelectElement>('#w-company')?.value ?? '';
 			const found = companies.find(c => c.id === id);
 			if (found) {
-				collect();
 				s.seller = { ...s.seller, ...found.profile };
 				s.selectedCompany = found.id;
-				render();
+				render(true);
 			} else {
 				s.selectedCompany = null;
 			}
