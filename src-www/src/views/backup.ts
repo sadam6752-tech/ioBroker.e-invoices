@@ -1,4 +1,4 @@
-import { esc } from '../api';
+import { apiFetch, esc } from '../api';
 
 interface BackupEntry {
 	id: string;
@@ -20,7 +20,7 @@ export async function backup(root: HTMLElement): Promise<void> {
 	let isError = false;
 
 	async function reload(): Promise<void> {
-		const res = await fetch('/api/backups');
+		const res = await apiFetch('/api/backups');
 		if (!res.ok) throw new Error('Backups konnten nicht geladen werden');
 		items = (await res.json()) as BackupEntry[];
 		render();
@@ -53,7 +53,7 @@ export async function backup(root: HTMLElement): Promise<void> {
 
 		root.querySelector('#b-now')?.addEventListener('click', async () => {
 			try {
-				const res = await fetch('/api/backups', { method: 'POST' });
+				const res = await apiFetch('/api/backups', { method: 'POST' });
 				if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Sichern fehlgeschlagen');
 				const created = (await res.json()) as BackupEntry;
 				message = `Gesichert: ${baseName(created.filename)}`;
@@ -70,7 +70,7 @@ export async function backup(root: HTMLElement): Promise<void> {
 				const filename = (btn as HTMLElement).dataset.restore ?? '';
 				if (!window.confirm(`Wirklich wiederherstellen aus ${baseName(filename)}? Die aktuelle Datenbank wird ersetzt.`)) return;
 				try {
-					const res = await fetch('/api/restore', {
+					const res = await apiFetch('/api/restore', {
 						method: 'POST',
 						headers: { 'content-type': 'application/json' },
 						body: JSON.stringify({ filename }),
@@ -103,7 +103,7 @@ export async function backup(root: HTMLElement): Promise<void> {
 					r.onerror = () => reject(new Error('Datei nicht lesbar'));
 					r.readAsDataURL(file);
 				});
-				const res = await fetch('/api/restore', {
+				const res = await apiFetch('/api/restore', {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ dataBase64 }),

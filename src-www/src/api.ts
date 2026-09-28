@@ -106,19 +106,34 @@ export function setToken(token: string | null): void {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-	const headers: Record<string, string> = { 'content-type': 'application/json' };
-	const token = getToken();
-	if (token) headers.authorization = `Bearer ${token}`;
-	const res = await fetch(path, { ...init, headers: { ...headers, ...((init?.headers as Record<string, string>) ?? {}) } });
-	if (res.status === 401) {
-		if (!location.hash.startsWith('#/login')) location.hash = '#/login';
-		throw new Error('Nicht angemeldet — bitte Token auf der Login-Seite eintragen');
-	}
+	const res = await apiFetch(path, {
+		headers: { 'content-type': 'application/json' },
+		...init,
+	});
 	if (!res.ok) {
 		const body = (await res.json().catch(() => ({}))) as { error?: string };
 		throw new Error(body.error ?? `HTTP ${res.status}`);
 	}
 	return (await res.json()) as T;
+}
+
+/**
+ * fetch with API token and login redirect on 401 (for calls that need
+ * the raw Response, e.g. PDF blobs or manual error handling).
+ *
+ * @param path - Same-origin API path.
+ * @param init - fetch options.
+ */
+export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+	const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
+	const token = getToken();
+	if (token) headers.authorization = `Bearer ${token}`;
+	const res = await fetch(path, { ...init, headers });
+	if (res.status === 401) {
+		if (!location.hash.startsWith('#/login')) location.hash = '#/login';
+		throw new Error('Nicht angemeldet — bitte Token auf der Login-Seite eintragen');
+	}
+	return res;
 }
 
 export const api = {

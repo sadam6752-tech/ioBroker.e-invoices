@@ -1,4 +1,4 @@
-import { api, esc } from '../api';
+import { apiFetch, esc } from '../api';
 
 interface Template {
 	id: string;
@@ -40,7 +40,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 	}
 
 	async function apiList(): Promise<Template[]> {
-		const res = await fetch('/api/templates');
+		const res = await apiFetch('/api/templates');
 		if (!res.ok) throw new Error('Vorlagen konnten nicht geladen werden');
 		return (await res.json()) as Template[];
 	}
@@ -104,7 +104,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 		</div>` : ''}`;
 
 		root.querySelector('#t-new')?.addEventListener('click', async () => {
-			const res = await fetch('/api/templates');
+			const res = await apiFetch('/api/templates');
 			const list = (await res.json()) as Template[];
 			const first = list[0];
 			if (!first) {
@@ -130,7 +130,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 			b.addEventListener('click', async () => {
 				const t = items.find(x => x.id === (b as HTMLElement).dataset.prev);
 				if (!t) return;
-				const res = await fetch('/api/templates/preview', {
+				const res = await apiFetch('/api/templates/preview', {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ definition: t.definition }),
@@ -146,14 +146,14 @@ export async function templates(root: HTMLElement): Promise<void> {
 		);
 		root.querySelectorAll('[data-def]').forEach(b =>
 			b.addEventListener('click', async () => {
-				await fetch(`/api/templates/${(b as HTMLElement).dataset.def}/default`, { method: 'POST' });
+				await apiFetch(`/api/templates/${(b as HTMLElement).dataset.def}/default`, { method: 'POST' });
 				editing = null;
 				await reload();
 			}),
 		);
 		root.querySelectorAll('[data-del]').forEach(b =>
 			b.addEventListener('click', async () => {
-				const res = await fetch(`/api/templates/${(b as HTMLElement).dataset.del}`, { method: 'DELETE' });
+				const res = await apiFetch(`/api/templates/${(b as HTMLElement).dataset.del}`, { method: 'DELETE' });
 				if (!res.ok) {
 					const j = (await res.json().catch(() => ({}))) as { error?: string };
 					error = j.error ?? 'Löschen fehlgeschlagen';
@@ -195,7 +195,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 		try {
 			let id = editing.id;
 			if (id === 'neu') {
-				const res = await fetch('/api/templates', {
+				const res = await apiFetch('/api/templates', {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ name: def.name, definition: def }),
@@ -203,7 +203,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 				if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Speichern fehlgeschlagen');
 				id = ((await res.json()) as Template).id;
 			} else {
-				const res = await fetch(`/api/templates/${id}`, {
+				const res = await apiFetch(`/api/templates/${id}`, {
 					method: 'PUT',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ name: def.name, definition: def }),
@@ -218,7 +218,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 					r.onerror = () => reject(new Error('Datei nicht lesbar'));
 					r.readAsDataURL(file);
 				});
-				const res = await fetch(`/api/templates/${id}/logo`, {
+				const res = await apiFetch(`/api/templates/${id}/logo`, {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ filename: file.name, mime: file.type, dataBase64 }),
