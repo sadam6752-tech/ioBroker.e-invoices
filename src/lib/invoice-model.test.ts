@@ -6,6 +6,7 @@ import {
 	blankDraft,
 	calcTotals,
 	formatInvoiceNumber,
+	normalizeEmployeeCode,
 	todayIso,
 	validateInvoiceForIssue,
 	type InvoiceDraftInput,
@@ -43,14 +44,23 @@ function validDraft(): InvoiceDraftInput {
 }
 
 describe('invoice-model => formatInvoiceNumber', () => {
-	it('formats zero-padded numbers', () => {
-		expect(formatInvoiceNumber(2026, 1)).to.equal('2026-0001');
-		expect(formatInvoiceNumber(2026, 42)).to.equal('2026-0042');
+	it('formats year-employee-sequence numbers', () => {
+		expect(formatInvoiceNumber(2026, '01', 1)).to.equal('2026-01-001');
+		expect(formatInvoiceNumber(2026, 'ab', 42)).to.equal('2026-AB-042');
 	});
 
 	it('rejects invalid year/sequence', () => {
-		expect(() => formatInvoiceNumber(1999, 1)).to.throw();
-		expect(() => formatInvoiceNumber(2026, 0)).to.throw();
+		expect(() => formatInvoiceNumber(1999, '01', 1)).to.throw();
+		expect(() => formatInvoiceNumber(2026, '01', 0)).to.throw();
+	});
+});
+
+describe('invoice-model => normalizeEmployeeCode', () => {
+	it('uppercases and defaults to 00', () => {
+		expect(normalizeEmployeeCode('ab')).to.equal('AB');
+		expect(normalizeEmployeeCode(undefined)).to.equal('00');
+		expect(normalizeEmployeeCode('  ')).to.equal('00');
+		expect(() => normalizeEmployeeCode('a/b')).to.throw();
 	});
 });
 

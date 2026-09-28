@@ -97,7 +97,7 @@ describe('api => invoices', function () {
 		expect(valid.body.formatErrors).to.deep.equal([]);
 
 		const issued = await request(app).post(`/api/invoices/${id}/issue`).expect(200);
-		expect(issued.body.number).to.match(/^2026-\d{4}$/);
+		expect(issued.body.number).to.match(/^2026-00-\d{3}$/);
 
 		const xml = await request(app).get(`/api/invoices/${id}.xml`).expect(200);
 		expect(xml.headers['content-type']).to.contain('application/xml');
@@ -128,6 +128,67 @@ describe('api => invoices', function () {
 
 	it('answers 404 for unknown api routes', async () => {
 		await request(app).get('/api/nope').expect(404);
+	});
+});
+
+describe('api => company profiles', () => {
+	let db: InvoiceDatabase;
+	let app: ReturnType<typeof createApiServer>;
+
+	before(() => {
+		db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const quiet = { info: (): void => undefined, error: (): void => undefined };
+		app = createApiServer({
+			db,
+			storage: {
+				write: (): Promise<void> => Promise.resolve(),
+				read: (): Promise<Buffer> => Promise.reject(new Error('empty')),
+			},
+			log: quiet,
+			version: '0.0.0-test',
+		});
+	});
+
+	after(() => {
+		db.close();
+	});
+
+	it('creates, reads, updates and switches the default', async () => {
+		const empty = await request(app).get('/api/company-profiles').expect(200);
+		expect(empty.body).to.deep.equal([]);
+		expect(await request(app).get('/api/company-profiles/default').expect(200)).to.have.property('body');
+
+		const created = await request(app)
+			.post('/api/company-profiles')
+			.send({ name: 'Firma', profile: { ...seller, vatId: 'DE1' } })
+			.expect(201);
+		expect(created.body.isDefault).to.equal(true);
+
+		const updated = await request(app)
+			.put(`/api/company-profiles/${created.body.id as string}`)
+			.send({ profile: { ...seller, vatId: 'DE1', phone: '+49' } })
+			.expect(200);
+		expect(updated.body.profile.phone).to.equal('+49');
+
+		const second = await request(app)
+			.post('/api/company-profiles')
+			.send({ name: 'Zweit', profile: seller })
+			.expect(201);
+		await request(app)
+			.post(`/api/company-profiles/${second.body.id as string}/default`)
+			.expect(200);
+		const def = await request(app).get('/api/company-profiles/default').expect(200);
+		expect(def.body.id).to.equal(second.body.id);
+
+		await request(app)
+			.delete(`/api/company-profiles/${created.body.id as string}`)
+			.expect(200);
+		await request(app)
+			.delete(`/api/company-profiles/${second.body.id as string}`)
+			.expect(400);
+		await request(app).get('/api/company-profiles/nope').expect(404);
+		await request(app).post('/api/company-profiles').send({ name: 'X' }).expect(400);
 	});
 });
 

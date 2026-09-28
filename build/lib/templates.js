@@ -65,12 +65,14 @@ function validateTemplate(template) {
     "showCustomerNumber",
     "showPaymentTerms",
     "showArchiveHint",
-    "showPageNumbers",
-    "showTagline"
+    "showPageNumbers"
   ]) {
     if (typeof t[key] !== "boolean") {
       errors.push(`${key} muss true/false sein`);
     }
+  }
+  if (t.showTagline !== void 0 && typeof t.showTagline !== "boolean") {
+    errors.push("showTagline muss true/false sein");
   }
   if (typeof t.footerText !== "string" || t.footerText.length > 500) {
     errors.push("Fu\xDFzeile muss Text mit max. 500 Zeichen sein");
@@ -81,12 +83,12 @@ function validateTemplate(template) {
     ["headerExtra", 200]
   ]) {
     const value = t[key];
-    if (typeof value !== "string" || value.length > max) {
+    if (value !== void 0 && (typeof value !== "string" || value.length > max)) {
       errors.push(`${key} muss Text mit max. ${max} Zeichen sein`);
     }
   }
   const signature = t.signatureName;
-  if (typeof signature !== "string" || signature.length > 80) {
+  if (signature !== void 0 && (typeof signature !== "string" || signature.length > 80)) {
     errors.push("signatureName muss Text mit max. 80 Zeichen sein");
   }
   const blocks = t.blocks;

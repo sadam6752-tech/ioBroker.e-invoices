@@ -23,6 +23,7 @@ __export(invoice_model_exports, {
   calcTotals: () => calcTotals,
   formatInvoiceNumber: () => formatInvoiceNumber,
   isIsoDate: () => isIsoDate,
+  normalizeEmployeeCode: () => normalizeEmployeeCode,
   roundCents: () => roundCents,
   todayIso: () => todayIso,
   validateInvoiceForIssue: () => validateInvoiceForIssue
@@ -32,14 +33,22 @@ const ALLOWED_VAT_RATES = [0, 7, 19];
 function roundCents(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
-function formatInvoiceNumber(year, seq, width = 4) {
+function formatInvoiceNumber(year, employee, seq, width = 3) {
   if (!Number.isInteger(year) || year < 2e3 || year > 2100) {
     throw new Error(`Invalid year for invoice number: ${year}`);
   }
+  const code = normalizeEmployeeCode(employee);
   if (!Number.isInteger(seq) || seq < 1) {
     throw new Error(`Invalid sequence for invoice number: ${seq}`);
   }
-  return `${year}-${String(seq).padStart(width, "0")}`;
+  return `${year}-${code}-${String(seq).padStart(width, "0")}`;
+}
+function normalizeEmployeeCode(code) {
+  const normalized = (code != null ? code : "").trim().toUpperCase() || "00";
+  if (!/^[A-Z0-9]{1,8}$/.test(normalized)) {
+    throw new Error(`Invalid employee code (1-8 letters/digits): ${code}`);
+  }
+  return normalized;
 }
 function calcTotals(lines) {
   var _a, _b;
@@ -138,6 +147,13 @@ function validateInvoiceForIssue(input) {
   if (input.currency !== void 0 && input.currency !== "EUR") {
     errors.push("Only EUR is supported in v1.");
   }
+  if (input.employeeCode !== void 0) {
+    try {
+      normalizeEmployeeCode(input.employeeCode);
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
   try {
     calcTotals(lines);
   } catch (error) {
@@ -152,6 +168,7 @@ function validateInvoiceForIssue(input) {
   calcTotals,
   formatInvoiceNumber,
   isIsoDate,
+  normalizeEmployeeCode,
   roundCents,
   todayIso,
   validateInvoiceForIssue

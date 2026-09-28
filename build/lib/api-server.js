@@ -46,7 +46,7 @@ var import_templates = require("./templates");
 var import_validation = require("./validation");
 var import_zugferd = require("./zugferd");
 function previewInvoice(draft) {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e;
   const stamp = (/* @__PURE__ */ new Date()).toISOString();
   return {
     id: "preview",
@@ -64,6 +64,7 @@ function previewInvoice(draft) {
     documentTitle: (_b = draft.documentTitle) != null ? _b : "Rechnung",
     notes: (_c = draft.notes) != null ? _c : null,
     paymentTerms: (_d = draft.paymentTerms) != null ? _d : null,
+    employeeCode: (_e = draft.employeeCode) != null ? _e : null,
     xml: null,
     pdfPath: null,
     xlsxPath: null,
@@ -527,6 +528,74 @@ function createApiServer(deps) {
         res.json(await (0, import_backup.restoreBackup)(db, storage, data, log));
       } catch (error) {
         res.status(400).json({ error: error.message });
+      }
+    })
+  );
+  app.get("/api/company-profiles", (_req, res) => {
+    res.json(db.listCompanyProfiles());
+  });
+  app.get("/api/company-profiles/default", (_req, res) => {
+    res.json(db.getDefaultCompanyProfile());
+  });
+  app.post(
+    "/api/company-profiles",
+    route((req, res) => {
+      var _a;
+      const body = (_a = req.body) != null ? _a : {};
+      if (typeof body.name !== "string" || typeof body.profile !== "object" || !body.profile) {
+        res.status(400).json({ error: "Body needs name and profile" });
+        return;
+      }
+      try {
+        res.status(201).json(
+          db.createCompanyProfile(body.name, body.profile)
+        );
+      } catch (error) {
+        res.status(400).json({ error: error.message });
+      }
+    })
+  );
+  app.get(
+    "/api/company-profiles/:cid",
+    route((req, res) => {
+      const profile = db.getCompanyProfile(routeParam(req, "cid"));
+      if (!profile) {
+        res.status(404).json({ error: "Company profile not found" });
+        return;
+      }
+      res.json(profile);
+    })
+  );
+  app.put(
+    "/api/company-profiles/:cid",
+    route((req, res) => {
+      var _a;
+      const body = (_a = req.body) != null ? _a : {};
+      try {
+        res.json(db.updateCompanyProfile(routeParam(req, "cid"), body));
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.delete(
+    "/api/company-profiles/:cid",
+    route((req, res) => {
+      try {
+        db.deleteCompanyProfile(routeParam(req, "cid"));
+        res.json({ ok: true });
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.post(
+    "/api/company-profiles/:cid/default",
+    route((req, res) => {
+      try {
+        res.json(db.setDefaultCompanyProfile(routeParam(req, "cid")));
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
       }
     })
   );

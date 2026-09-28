@@ -94,7 +94,7 @@ function issueInMemoryDb(input: InvoiceDraftInput): { db: InvoiceDatabase; invoi
 	const db = new InvoiceDatabase(':memory:');
 	db.migrate();
 	const created = db.createDraft(input);
-	const invoice = db.issueDraft(created.id, 2026);
+	const invoice = db.issueDraft(created.id);
 	return { db, invoice };
 }
 
@@ -175,7 +175,7 @@ describe('zugferd => mixed-rates BASIC invoice', function () {
 					],
 				}),
 			);
-			const issued = db.issueDraft(created.id, 2026);
+			const issued = db.issueDraft(created.id);
 			const basic = { ...issued, profile: 'BASIC' };
 			const { xml } = await generateInvoiceXml(basic);
 			expect(xml).to.contain('145.00');
@@ -211,7 +211,7 @@ describe('zugferd => exempt small invoice', function () {
 					documentTitle: 'Rechnung',
 				}),
 			);
-			const issued = db.issueDraft(created.id, 2026);
+			const issued = db.issueDraft(created.id);
 			const { xml } = await generateInvoiceXml(issued);
 			expect(xml).to.contain('Steuerfrei nach');
 			const check = await validateArtifacts(issued, xml);
@@ -246,7 +246,7 @@ describe('zugferd => sku, details and phone', function () {
 					],
 				}),
 			);
-			const issued = db.issueDraft(created.id, 2026);
+			const issued = db.issueDraft(created.id);
 			const { xml } = await generateInvoiceXml(issued);
 			expect(xml).to.contain('ABC123');
 			expect(xml).to.contain('Detaillierte Beschreibung');

@@ -54,6 +54,8 @@ class EInvoices extends utils.Adapter {
 			this.log.info(`Database ready (schema v${this.db.currentVersion()}): ${dbPath}`);
 			const defaultTemplate = this.db.ensureDefaultTemplate();
 			this.log.info(`Layout template: ${defaultTemplate.name} v${defaultTemplate.version}`);
+			const company = this.db.ensureDefaultCompanyProfile();
+			this.log.info(`Company profile: ${company.name}`);
 
 			await this.ensureObjects();
 			await this.ensureMountPoint();

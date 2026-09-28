@@ -14,10 +14,12 @@ import { dirname } from 'node:path';
 import {
 	calcTotals,
 	formatInvoiceNumber,
+	normalizeEmployeeCode,
 	validateInvoiceForIssue,
 	type InvoiceDraftInput,
 	type InvoiceStatus,
 	type InvoiceTotals,
+	type Party,
 } from './invoice-model';
 import { LATEST_SCHEMA_VERSION, MIGRATIONS } from './migrations';
 import { DEFAULT_TEMPLATE, validateTemplate, type LayoutTemplate } from './templates';
@@ -52,6 +54,8 @@ export interface StoredInvoice {
 	documentTitle: string;
 	/** Free notes, may be null. */
 	notes: string | null;
+	/** Employee code used in the number (e.g. `01`), may be null for legacy. */
+	employeeCode: string | null;
 	/** Payment terms text, may be null. */
 	paymentTerms: string | null;
 	/** Structured XML, null until generated. */
@@ -119,6 +123,7 @@ interface InvoiceRow {
 	template_id: string | null;
 	document_title: string;
 	notes: string | null;
+	employee_code: string | null;
 	payment_terms: string | null;
 	xml: string | null;
 	pdf_path: string | null;
@@ -143,6 +148,7 @@ function mapRow(row: InvoiceRow): StoredInvoice {
 		templateId: row.template_id,
 		documentTitle: row.document_title,
 		notes: row.notes,
+		employeeCode: row.employee_code ?? null,
 		paymentTerms: row.payment_terms ?? null,
 		xml: row.xml,
 		pdfPath: row.pdf_path,
@@ -239,6 +245,60 @@ export interface StoredAttachment {
 	createdAt: string;
 }
 
+/** Year counter scoped by employee. */
+export interface YearCounter {
+	/** Calendar year. */
+	year: number;
+	/** Employee code. */
+	employee: string;
+	/** Last sequence used. */
+	last_seq: number;
+}
+
+/** Stored company (seller) profile. */
+export interface StoredCompanyProfile {
+	/** Profile UUID. */
+	id: string;
+	/** Display name. */
+	name: string;
+	/** Seller party data. */
+	profile: Party;
+	/** True for the default profile. */
+	isDefault: boolean;
+	/** Creation timestamp. */
+	createdAt: string;
+	/** Last update timestamp. */
+	updatedAt: string;
+}
+
+interface CompanyRow {
+	id: string;
+	name: string;
+	profile_json: string;
+	is_default: number;
+	created_at: string;
+	updated_at: string;
+}
+
+function mapCompanyRow(row: CompanyRow): StoredCompanyProfile {
+	return {
+		id: row.id,
+		name: row.name,
+		profile: parseJson(row.profile_json, 'company'),
+		isDefault: row.is_default === 1,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+/** Partial company profile update. */
+export interface CompanyPatch {
+	/** New display name. */
+	name?: string;
+	/** New seller party data. */
+	profile?: Party;
+}
+
 /** Full database content for backup/restore. */
 export interface DatabaseDump {
 	/** Dump format version, always 1. */
@@ -249,12 +309,14 @@ export interface DatabaseDump {
 	schemaVersion: number;
 	/** All invoices with snapshots and XML. */
 	invoices: StoredInvoice[];
-	/** Year counters. */
-	counters: { year: number; last_seq: number }[];
+	/** Year counters scoped by employee. */
+	counters: YearCounter[];
 	/** All layout templates. */
 	templates: StoredTemplate[];
 	/** All attachments. */
 	attachments: StoredAttachment[];
+	/** All company profiles. */
+	companies: StoredCompanyProfile[];
 }
 
 /** Backup log entry. */
@@ -346,25 +408,31 @@ export class InvoiceDatabase {
 	}
 
 	/**
-	 * Reserves the next invoice number for a year atomically.
+	 * Reserves the next invoice number for a year+employee atomically
+	 * (`YYYY-EE-NNN`).
 	 *
 	 * @param year - Calendar year, e.g. 2026.
+	 * @param employee - Employee code, defaults to `00`.
 	 */
-	public nextInvoiceNumber(year: number): string {
+	public nextInvoiceNumber(year: number, employee?: string): string {
 		if (!Number.isInteger(year) || year < 2000 || year > 2100) {
 			throw new Error(`Invalid year: ${year}`);
 		}
+		const code = normalizeEmployeeCode(employee);
 		const run = this.db.transaction((): string => {
-			const row = this.db.prepare(`SELECT last_seq AS seq FROM counters WHERE year = ?`).get(year) as {
+			const row = this.db
+				.prepare(`SELECT last_seq AS seq FROM counters WHERE year = ? AND employee = ?`)
+				.get(year, code) as {
 				seq?: number;
 			} | null;
 			const next = (row?.seq ?? 0) + 1;
 			this.db
 				.prepare(
-					`INSERT INTO counters (year, last_seq) VALUES (?, ?) ON CONFLICT(year) DO UPDATE SET last_seq = excluded.last_seq`,
+					`INSERT INTO counters (year, employee, last_seq) VALUES (?, ?, ?)
+					ON CONFLICT(year, employee) DO UPDATE SET last_seq = excluded.last_seq`,
 				)
-				.run(year, next);
-			return formatInvoiceNumber(year, next);
+				.run(year, code, next);
+			return formatInvoiceNumber(year, code, next);
 		});
 		return run();
 	}
@@ -381,8 +449,8 @@ export class InvoiceDatabase {
 		this.db
 			.prepare(
 				`INSERT INTO invoices
-				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, template_id, document_title, notes, payment_terms, created_at, updated_at)
-				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', NULL, ?, ?, ?, ?, ?)`,
+				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, template_id, document_title, notes, payment_terms, employee_code, created_at, updated_at)
+				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', NULL, ?, ?, ?, ?, ?, ?)`,
 			)
 			.run(
 				id,
@@ -396,6 +464,7 @@ export class InvoiceDatabase {
 				input.documentTitle ?? 'Rechnung',
 				input.notes ?? null,
 				input.paymentTerms ?? null,
+				input.employeeCode?.trim() ? input.employeeCode.trim().toUpperCase() : null,
 				stamp,
 				stamp,
 			);
@@ -469,6 +538,7 @@ export class InvoiceDatabase {
 			deliveryDate: patch.deliveryDate ?? current.deliveryDate,
 			dueDate: patch.dueDate ?? current.dueDate ?? undefined,
 			currency: 'EUR',
+			employeeCode: patch.employeeCode ?? current.employeeCode ?? undefined,
 			paymentTerms: patch.paymentTerms ?? current.paymentTerms ?? undefined,
 			documentTitle: patch.documentTitle ?? current.documentTitle,
 			notes: patch.notes ?? current.notes ?? undefined,
@@ -477,7 +547,7 @@ export class InvoiceDatabase {
 		this.db
 			.prepare(
 				`UPDATE invoices SET issue_date = ?, delivery_date = ?, due_date = ?, seller_json = ?, buyer_json = ?,
-				lines_json = ?, totals_json = ?, document_title = ?, notes = ?, payment_terms = ?, updated_at = ? WHERE id = ?`,
+				lines_json = ?, totals_json = ?, document_title = ?, notes = ?, payment_terms = ?, employee_code = ?, updated_at = ? WHERE id = ?`,
 			)
 			.run(
 				merged.issueDate,
@@ -490,6 +560,7 @@ export class InvoiceDatabase {
 				merged.documentTitle ?? 'Rechnung',
 				merged.notes ?? null,
 				merged.paymentTerms ?? null,
+				merged.employeeCode?.trim() ? merged.employeeCode.trim().toUpperCase() : null,
 				nowIso(),
 				id,
 			);
@@ -502,19 +573,23 @@ export class InvoiceDatabase {
 
 	/**
 	 * Issues a draft: validates Pflichtangaben, assigns the next number
-	 * atomically and freezes the record. File paths are attached later
+	 * (`YYYY-EE-NNN` from issue year + employee code) atomically and
+	 * freezes the record. File paths are attached later
 	 * by the P2/P3 generation step via attachIssueArtifacts().
 	 *
 	 * @param id - Draft UUID.
-	 * @param year - Numbering year (usually from issue date).
 	 */
-	public issueDraft(id: string, year: number): StoredInvoice {
+	public issueDraft(id: string): StoredInvoice {
 		const current = this.getInvoice(id);
 		if (!current) {
 			throw new Error(`Invoice not found: ${id}`);
 		}
 		if (current.status !== 'draft') {
 			throw new Error('Only drafts can be issued.');
+		}
+		const year = Number(current.issueDate.slice(0, 4));
+		if (!Number.isInteger(year)) {
+			throw new Error(`Invalid issue year in ${current.issueDate}`);
 		}
 		const errors = validateInvoiceForIssue({
 			seller: current.seller,
@@ -524,6 +599,7 @@ export class InvoiceDatabase {
 			deliveryDate: current.deliveryDate,
 			dueDate: current.dueDate ?? undefined,
 			currency: 'EUR',
+			employeeCode: current.employeeCode ?? undefined,
 			documentTitle: current.documentTitle,
 			notes: current.notes ?? undefined,
 		});
@@ -531,7 +607,7 @@ export class InvoiceDatabase {
 			throw new Error(`Invoice not issuable: ${errors.join(' | ')}`);
 		}
 		const run = this.db.transaction((): StoredInvoice => {
-			const number = this.nextInvoiceNumber(year);
+			const number = this.nextInvoiceNumber(year, current.employeeCode ?? undefined);
 			this.db
 				.prepare(
 					`UPDATE invoices SET number = ?, status = 'issued', updated_at = ? WHERE id = ? AND status = 'draft'`,
@@ -844,8 +920,11 @@ export class InvoiceDatabase {
 	 * Exports the full database content for backups.
 	 */
 	public exportData(): DatabaseDump {
-		const counters = this.db.prepare(`SELECT year, last_seq FROM counters ORDER BY year ASC`).all() as {
+		const counters = this.db
+			.prepare(`SELECT year, employee, last_seq FROM counters ORDER BY year ASC, employee ASC`)
+			.all() as {
 			year: number;
+			employee: string;
 			last_seq: number;
 		}[];
 		const attachments = this.db.prepare(`SELECT * FROM attachments ORDER BY id ASC`).all() as {
@@ -864,6 +943,7 @@ export class InvoiceDatabase {
 			invoices: this.listInvoices({ limit: 500 }),
 			counters,
 			templates: this.listTemplates(),
+			companies: this.listCompanyProfiles(),
 			attachments: attachments.map(row => ({
 				id: row.id,
 				invoiceId: row.invoice_id,
@@ -896,10 +976,12 @@ export class InvoiceDatabase {
 			this.db.prepare(`DELETE FROM invoices`).run();
 			this.db.prepare(`DELETE FROM counters`).run();
 			this.db.prepare(`DELETE FROM templates`).run();
+			this.db.prepare(`DELETE FROM company_profiles`).run();
 			for (const counter of dump.counters ?? []) {
+				const employee = normalizeEmployeeCode((counter as { employee?: string }).employee ?? '00');
 				this.db
-					.prepare(`INSERT INTO counters (year, last_seq) VALUES (?, ?)`)
-					.run(counter.year, counter.last_seq);
+					.prepare(`INSERT INTO counters (year, employee, last_seq) VALUES (?, ?, ?)`)
+					.run(counter.year, employee, counter.last_seq);
 			}
 			for (const template of dump.templates) {
 				this.db
@@ -922,8 +1004,8 @@ export class InvoiceDatabase {
 					.prepare(
 						`INSERT INTO invoices
 						(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json,
-						 profile, status, template_id, document_title, notes, payment_terms, xml, pdf_path, xlsx_path, created_at, updated_at)
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+						 profile, status, template_id, document_title, notes, payment_terms, employee_code, xml, pdf_path, xlsx_path, created_at, updated_at)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					)
 					.run(
 						invoice.id,
@@ -941,11 +1023,27 @@ export class InvoiceDatabase {
 						invoice.documentTitle,
 						invoice.notes,
 						invoice.paymentTerms ?? null,
+						invoice.employeeCode ?? null,
 						invoice.xml,
 						invoice.pdfPath,
 						invoice.xlsxPath,
 						invoice.createdAt,
 						invoice.updatedAt,
+					);
+			}
+			for (const company of dump.companies ?? []) {
+				this.db
+					.prepare(
+						`INSERT INTO company_profiles (id, name, profile_json, is_default, created_at, updated_at)
+						VALUES (?, ?, ?, ?, ?, ?)`,
+					)
+					.run(
+						company.id,
+						company.name,
+						JSON.stringify(company.profile),
+						company.isDefault ? 1 : 0,
+						company.createdAt,
+						company.updatedAt,
 					);
 			}
 			for (const attachment of dump.attachments ?? []) {
@@ -1003,5 +1101,144 @@ export class InvoiceDatabase {
 			sha256: row.sha256,
 			manifestJson: row.manifest_json,
 		}));
+	}
+
+	/**
+	 * Creates a company (seller) profile; the first one becomes default.
+	 *
+	 * @param name - Display name.
+	 * @param profile - Seller party data.
+	 */
+	public createCompanyProfile(name: string, profile: Party): StoredCompanyProfile {
+		if (name.trim().length === 0) {
+			throw new Error('Company profile needs a name');
+		}
+		const id = randomUUID();
+		const stamp = nowIso();
+		const hasAny = (this.db.prepare(`SELECT COUNT(*) AS n FROM company_profiles`).get() as { n: number }).n > 0;
+		this.db
+			.prepare(
+				`INSERT INTO company_profiles (id, name, profile_json, is_default, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?)`,
+			)
+			.run(id, name.trim(), JSON.stringify(profile), hasAny ? 0 : 1, stamp, stamp);
+		const created = this.getCompanyProfile(id);
+		if (!created) {
+			throw new Error('Company profile was not stored');
+		}
+		return created;
+	}
+
+	/**
+	 * Loads one company profile by id.
+	 *
+	 * @param id - Profile UUID.
+	 */
+	public getCompanyProfile(id: string): StoredCompanyProfile | null {
+		const row = this.db.prepare(`SELECT * FROM company_profiles WHERE id = ?`).get(id) as CompanyRow | undefined;
+		return row ? mapCompanyRow(row) : null;
+	}
+
+	/**
+	 * Lists company profiles, default first.
+	 */
+	public listCompanyProfiles(): StoredCompanyProfile[] {
+		const rows = this.db
+			.prepare(`SELECT * FROM company_profiles ORDER BY is_default DESC, name ASC`)
+			.all() as CompanyRow[];
+		return rows.map(mapCompanyRow);
+	}
+
+	/**
+	 * Returns the default company profile, if any.
+	 */
+	public getDefaultCompanyProfile(): StoredCompanyProfile | null {
+		const row = this.db.prepare(`SELECT * FROM company_profiles WHERE is_default = 1 LIMIT 1`).get() as
+			CompanyRow | undefined;
+		return row ? mapCompanyRow(row) : null;
+	}
+
+	/**
+	 * Creates the default company shell on first start (idempotent).
+	 * The user fills in their data once on the PWA Firma page.
+	 */
+	public ensureDefaultCompanyProfile(): StoredCompanyProfile {
+		const existing = this.getDefaultCompanyProfile();
+		if (existing) {
+			return existing;
+		}
+		const all = this.listCompanyProfiles();
+		if (all.length === 0) {
+			return this.createCompanyProfile('Meine Firma', {
+				name: '',
+				street: '',
+				zip: '',
+				city: '',
+				country: 'DE',
+			});
+		}
+		return this.setDefaultCompanyProfile(all[0].id);
+	}
+
+	/**
+	 * Updates name/party data of a company profile.
+	 *
+	 * @param id - Profile UUID.
+	 * @param patch - Partial update.
+	 */
+	public updateCompanyProfile(id: string, patch: CompanyPatch): StoredCompanyProfile {
+		const current = this.getCompanyProfile(id);
+		if (!current) {
+			throw new Error(`Company profile not found: ${id}`);
+		}
+		const name = patch.name?.trim() || current.name;
+		const profile = patch.profile ?? current.profile;
+		this.db
+			.prepare(`UPDATE company_profiles SET name = ?, profile_json = ?, updated_at = ? WHERE id = ?`)
+			.run(name, JSON.stringify(profile), nowIso(), id);
+		const updated = this.getCompanyProfile(id);
+		if (!updated) {
+			throw new Error('Company profile update failed');
+		}
+		return updated;
+	}
+
+	/**
+	 * Marks one company profile as default (atomic switch).
+	 *
+	 * @param id - Profile UUID.
+	 */
+	public setDefaultCompanyProfile(id: string): StoredCompanyProfile {
+		if (!this.getCompanyProfile(id)) {
+			throw new Error(`Company profile not found: ${id}`);
+		}
+		const run = this.db.transaction(() => {
+			this.db.prepare(`UPDATE company_profiles SET is_default = 0`).run();
+			this.db
+				.prepare(`UPDATE company_profiles SET is_default = 1, updated_at = ? WHERE id = ?`)
+				.run(nowIso(), id);
+		});
+		run();
+		const updated = this.getCompanyProfile(id);
+		if (!updated) {
+			throw new Error('Default switch failed');
+		}
+		return updated;
+	}
+
+	/**
+	 * Deletes a company profile (never the default).
+	 *
+	 * @param id - Profile UUID.
+	 */
+	public deleteCompanyProfile(id: string): void {
+		const current = this.getCompanyProfile(id);
+		if (!current) {
+			throw new Error(`Company profile not found: ${id}`);
+		}
+		if (current.isDefault) {
+			throw new Error('The default company profile cannot be deleted');
+		}
+		this.db.prepare(`DELETE FROM company_profiles WHERE id = ?`).run(id);
 	}
 }

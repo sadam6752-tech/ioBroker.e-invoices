@@ -102,6 +102,8 @@ export interface InvoiceDraftInput {
 	dueDate?: string;
 	/** Currency, only EUR supported in v1. */
 	currency?: string;
+	/** Employee code for numbering (e.g. `01`), defaults to `00`. */
+	employeeCode?: string;
 	/** Payment terms text, e.g. Skonto (optional). */
 	paymentTerms?: string;
 	/** Document type label: Rechnung | Gutschrift | Abschlagsrechnung ... */
@@ -129,20 +131,35 @@ export function roundCents(value: number): number {
 }
 
 /**
- * Formats an invoice number as `YYYY-NNNN` (zero-padded sequence).
+ * Formats an invoice number as `YYYY-EE-NNN` (employee code + sequence).
  *
  * @param year - Calendar year, e.g. 2026.
- * @param seq - Running sequence within the year, starting at 1.
- * @param width - Zero-padding width, default 4.
+ * @param employee - Employee code (normalized, e.g. `01`).
+ * @param seq - Running sequence within year+employee, starting at 1.
+ * @param width - Zero-padding width, default 3.
  */
-export function formatInvoiceNumber(year: number, seq: number, width = 4): string {
+export function formatInvoiceNumber(year: number, employee: string, seq: number, width = 3): string {
 	if (!Number.isInteger(year) || year < 2000 || year > 2100) {
 		throw new Error(`Invalid year for invoice number: ${year}`);
 	}
+	const code = normalizeEmployeeCode(employee);
 	if (!Number.isInteger(seq) || seq < 1) {
 		throw new Error(`Invalid sequence for invoice number: ${seq}`);
 	}
-	return `${year}-${String(seq).padStart(width, '0')}`;
+	return `${year}-${code}-${String(seq).padStart(width, '0')}`;
+}
+
+/**
+ * Normalizes an employee code (uppercase, fallback `00`).
+ *
+ * @param code - Raw code from the draft or UI.
+ */
+export function normalizeEmployeeCode(code?: string): string {
+	const normalized = (code ?? '').trim().toUpperCase() || '00';
+	if (!/^[A-Z0-9]{1,8}$/.test(normalized)) {
+		throw new Error(`Invalid employee code (1-8 letters/digits): ${code}`);
+	}
+	return normalized;
 }
 
 /**
@@ -277,6 +294,13 @@ export function validateInvoiceForIssue(input: InvoiceDraftInput): string[] {
 	});
 	if (input.currency !== undefined && input.currency !== 'EUR') {
 		errors.push('Only EUR is supported in v1.');
+	}
+	if (input.employeeCode !== undefined) {
+		try {
+			normalizeEmployeeCode(input.employeeCode);
+		} catch (error) {
+			errors.push((error as Error).message);
+		}
 	}
 	try {
 		calcTotals(lines);

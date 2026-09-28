@@ -258,6 +258,7 @@ export async function restoreBackup(
 		invoices: dumpJson.invoices ?? [],
 		counters: dumpJson.counters ?? [],
 		templates: dumpJson.templates ?? [],
+		companies: dumpJson.companies ?? [],
 		attachments: (dumpJson.attachments ?? []).map(attachment => ({
 			id: attachment.id,
 			invoiceId: attachment.invoiceId,

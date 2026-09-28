@@ -45,6 +45,16 @@ describe('templates => validateTemplate', () => {
 
 		expect(validateTemplate(null)).to.have.lengthOf(1);
 	});
+
+	it('accepts legacy templates without the newer optional fields', () => {
+		const legacy = valid();
+		delete (legacy as unknown as Record<string, unknown>).showTagline;
+		delete (legacy as unknown as Record<string, unknown>).introText;
+		delete (legacy as unknown as Record<string, unknown>).closingText;
+		delete (legacy as unknown as Record<string, unknown>).signatureName;
+		delete (legacy as unknown as Record<string, unknown>).headerExtra;
+		expect(validateTemplate(legacy)).to.deep.equal([]);
+	});
 });
 
 describe('templates => database', () => {
@@ -94,7 +104,7 @@ describe('templates => database', () => {
 				deliveryDate: '2026-09-28',
 				currency: 'EUR',
 			});
-			const issued = db.issueDraft(created.id, 2026);
+			const issued = db.issueDraft(created.id);
 			db.attachIssueArtifacts(issued.id, { xml: '<x/>', pdfPath: 'p.pdf', templateId: other.id });
 			expect(() => db.deleteTemplate(other.id)).to.throw(/referenced/i);
 		} finally {

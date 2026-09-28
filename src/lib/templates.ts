@@ -108,6 +108,9 @@ function isHexColor(value: unknown): boolean {
 /**
  * Pflichtfeld-Wächter: rejects templates that would hide mandatory
  * invoice content. Returns human-readable errors (German); empty = OK.
+ * Fields added after v1 (showTagline, texts, signature, headerExtra)
+ * are optional so templates stored earlier stay usable; the renderer
+ * falls back to defaults for missing values.
  *
  * @param template - Untrusted template candidate (e.g. from the API/PWA).
  */
@@ -133,11 +136,13 @@ export function validateTemplate(template: unknown): string[] {
 		'showPaymentTerms',
 		'showArchiveHint',
 		'showPageNumbers',
-		'showTagline',
 	] as const) {
 		if (typeof t[key] !== 'boolean') {
 			errors.push(`${key} muss true/false sein`);
 		}
+	}
+	if (t.showTagline !== undefined && typeof t.showTagline !== 'boolean') {
+		errors.push('showTagline muss true/false sein');
 	}
 	if (typeof t.footerText !== 'string' || t.footerText.length > 500) {
 		errors.push('Fußzeile muss Text mit max. 500 Zeichen sein');
@@ -148,12 +153,12 @@ export function validateTemplate(template: unknown): string[] {
 		['headerExtra', 200],
 	] as const) {
 		const value: unknown = t[key];
-		if (typeof value !== 'string' || value.length > max) {
+		if (value !== undefined && (typeof value !== 'string' || value.length > max)) {
 			errors.push(`${key} muss Text mit max. ${max} Zeichen sein`);
 		}
 	}
 	const signature: unknown = t.signatureName;
-	if (typeof signature !== 'string' || signature.length > 80) {
+	if (signature !== undefined && (typeof signature !== 'string' || signature.length > 80)) {
 		errors.push('signatureName muss Text mit max. 80 Zeichen sein');
 	}
 	const blocks = t.blocks as Record<string, unknown> | undefined;

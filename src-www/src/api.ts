@@ -67,9 +67,17 @@ export interface DraftInput {
 	deliveryDate: string;
 	dueDate?: string;
 	currency?: string;
+	employeeCode?: string;
 	documentTitle?: string;
 	notes?: string;
 	paymentTerms?: string;
+}
+
+export interface CompanyProfile {
+	id: string;
+	name: string;
+	profile: Party;
+	isDefault: boolean;
 }
 
 export interface ValidationOutcome {
@@ -77,11 +85,35 @@ export interface ValidationOutcome {
 	businessErrors: string[];
 }
 
+/** API token storage (localStorage, set on the login page). */
+const TOKEN_KEY = 'einv-token';
+
+export function getToken(): string | null {
+	try {
+		return localStorage.getItem(TOKEN_KEY);
+	} catch {
+		return null;
+	}
+}
+
+export function setToken(token: string | null): void {
+	try {
+		if (token) localStorage.setItem(TOKEN_KEY, token);
+		else localStorage.removeItem(TOKEN_KEY);
+	} catch {
+		// storage blocked — session only
+	}
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-	const res = await fetch(path, {
-		headers: { 'content-type': 'application/json' },
-		...init,
-	});
+	const headers: Record<string, string> = { 'content-type': 'application/json' };
+	const token = getToken();
+	if (token) headers.authorization = `Bearer ${token}`;
+	const res = await fetch(path, { ...init, headers: { ...headers, ...((init?.headers as Record<string, string>) ?? {}) } });
+	if (res.status === 401) {
+		if (!location.hash.startsWith('#/login')) location.hash = '#/login';
+		throw new Error('Nicht angemeldet — bitte Token auf der Login-Seite eintragen');
+	}
 	if (!res.ok) {
 		const body = (await res.json().catch(() => ({}))) as { error?: string };
 		throw new Error(body.error ?? `HTTP ${res.status}`);
@@ -105,6 +137,14 @@ export const api = {
 	pdfUrl: (id: string) => `/api/invoices/${id}.pdf`,
 	xmlUrl: (id: string) => `/api/invoices/${id}.xml`,
 	xlsxUrl: (id: string) => `/api/invoices/${id}.xlsx`,
+	company: {
+		list: () => request<CompanyProfile[]>('/api/company-profiles'),
+		getDefault: () => request<CompanyProfile | null>('/api/company-profiles/default'),
+		create: (name: string, profile: Party) =>
+			request<CompanyProfile>('/api/company-profiles', { method: 'POST', body: JSON.stringify({ name, profile }) }),
+		update: (id: string, patch: { name?: string; profile?: Party }) =>
+			request<CompanyProfile>(`/api/company-profiles/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
+	},
 	exportUrl: (params: Record<string, string> = {}) => {
 		const q = new URLSearchParams(params).toString();
 		return `/api/invoices/export.xlsx${q ? `?${q}` : ''}`;

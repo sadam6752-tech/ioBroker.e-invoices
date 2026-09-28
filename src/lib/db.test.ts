@@ -52,7 +52,7 @@ describe('db => migrations', () => {
 		try {
 			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
 			db.migrate();
-			expect(db.currentVersion()).to.equal(2);
+			expect(db.currentVersion()).to.equal(3);
 			const columns = db.tableColumns('invoices');
 			expect(columns).to.contain('payment_terms');
 			db.close();
@@ -65,7 +65,7 @@ describe('db => migrations', () => {
 		const db = openMemoryDb();
 		try {
 			db.migrate();
-			expect(db.currentVersion()).to.equal(2);
+			expect(db.currentVersion()).to.equal(3);
 		} finally {
 			db.close();
 		}
@@ -84,13 +84,13 @@ describe('db => drafts and issue flow', () => {
 			const updated = db.updateDraft(first.id, { dueDate: '2026-10-12' });
 			expect(updated.dueDate).to.equal('2026-10-12');
 
-			const issued1 = db.issueDraft(first.id, 2026);
-			expect(issued1.number).to.equal('2026-0001');
+			const issued1 = db.issueDraft(first.id);
+			expect(issued1.number).to.equal('2026-00-001');
 			expect(issued1.status).to.equal('issued');
 
 			const second = db.createDraft(draft());
-			const issued2 = db.issueDraft(second.id, 2026);
-			expect(issued2.number).to.equal('2026-0002');
+			const issued2 = db.issueDraft(second.id);
+			expect(issued2.number).to.equal('2026-00-002');
 
 			expect(() => db.updateDraft(first.id, {})).to.throw();
 			expect(db.countByStatus()).to.deep.equal({ draft: 0, issued: 2, cancelled: 0 });
@@ -103,7 +103,7 @@ describe('db => drafts and issue flow', () => {
 		const db = openMemoryDb();
 		try {
 			const bad = db.createDraft(draft({ lines: [] }));
-			expect(() => db.issueDraft(bad.id, 2026)).to.throw(/issuable|line/i);
+			expect(() => db.issueDraft(bad.id)).to.throw(/issuable|line/i);
 		} finally {
 			db.close();
 		}
@@ -114,10 +114,62 @@ describe('db => drafts and issue flow', () => {
 		try {
 			const one = db.createDraft(draft());
 			db.createDraft(draft());
-			db.issueDraft(one.id, 2026);
+			db.issueDraft(one.id);
 			expect(db.listInvoices({ status: 'issued' })).to.have.lengthOf(1);
 			expect(db.listInvoices({ status: 'draft' })).to.have.lengthOf(1);
 			expect(db.listInvoices({ query: 'Kunde' })).to.have.lengthOf(2);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('numbers per employee separately', () => {
+		const db = openMemoryDb();
+		try {
+			const a1 = db.createDraft(draft({ employeeCode: '01' }));
+			const b1 = db.createDraft(draft({ employeeCode: '02' }));
+			const a2 = db.createDraft(draft({ employeeCode: '01' }));
+			expect(db.issueDraft(a1.id).number).to.equal('2026-01-001');
+			expect(db.issueDraft(b1.id).number).to.equal('2026-02-001');
+			expect(db.issueDraft(a2.id).number).to.equal('2026-01-002');
+			expect(db.nextInvoiceNumber(2026, '01')).to.equal('2026-01-003');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('rejects invalid employee codes at issue', () => {
+		const db = openMemoryDb();
+		try {
+			const bad = db.createDraft(draft({ employeeCode: 'a/b' }));
+			expect(() => db.issueDraft(bad.id)).to.throw(/employee/i);
+		} finally {
+			db.close();
+		}
+	});
+});
+
+describe('db => company profiles', () => {
+	const profile = { ...seller, phone: '+49 30 1', website: 'https://muster.example' };
+
+	it('seeds, updates, switches and protects the default', () => {
+		const db = openMemoryDb();
+		try {
+			const seeded = db.ensureDefaultCompanyProfile();
+			expect(seeded.isDefault).to.equal(true);
+			expect(seeded.name).to.equal('Meine Firma');
+			expect(db.ensureDefaultCompanyProfile().id).to.equal(seeded.id);
+
+			const filled = db.updateCompanyProfile(seeded.id, { name: 'Muster GmbH', profile });
+			expect(filled.profile.phone).to.equal('+49 30 1');
+
+			const second = db.createCompanyProfile('Filiale', { ...profile, name: 'Filiale' });
+			expect(second.isDefault).to.equal(false);
+			db.setDefaultCompanyProfile(second.id);
+			expect(db.getDefaultCompanyProfile()?.id).to.equal(second.id);
+			expect(() => db.deleteCompanyProfile(second.id)).to.throw(/default/i);
+			db.deleteCompanyProfile(seeded.id);
+			expect(db.listCompanyProfiles()).to.have.lengthOf(1);
 		} finally {
 			db.close();
 		}

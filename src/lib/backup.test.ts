@@ -69,7 +69,7 @@ describe('backup => roundtrip', function () {
 			expect(summary.filesWritten.length).to.equal(backup.manifest.files.length);
 
 			const restored = dbB.getInvoice(invoiceId);
-			expect(restored?.number).to.match(/^2026-\d{4}$/);
+			expect(restored?.number).to.match(/^2026-00-\d{3}$/);
 			expect(restored?.xml).to.contain('CrossIndustryInvoice');
 			expect(dbB.listAttachments(invoiceId)).to.have.lengthOf(1);
 			expect(dbB.listTemplates().length).to.be.greaterThan(0);

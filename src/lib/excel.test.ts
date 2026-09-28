@@ -17,7 +17,7 @@ function issueSample(): { db: InvoiceDatabase; invoice: StoredInvoice } {
 		deliveryDate: '2026-09-27',
 		currency: 'EUR',
 	});
-	return { db, invoice: db.issueDraft(created.id, 2026) };
+	return { db, invoice: db.issueDraft(created.id) };
 }
 
 function sheetText(sheet: ExcelJS.Worksheet): string {

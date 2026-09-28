@@ -6,6 +6,17 @@ const emptyLine = (): InvoiceLine => ({ description: '', quantity: 1, unit: 'Stk
 /** localStorage key for the unsent wizard state (survives reloads/back). */
 const STORAGE_KEY = 'einv-wizard-v1';
 
+/** localStorage key for the last used employee code. */
+const EMP_KEY = 'einv-employee';
+
+function loadEmployee(): string {
+	try {
+		return localStorage.getItem(EMP_KEY) ?? '';
+	} catch {
+		return '';
+	}
+}
+
 interface WizardState {
 	step: number;
 	seller: Party;
@@ -14,6 +25,7 @@ interface WizardState {
 	issueDate: string;
 	deliveryDate: string;
 	dueDate: string;
+	employee: string;
 	documentTitle: string;
 	notes: string;
 	draftId: string | null;
@@ -34,6 +46,7 @@ function freshState(): WizardState {
 		issueDate: today(),
 		deliveryDate: today(),
 		dueDate: '',
+		employee: loadEmployee(),
 		documentTitle: 'Rechnung',
 		notes: '',
 		draftId: null,
@@ -117,6 +130,18 @@ export function wizard(root: HTMLElement): void {
 	if (saved && hasContent(saved)) {
 		s = saved;
 	}
+	if (!hasContent(s)) {
+		// fresh wizard: prefill seller from the company profile (set once on Firma page)
+		void api.company
+			.getDefault()
+			.then(profile => {
+				if (profile && !s.seller.name.trim() && profile.profile.name.trim()) {
+					s.seller = { ...s.seller, ...profile.profile };
+					render();
+				}
+			})
+			.catch(() => undefined);
+	}
 
 	function persist(): void {
 		try {
@@ -145,6 +170,7 @@ export function wizard(root: HTMLElement): void {
 		s.issueDate = get('w-issue') || s.issueDate;
 		s.deliveryDate = get('w-delivery') || s.deliveryDate;
 		s.dueDate = get('w-due');
+		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
 		s.documentTitle = get('w-title') || 'Rechnung';
 		s.notes = root.querySelector<HTMLTextAreaElement>('#w-notes')?.value ?? '';
 		persist();
@@ -193,6 +219,7 @@ export function wizard(root: HTMLElement): void {
 					<label>Leistungsdatum<input id="w-delivery" type="date" value="${esc(s.deliveryDate)}" /></label>
 				</div>
 				<label>Fällig am<input id="w-due" type="date" value="${esc(s.dueDate)}" /></label>
+				<label>Mitarbeiter-Kürzel (für Nr. JJJJ-KK-LLL)<input id="w-employee" maxlength="8" placeholder="z.B. 01" value="${esc(s.employee)}" /></label>
 				<label>Notizen<textarea id="w-notes">${esc(s.notes)}</textarea></label>
 			</div>`;
 		}
@@ -258,10 +285,18 @@ export function wizard(root: HTMLElement): void {
 			deliveryDate: s.deliveryDate,
 			dueDate: s.dueDate || undefined,
 			currency: 'EUR',
+			employeeCode: s.employee.trim() || undefined,
 			documentTitle: s.documentTitle,
 			notes: s.notes || undefined,
 		};
 		try {
+			if (s.employee.trim()) {
+				try {
+					localStorage.setItem(EMP_KEY, s.employee.trim());
+				} catch {
+					// ignore
+				}
+			}
 			let inv: Invoice;
 			if (s.draftId) {
 				inv = await api.update(s.draftId, input);
@@ -314,6 +349,7 @@ export function wizard(root: HTMLElement): void {
 		if (issue) s.issueDate = issue;
 		if (delivery) s.deliveryDate = delivery;
 		s.dueDate = get('w-due');
+		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
 		const title = get('w-title');
 		if (title) s.documentTitle = title;
 		s.notes = root.querySelector<HTMLTextAreaElement>('#w-notes')?.value ?? s.notes;

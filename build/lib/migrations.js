@@ -99,6 +99,23 @@ const MIGRATIONS = [
     version: 2,
     name: "payment-terms",
     sql: [`ALTER TABLE invoices ADD COLUMN payment_terms TEXT`]
+  },
+  {
+    version: 3,
+    name: "employee-numbering-and-company-default",
+    sql: [
+      `CREATE TABLE counters_new (
+				year INTEGER NOT NULL,
+				employee TEXT NOT NULL DEFAULT '00',
+				last_seq INTEGER NOT NULL DEFAULT 0,
+				PRIMARY KEY (year, employee)
+			)`,
+      `INSERT INTO counters_new (year, employee, last_seq) SELECT year, '00', last_seq FROM counters`,
+      `DROP TABLE counters`,
+      `ALTER TABLE counters_new RENAME TO counters`,
+      `ALTER TABLE invoices ADD COLUMN employee_code TEXT`,
+      `ALTER TABLE company_profiles ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0`
+    ]
   }
 ];
 const LATEST_SCHEMA_VERSION = MIGRATIONS.reduce((max, item) => Math.max(max, item.version), 0);

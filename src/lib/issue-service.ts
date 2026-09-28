@@ -68,11 +68,7 @@ export async function issueInvoiceWithArtifacts(
 	if (current.status !== 'draft') {
 		throw new Error('Only drafts can be issued');
 	}
-	const year = Number(current.issueDate.slice(0, 4));
-	if (!Number.isInteger(year)) {
-		throw new Error(`Invalid issue year in ${current.issueDate}`);
-	}
-	const issued = db.issueDraft(invoiceId, year);
+	const issued = db.issueDraft(invoiceId);
 	log.info(`Invoice issued: ${issued.number} (${issued.id})`);
 
 	const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);

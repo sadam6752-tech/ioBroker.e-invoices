@@ -7,7 +7,7 @@
  */
 import express, { type Express, type Request, type Response } from 'express';
 import { existsSync, statSync } from 'node:fs';
-import type { InvoiceDatabase, StoredInvoice } from './db';
+import type { InvoiceDatabase, StoredCompanyProfile, StoredInvoice } from './db';
 import {
 	blankDraft,
 	calcTotals,
@@ -68,6 +68,7 @@ export function previewInvoice(draft: InvoiceDraftInput): StoredInvoice {
 		documentTitle: draft.documentTitle ?? 'Rechnung',
 		notes: draft.notes ?? null,
 		paymentTerms: draft.paymentTerms ?? null,
+		employeeCode: draft.employeeCode ?? null,
 		xml: null,
 		pdfPath: null,
 		xlsxPath: null,
@@ -572,6 +573,79 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				res.json(await restoreBackup(db, storage, data, log));
 			} catch (error) {
 				res.status(400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.get('/api/company-profiles', (_req, res) => {
+		res.json(db.listCompanyProfiles());
+	});
+
+	app.get('/api/company-profiles/default', (_req, res) => {
+		res.json(db.getDefaultCompanyProfile());
+	});
+
+	app.post(
+		'/api/company-profiles',
+		route((req, res) => {
+			const body = (req.body ?? {}) as { name?: unknown; profile?: unknown };
+			if (typeof body.name !== 'string' || typeof body.profile !== 'object' || !body.profile) {
+				res.status(400).json({ error: 'Body needs name and profile' });
+				return;
+			}
+			try {
+				res.status(201).json(
+					db.createCompanyProfile(body.name, body.profile as StoredCompanyProfile['profile']),
+				);
+			} catch (error) {
+				res.status(400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.get(
+		'/api/company-profiles/:cid',
+		route((req, res) => {
+			const profile = db.getCompanyProfile(routeParam(req, 'cid'));
+			if (!profile) {
+				res.status(404).json({ error: 'Company profile not found' });
+				return;
+			}
+			res.json(profile);
+		}),
+	);
+
+	app.put(
+		'/api/company-profiles/:cid',
+		route((req, res) => {
+			const body = (req.body ?? {}) as { name?: string; profile?: StoredCompanyProfile['profile'] };
+			try {
+				res.json(db.updateCompanyProfile(routeParam(req, 'cid'), body));
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.delete(
+		'/api/company-profiles/:cid',
+		route((req, res) => {
+			try {
+				db.deleteCompanyProfile(routeParam(req, 'cid'));
+				res.json({ ok: true });
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.post(
+		'/api/company-profiles/:cid/default',
+		route((req, res) => {
+			try {
+				res.json(db.setDefaultCompanyProfile(routeParam(req, 'cid')));
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
 			}
 		}),
 	);

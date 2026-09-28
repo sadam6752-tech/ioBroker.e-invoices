@@ -113,7 +113,7 @@ async function createBackup(db, storage, log, adapterVersion) {
   return { filename, size: data.length, sha256: sha256Hex(data), manifest, data };
 }
 async function restoreBackup(db, storage, zipData, log) {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   let zip;
   try {
     zip = await import_jszip.default.loadAsync(zipData);
@@ -150,7 +150,8 @@ async function restoreBackup(db, storage, zipData, log) {
     invoices: (_d = dumpJson.invoices) != null ? _d : [],
     counters: (_e = dumpJson.counters) != null ? _e : [],
     templates: (_f = dumpJson.templates) != null ? _f : [],
-    attachments: ((_g = dumpJson.attachments) != null ? _g : []).map((attachment) => {
+    companies: (_g = dumpJson.companies) != null ? _g : [],
+    attachments: ((_h = dumpJson.attachments) != null ? _h : []).map((attachment) => {
       var _a2;
       return {
         id: attachment.id,
@@ -170,7 +171,7 @@ async function restoreBackup(db, storage, zipData, log) {
   log.info(`Database restored: ${dump.invoices.length} invoices, ${dump.templates.length} templates`);
   const filesWritten = [];
   const fileErrors = [];
-  for (const file of (_h = manifest.files) != null ? _h : []) {
+  for (const file of (_i = manifest.files) != null ? _i : []) {
     const entry = zip.file(`files/${file.path}`);
     if (!entry) {
       continue;
