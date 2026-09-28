@@ -1,0 +1,306 @@
+{
+	"common": {
+		"name": "e-invoices",
+		"version": "0.0.1",
+		"news": {
+			"0.0.1": {
+				"en": "initial release",
+				"de": "Erstveröffentlichung",
+				"ru": "Начальная версия",
+				"pt": "lançamento inicial",
+				"nl": "Eerste uitgave",
+				"fr": "Première version",
+				"it": "Versione iniziale",
+				"es": "Versión inicial",
+				"pl": "Pierwsze wydanie",
+				"uk": "Початкова версія",
+				"zh-cn": "首次出版"
+			}
+		},
+		"titleLang": {
+			"en": "E-Invoices",
+			"de": "E-Rechnungen",
+			"ru": "Электронные счета",
+			"pt": "Faturas eletrônicas",
+			"nl": "E-facturen",
+			"fr": "Factures électroniques",
+			"it": "Fatture elettroniche",
+			"es": "Facturas Electrónicas",
+			"pl": "E-faktury",
+			"uk": "Електронні рахунки-фактури",
+			"zh-cn": "电子发票"
+		},
+		"desc": {
+			"en": "Create ZUGFeRD e-invoices as PWA with PDF, Excel export and backup",
+			"de": "Erstellen Sie ZUGFeRD E-Rechnungen als PWA mit PDF, Excel-Export und Backup",
+			"ru": "Создавайте электронные счета ZUGFeRD в формате PWA с экспортом в PDF, Excel и резервным копированием.",
+			"pt": "Crie faturas eletrônicas ZUGFeRD como PWA com PDF, exportação e backup para Excel",
+			"nl": "Maak ZUGFeRD e-facturen als PWA met PDF, Excel-export en back-up",
+			"fr": "Créez des factures électroniques ZUGFeRD sous forme de PWA avec PDF, exportation et sauvegarde Excel",
+			"it": "Crea fatture elettroniche ZUGFeRD come PWA con PDF, esportazione Excel e backup",
+			"es": "Cree facturas electrónicas ZUGFeRD como PWA con PDF, exportación a Excel y copia de seguridad",
+			"pl": "Twórz e-faktury ZUGFeRD jako PWA z eksportem do formatu PDF, Excel i kopią zapasową",
+			"uk": "Створюйте електронні рахунки-фактури ZUGFeRD як PWA з PDF, експортом у Excel і резервним копіюванням",
+			"zh-cn": "创建 ZUGFeRD 电子发票作为 PWA，支持 PDF、Excel 导出和备份"
+		},
+		"authors": ["alex <alex@example.com>"],
+		"keywords": ["e-invoice", "zugferd", "xrechnung", "pdf", "excel", "backup", "pwa", "ioBroker"],
+		"licenseInformation": {
+			"type": "free",
+			"license": "MIT"
+		},
+		"platform": "Javascript/Node.js",
+		"icon": "e-invoices.png",
+		"enabled": true,
+		"extIcon": "https://raw.githubusercontent.com/alex/ioBroker.e-invoices/main/admin/e-invoices.png",
+		"readme": "https://github.com/alex/ioBroker.e-invoices/blob/main/README.md",
+		"loglevel": "info",
+		"tier": 3,
+		"mode": "daemon",
+		"type": "utility",
+		"compact": false,
+		"connectionType": "local",
+		"dataSource": "push",
+		"adminUI": {
+			"config": "json"
+		},
+		"dependencies": [
+			{
+				"js-controller": ">=6.0.11"
+			}
+		],
+		"globalDependencies": [
+			{
+				"admin": ">=7.0.23"
+			}
+		]
+	},
+	"native": {
+		"port": 8093,
+		"bind": "0.0.0.0",
+		"authToken": ""
+	},
+	"encryptedNative": ["authToken"],
+	"protectedNative": ["authToken"],
+	"objects": [],
+	"instanceObjects": [
+		{
+			"_id": "info",
+			"type": "channel",
+			"common": {
+				"name": "Information"
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.connection",
+			"type": "state",
+			"common": {
+				"role": "indicator.connected",
+				"name": "Device or service connected",
+				"type": "boolean",
+				"read": true,
+				"write": false,
+				"def": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.invoiceCount",
+			"type": "state",
+			"common": {
+				"role": "value",
+				"name": "Total invoices",
+				"type": "number",
+				"read": true,
+				"write": false,
+				"def": 0
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.draftCount",
+			"type": "state",
+			"common": {
+				"role": "value",
+				"name": "Draft invoices",
+				"type": "number",
+				"read": true,
+				"write": false,
+				"def": 0
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.issuedCount",
+			"type": "state",
+			"common": {
+				"role": "value",
+				"name": "Issued invoices",
+				"type": "number",
+				"read": true,
+				"write": false,
+				"def": 0
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.lastNumber",
+			"type": "state",
+			"common": {
+				"role": "text",
+				"name": "Last issued number",
+				"type": "string",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.lastIssuedAt",
+			"type": "state",
+			"common": {
+				"role": "text",
+				"name": "Last issue timestamp",
+				"type": "string",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.dbVersion",
+			"type": "state",
+			"common": {
+				"role": "value",
+				"name": "Database schema version",
+				"type": "number",
+				"read": true,
+				"write": false,
+				"def": 0
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.lastBackup",
+			"type": "state",
+			"common": {
+				"role": "text",
+				"name": "Last backup filename",
+				"type": "string",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "control",
+			"type": "channel",
+			"common": {
+				"name": "Control commands"
+			},
+			"native": {}
+		},
+		{
+			"_id": "control.createDraft",
+			"type": "state",
+			"common": {
+				"role": "button",
+				"name": "Create empty draft",
+				"type": "boolean",
+				"read": false,
+				"write": true,
+				"def": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "control.lastDraftId",
+			"type": "state",
+			"common": {
+				"role": "text",
+				"name": "Last created draft id",
+				"type": "string",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "control.issueId",
+			"type": "state",
+			"common": {
+				"role": "text",
+				"name": "Draft id to issue",
+				"type": "string",
+				"read": true,
+				"write": true
+			},
+			"native": {}
+		},
+		{
+			"_id": "control.issue",
+			"type": "state",
+			"common": {
+				"role": "button",
+				"name": "Issue draft from issueId",
+				"type": "boolean",
+				"read": false,
+				"write": true,
+				"def": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "control.refresh",
+			"type": "state",
+			"common": {
+				"role": "button",
+				"name": "Refresh stats and status file",
+				"type": "boolean",
+				"read": false,
+				"write": true,
+				"def": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "control.backup",
+			"type": "state",
+			"common": {
+				"role": "button",
+				"name": "Create backup now",
+				"type": "boolean",
+				"read": false,
+				"write": true,
+				"def": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "control.restoreId",
+			"type": "state",
+			"common": {
+				"role": "text",
+				"name": "Backup filename to restore",
+				"type": "string",
+				"read": true,
+				"write": true
+			},
+			"native": {}
+		},
+		{
+			"_id": "control.restore",
+			"type": "state",
+			"common": {
+				"role": "button",
+				"name": "Restore backup from restoreId",
+				"type": "boolean",
+				"read": false,
+				"write": true,
+				"def": false
+			},
+			"native": {}
+		}
+	]
+}

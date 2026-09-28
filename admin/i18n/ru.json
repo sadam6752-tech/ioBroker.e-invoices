@@ -1,0 +1,7 @@
+{
+	"e-invoices adapter settings": "Настройки адаптера для e-invoices",
+	"API port": "Порт API",
+	"Bind address": "Адрес привязки",
+	"API token (optional)": "Токен API (необязательно)",
+	"Empty means no authentication (LAN trust)": "Пусто — нет аутентификации (доверие LAN)"
+}

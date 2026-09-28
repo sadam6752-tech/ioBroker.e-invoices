@@ -1,0 +1,141 @@
+![Logo](admin/e-invoices.png)
+# ioBroker.e-invoices
+
+[![NPM version](https://img.shields.io/npm/v/iobroker.e-invoices.svg)](https://www.npmjs.com/package/iobroker.e-invoices)
+[![Downloads](https://img.shields.io/npm/dm/iobroker.e-invoices.svg)](https://www.npmjs.com/package/iobroker.e-invoices)
+![Number of Installations](https://iobroker.live/badges/e-invoices-installed.svg)
+![Current version in stable repository](https://iobroker.live/badges/e-invoices-stable.svg)
+
+[![NPM](https://nodei.co/npm/iobroker.e-invoices.png?downloads=true)](https://nodei.co/npm/iobroker.e-invoices/)
+
+**Tests:** ![Test and Release](https://github.com/alex/ioBroker.e-invoices/workflows/Test%20and%20Release/badge.svg)
+
+## E-invoices adapter for ioBroker
+
+Create ZUGFeRD e-invoices as PWA with PDF, Excel export and backup
+
+The adapter runs a small web app (PWA) where you create German B2B e-invoices
+(ZUGFeRD hybrid: human-readable PDF with embedded EN 16931 XML — the XML is
+the leading tax document), store every issued invoice in a local database and
+back everything up as versioned ZIP files.
+
+Features:
+
+- Draft → issue flow with atomic invoice numbers (`YYYY-NNNN`)
+- ZUGFeRD profiles BASIC and EN 16931, offline XSD validation
+- Hybrid PDF plus standalone XML for every issued invoice
+- Excel copies (single invoice and filtered lists, marked as non-tax copies)
+- Layout templates with company logo, colors and footer (mandatory content
+  is protected by a validator and cannot be hidden)
+- Backup and restore (database plus all files, SHA-256 manifest)
+- Controllable via states (`control.*`) and a JSON API for the PWA
+
+## Install
+
+Install it in the admin: **Adapters** → filter for `e-invoices` → install.
+
+After the installation, open the instance settings and check the API port
+(default 8093). The PWA is then available on that port of your ioBroker host.
+Optionally set an API token there; without a token the API trusts the local
+network.
+
+## Usage
+
+### PWA
+
+Open `http://<iobroker-host>:8093/` for the invoice dashboard, the
+multi-step wizard (seller → buyer → lines → review), invoice details with
+validation and downloads, layout templates with PDF preview, backups and a
+status page.
+
+### States
+
+- `info.connection`, `info.invoiceCount`, `info.draftCount`,
+  `info.issuedCount`, `info.lastNumber`, `info.lastIssuedAt`,
+  `info.dbVersion`, `info.lastBackup`
+- `control.createDraft` (button: creates an empty draft, id lands in
+  `control.lastDraftId`), `control.issueId` + `control.issue` (button:
+  issues a draft), `control.refresh`, `control.backup`,
+  `control.restoreId` + `control.restore` (buttons for backup/restore)
+
+### Files and backup
+
+Issued artifacts (PDF/XML/XLSX), logos and backup ZIPs live below the
+`e-invoices.0.storage` file mount. The database file `invoices.db` lives in
+the instance data directory.
+
+For disaster recovery, back up both: the instance (covers the database and
+the storage files, which are kept as user files) and, additionally, create
+adapter backups from the PWA Backup page or the `control.backup` state.
+To move to another system, restore an adapter backup ZIP there via the PWA
+or `control.restoreId` + `control.restore`. The restore verifies checksums
+first and replaces the database in one transaction.
+
+When using the BackItUp adapter, include this adapter instance and its
+files in the backup job.
+
+### API
+
+Same-origin JSON API under `/api` (health, invoices CRUD, issue, validate,
+XML/PDF/XLSX downloads, templates with logo upload and PDF preview,
+backups, restore). With an API token configured, every route except
+`/api/health` requires an `Authorization: Bearer <token>` header.
+
+## Why compact mode is off (W5049)
+
+This adapter sets `common.compact` to `false` on purpose: it keeps its own
+SQLite database file and serves the PWA plus JSON API on its own TCP port,
+so it cannot share the compact process.
+
+## Limitations
+
+- The sight PDFs use standard fonts without embedding, so strictly they are
+  hybrid containers rather than fully conformant PDF/A-3b. The embedded XML
+  is unaffected and stays the leading part.
+- The offline XSD validation runs on every issue; the KoSIT online
+  validator is a recommended manual acceptance step before productive use.
+- Only EUR, domestic B2B invoices and the BASIC/EN 16931 profiles are
+  supported in this version.
+
+## Provenance
+
+All adapter sources in `src/` and the PWA in `src-www/` are written for
+this project. Third-party libraries (plain npm dependencies, no copied
+code): `@stackforge-eu/factur-x` (EUPL-1.2) for CII generation, XSD
+validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
+`better-sqlite3` and `express` (all MIT).
+
+## Changelog
+<!--
+	Placeholder for the next version (at the beginning of the line):
+	### **WORK IN PROGRESS**
+-->
+
+### **WORK IN PROGRESS**
+* (alex) initial release
+
+### 0.0.1
+* (alex) initial release
+
+## License
+MIT License
+
+Copyright (c) 2026 alex <alex@example.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

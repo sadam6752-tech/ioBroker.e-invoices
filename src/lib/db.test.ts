@@ -1,0 +1,130 @@
+/**
+ * Unit tests for the SQLite persistence layer (P1).
+ * Each test uses an isolated temp database file.
+ */
+import { expect } from 'chai';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { InvoiceDatabase } from './db';
+import type { InvoiceDraftInput, Party } from './invoice-model';
+
+const seller: Party = {
+	name: 'Muster GmbH',
+	street: 'Beispielstr. 1',
+	zip: '10115',
+	city: 'Berlin',
+	country: 'DE',
+	vatId: 'DE123456789',
+};
+
+const buyer: Party = {
+	name: 'Kunde AG',
+	street: 'Kundenweg 5',
+	zip: '80331',
+	city: 'München',
+	country: 'DE',
+};
+
+function draft(overrides: Partial<InvoiceDraftInput> = {}): InvoiceDraftInput {
+	return {
+		seller,
+		buyer,
+		lines: [{ description: 'Beratung', quantity: 1, unit: 'Std', unitPriceNet: 100, vatRate: 19 }],
+		issueDate: '2026-09-28',
+		deliveryDate: '2026-09-27',
+		currency: 'EUR',
+		...overrides,
+	};
+}
+
+describe('db => migrations', () => {
+	it('migrates a fresh database to the latest version', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'einv-'));
+		try {
+			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
+			db.migrate();
+			expect(db.currentVersion()).to.equal(2);
+			const columns = db.tableColumns('invoices');
+			expect(columns).to.contain('payment_terms');
+			db.close();
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it('migrate is idempotent', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'einv-'));
+		try {
+			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
+			db.migrate();
+			db.migrate();
+			expect(db.currentVersion()).to.equal(2);
+			db.close();
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('db => drafts and issue flow', () => {
+	it('creates, updates, issues and numbers sequentially', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'einv-'));
+		try {
+			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
+			db.migrate();
+
+			const first = db.createDraft(draft());
+			expect(first.status).to.equal('draft');
+			expect(first.number).to.equal(null);
+			expect(first.totals.grossTotal).to.equal(119);
+
+			const updated = db.updateDraft(first.id, { dueDate: '2026-10-12' });
+			expect(updated.dueDate).to.equal('2026-10-12');
+
+			const issued1 = db.issueDraft(first.id, 2026);
+			expect(issued1.number).to.equal('2026-0001');
+			expect(issued1.status).to.equal('issued');
+
+			const second = db.createDraft(draft());
+			const issued2 = db.issueDraft(second.id, 2026);
+			expect(issued2.number).to.equal('2026-0002');
+
+			expect(() => db.updateDraft(first.id, {})).to.throw();
+			expect(db.countByStatus()).to.deep.equal({ draft: 0, issued: 2, cancelled: 0 });
+			db.close();
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it('refuses to issue incomplete drafts', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'einv-'));
+		try {
+			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
+			db.migrate();
+			const bad = db.createDraft(draft({ lines: [] }));
+			expect(() => db.issueDraft(bad.id, 2026)).to.throw(/issuable|line/i);
+			db.close();
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it('lists and filters invoices', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'einv-'));
+		try {
+			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
+			db.migrate();
+			const one = db.createDraft(draft());
+			db.createDraft(draft());
+			db.issueDraft(one.id, 2026);
+			expect(db.listInvoices({ status: 'issued' })).to.have.lengthOf(1);
+			expect(db.listInvoices({ status: 'draft' })).to.have.lengthOf(1);
+			expect(db.listInvoices({ query: 'Kunde' })).to.have.lengthOf(2);
+			db.close();
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});

@@ -1,0 +1,39 @@
+{
+	"i18n": true,
+	"type": "panel",
+	"items": {
+		"port": {
+			"type": "number",
+			"label": "API port",
+			"min": 1024,
+			"max": 65535,
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 4,
+			"xl": 4
+		},
+		"bind": {
+			"type": "text",
+			"label": "Bind address",
+			"newLine": false,
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 4,
+			"xl": 4
+		},
+		"authToken": {
+			"type": "password",
+			"label": "API token (optional)",
+			"help": "Empty means no authentication (LAN trust)",
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 12,
+			"lg": 8,
+			"xl": 8
+		}
+	}
+}

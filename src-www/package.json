@@ -1,0 +1,20 @@
+{
+	"name": "e-invoices-pwa",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"description": "PWA frontend for the ioBroker.e-invoices adapter (built into www/)",
+	"scripts": {
+		"dev": "vite",
+		"build": "tsc --noEmit && vite build",
+		"preview": "vite preview"
+	},
+	"devDependencies": {
+		"typescript": "~5.9.3",
+		"vite": "^7.2.4",
+		"vite-plugin-pwa": "^1.0.1"
+	},
+	"dependencies": {
+		"iobroker.e-invoices": "file:.."
+	}
+}

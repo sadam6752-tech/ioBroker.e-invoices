@@ -1,0 +1,7 @@
+{
+	"e-invoices adapter settings": "Ustawienia adaptera dla e-invoices",
+	"API port": "Port API",
+	"Bind address": "Adres nasłuchu",
+	"API token (optional)": "Token API (opcjonalnie)",
+	"Empty means no authentication (LAN trust)": "Puste oznacza brak uwierzytelniania (zaufanie LAN)"
+}

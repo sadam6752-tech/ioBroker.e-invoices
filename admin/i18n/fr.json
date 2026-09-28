@@ -1,0 +1,7 @@
+{
+	"e-invoices adapter settings": "Paramètres d'adaptateur pour e-invoices",
+	"API port": "Port de l'API",
+	"Bind address": "Adresse d'écoute",
+	"API token (optional)": "Jeton API (facultatif)",
+	"Empty means no authentication (LAN trust)": "Vide signifie aucune authentification (confiance LAN)"
+}

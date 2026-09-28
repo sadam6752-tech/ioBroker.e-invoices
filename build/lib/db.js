@@ -1,0 +1,721 @@
+"use strict";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var db_exports = {};
+__export(db_exports, {
+  InvoiceDatabase: () => InvoiceDatabase
+});
+module.exports = __toCommonJS(db_exports);
+var import_better_sqlite3 = __toESM(require("better-sqlite3"));
+var import_node_crypto = require("node:crypto");
+var import_node_fs = require("node:fs");
+var import_node_path = require("node:path");
+var import_invoice_model = require("./invoice-model");
+var import_migrations = require("./migrations");
+var import_templates = require("./templates");
+function nowIso() {
+  return (/* @__PURE__ */ new Date()).toISOString();
+}
+function parseJson(value, label) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new Error(`Corrupt ${label} JSON in database`);
+  }
+}
+function mapRow(row) {
+  var _a;
+  return {
+    id: row.id,
+    number: row.number,
+    issueDate: row.issue_date,
+    deliveryDate: row.delivery_date,
+    dueDate: row.due_date,
+    seller: parseJson(row.seller_json, "seller"),
+    buyer: parseJson(row.buyer_json, "buyer"),
+    lines: parseJson(row.lines_json, "lines"),
+    totals: parseJson(row.totals_json, "totals"),
+    profile: row.profile,
+    status: row.status,
+    templateId: row.template_id,
+    documentTitle: row.document_title,
+    notes: row.notes,
+    paymentTerms: (_a = row.payment_terms) != null ? _a : null,
+    xml: row.xml,
+    pdfPath: row.pdf_path,
+    xlsxPath: row.xlsx_path,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+function mapTemplateRow(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    version: row.version,
+    definition: parseJson(row.definition_json, "template"),
+    isDefault: row.is_default === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+class InvoiceDatabase {
+  db;
+  /**
+   * Opens (and creates) the SQLite file.
+   *
+   * @param dbPath - Absolute path to `invoices.db`.
+   */
+  constructor(dbPath) {
+    (0, import_node_fs.mkdirSync)((0, import_node_path.dirname)(dbPath), { recursive: true });
+    this.db = new import_better_sqlite3.default(dbPath);
+    this.db.pragma("journal_mode = WAL");
+    this.db.pragma("foreign_keys = ON");
+    this.db.pragma("busy_timeout = 5000");
+  }
+  /** Closes the database handle. */
+  close() {
+    this.db.close();
+  }
+  /**
+   * Lists column names of a table (schema introspection for tests/migrations).
+   *
+   * @param table - Table name.
+   */
+  tableColumns(table) {
+    const rows = this.db.prepare(`PRAGMA table_info(${table})`).all();
+    return rows.map((row) => row.name);
+  }
+  /** Current applied schema version (0 when fresh). */
+  currentVersion() {
+    var _a;
+    const row = this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'`).get();
+    if (!row) {
+      return 0;
+    }
+    const max = this.db.prepare(`SELECT MAX(version) AS v FROM schema_migrations`).get();
+    return (_a = max.v) != null ? _a : 0;
+  }
+  /**
+   * Applies all pending migrations in order, each in its own transaction.
+   */
+  migrate() {
+    const current = this.currentVersion();
+    for (const migration of import_migrations.MIGRATIONS) {
+      if (migration.version <= current) {
+        continue;
+      }
+      const apply = this.db.transaction(() => {
+        for (const statement of migration.sql) {
+          this.db.exec(statement);
+        }
+        this.db.prepare(`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`).run(migration.version, migration.name, nowIso());
+      });
+      apply();
+    }
+    if (this.currentVersion() !== import_migrations.LATEST_SCHEMA_VERSION) {
+      throw new Error("Migration did not reach latest schema version");
+    }
+  }
+  /**
+   * Reserves the next invoice number for a year atomically.
+   *
+   * @param year - Calendar year, e.g. 2026.
+   */
+  nextInvoiceNumber(year) {
+    if (!Number.isInteger(year) || year < 2e3 || year > 2100) {
+      throw new Error(`Invalid year: ${year}`);
+    }
+    const run = this.db.transaction(() => {
+      var _a;
+      const row = this.db.prepare(`SELECT last_seq AS seq FROM counters WHERE year = ?`).get(year);
+      const next = ((_a = row == null ? void 0 : row.seq) != null ? _a : 0) + 1;
+      this.db.prepare(
+        `INSERT INTO counters (year, last_seq) VALUES (?, ?) ON CONFLICT(year) DO UPDATE SET last_seq = excluded.last_seq`
+      ).run(year, next);
+      return (0, import_invoice_model.formatInvoiceNumber)(year, next);
+    });
+    return run();
+  }
+  /**
+   * Creates a new draft (may be incomplete; validation happens at issue).
+   *
+   * @param input - Draft content.
+   */
+  createDraft(input) {
+    var _a, _b, _c, _d;
+    const id = (0, import_node_crypto.randomUUID)();
+    const stamp = nowIso();
+    const totals = (0, import_invoice_model.calcTotals)(input.lines.length > 0 ? input.lines : []);
+    this.db.prepare(
+      `INSERT INTO invoices
+				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, template_id, document_title, notes, payment_terms, created_at, updated_at)
+				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', NULL, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      input.issueDate,
+      input.deliveryDate,
+      (_a = input.dueDate) != null ? _a : null,
+      JSON.stringify(input.seller),
+      JSON.stringify(input.buyer),
+      JSON.stringify(input.lines),
+      JSON.stringify(totals),
+      (_b = input.documentTitle) != null ? _b : "Rechnung",
+      (_c = input.notes) != null ? _c : null,
+      (_d = input.paymentTerms) != null ? _d : null,
+      stamp,
+      stamp
+    );
+    const created = this.getInvoice(id);
+    if (!created) {
+      throw new Error("Draft was not stored");
+    }
+    return created;
+  }
+  /**
+   * Loads one invoice by id.
+   *
+   * @param id - Invoice UUID.
+   */
+  getInvoice(id) {
+    const row = this.db.prepare(`SELECT * FROM invoices WHERE id = ?`).get(id);
+    return row ? mapRow(row) : null;
+  }
+  /**
+   * Lists invoices newest first with optional filters.
+   *
+   * @param filter - Status/year/search/pagination filter.
+   */
+  listInvoices(filter = {}) {
+    var _a, _b;
+    const where = [];
+    const params = [];
+    if (filter.status) {
+      where.push(`status = ?`);
+      params.push(filter.status);
+    }
+    if (filter.year) {
+      where.push(`substr(issue_date, 1, 4) = ?`);
+      params.push(String(filter.year));
+    }
+    if (filter.query) {
+      where.push(`(number LIKE ? OR buyer_json LIKE ? OR seller_json LIKE ?)`);
+      const like = `%${filter.query}%`;
+      params.push(like, like, like);
+    }
+    const limit = Math.min(Math.max((_a = filter.limit) != null ? _a : 50, 1), 500);
+    const offset = Math.max((_b = filter.offset) != null ? _b : 0, 0);
+    const rows = this.db.prepare(
+      `SELECT * FROM invoices ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
+    ).all(...params, limit, offset);
+    return rows.map(mapRow);
+  }
+  /**
+   * Updates a draft; issued/cancelled invoices are immutable.
+   *
+   * @param id - Invoice UUID.
+   * @param patch - Partial draft content.
+   */
+  updateDraft(id, patch) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
+    const current = this.getInvoice(id);
+    if (!current) {
+      throw new Error(`Invoice not found: ${id}`);
+    }
+    if (current.status !== "draft") {
+      throw new Error("Only drafts can be edited; issued invoices need a correction invoice.");
+    }
+    const merged = {
+      seller: (_a = patch.seller) != null ? _a : current.seller,
+      buyer: (_b = patch.buyer) != null ? _b : current.buyer,
+      lines: (_c = patch.lines) != null ? _c : current.lines,
+      issueDate: (_d = patch.issueDate) != null ? _d : current.issueDate,
+      deliveryDate: (_e = patch.deliveryDate) != null ? _e : current.deliveryDate,
+      dueDate: (_g = (_f = patch.dueDate) != null ? _f : current.dueDate) != null ? _g : void 0,
+      currency: "EUR",
+      paymentTerms: (_i = (_h = patch.paymentTerms) != null ? _h : current.paymentTerms) != null ? _i : void 0,
+      documentTitle: (_j = patch.documentTitle) != null ? _j : current.documentTitle,
+      notes: (_l = (_k = patch.notes) != null ? _k : current.notes) != null ? _l : void 0
+    };
+    const totals = (0, import_invoice_model.calcTotals)(merged.lines.length > 0 ? merged.lines : []);
+    this.db.prepare(
+      `UPDATE invoices SET issue_date = ?, delivery_date = ?, due_date = ?, seller_json = ?, buyer_json = ?,
+				lines_json = ?, totals_json = ?, document_title = ?, notes = ?, payment_terms = ?, updated_at = ? WHERE id = ?`
+    ).run(
+      merged.issueDate,
+      merged.deliveryDate,
+      (_m = merged.dueDate) != null ? _m : null,
+      JSON.stringify(merged.seller),
+      JSON.stringify(merged.buyer),
+      JSON.stringify(merged.lines),
+      JSON.stringify(totals),
+      (_n = merged.documentTitle) != null ? _n : "Rechnung",
+      (_o = merged.notes) != null ? _o : null,
+      (_p = merged.paymentTerms) != null ? _p : null,
+      nowIso(),
+      id
+    );
+    const updated = this.getInvoice(id);
+    if (!updated) {
+      throw new Error("Draft update failed");
+    }
+    return updated;
+  }
+  /**
+   * Issues a draft: validates Pflichtangaben, assigns the next number
+   * atomically and freezes the record. File paths are attached later
+   * by the P2/P3 generation step via attachIssueArtifacts().
+   *
+   * @param id - Draft UUID.
+   * @param year - Numbering year (usually from issue date).
+   */
+  issueDraft(id, year) {
+    var _a, _b;
+    const current = this.getInvoice(id);
+    if (!current) {
+      throw new Error(`Invoice not found: ${id}`);
+    }
+    if (current.status !== "draft") {
+      throw new Error("Only drafts can be issued.");
+    }
+    const errors = (0, import_invoice_model.validateInvoiceForIssue)({
+      seller: current.seller,
+      buyer: current.buyer,
+      lines: current.lines,
+      issueDate: current.issueDate,
+      deliveryDate: current.deliveryDate,
+      dueDate: (_a = current.dueDate) != null ? _a : void 0,
+      currency: "EUR",
+      documentTitle: current.documentTitle,
+      notes: (_b = current.notes) != null ? _b : void 0
+    });
+    if (errors.length > 0) {
+      throw new Error(`Invoice not issuable: ${errors.join(" | ")}`);
+    }
+    const run = this.db.transaction(() => {
+      const number = this.nextInvoiceNumber(year);
+      this.db.prepare(
+        `UPDATE invoices SET number = ?, status = 'issued', updated_at = ? WHERE id = ? AND status = 'draft'`
+      ).run(number, nowIso(), id);
+      const issued = this.getInvoice(id);
+      if (!issued || issued.number !== number) {
+        throw new Error("Issue transaction failed");
+      }
+      return issued;
+    });
+    return run();
+  }
+  /**
+   * Attaches generated artifacts (XML string + file paths) to an issued invoice.
+   *
+   * @param id - Issued invoice UUID.
+   * @param artifacts - Generated output (XML plus file paths).
+   */
+  attachIssueArtifacts(id, artifacts) {
+    var _a, _b;
+    const current = this.getInvoice(id);
+    if (!current) {
+      throw new Error(`Invoice not found: ${id}`);
+    }
+    if (current.status !== "issued") {
+      throw new Error("Artifacts can only be attached to issued invoices.");
+    }
+    this.db.prepare(
+      `UPDATE invoices SET xml = ?, pdf_path = ?, xlsx_path = ?, template_id = ?, updated_at = ? WHERE id = ?`
+    ).run(
+      artifacts.xml,
+      artifacts.pdfPath,
+      (_a = artifacts.xlsxPath) != null ? _a : null,
+      (_b = artifacts.templateId) != null ? _b : null,
+      nowIso(),
+      id
+    );
+    const updated = this.getInvoice(id);
+    if (!updated) {
+      throw new Error("Artifact update failed");
+    }
+    return updated;
+  }
+  /**
+   * Cancels an issued invoice (placeholder for Storno; credit notes in P2).
+   *
+   * @param id - Issued invoice UUID.
+   */
+  cancelInvoice(id) {
+    const current = this.getInvoice(id);
+    if (!current) {
+      throw new Error(`Invoice not found: ${id}`);
+    }
+    if (current.status !== "issued") {
+      throw new Error("Only issued invoices can be cancelled.");
+    }
+    this.db.prepare(`UPDATE invoices SET status = 'cancelled', updated_at = ? WHERE id = ?`).run(nowIso(), id);
+    const updated = this.getInvoice(id);
+    if (!updated) {
+      throw new Error("Cancel failed");
+    }
+    return updated;
+  }
+  /**
+   * Counts invoices per status (dashboard).
+   */
+  countByStatus() {
+    const rows = this.db.prepare(`SELECT status, COUNT(*) AS n FROM invoices GROUP BY status`).all();
+    const result = { draft: 0, issued: 0, cancelled: 0 };
+    for (const row of rows) {
+      if (row.status === "draft" || row.status === "issued" || row.status === "cancelled") {
+        result[row.status] = row.n;
+      }
+    }
+    return result;
+  }
+  /**
+   * Creates a layout template (validated by the Pflichtfeld-Wächter).
+   *
+   * @param name - Display name.
+   * @param definition - Layout definition.
+   */
+  createTemplate(name, definition) {
+    const errors = (0, import_templates.validateTemplate)({ ...definition, name });
+    if (errors.length > 0) {
+      throw new Error(`Invalid template: ${errors.join(" | ")}`);
+    }
+    const id = (0, import_node_crypto.randomUUID)();
+    const stamp = nowIso();
+    const hasAny = this.db.prepare(`SELECT COUNT(*) AS n FROM templates`).get().n > 0;
+    this.db.prepare(
+      `INSERT INTO templates (id, name, version, definition_json, is_default, created_at, updated_at)
+				VALUES (?, ?, 1, ?, ?, ?, ?)`
+    ).run(id, name.trim(), JSON.stringify({ ...definition, name: name.trim() }), hasAny ? 0 : 1, stamp, stamp);
+    const created = this.getTemplate(id);
+    if (!created) {
+      throw new Error("Template was not stored");
+    }
+    return created;
+  }
+  /**
+   * Loads one template by id.
+   *
+   * @param id - Template UUID.
+   */
+  getTemplate(id) {
+    const row = this.db.prepare(`SELECT * FROM templates WHERE id = ?`).get(id);
+    return row ? mapTemplateRow(row) : null;
+  }
+  /**
+   * Lists templates, default first, then by name.
+   */
+  listTemplates() {
+    const rows = this.db.prepare(`SELECT * FROM templates ORDER BY is_default DESC, name ASC`).all();
+    return rows.map(mapTemplateRow);
+  }
+  /**
+   * Returns the default template, if any.
+   */
+  getDefaultTemplate() {
+    const row = this.db.prepare(`SELECT * FROM templates WHERE is_default = 1 LIMIT 1`).get();
+    return row ? mapTemplateRow(row) : null;
+  }
+  /**
+   * Creates the default template on first start (idempotent).
+   */
+  ensureDefaultTemplate() {
+    const existing = this.getDefaultTemplate();
+    if (existing) {
+      return existing;
+    }
+    if (this.listTemplates().length === 0) {
+      return this.createTemplate(import_templates.DEFAULT_TEMPLATE.name, import_templates.DEFAULT_TEMPLATE);
+    }
+    const first = this.listTemplates()[0];
+    this.setDefaultTemplate(first.id);
+    const updated = this.getDefaultTemplate();
+    if (!updated) {
+      throw new Error("Default template setup failed");
+    }
+    return updated;
+  }
+  /**
+   * Updates name/definition (bumps version, revalidates).
+   *
+   * @param id - Template UUID.
+   * @param patch - Partial update.
+   */
+  updateTemplate(id, patch) {
+    var _a, _b, _c, _d;
+    const current = this.getTemplate(id);
+    if (!current) {
+      throw new Error(`Template not found: ${id}`);
+    }
+    const nextName = ((_a = patch.name) == null ? void 0 : _a.trim()) || current.name;
+    const next = {
+      ...current.definition,
+      ...(_b = patch.definition) != null ? _b : {},
+      name: ((_d = (_c = patch.definition) == null ? void 0 : _c.name) == null ? void 0 : _d.trim()) || nextName
+    };
+    const errors = (0, import_templates.validateTemplate)(next);
+    if (errors.length > 0) {
+      throw new Error(`Invalid template: ${errors.join(" | ")}`);
+    }
+    this.db.prepare(
+      `UPDATE templates SET name = ?, definition_json = ?, version = version + 1, updated_at = ? WHERE id = ?`
+    ).run(nextName, JSON.stringify(next), nowIso(), id);
+    const updated = this.getTemplate(id);
+    if (!updated) {
+      throw new Error("Template update failed");
+    }
+    return updated;
+  }
+  /**
+   * Marks one template as default (atomic switch).
+   *
+   * @param id - Template UUID.
+   */
+  setDefaultTemplate(id) {
+    const current = this.getTemplate(id);
+    if (!current) {
+      throw new Error(`Template not found: ${id}`);
+    }
+    const run = this.db.transaction(() => {
+      this.db.prepare(`UPDATE templates SET is_default = 0`).run();
+      this.db.prepare(`UPDATE templates SET is_default = 1, updated_at = ? WHERE id = ?`).run(nowIso(), id);
+    });
+    run();
+    const updated = this.getTemplate(id);
+    if (!updated) {
+      throw new Error("Default switch failed");
+    }
+    return updated;
+  }
+  /**
+   * Deletes a template (never the default, never when referenced).
+   *
+   * @param id - Template UUID.
+   */
+  deleteTemplate(id) {
+    const current = this.getTemplate(id);
+    if (!current) {
+      throw new Error(`Template not found: ${id}`);
+    }
+    if (current.isDefault) {
+      throw new Error("The default template cannot be deleted");
+    }
+    const refs = this.db.prepare(`SELECT COUNT(*) AS n FROM invoices WHERE template_id = ?`).get(id);
+    if (refs.n > 0) {
+      throw new Error("Template is referenced by issued invoices and cannot be deleted");
+    }
+    this.db.prepare(`DELETE FROM templates WHERE id = ?`).run(id);
+  }
+  /**
+   * Adds a file attachment to an invoice (max 5 MB).
+   *
+   * @param invoiceId - Owning invoice UUID.
+   * @param attachment - Filename, MIME type and content.
+   */
+  addAttachment(invoiceId, attachment) {
+    if (!this.getInvoice(invoiceId)) {
+      throw new Error(`Invoice not found: ${invoiceId}`);
+    }
+    if (attachment.filename.trim().length === 0 || attachment.data.length === 0) {
+      throw new Error("Attachment needs a filename and content");
+    }
+    if (attachment.data.length > 5 * 1024 * 1024) {
+      throw new Error("Attachment exceeds 5 MB");
+    }
+    const result = this.db.prepare(
+      `INSERT INTO attachments (invoice_id, filename, mime, size, data, created_at)
+				VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(invoiceId, attachment.filename, attachment.mime, attachment.data.length, attachment.data, nowIso());
+    const row = this.db.prepare(`SELECT * FROM attachments WHERE id = ?`).get(result.lastInsertRowid);
+    return {
+      id: row.id,
+      invoiceId: row.invoice_id,
+      filename: row.filename,
+      mime: row.mime,
+      size: row.size,
+      data: row.data,
+      createdAt: row.created_at
+    };
+  }
+  /**
+   * Lists attachments of one invoice.
+   *
+   * @param invoiceId - Owning invoice UUID.
+   */
+  listAttachments(invoiceId) {
+    const rows = this.db.prepare(`SELECT * FROM attachments WHERE invoice_id = ? ORDER BY id ASC`).all(invoiceId);
+    return rows.map((row) => ({
+      id: row.id,
+      invoiceId: row.invoice_id,
+      filename: row.filename,
+      mime: row.mime,
+      size: row.size,
+      data: row.data,
+      createdAt: row.created_at
+    }));
+  }
+  /**
+   * Exports the full database content for backups.
+   */
+  exportData() {
+    const counters = this.db.prepare(`SELECT year, last_seq FROM counters ORDER BY year ASC`).all();
+    const attachments = this.db.prepare(`SELECT * FROM attachments ORDER BY id ASC`).all();
+    return {
+      formatVersion: 1,
+      exportedAt: nowIso(),
+      schemaVersion: this.currentVersion(),
+      invoices: this.listInvoices({ limit: 500 }),
+      counters,
+      templates: this.listTemplates(),
+      attachments: attachments.map((row) => ({
+        id: row.id,
+        invoiceId: row.invoice_id,
+        filename: row.filename,
+        mime: row.mime,
+        size: row.size,
+        data: row.data,
+        createdAt: row.created_at
+      }))
+    };
+  }
+  /**
+   * Replaces the full database content (restore path, transactional).
+   * Validates the shape first so bad dumps fail before touching data.
+   *
+   * @param dump - Database content from a backup.
+   */
+  importData(dump) {
+    if (!dump || dump.formatVersion !== 1 || !Array.isArray(dump.invoices) || !Array.isArray(dump.templates)) {
+      throw new Error("Unsupported dump format");
+    }
+    for (const invoice of dump.invoices) {
+      if (!invoice.id || !["draft", "issued", "cancelled"].includes(invoice.status) || !invoice.totals) {
+        throw new Error(`Corrupt invoice in dump: ${String(invoice.id)}`);
+      }
+    }
+    const run = this.db.transaction(() => {
+      var _a, _b, _c;
+      this.db.prepare(`DELETE FROM attachments`).run();
+      this.db.prepare(`DELETE FROM invoices`).run();
+      this.db.prepare(`DELETE FROM counters`).run();
+      this.db.prepare(`DELETE FROM templates`).run();
+      for (const counter of (_a = dump.counters) != null ? _a : []) {
+        this.db.prepare(`INSERT INTO counters (year, last_seq) VALUES (?, ?)`).run(counter.year, counter.last_seq);
+      }
+      for (const template of dump.templates) {
+        this.db.prepare(
+          `INSERT INTO templates (id, name, version, definition_json, is_default, created_at, updated_at)
+						VALUES (?, ?, ?, ?, ?, ?, ?)`
+        ).run(
+          template.id,
+          template.name,
+          template.version,
+          JSON.stringify(template.definition),
+          template.isDefault ? 1 : 0,
+          template.createdAt,
+          template.updatedAt
+        );
+      }
+      for (const invoice of dump.invoices) {
+        this.db.prepare(
+          `INSERT INTO invoices
+						(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json,
+						 profile, status, template_id, document_title, notes, payment_terms, xml, pdf_path, xlsx_path, created_at, updated_at)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).run(
+          invoice.id,
+          invoice.number,
+          invoice.issueDate,
+          invoice.deliveryDate,
+          invoice.dueDate,
+          JSON.stringify(invoice.seller),
+          JSON.stringify(invoice.buyer),
+          JSON.stringify(invoice.lines),
+          JSON.stringify(invoice.totals),
+          invoice.profile,
+          invoice.status,
+          invoice.templateId,
+          invoice.documentTitle,
+          invoice.notes,
+          (_b = invoice.paymentTerms) != null ? _b : null,
+          invoice.xml,
+          invoice.pdfPath,
+          invoice.xlsxPath,
+          invoice.createdAt,
+          invoice.updatedAt
+        );
+      }
+      for (const attachment of (_c = dump.attachments) != null ? _c : []) {
+        this.db.prepare(
+          `INSERT INTO attachments (invoice_id, filename, mime, size, data, created_at)
+						VALUES (?, ?, ?, ?, ?, ?)`
+        ).run(
+          attachment.invoiceId,
+          attachment.filename,
+          attachment.mime,
+          attachment.size,
+          attachment.data,
+          attachment.createdAt
+        );
+      }
+    });
+    run();
+  }
+  /**
+   * Logs a backup in the database.
+   *
+   * @param entry - Filename, size, hash and manifest.
+   */
+  logBackup(entry) {
+    const id = (0, import_node_crypto.randomUUID)();
+    const stamp = nowIso();
+    this.db.prepare(
+      `INSERT INTO backups (id, created_at, filename, size, sha256, manifest_json) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(id, stamp, entry.filename, entry.size, entry.sha256, entry.manifestJson);
+    return { id, createdAt: stamp, ...entry };
+  }
+  /**
+   * Lists logged backups, newest first.
+   */
+  listBackups() {
+    const rows = this.db.prepare(`SELECT * FROM backups ORDER BY created_at DESC`).all();
+    return rows.map((row) => ({
+      id: row.id,
+      createdAt: row.created_at,
+      filename: row.filename,
+      size: row.size,
+      sha256: row.sha256,
+      manifestJson: row.manifest_json
+    }));
+  }
+}
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  InvoiceDatabase
+});
+//# sourceMappingURL=db.js.map

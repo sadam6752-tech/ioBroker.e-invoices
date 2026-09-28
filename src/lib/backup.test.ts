@@ -1,0 +1,137 @@
+/**
+ * P5 tests: backup roundtrip and corrupt-backup handling.
+ */
+import { expect } from 'chai';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createBackup, restoreBackup, type BackupStorage } from './backup';
+import { InvoiceDatabase } from './db';
+import { issueInvoiceWithArtifacts } from './issue-service';
+
+const quiet = { info: (): void => undefined, error: (): void => undefined };
+
+function memoryStorage(): BackupStorage & { files: Map<string, Buffer> } {
+	const files = new Map<string, Buffer>();
+	return {
+		files,
+		write: (path: string, data: string | Buffer): Promise<void> => {
+			files.set(path, Buffer.isBuffer(data) ? data : Buffer.from(data));
+			return Promise.resolve();
+		},
+		read: (path: string): Promise<Buffer> => {
+			const found = files.get(path);
+			if (!found) {
+				return Promise.reject(new Error(`missing: ${path}`));
+			}
+			return Promise.resolve(found);
+		},
+	};
+}
+
+const seller = { name: 'S', street: 'a', zip: '1', city: 'B', country: 'DE', vatId: 'DE1' };
+const buyer = { name: 'K', street: 'a', zip: '1', city: 'B', country: 'DE' };
+
+async function seedIssued(db: InvoiceDatabase, storage: BackupStorage): Promise<string> {
+	db.ensureDefaultTemplate();
+	const created = db.createDraft({
+		seller,
+		buyer,
+		lines: [{ description: 'X', quantity: 1, unit: 'Stk', unitPriceNet: 10, vatRate: 19 }],
+		issueDate: '2026-09-28',
+		deliveryDate: '2026-09-28',
+		currency: 'EUR',
+	});
+	const outcome = await issueInvoiceWithArtifacts(db, quiet, created.id, storage);
+	db.addAttachment(outcome.invoice.id, { filename: 'n.txt', mime: 'text/plain', data: Buffer.from('hi') });
+	return outcome.invoice.id;
+}
+
+describe('backup => roundtrip', function () {
+	this.timeout(60000);
+
+	it('backs up and restores everything', async () => {
+		const dirA = mkdtempSync(join(tmpdir(), 'einv-bak-a-'));
+		const dirB = mkdtempSync(join(tmpdir(), 'einv-bak-b-'));
+		try {
+			const dbA = new InvoiceDatabase(join(dirA, 'invoices.db'));
+			dbA.migrate();
+			const storeA = memoryStorage();
+			const invoiceId = await seedIssued(dbA, storeA);
+
+			const backup = await createBackup(dbA, storeA, quiet, '0.0.0-test');
+			expect(backup.manifest.counts.invoices).to.equal(1);
+			expect(backup.manifest.counts.attachments).to.equal(1);
+			expect(backup.manifest.files.length).to.be.greaterThan(0);
+			expect(backup.data.subarray(0, 2).toString()).to.equal('PK');
+
+			const dbB = new InvoiceDatabase(join(dirB, 'invoices.db'));
+			dbB.migrate();
+			const storeB = memoryStorage();
+			const summary = await restoreBackup(dbB, storeB, backup.data, quiet);
+			expect(summary.invoices).to.equal(1);
+			expect(summary.fileErrors).to.deep.equal([]);
+			expect(summary.filesWritten.length).to.equal(backup.manifest.files.length);
+
+			const restored = dbB.getInvoice(invoiceId);
+			expect(restored?.number).to.match(/^2026-\d{4}$/);
+			expect(restored?.xml).to.contain('CrossIndustryInvoice');
+			expect(dbB.listAttachments(invoiceId)).to.have.lengthOf(1);
+			expect(dbB.listTemplates().length).to.be.greaterThan(0);
+			const pdf = await storeB.read(restored?.pdfPath ?? 'missing');
+			expect(pdf.subarray(0, 4).toString()).to.equal('%PDF');
+
+			dbA.close();
+			dbB.close();
+		} finally {
+			rmSync(dirA, { recursive: true, force: true });
+			rmSync(dirB, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('backup => corrupt input', () => {
+	it('rejects garbage and tampered zips without touching data', async () => {
+		const dirA = mkdtempSync(join(tmpdir(), 'einv-bak-a-'));
+		const dirB = mkdtempSync(join(tmpdir(), 'einv-bak-b-'));
+		try {
+			const dbA = new InvoiceDatabase(join(dirA, 'invoices.db'));
+			dbA.migrate();
+			const storeA = memoryStorage();
+			await seedIssued(dbA, storeA);
+			const backup = await createBackup(dbA, storeA, quiet, '0.0.0-test');
+
+			const dbB = new InvoiceDatabase(join(dirB, 'invoices.db'));
+			dbB.migrate();
+			const storeB = memoryStorage();
+
+			await restoreBackup(dbB, storeB, Buffer.from('definitely-no-zip'), quiet).then(
+				() => {
+					throw new Error('should have thrown');
+				},
+				(error: Error) => {
+					expect(error.message).to.contain('no valid backup ZIP');
+				},
+			);
+			expect(dbB.listInvoices()).to.have.lengthOf(0);
+
+			const tampered = Buffer.from(backup.data);
+			tampered[tampered.length - 20] ^= 0xff;
+			await restoreBackup(dbB, storeB, tampered, quiet).then(
+				() => {
+					throw new Error('should have thrown');
+				},
+				(error: Error) => {
+					expect(error.message).to.match(/Checksum|misses|valid backup/i);
+				},
+			);
+			expect(dbB.listInvoices()).to.have.lengthOf(0);
+
+			dbA.close();
+			dbB.close();
+		} finally {
+			rmSync(dirA, { recursive: true, force: true });
+			rmSync(dirB, { recursive: true, force: true });
+		}
+	});
+});

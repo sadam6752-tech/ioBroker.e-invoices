@@ -1,0 +1,117 @@
+/** Typed client for the adapter /api (same origin, served on :8093). */
+
+export interface Party {
+	name: string;
+	street: string;
+	zip: string;
+	city: string;
+	country: string;
+	vatId?: string;
+	taxNumber?: string;
+	email?: string;
+	customerNumber?: string;
+	iban?: string;
+	bic?: string;
+}
+
+export interface InvoiceLine {
+	description: string;
+	quantity: number;
+	unit: string;
+	unitPriceNet: number;
+	vatRate: number;
+	exemptionReason?: string;
+	discountPercent?: number;
+}
+
+export interface InvoiceTotals {
+	netTotal: number;
+	taxTotal: number;
+	grossTotal: number;
+	breakdown: { vatRate: number; net: number; tax: number; gross: number }[];
+}
+
+export interface Invoice {
+	id: string;
+	number: string | null;
+	issueDate: string;
+	deliveryDate: string;
+	dueDate: string | null;
+	seller: Party;
+	buyer: Party;
+	lines: InvoiceLine[];
+	totals: InvoiceTotals;
+	profile: string;
+	status: 'draft' | 'issued' | 'cancelled';
+	templateId: string | null;
+	documentTitle: string;
+	notes: string | null;
+	paymentTerms: string | null;
+	xml: string | null;
+	pdfPath: string | null;
+	xlsxPath: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface DraftInput {
+	seller: Party;
+	buyer: Party;
+	lines: InvoiceLine[];
+	issueDate: string;
+	deliveryDate: string;
+	dueDate?: string;
+	currency?: string;
+	documentTitle?: string;
+	notes?: string;
+	paymentTerms?: string;
+}
+
+export interface ValidationOutcome {
+	formatErrors: string[];
+	businessErrors: string[];
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+	const res = await fetch(path, {
+		headers: { 'content-type': 'application/json' },
+		...init,
+	});
+	if (!res.ok) {
+		const body = (await res.json().catch(() => ({}))) as { error?: string };
+		throw new Error(body.error ?? `HTTP ${res.status}`);
+	}
+	return (await res.json()) as T;
+}
+
+export const api = {
+	health: () => request<{ status: string; version: string; schemaVersion: number; counts: Record<string, number> }>('/api/health'),
+	list: (params: Record<string, string> = {}) => {
+		const q = new URLSearchParams(params).toString();
+		return request<Invoice[]>(`/api/invoices${q ? `?${q}` : ''}`);
+	},
+	get: (id: string) => request<Invoice>(`/api/invoices/${id}`),
+	create: (input: DraftInput) =>
+		request<Invoice>('/api/invoices', { method: 'POST', body: JSON.stringify(input) }),
+	update: (id: string, patch: Partial<DraftInput>) =>
+		request<Invoice>(`/api/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+	issue: (id: string) => request<Invoice>(`/api/invoices/${id}/issue`, { method: 'POST' }),
+	validate: (id: string) => request<ValidationOutcome>(`/api/invoices/${id}/validate`, { method: 'POST' }),
+	pdfUrl: (id: string) => `/api/invoices/${id}.pdf`,
+	xmlUrl: (id: string) => `/api/invoices/${id}.xml`,
+	xlsxUrl: (id: string) => `/api/invoices/${id}.xlsx`,
+	exportUrl: (params: Record<string, string> = {}) => {
+		const q = new URLSearchParams(params).toString();
+		return `/api/invoices/export.xlsx${q ? `?${q}` : ''}`;
+	},
+};
+
+/** Minimal HTML escaping for user data. */
+export function esc(value: string | number | null | undefined): string {
+	return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c));
+}
+
+/** EUR formatting mirrored from the backend. */
+export function eur(value: number): string {
+	return `${Number(value).toFixed(2)} EUR`;
+}

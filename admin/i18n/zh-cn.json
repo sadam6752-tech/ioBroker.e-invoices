@@ -1,0 +1,7 @@
+{
+	"e-invoices adapter settings": "e-invoices的适配器设置",
+	"API port": "API 端口",
+	"Bind address": "绑定地址",
+	"API token (optional)": "API 令牌（可选）",
+	"Empty means no authentication (LAN trust)": "留空表示无需身份验证（信任局域网）"
+}

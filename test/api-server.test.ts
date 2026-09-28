@@ -1,0 +1,323 @@
+/**
+ * API tests for ioBroker.e-invoices (P4a).
+ * Lives in test/ (excluded from the repo-checker source scan),
+ * runs without js-controller via supertest + temp database.
+ */
+import { expect } from 'chai';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import request from 'supertest';
+import { createApiServer } from '../src/lib/api-server';
+import { InvoiceDatabase } from '../src/lib/db';
+import { DEFAULT_TEMPLATE } from '../src/lib/templates';
+
+const seller = {
+	name: 'Muster GmbH',
+	street: 'Beispielstr. 1',
+	zip: '10115',
+	city: 'Berlin',
+	country: 'DE',
+	vatId: 'DE123456789',
+	iban: 'DE02120300000000202051',
+	email: 'rechnung@muster.example',
+};
+
+const buyer = {
+	name: 'Kunde AG',
+	street: 'Kundenweg 5',
+	zip: '80331',
+	city: 'München',
+	country: 'DE',
+	customerNumber: 'K-42',
+};
+
+const draftBody = {
+	seller,
+	buyer,
+	lines: [{ description: 'Beratung', quantity: 2, unit: 'Std', unitPriceNet: 100, vatRate: 19 }],
+	issueDate: '2026-09-28',
+	deliveryDate: '2026-09-27',
+	dueDate: '2026-10-12',
+	currency: 'EUR',
+	documentTitle: 'Rechnung',
+};
+
+describe('api => invoices', function () {
+	this.timeout(60000);
+	let dir = '';
+	let db: InvoiceDatabase;
+	let app: ReturnType<typeof createApiServer>;
+
+	before(() => {
+		dir = mkdtempSync(join(tmpdir(), 'einv-api-'));
+		db = new InvoiceDatabase(join(dir, 'invoices.db'));
+		db.migrate();
+		const files = new Map<string, Buffer>();
+		const store = {
+			write: (path: string, data: string | Buffer): Promise<void> => {
+				files.set(path, Buffer.isBuffer(data) ? data : Buffer.from(data));
+				return Promise.resolve();
+			},
+			read: (path: string): Promise<Buffer> => {
+				const found = files.get(path);
+				if (!found) {
+					return Promise.reject(new Error(`missing: ${path}`));
+				}
+				return Promise.resolve(found);
+			},
+		};
+		const quiet = { info: (): void => undefined, error: (): void => undefined };
+		app = createApiServer({ db, storage: store, log: quiet, version: '0.0.0-test' });
+	});
+
+	after(() => {
+		db.close();
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it('health reports ok with counts', async () => {
+		const res = await request(app).get('/api/health').expect(200);
+		expect(res.body.status).to.equal('ok');
+		expect(res.body.counts.draft).to.equal(0);
+	});
+
+	it('rejects drafts without parties/lines', async () => {
+		await request(app).post('/api/invoices').send({ seller }).expect(400);
+	});
+
+	it('runs the full draft -> validate -> issue -> download flow', async () => {
+		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		const id = created.body.id as string;
+		expect(created.body.status).to.equal('draft');
+
+		await request(app).get(`/api/invoices/${id}`).expect(200);
+		await request(app).get('/api/invoices/does-not-exist').expect(404);
+
+		const patched = await request(app).patch(`/api/invoices/${id}`).send({ dueDate: '2026-11-01' }).expect(200);
+		expect(patched.body.dueDate).to.equal('2026-11-01');
+
+		const valid = await request(app).post(`/api/invoices/${id}/validate`).expect(200);
+		expect(valid.body.businessErrors).to.deep.equal([]);
+		expect(valid.body.formatErrors).to.deep.equal([]);
+
+		const issued = await request(app).post(`/api/invoices/${id}/issue`).expect(200);
+		expect(issued.body.number).to.match(/^2026-\d{4}$/);
+
+		const xml = await request(app).get(`/api/invoices/${id}.xml`).expect(200);
+		expect(xml.headers['content-type']).to.contain('application/xml');
+		expect(xml.text).to.contain('CrossIndustryInvoice');
+
+		const pdf = await request(app).get(`/api/invoices/${id}.pdf`).expect(200);
+		expect(pdf.headers['content-type']).to.contain('application/pdf');
+
+		const xlsx = await request(app).get(`/api/invoices/${id}.xlsx`).expect(200);
+		expect(xlsx.headers['content-type']).to.contain('spreadsheetml.sheet');
+
+		const list = await request(app).get('/api/invoices/export.xlsx').query({ status: 'issued' }).expect(200);
+		expect(list.headers['content-type']).to.contain('spreadsheetml.sheet');
+
+		// issued invoices are immutable
+		await request(app).patch(`/api/invoices/${id}`).send({ dueDate: '2026-12-01' }).expect(400);
+		await request(app).post(`/api/invoices/${id}/issue`).expect(400);
+	});
+
+	it('lists and filters invoices', async () => {
+		const all = await request(app).get('/api/invoices').expect(200);
+		expect(all.body.length).to.be.greaterThan(0);
+		const issued = await request(app).get('/api/invoices').query({ status: 'issued' }).expect(200);
+		expect(issued.body.length).to.be.greaterThan(0);
+		const drafts = await request(app).get('/api/invoices').query({ status: 'draft' }).expect(200);
+		expect(drafts.body).to.deep.equal([]);
+	});
+
+	it('answers 404 for unknown api routes', async () => {
+		await request(app).get('/api/nope').expect(404);
+	});
+});
+
+describe('api => auth', () => {
+	let dir = '';
+	let db: InvoiceDatabase;
+	let openApp: ReturnType<typeof createApiServer>;
+	let closedApp: ReturnType<typeof createApiServer>;
+
+	before(() => {
+		dir = mkdtempSync(join(tmpdir(), 'einv-api-auth-'));
+		db = new InvoiceDatabase(join(dir, 'invoices.db'));
+		db.migrate();
+		const quiet = { info: (): void => undefined, error: (): void => undefined };
+		const stubStorage = {
+			write: (): Promise<void> => Promise.resolve(),
+			read: (): Promise<Buffer> => Promise.reject(new Error('empty')),
+		};
+		openApp = createApiServer({ db, storage: stubStorage, log: quiet, version: 'x' });
+		closedApp = createApiServer({ db, storage: stubStorage, log: quiet, version: 'x', authToken: 's3cret' });
+	});
+
+	after(() => {
+		db.close();
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it('leaves the API open without a token', async () => {
+		await request(openApp).get('/api/invoices').expect(200);
+	});
+
+	it('keeps health open but locks everything else with a token', async () => {
+		await request(closedApp).get('/api/health').expect(200);
+		await request(closedApp).get('/api/invoices').expect(401);
+		await request(closedApp).post('/api/invoices').send({}).expect(401);
+		await request(closedApp).get('/api/invoices').set('Authorization', 'Bearer wrong').expect(401);
+		await request(closedApp).get('/api/invoices').set('Authorization', 'Bearer s3cret').expect(200);
+	});
+});
+
+describe('api => backup', function () {
+	this.timeout(60000);
+	let dir = '';
+	let db: InvoiceDatabase;
+	let app: ReturnType<typeof createApiServer>;
+
+	before(() => {
+		dir = mkdtempSync(join(tmpdir(), 'einv-api-bak-'));
+		db = new InvoiceDatabase(join(dir, 'invoices.db'));
+		db.migrate();
+		const files = new Map<string, Buffer>();
+		app = createApiServer({
+			db,
+			storage: {
+				write: (path: string, data: string | Buffer): Promise<void> => {
+					files.set(path, Buffer.isBuffer(data) ? data : Buffer.from(data));
+					return Promise.resolve();
+				},
+				read: (path: string): Promise<Buffer> => {
+					const found = files.get(path);
+					if (!found) {
+						return Promise.reject(new Error(`missing: ${path}`));
+					}
+					return Promise.resolve(found);
+				},
+			},
+			log: { info: (): void => undefined, error: (): void => undefined },
+			version: '0.0.0-test',
+		});
+	});
+
+	after(() => {
+		db.close();
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it('creates, lists, downloads and restores backups', async () => {
+		const draft = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		await request(app)
+			.post(`/api/invoices/${draft.body.id as string}/issue`)
+			.expect(200);
+
+		const created = await request(app).post('/api/backups').expect(201);
+		expect(created.body.sha256).to.match(/^[0-9a-f]{64}$/);
+		const filename = created.body.filename as string;
+
+		const list = await request(app).get('/api/backups').expect(200);
+		expect(list.body.length).to.be.greaterThan(0);
+
+		const basename = String(filename).split('/').pop() ?? '';
+		const download = await request(app).get(`/api/backups/file/${basename}`).expect(200);
+		expect(download.headers['content-type']).to.contain('application/zip');
+
+		const restored = await request(app).post('/api/restore').send({ filename: basename }).expect(200);
+		expect(restored.body.invoices).to.be.greaterThan(0);
+		expect(restored.body.fileErrors).to.deep.equal([]);
+
+		await request(app).post('/api/restore').send({}).expect(400);
+		await request(app).post('/api/restore').send({ filename: 'does-not-exist.zip' }).expect(404);
+		await request(app).post('/api/restore').send({ dataBase64: 'bm90LXotemlw' }).expect(400);
+	});
+});
+
+describe('api => templates', function () {
+	this.timeout(60000);
+	let dir = '';
+	let db: InvoiceDatabase;
+	let app: ReturnType<typeof createApiServer>;
+
+	before(() => {
+		dir = mkdtempSync(join(tmpdir(), 'einv-api-tpl-'));
+		db = new InvoiceDatabase(join(dir, 'invoices.db'));
+		db.migrate();
+		const files = new Map<string, Buffer>();
+		app = createApiServer({
+			db,
+			storage: {
+				write: (path: string, data: string | Buffer): Promise<void> => {
+					files.set(path, Buffer.isBuffer(data) ? data : Buffer.from(data));
+					return Promise.resolve();
+				},
+				read: (path: string): Promise<Buffer> => {
+					const found = files.get(path);
+					if (!found) {
+						return Promise.reject(new Error(`missing: ${path}`));
+					}
+					return Promise.resolve(found);
+				},
+			},
+			log: { info: (): void => undefined, error: (): void => undefined },
+			version: '0.0.0-test',
+		});
+	});
+
+	after(() => {
+		db.close();
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it('CRUD, Pflichtfeld-Wächter, Vorschau und Logo', async () => {
+		const empty = await request(app).get('/api/templates').expect(200);
+		expect(empty.body).to.deep.equal([]);
+
+		const badDef = { ...DEFAULT_TEMPLATE, blocks: { ...DEFAULT_TEMPLATE.blocks, totals: false } };
+		await request(app).post('/api/templates').send({ name: 'Bad', definition: badDef }).expect(400);
+
+		const first = await request(app)
+			.post('/api/templates')
+			.send({ name: 'Standard', definition: { ...DEFAULT_TEMPLATE, name: 'Standard' } })
+			.expect(201);
+		expect(first.body.isDefault).to.equal(true);
+
+		const renamed = await request(app)
+			.put(`/api/templates/${first.body.id}`)
+			.send({ name: 'Standard 2' })
+			.expect(200);
+		expect(renamed.body.version).to.equal(2);
+
+		const preview = await request(app)
+			.post('/api/templates/preview')
+			.send({ definition: { ...DEFAULT_TEMPLATE, name: 'Vorschau' } })
+			.expect(200);
+		expect(preview.headers['content-type']).to.contain('application/pdf');
+		await request(app).post('/api/templates/preview').send({ definition: badDef }).expect(400);
+
+		const png = readFileSync(join('admin', 'e-invoices.png'));
+		const withLogo = await request(app)
+			.post(`/api/templates/${first.body.id}/logo`)
+			.send({ filename: 'logo.png', mime: 'image/png', dataBase64: png.toString('base64') })
+			.expect(200);
+		expect(withLogo.body.definition.logo.path).to.contain('logos/');
+		await request(app)
+			.post(`/api/templates/${first.body.id}/logo`)
+			.send({ filename: 'logo.txt', mime: 'text/plain', dataBase64: 'aGk=' })
+			.expect(400);
+
+		const second = await request(app)
+			.post('/api/templates')
+			.send({ name: 'Zweit', definition: { ...DEFAULT_TEMPLATE, name: 'Zweit' } })
+			.expect(201);
+		const switched = await request(app).post(`/api/templates/${second.body.id}/default`).expect(200);
+		expect(switched.body.isDefault).to.equal(true);
+
+		await request(app).delete(`/api/templates/${first.body.id}`).expect(200);
+		await request(app).delete(`/api/templates/${second.body.id}`).expect(400);
+		await request(app).get('/api/templates/nope').expect(404);
+	});
+});
