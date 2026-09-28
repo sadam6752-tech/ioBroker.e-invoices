@@ -29,6 +29,7 @@ interface WizardState {
 	documentTitle: string;
 	notes: string;
 	draftId: string | null;
+	selectedCompany: string | null;
 	error: string;
 	savedAt: string;
 }
@@ -50,6 +51,7 @@ function freshState(): WizardState {
 		documentTitle: 'Rechnung',
 		notes: '',
 		draftId: null,
+		selectedCompany: null,
 		error: '',
 		savedAt: new Date().toISOString(),
 	};
@@ -145,6 +147,7 @@ export function wizard(root: HTMLElement): void {
 			.then(profile => {
 				if (profile && !s.seller.name.trim() && profile.profile.name.trim()) {
 					s.seller = { ...s.seller, ...profile.profile };
+					s.selectedCompany = profile.id;
 					render();
 				}
 			})
@@ -198,7 +201,7 @@ export function wizard(root: HTMLElement): void {
 					companies.length > 0
 						? `<label>Aus Firma übernehmen<select id="w-company">
 							<option value="">– manuell eingeben –</option>
-							${companies.map(c => `<option value="${esc(c.id)}">${esc(c.name)}${c.isDefault ? ' (Standard)' : ''}</option>`).join('')}
+							${companies.map(c => `<option value="${esc(c.id)}" ${s.selectedCompany === c.id ? 'selected' : ''}>${esc(c.name)}${c.isDefault ? ' (Standard)' : ''}</option>`).join('')}
 						</select></label>`
 						: `<p class="muted">Tipp: Unter <a href="#/company">Firma</a> einmal anlegen, dann hier auswählbar.</p>`
 				}
@@ -269,7 +272,10 @@ export function wizard(root: HTMLElement): void {
 			if (found) {
 				collect();
 				s.seller = { ...s.seller, ...found.profile };
+				s.selectedCompany = found.id;
 				render();
+			} else {
+				s.selectedCompany = null;
 			}
 		});
 		root.querySelector('#w-next')?.addEventListener('click', () => {
