@@ -1,4 +1,4 @@
-import { apiFetch, esc } from '../api';
+import { apiFetch, downloadUrl, esc } from '../api';
 
 interface BackupEntry {
 	id: string;
@@ -39,7 +39,7 @@ export async function backup(root: HTMLElement): Promise<void> {
 					b => `<div class="row" style="margin-top:8px">
 				<strong>${esc(baseName(b.filename))}</strong>
 				<span class="muted">${esc(b.createdAt.slice(0, 19).replace('T', ' '))} · ${Math.round(b.size / 1024)} KB</span>
-				<a class="btn secondary" href="/api/backups/file/${esc(baseName(b.filename))}">Download</a>
+				<button class="secondary" data-dl="${esc(b.filename)}">Download</button>
 				<button class="secondary" data-restore="${esc(b.filename)}">Wiederherstellen</button>
 			</div>`,
 				)
@@ -65,6 +65,18 @@ export async function backup(root: HTMLElement): Promise<void> {
 				render();
 			}
 		});
+		root.querySelectorAll('[data-dl]').forEach(btn =>
+			btn.addEventListener('click', async () => {
+				const filename = (btn as HTMLElement).dataset.dl ?? '';
+				try {
+					await downloadUrl(`/api/backups/file/${baseName(filename)}`, baseName(filename));
+				} catch (e) {
+					message = (e as Error).message;
+					isError = true;
+					render();
+				}
+			}),
+		);
 		root.querySelectorAll('[data-restore]').forEach(btn =>
 			btn.addEventListener('click', async () => {
 				const filename = (btn as HTMLElement).dataset.restore ?? '';

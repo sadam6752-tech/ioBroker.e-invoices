@@ -136,6 +136,49 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 	return res;
 }
 
+/**
+ * Downloads an API file with token auth (plain anchors send no
+ * Authorization header, so they fail with 401 when a token is set).
+ * Fetches as blob and triggers a same-page download — no blank tab.
+ *
+ * @param url - Same-origin API file URL.
+ * @param fallbackName - Filename when the server sends none.
+ */
+export async function downloadUrl(url: string, fallbackName: string): Promise<void> {
+	const res = await apiFetch(url);
+	if (!res.ok) {
+		const body = (await res.json().catch(() => ({}))) as { error?: string };
+		throw new Error(body.error ?? `Download fehlgeschlagen (HTTP ${res.status})`);
+	}
+	const blob = await res.blob();
+	const match = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '');
+	const anchor = document.createElement('a');
+	anchor.href = URL.createObjectURL(blob);
+	anchor.download = match?.[1] ?? fallbackName;
+	document.body.appendChild(anchor);
+	anchor.click();
+	anchor.remove();
+	window.setTimeout(() => URL.revokeObjectURL(anchor.href), 10000);
+}
+
+/**
+ * Opens an API file in a new tab with token auth (blob URL, since a
+ * plain navigation would carry no Authorization header either).
+ *
+ * @param url - Same-origin API file URL.
+ */
+export async function openUrl(url: string): Promise<void> {
+	const res = await apiFetch(url);
+	if (!res.ok) {
+		const body = (await res.json().catch(() => ({}))) as { error?: string };
+		throw new Error(body.error ?? `Öffnen fehlgeschlagen (HTTP ${res.status})`);
+	}
+	const blob = await res.blob();
+	const obj = URL.createObjectURL(blob);
+	window.open(obj, '_blank', 'noopener');
+	window.setTimeout(() => URL.revokeObjectURL(obj), 60000);
+}
+
 export const api = {
 	health: () => request<{ status: string; version: string; schemaVersion: number; counts: Record<string, number> }>('/api/health'),
 	list: (params: Record<string, string> = {}) => {

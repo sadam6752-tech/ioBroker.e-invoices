@@ -1,4 +1,4 @@
-import { api, esc, eur, type Invoice } from '../api';
+import { api, downloadUrl, esc, eur, type Invoice } from '../api';
 
 function badge(status: Invoice['status']): string {
 	return `<span class="badge ${status}">${status}</span>`;
@@ -17,13 +17,19 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 			</select>
 			<input id="f-q" placeholder="Suche (Nr, Kunde)…" style="max-width:220px" />
 			<a class="btn" href="#/new">+ Neu</a>
-			<a class="btn secondary" id="f-export" href="#">Excel</a>
+			<button class="btn secondary" id="f-export">Excel</button>
 		</div></div>
-		<div id="list"></div>`;
+		<div id="list"></div>
+		<div id="list-err"></div>`;
 
 	const statusEl = root.querySelector<HTMLSelectElement>('#f-status')!;
 	const qEl = root.querySelector<HTMLInputElement>('#f-q')!;
 	const listEl = root.querySelector('#list')!;
+	const errEl = root.querySelector('#list-err')!;
+
+	function fail(e: unknown): void {
+		errEl.innerHTML = `<div class="card error">${esc((e as Error).message)}</div>`;
+	}
 
 	async function load(): Promise<void> {
 		const params: Record<string, string> = {};
@@ -39,30 +45,38 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 					<span>${esc(i.buyer.name || '—')}</span>
 					<span>${eur(i.totals.grossTotal)}</span>
 					<a href="#/invoices/${esc(i.id)}">Ansehen</a>
-					${i.pdfPath ? `<a href="${api.pdfUrl(i.id)}" download="${esc(i.number ?? 'rechnung')}.pdf">PDF ↓</a>` : ''}
-					${i.xml ? `<a href="${api.xmlUrl(i.id)}" download="${esc(i.number ?? 'rechnung')}.xml">XML ↓</a>` : ''}
+					${i.pdfPath ? `<button class="secondary" data-dl="pdf:${esc(i.id)}:${esc(i.number ?? 'rechnung')}">PDF ↓</button>` : ''}
+					${i.xml ? `<button class="secondary" data-dl="xml:${esc(i.id)}:${esc(i.number ?? 'rechnung')}">XML ↓</button>` : ''}
 				</div></div>`,
 					)
 					.join('') || `<div class="card muted">Keine Rechnungen gefunden.</div>`;
+			listEl.querySelectorAll('[data-dl]').forEach(btn =>
+				btn.addEventListener('click', async () => {
+					const [kind, id, name] = ((btn as HTMLElement).dataset.dl ?? '').split(':');
+				 const url = kind === 'pdf' ? api.pdfUrl(id) : api.xmlUrl(id);
+					try {
+						await downloadUrl(url, `${name}.${kind}`);
+					} catch (e) {
+						fail(e);
+					}
+				}),
+			);
 		} catch (e) {
 			listEl.innerHTML = `<div class="card error">${esc((e as Error).message)}</div>`;
 		}
 	}
-	statusEl.onchange = () => {
-		syncExport();
-		void load();
-	};
-	qEl.oninput = () => {
-		syncExport();
-		void load();
-	};
+	statusEl.onchange = () => void load();
+	qEl.oninput = () => void load();
 
-	function syncExport(): void {
+	root.querySelector('#f-export')?.addEventListener('click', async () => {
 		const params: Record<string, string> = {};
 		if (statusEl.value) params.status = statusEl.value;
 		if (qEl.value.trim()) params.q = qEl.value.trim();
-		root.querySelector<HTMLAnchorElement>('#f-export')!.href = api.exportUrl(params);
-	}
-	syncExport();
+		try {
+			await downloadUrl(api.exportUrl(params), 'export.xlsx');
+		} catch (e) {
+			fail(e);
+		}
+	});
 	await load();
 }

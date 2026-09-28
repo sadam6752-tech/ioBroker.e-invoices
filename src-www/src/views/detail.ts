@@ -1,4 +1,4 @@
-import { api, esc, eur } from '../api';
+import { api, downloadUrl, esc, eur, openUrl } from '../api';
 
 /** Invoice detail: fields, validation, downloads, issue action. */
 export async function detail(root: HTMLElement, id: string): Promise<void> {
@@ -30,13 +30,34 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			<div class="card"><div class="row">
 				${inv.status === 'draft' ? `<button id="d-issue">Ausstellen</button><span class="muted">Danach nicht mehr änderbar.</span>` : ''}
 				<button class="secondary" id="d-validate">Validieren</button>
-				${inv.pdfPath ? `<a class="btn secondary" href="${api.pdfUrl(inv.id)}" target="_blank" rel="noopener">PDF ansehen</a>` : ''}
-				${inv.pdfPath ? `<a class="btn secondary" href="${api.pdfUrl(inv.id)}" download="${esc(inv.number ?? 'rechnung')}.pdf">PDF ↓</a>` : ''}
-				${inv.xml ? `<a class="btn secondary" href="${api.xmlUrl(inv.id)}" download="${esc(inv.number ?? 'rechnung')}.xml">XML ↓</a>` : ''}
-				${inv.xlsxPath ? `<a class="btn secondary" href="${api.xlsxUrl(inv.id)}" download="${esc(inv.number ?? 'rechnung')}.xlsx">Excel ↓</a>` : ''}
+				${inv.pdfPath ? `<button class="secondary" data-view="pdf">PDF ansehen</button>` : ''}
+				${inv.pdfPath ? `<button class="secondary" data-dl="pdf">PDF ↓</button>` : ''}
+				${inv.xml ? `<button class="secondary" data-dl="xml">XML ↓</button>` : ''}
+				${inv.xlsxPath ? `<button class="secondary" data-dl="xlsx">Excel ↓</button>` : ''}
 			</div><div id="d-out"></div></div>`;
 
 		const out = root.querySelector('#d-out')!;
+		const fail = (e: unknown): void => {
+			out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
+		};
+		root.querySelectorAll('[data-dl]').forEach(btn =>
+			btn.addEventListener('click', async () => {
+				const kind = (btn as HTMLElement).dataset.dl as 'pdf' | 'xml' | 'xlsx';
+				const url = kind === 'pdf' ? api.pdfUrl(inv.id) : kind === 'xml' ? api.xmlUrl(inv.id) : api.xlsxUrl(inv.id);
+				try {
+					await downloadUrl(url, `${inv.number ?? 'rechnung'}.${kind}`);
+				} catch (e) {
+					fail(e);
+				}
+			}),
+		);
+		root.querySelector('[data-view]')?.addEventListener('click', async () => {
+			try {
+				await openUrl(api.pdfUrl(inv.id));
+			} catch (e) {
+				fail(e);
+			}
+		});
 		root.querySelector('#d-validate')?.addEventListener('click', async () => {
 			out.innerHTML = `<p class="muted">Validiere…</p>`;
 			try {
