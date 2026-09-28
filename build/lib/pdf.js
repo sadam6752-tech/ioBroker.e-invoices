@@ -355,10 +355,17 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.restore();
       footTop += 8;
       const colW = pageWidth / 4;
+      const rawAlign = invoice.seller.footerAlign;
+      const aligns = [0, 1, 2, 3].map((i) => {
+        const value = Array.isArray(rawAlign) ? rawAlign[i] : void 0;
+        return value === "center" || value === "right" ? value : "left";
+      });
       doc.fontSize(8);
       boxes.forEach((lines, index) => {
+        var _a3;
+        const align = (_a3 = aligns[index]) != null ? _a3 : "left";
         lines.forEach((line, lineIndex) => {
-          doc.text(line, left + index * colW, footTop + lineIndex * 10, { width: colW - 8 });
+          doc.text(line, left + index * colW, footTop + lineIndex * 10, { width: colW - 8, align });
         });
       });
       doc.fontSize(10);

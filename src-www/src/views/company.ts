@@ -40,15 +40,17 @@ export async function company(root: HTMLElement): Promise<void> {
 			<div class="grid2">${field(p, 'bankName', 'Bankname')}${field(p, 'iban', 'IBAN')}</div>
 			<label>BIC<input data-f="bic" value="${esc(p.bic ?? '')}" /></label>
 			<h3>Fußzeilen-Boxen (Rechnung unten)</h3>
-			<p class="muted">Leer lassen = automatisch aus den Firmendaten (Adresse, Kontakt, Bank, Steuer). Je Box eine Zeile pro Zeile.</p>
-			<div class="grid2">
-				<label>Box 1 – Adresse<textarea data-fbox="0" rows="3">${esc((p.footerBoxes ?? [])[0] ?? '')}</textarea></label>
-				<label>Box 2 – Kontakt<textarea data-fbox="1" rows="3">${esc((p.footerBoxes ?? [])[1] ?? '')}</textarea></label>
-			</div>
-			<div class="grid2">
-				<label>Box 3 – Bank<textarea data-fbox="2" rows="3">${esc((p.footerBoxes ?? [])[2] ?? '')}</textarea></label>
-				<label>Box 4 – Steuer<textarea data-fbox="3" rows="3">${esc((p.footerBoxes ?? [])[3] ?? '')}</textarea></label>
-			</div>
+			<p class="muted">Leer lassen = automatisch aus den Firmendaten (Adresse, Kontakt, Bank, Steuer). Je Box eine Zeile pro Zeile, Ausrichtung pro Box.</p>
+			${[0, 1, 2, 3]
+				.map(
+					i => `<div class="grid2"><label>Box ${i + 1}<textarea data-fbox="${i}" rows="3">${esc((p.footerBoxes ?? [])[i] ?? '')}</textarea></label>
+				<label>Ausrichtung<select data-falign="${i}">
+					${(['left', 'center', 'right'] as const)
+						.map(v => `<option value="${v}" ${(p.footerAlign ?? [])[i] === v || (!(p.footerAlign ?? [])[i] && v === 'left') ? 'selected' : ''}>${v === 'left' ? 'Links' : v === 'center' ? 'Zentriert' : 'Rechts'}</option>`)
+						.join('')}
+				</select></label></div>`,
+				)
+				.join('')}
 			${message ? `<p class="${isError ? 'error' : ''}">${esc(message)}</p>` : ''}
 			<div class="row"><button id="c-save">Speichern</button></div>
 		</div>`;
@@ -63,8 +65,13 @@ export async function company(root: HTMLElement): Promise<void> {
 			);
 			if (boxes.some(box => box.trim() !== '')) {
 				profile.footerBoxes = boxes;
+				profile.footerAlign = [0, 1, 2, 3].map(i => {
+					const v = root.querySelector<HTMLSelectElement>(`select[data-falign="${i}"]`)?.value;
+					return v === 'center' || v === 'right' ? v : 'left';
+				});
 			} else {
 				delete profile.footerBoxes;
+				delete profile.footerAlign;
 			}
 			const name = root.querySelector<HTMLInputElement>('#c-name')?.value.trim() || 'Meine Firma';
 			try {

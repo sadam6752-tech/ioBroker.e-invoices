@@ -36,6 +36,8 @@ export interface Party {
 	bankName?: string;
 	/** Footer boxes override (4 entries, lines separated by \n). Empty = auto from company data. */
 	footerBoxes?: string[];
+	/** Footer box alignment per box (left/center/right). Empty = all left. */
+	footerAlign?: ('left' | 'center' | 'right')[];
 	/** IBAN of the seller (recommended for payment block). */
 	iban?: string;
 	/** BIC of the seller (optional). */

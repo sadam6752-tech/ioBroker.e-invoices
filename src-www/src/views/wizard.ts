@@ -397,7 +397,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			const id = root.querySelector<HTMLSelectElement>('#w-catalog')?.value ?? '';
 			const found = catalog.find(p => p.id === id);
 			if (found) {
-				s.lines.push({
+				const taken: InvoiceLine = {
 					description: found.name,
 					sku: found.sku || undefined,
 					details: found.details || undefined,
@@ -405,9 +405,18 @@ export function wizard(root: HTMLElement, editId?: string): void {
 					unit: found.unit,
 					unitPriceNet: found.unitPriceNet,
 					vatRate: found.vatRate,
-				});
+				};
+				const pristine = s.lines.findIndex(
+					l => !l.description.trim() && !(l.sku ?? '').trim() && !(l.details ?? '').trim() && l.unitPriceNet === 0,
+				);
+				if (pristine >= 0) {
+					s.lines[pristine] = taken;
+				} else {
+					s.lines.push(taken);
+				}
+				s.dirty = true;
 			}
-			render();
+			render(true);
 		});
 		root.querySelectorAll('[data-del]').forEach(btn =>
 			btn.addEventListener('click', () => {
@@ -415,7 +424,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				s.dirty = true;
 				s.lines.splice(Number((btn as HTMLElement).dataset.del), 1);
 				if (s.lines.length === 0) s.lines.push(emptyLine());
-				render();
+				render(true);
 			}),
 		);
 		root.querySelector('#w-save')?.addEventListener('click', () => void save(false));
