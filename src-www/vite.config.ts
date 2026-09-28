@@ -31,6 +31,8 @@ export default defineConfig({
 				],
 			},
 			workbox: {
+				// Never serve the app shell for API navigations (PDF/XML downloads).
+				navigateFallbackDenylist: [/^\/api\//],
 				runtimeCaching: [
 					{
 						urlPattern: ({ url }) => url.pathname.startsWith('/api/invoices') && !url.pathname.endsWith('/issue'),
