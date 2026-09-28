@@ -18,10 +18,10 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			<p>Ausgestellt: ${esc(inv.issueDate)} · Leistung: ${esc(inv.deliveryDate)}${inv.dueDate ? ` · Fällig: ${esc(inv.dueDate)}` : ''}</p>
 			<table class="lines"><tr><th>#</th><th>Beschreibung</th><th>Menge</th><th>USt</th><th>Netto</th></tr>
 			${inv.lines
-				.map(
-					(l, i) =>
-						`<tr><td>${i + 1}</td><td>${esc(l.description)}</td><td>${l.quantity} ${esc(l.unit)}</td><td>${l.vatRate} %</td><td>${eur(l.quantity * l.unitPriceNet)}</td></tr>`,
-				)
+				.map((l, i) => {
+					const netUnit = l.unitPriceNet * (1 - (l.discountPercent ?? 0) / 100);
+					return `<tr><td>${i + 1}</td><td>${esc(l.description)}${l.sku ? ` (${esc(l.sku)})` : ''}</td><td>${l.quantity} ${esc(l.unit)}</td><td>${l.vatRate} %</td><td>${eur(Math.round(l.quantity * netUnit * 100) / 100)}</td></tr>`;
+				})
 				.join('')}
 			</table>
 			<p><strong>Gesamt: ${eur(inv.totals.grossTotal)}</strong> <span class="muted">(netto ${eur(inv.totals.netTotal)} + USt ${eur(inv.totals.taxTotal)})</span></p>

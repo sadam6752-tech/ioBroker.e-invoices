@@ -91,7 +91,7 @@ export async function backup(root: HTMLElement): Promise<void> {
 					const s = (await res.json()) as { invoices: number; templates: number; fileErrors: string[] };
 					message = `Wiederhergestellt: ${s.invoices} Rechnungen, ${s.templates} Vorlagen${s.fileErrors.length > 0 ? ` (${s.fileErrors.length} Dateifehler)` : ''}`;
 					isError = false;
-					render();
+					await reload();
 				} catch (e) {
 					message = (e as Error).message;
 					isError = true;

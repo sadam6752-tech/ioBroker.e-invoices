@@ -63,6 +63,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 		<label><input type="checkbox" data-f="showCustomerNumber" ${d.showCustomerNumber ? 'checked' : ''} style="width:auto" /> Kundennr. (BT-10)</label>
 		<label><input type="checkbox" data-f="showPaymentTerms" ${d.showPaymentTerms ? 'checked' : ''} style="width:auto" /> Zahlungsbedingungen</label>
 		<label><input type="checkbox" data-f="showArchiveHint" ${d.showArchiveHint ? 'checked' : ''} style="width:auto" /> §14b-Archivhinweis</label>
+		<label><input type="checkbox" data-f="showPageNumbers" ${d.showPageNumbers ? 'checked' : ''} style="width:auto" /> Seitenzahlen (ab 2 Seiten)</label>
 		<label><input type="checkbox" data-f="showTagline" ${d.showTagline !== false ? 'checked' : ''} style="width:auto" /> Adress-Tagline</label>
 		<label>Einleitungssatz<textarea id="t-intro">${esc(d.introText ?? '')}</textarea></label>
 		<label>Schlusssatz<textarea id="t-closing">${esc(d.closingText ?? '')}</textarea></label>
@@ -104,17 +105,22 @@ export async function templates(root: HTMLElement): Promise<void> {
 		</div>` : ''}`;
 
 		root.querySelector('#t-new')?.addEventListener('click', async () => {
-			const res = await apiFetch('/api/templates');
-			const list = (await res.json()) as Template[];
-			const first = list[0];
-			if (!first) {
-				error = 'Keine Basisvorlage vorhanden';
+			try {
+				const res = await apiFetch('/api/templates');
+				const list = (await res.json()) as Template[];
+				const first = list[0];
+				if (!first) {
+					error = 'Keine Basisvorlage vorhanden';
+					render();
+					return;
+				}
+				editing = { ...structuredClone(first), id: 'neu', name: 'Neu', version: 1, isDefault: false };
+				error = '';
 				render();
-				return;
+			} catch (e) {
+				error = (e as Error).message;
+				render();
 			}
-			editing = { ...structuredClone(first), id: 'neu', name: 'Neu', version: 1, isDefault: false };
-			error = '';
-			render();
 		});
 		root.querySelectorAll('[data-edit]').forEach(b =>
 			b.addEventListener('click', () => {
@@ -130,25 +136,35 @@ export async function templates(root: HTMLElement): Promise<void> {
 			b.addEventListener('click', async () => {
 				const t = items.find(x => x.id === (b as HTMLElement).dataset.prev);
 				if (!t) return;
-				const res = await apiFetch('/api/templates/preview', {
-					method: 'POST',
-					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({ definition: t.definition }),
-				});
-				if (!res.ok) {
-					error = 'Vorschau fehlgeschlagen';
+				try {
+					const res = await apiFetch('/api/templates/preview', {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ definition: t.definition }),
+					});
+					if (!res.ok) {
+						const j = (await res.json().catch(() => ({}))) as { error?: string };
+						throw new Error(j.error ?? 'Vorschau fehlgeschlagen');
+					}
+					const blob = await res.blob();
+					window.open(URL.createObjectURL(blob), '_blank');
+				} catch (e) {
+					error = (e as Error).message;
 					render();
-					return;
 				}
-				const blob = await res.blob();
-				window.open(URL.createObjectURL(blob), '_blank');
 			}),
 		);
 		root.querySelectorAll('[data-def]').forEach(b =>
 			b.addEventListener('click', async () => {
-				await apiFetch(`/api/templates/${(b as HTMLElement).dataset.def}/default`, { method: 'POST' });
-				editing = null;
-				await reload();
+				try {
+					const res = await apiFetch(`/api/templates/${(b as HTMLElement).dataset.def}/default`, { method: 'POST' });
+					if (!res.ok) throw new Error('Umschalten fehlgeschlagen');
+					editing = null;
+					await reload();
+				} catch (e) {
+					error = (e as Error).message;
+					render();
+				}
 			}),
 		);
 		root.querySelectorAll('[data-del]').forEach(b =>

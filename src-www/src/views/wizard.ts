@@ -115,6 +115,9 @@ const DOC_TITLES = ['Rechnung', 'Abschlagsrechnung', 'Schlussrechnung', 'Gutschr
 /** Multi-step invoice wizard: seller -> buyer -> lines -> review/issue. */
 export function wizard(root: HTMLElement, editId?: string): void {
 	let s = freshState();
+	const isEdit = !!editId;
+	let companies: CompanyProfile[] = [];
+	let customers: CompanyProfile[] = [];
 	if (editId) {
 		root.innerHTML = `<div class="card">Lade Entwurf…</div>`;
 		void api
@@ -164,8 +167,6 @@ export function wizard(root: HTMLElement, editId?: string): void {
 	if (saved && hasContent(saved)) {
 		s = saved;
 	}
-	let companies: CompanyProfile[] = [];
-	let customers: CompanyProfile[] = [];
 	bootLists();
 	if (!hasContent(s)) {
 		// fresh wizard: prefill seller from the company profile (set once on Firma page)
@@ -201,7 +202,9 @@ export function wizard(root: HTMLElement, editId?: string): void {
 
 	function persist(): void {
 		try {
-			localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...s, error: '', savedAt: new Date().toISOString() }));
+			// edit sessions never leak their draft id into the "new" resume slot
+			const stored = isEdit ? { ...s, draftId: null } : s;
+			localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...stored, error: '', savedAt: new Date().toISOString() }));
 		} catch {
 			// storage full/blocked — wizard still works, just without resume
 		}
@@ -225,10 +228,11 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		const get = (id: string): string => root.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value ?? '';
 		s.issueDate = get('w-issue') || s.issueDate;
 		s.deliveryDate = get('w-delivery') || s.deliveryDate;
-		s.dueDate = get('w-due');
+		if (root.querySelector('#w-due')) s.dueDate = get('w-due');
 		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
-		s.documentTitle = get('w-title') || 'Rechnung';
-		s.notes = root.querySelector<HTMLTextAreaElement>('#w-notes')?.value ?? '';
+		if (root.querySelector('#w-title')) s.documentTitle = get('w-title') || s.documentTitle;
+		const notesEl = root.querySelector<HTMLTextAreaElement>('#w-notes');
+		if (notesEl) s.notes = notesEl.value;
 		persist();
 	}
 
@@ -302,8 +306,11 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			</div>`;
 		}
 		if (s.step === 3) {
-			const net = s.lines.reduce((a, l) => a + l.quantity * l.unitPriceNet, 0);
-			const tax = s.lines.reduce((a, l) => a + (l.quantity * l.unitPriceNet * l.vatRate) / 100, 0);
+			const net = s.lines.reduce((a, l) => a + l.quantity * l.unitPriceNet * (1 - (l.discountPercent ?? 0) / 100), 0);
+			const tax = s.lines.reduce(
+				(a, l) => a + (l.quantity * l.unitPriceNet * (1 - (l.discountPercent ?? 0) / 100) * l.vatRate) / 100,
+				0,
+			);
 			body = `<div class="card"><h3>Prüfen & Ausstellen</h3>
 				<p><strong>${esc(s.documentTitle)}</strong> · ${esc(s.seller.name || '—')} → ${esc(s.buyer.name || '—')} · ${s.lines.length} Positionen</p>
 				<p><strong>ca. ${eur(Math.round((net + tax) * 100) / 100)}</strong> <span class="muted">(exakte Summen + Validierung serverseitig)</span></p>
@@ -448,7 +455,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		const delivery = get('w-delivery');
 		if (issue) s.issueDate = issue;
 		if (delivery) s.deliveryDate = delivery;
-		s.dueDate = get('w-due');
+		if (root.querySelector('#w-due')) s.dueDate = get('w-due');
 		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
 		const title = get('w-title');
 		if (title) s.documentTitle = title;
