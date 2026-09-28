@@ -28,6 +28,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			${inv.notes ? `<p class="muted">Notiz: ${esc(inv.notes)}</p>` : ''}
 			</div>
 			<div class="card"><div class="row">
+				${inv.status === 'draft' ? `<a class="btn" href="#/edit/${esc(inv.id)}">Bearbeiten</a>` : ''}
 				${inv.status === 'draft' ? `<button id="d-issue">Ausstellen</button><span class="muted">Danach nicht mehr änderbar.</span>` : ''}
 				<button class="secondary" id="d-validate">Validieren</button>
 				${inv.pdfPath ? `<button class="secondary" data-view="pdf">PDF ansehen</button>` : ''}

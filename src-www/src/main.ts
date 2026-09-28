@@ -38,6 +38,8 @@ async function route(): Promise<void> {
 		await dashboard(v);
 	} else if (hash === '#/new') {
 		wizard(v);
+	} else if (hash.startsWith('#/edit/')) {
+		wizard(v, decodeURIComponent(hash.slice('#/edit/'.length)));
 	} else if (hash.startsWith('#/invoices/')) {
 		await detail(v, decodeURIComponent(hash.slice('#/invoices/'.length)));
 	} else if (hash === '#/templates') {

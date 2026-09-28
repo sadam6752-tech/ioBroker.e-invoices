@@ -113,8 +113,38 @@ function partyFields(prefix: string, p: Party, withTax: boolean): string {
 const DOC_TITLES = ['Rechnung', 'Abschlagsrechnung', 'Schlussrechnung', 'Gutschrift'];
 
 /** Multi-step invoice wizard: seller -> buyer -> lines -> review/issue. */
-export function wizard(root: HTMLElement): void {
+export function wizard(root: HTMLElement, editId?: string): void {
 	let s = freshState();
+	if (editId) {
+		root.innerHTML = `<div class="card">Lade Entwurf…</div>`;
+		void api
+			.get(editId)
+			.then(inv => {
+				if (inv.status !== 'draft') {
+					root.innerHTML = `<div class="card error">Nur Entwürfe sind änderbar (diese Rechnung ist ${esc(inv.status)}).</div>`;
+					return;
+				}
+				s = {
+					...freshState(),
+					seller: inv.seller,
+					buyer: inv.buyer,
+					lines: inv.lines.length > 0 ? inv.lines : [emptyLine()],
+					issueDate: inv.issueDate,
+					deliveryDate: inv.deliveryDate,
+					dueDate: inv.dueDate ?? '',
+					employee: inv.employeeCode ?? loadEmployee(),
+					documentTitle: inv.documentTitle,
+					notes: inv.notes ?? '',
+					draftId: inv.id,
+				};
+				bootLists();
+				render();
+			})
+			.catch(e => {
+				root.innerHTML = `<div class="card error">${esc((e as Error).message)}</div>`;
+			});
+		return;
+	}
 	const saved = loadSaved();
 	if (saved && hasContent(saved) && !saved.draftId) {
 		root.innerHTML = `<div class="card"><h3>Weiter bearbeiten?</h3>
@@ -135,21 +165,8 @@ export function wizard(root: HTMLElement): void {
 		s = saved;
 	}
 	let companies: CompanyProfile[] = [];
-	void api.company
-		.list()
-		.then(list => {
-			companies = list;
-			if ((s.step === 0 || s.step === 1) && !root.querySelector('#w-company') && !root.querySelector('#w-customer')) render();
-		})
-		.catch(() => undefined);
 	let customers: CompanyProfile[] = [];
-	void api.customers
-		.list()
-		.then(list => {
-			customers = list;
-			if (s.step === 1 && !root.querySelector('#w-customer')) render();
-		})
-		.catch(() => undefined);
+	bootLists();
 	if (!hasContent(s)) {
 		// fresh wizard: prefill seller from the company profile (set once on Firma page)
 		void api.company
@@ -160,6 +177,24 @@ export function wizard(root: HTMLElement): void {
 					s.selectedCompany = profile.id;
 					render(true);
 				}
+			})
+			.catch(() => undefined);
+	}
+
+	/** Loads company/customer lists for the dropdowns (re-renders step if needed). */
+	function bootLists(): void {
+		void api.company
+			.list()
+			.then(list => {
+				companies = list;
+				if ((s.step === 0 || s.step === 1) && !root.querySelector('#w-company') && !root.querySelector('#w-customer')) render();
+			})
+			.catch(() => undefined);
+		void api.customers
+			.list()
+			.then(list => {
+				customers = list;
+				if (s.step === 1 && !root.querySelector('#w-customer')) render();
 			})
 			.catch(() => undefined);
 	}

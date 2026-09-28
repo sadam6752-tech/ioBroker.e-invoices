@@ -45,6 +45,7 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 					<span>${esc(i.buyer.name || '—')}</span>
 					<span>${eur(i.totals.grossTotal)}</span>
 					<a href="#/invoices/${esc(i.id)}">Ansehen</a>
+					${i.status === 'draft' ? `<a href="#/edit/${esc(i.id)}">Bearbeiten</a>` : ''}
 					${i.pdfPath ? `<button class="secondary" data-dl="pdf:${esc(i.id)}:${esc(i.number ?? 'rechnung')}">PDF ↓</button>` : ''}
 					${i.xml ? `<button class="secondary" data-dl="xml:${esc(i.id)}:${esc(i.number ?? 'rechnung')}">XML ↓</button>` : ''}
 				</div></div>`,

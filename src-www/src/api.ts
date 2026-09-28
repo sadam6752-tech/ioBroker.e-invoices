@@ -49,6 +49,7 @@ export interface Invoice {
 	profile: string;
 	status: 'draft' | 'issued' | 'cancelled';
 	templateId: string | null;
+	employeeCode: string | null;
 	documentTitle: string;
 	notes: string | null;
 	paymentTerms: string | null;
