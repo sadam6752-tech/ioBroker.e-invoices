@@ -105,7 +105,7 @@ export const MIGRATIONS: Migration[] = [
 			`CREATE TABLE counters_new (
 				year INTEGER NOT NULL,
 				employee TEXT NOT NULL DEFAULT '00',
-				last_seq INTEGER NOT NULL DEFAULT 0,
+				last_seq INTEGER NOT NULL DEFAULT '00',
 				PRIMARY KEY (year, employee)
 			)`,
 			`INSERT INTO counters_new (year, employee, last_seq) SELECT year, '00', last_seq FROM counters`,
@@ -113,6 +113,19 @@ export const MIGRATIONS: Migration[] = [
 			`ALTER TABLE counters_new RENAME TO counters`,
 			`ALTER TABLE invoices ADD COLUMN employee_code TEXT`,
 			`ALTER TABLE company_profiles ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0`,
+		],
+	},
+	{
+		version: 4,
+		name: 'customers',
+		sql: [
+			`CREATE TABLE IF NOT EXISTS customers (
+				id TEXT PRIMARY KEY,
+				name TEXT NOT NULL,
+				profile_json TEXT NOT NULL,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`,
 		],
 	},
 ];

@@ -599,6 +599,59 @@ function createApiServer(deps) {
       }
     })
   );
+  app.get("/api/customers", (_req, res) => {
+    res.json(db.listCustomers());
+  });
+  app.post(
+    "/api/customers",
+    route((req, res) => {
+      var _a;
+      const body = (_a = req.body) != null ? _a : {};
+      if (typeof body.name !== "string" || typeof body.profile !== "object" || !body.profile) {
+        res.status(400).json({ error: "Body needs name and profile" });
+        return;
+      }
+      try {
+        res.status(201).json(db.createCustomer(body.name, body.profile));
+      } catch (error) {
+        res.status(400).json({ error: error.message });
+      }
+    })
+  );
+  app.get(
+    "/api/customers/:cid",
+    route((req, res) => {
+      const customer = db.getCustomer(routeParam(req, "cid"));
+      if (!customer) {
+        res.status(404).json({ error: "Customer not found" });
+        return;
+      }
+      res.json(customer);
+    })
+  );
+  app.put(
+    "/api/customers/:cid",
+    route((req, res) => {
+      var _a;
+      const body = (_a = req.body) != null ? _a : {};
+      try {
+        res.json(db.updateCustomer(routeParam(req, "cid"), body));
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.delete(
+    "/api/customers/:cid",
+    route((req, res) => {
+      try {
+        db.deleteCustomer(routeParam(req, "cid"));
+        res.json({ ok: true });
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
   app.use("/api", (_req, res) => {
     res.status(404).json({ error: "Unknown API route" });
   });

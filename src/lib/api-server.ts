@@ -7,7 +7,7 @@
  */
 import express, { type Express, type Request, type Response } from 'express';
 import { existsSync, statSync } from 'node:fs';
-import type { InvoiceDatabase, StoredCompanyProfile, StoredInvoice } from './db';
+import type { InvoiceDatabase, StoredCompanyProfile, StoredCustomer, StoredInvoice } from './db';
 import {
 	blankDraft,
 	calcTotals,
@@ -644,6 +644,62 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		route((req, res) => {
 			try {
 				res.json(db.setDefaultCompanyProfile(routeParam(req, 'cid')));
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.get('/api/customers', (_req, res) => {
+		res.json(db.listCustomers());
+	});
+
+	app.post(
+		'/api/customers',
+		route((req, res) => {
+			const body = (req.body ?? {}) as { name?: unknown; profile?: unknown };
+			if (typeof body.name !== 'string' || typeof body.profile !== 'object' || !body.profile) {
+				res.status(400).json({ error: 'Body needs name and profile' });
+				return;
+			}
+			try {
+				res.status(201).json(db.createCustomer(body.name, body.profile as StoredCustomer['profile']));
+			} catch (error) {
+				res.status(400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.get(
+		'/api/customers/:cid',
+		route((req, res) => {
+			const customer = db.getCustomer(routeParam(req, 'cid'));
+			if (!customer) {
+				res.status(404).json({ error: 'Customer not found' });
+				return;
+			}
+			res.json(customer);
+		}),
+	);
+
+	app.put(
+		'/api/customers/:cid',
+		route((req, res) => {
+			const body = (req.body ?? {}) as { name?: string; profile?: StoredCustomer['profile'] };
+			try {
+				res.json(db.updateCustomer(routeParam(req, 'cid'), body));
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.delete(
+		'/api/customers/:cid',
+		route((req, res) => {
+			try {
+				db.deleteCustomer(routeParam(req, 'cid'));
+				res.json({ ok: true });
 			} catch (error) {
 				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
 			}

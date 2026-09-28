@@ -44,7 +44,7 @@ export interface BackupManifest {
 	/** DB schema version at export. */
 	schemaVersion: number;
 	/** Entity counts. */
-	counts: { invoices: number; templates: number; attachments: number; files: number };
+	counts: { invoices: number; templates: number; attachments: number; customers: number; files: number };
 	/** Files with hashes. */
 	files: BackupManifestFile[];
 }
@@ -194,6 +194,7 @@ export async function createBackup(
 			invoices: dump.invoices.length,
 			templates: dump.templates.length,
 			attachments: dump.attachments.length,
+			customers: dump.customers.length,
 			files: files.length,
 		},
 		files,
@@ -259,6 +260,7 @@ export async function restoreBackup(
 		counters: dumpJson.counters ?? [],
 		templates: dumpJson.templates ?? [],
 		companies: dumpJson.companies ?? [],
+		customers: dumpJson.customers ?? [],
 		attachments: (dumpJson.attachments ?? []).map(attachment => ({
 			id: attachment.id,
 			invoiceId: attachment.invoiceId,

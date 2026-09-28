@@ -192,6 +192,58 @@ describe('api => company profiles', () => {
 	});
 });
 
+describe('api => customers', () => {
+	let db: InvoiceDatabase;
+	let app: ReturnType<typeof createApiServer>;
+
+	before(() => {
+		db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const quiet = { info: (): void => undefined, error: (): void => undefined };
+		app = createApiServer({
+			db,
+			storage: {
+				write: (): Promise<void> => Promise.resolve(),
+				read: (): Promise<Buffer> => Promise.reject(new Error('empty')),
+			},
+			log: quiet,
+			version: '0.0.0-test',
+		});
+	});
+
+	after(() => {
+		db.close();
+	});
+
+	it('creates, reads, updates and deletes customers', async () => {
+		const empty = await request(app).get('/api/customers').expect(200);
+		expect(empty.body).to.deep.equal([]);
+
+		const created = await request(app)
+			.post('/api/customers')
+			.send({ name: 'Kunde AG', profile: { ...buyer, customerNumber: 'K-7' } })
+			.expect(201);
+		const read = await request(app)
+			.get(`/api/customers/${created.body.id as string}`)
+			.expect(200);
+		expect(read.body.profile.customerNumber).to.equal('K-7');
+
+		const updated = await request(app)
+			.put(`/api/customers/${created.body.id as string}`)
+			.send({ name: 'Kunde GmbH' })
+			.expect(200);
+		expect(updated.body.name).to.equal('Kunde GmbH');
+
+		await request(app)
+			.delete(`/api/customers/${created.body.id as string}`)
+			.expect(200);
+		await request(app)
+			.get(`/api/customers/${created.body.id as string}`)
+			.expect(404);
+		await request(app).post('/api/customers').send({ name: 'X' }).expect(400);
+	});
+});
+
 describe('api => auth', () => {
 	let db: InvoiceDatabase;
 	let openApp: ReturnType<typeof createApiServer>;

@@ -2,6 +2,7 @@ import './styles.css';
 import { getToken } from './api';
 import { backup } from './views/backup';
 import { company } from './views/company';
+import { customers } from './views/customers';
 import { dashboard } from './views/dashboard';
 import { detail } from './views/detail';
 import { login, logout } from './views/login';
@@ -18,6 +19,7 @@ function shell(route: string): void {
 		['#/new', '+ Neu'],
 		['#/templates', 'Vorlagen'],
 		['#/company', 'Firma'],
+		['#/customers', 'Kunden'],
 		['#/backup', 'Backup'],
 		['#/status', 'Status'],
 		[logged ? '#/logout' : '#/login', logged ? 'Logout' : 'Login'],
@@ -42,6 +44,8 @@ async function route(): Promise<void> {
 		await templates(v);
 	} else if (hash === '#/company') {
 		await company(v);
+	} else if (hash === '#/customers') {
+		await customers(v);
 	} else if (hash === '#/backup') {
 		await backup(v);
 	} else if (hash === '#/login') {

@@ -30,6 +30,7 @@ interface WizardState {
 	notes: string;
 	draftId: string | null;
 	selectedCompany: string | null;
+	selectedCustomer: string | null;
 	error: string;
 	savedAt: string;
 }
@@ -52,6 +53,7 @@ function freshState(): WizardState {
 		notes: '',
 		draftId: null,
 		selectedCompany: null,
+		selectedCustomer: null,
 		error: '',
 		savedAt: new Date().toISOString(),
 	};
@@ -137,7 +139,15 @@ export function wizard(root: HTMLElement): void {
 		.list()
 		.then(list => {
 			companies = list;
-			if (s.step === 0 && !root.querySelector('#w-company')) render();
+			if ((s.step === 0 || s.step === 1) && !root.querySelector('#w-company') && !root.querySelector('#w-customer')) render();
+		})
+		.catch(() => undefined);
+	let customers: CompanyProfile[] = [];
+	void api.customers
+		.list()
+		.then(list => {
+			customers = list;
+			if (s.step === 1 && !root.querySelector('#w-customer')) render();
 		})
 		.catch(() => undefined);
 	if (!hasContent(s)) {
@@ -207,7 +217,18 @@ export function wizard(root: HTMLElement): void {
 				}
 				${partyFields('seller', s.seller, true)}</div>`;
 		}
-		if (s.step === 1) body = `<div class="card"><h3>Käufer</h3>${partyFields('buyer', s.buyer, false)}</div>`;
+		if (s.step === 1) {
+			body = `<div class="card"><h3>Käufer</h3>
+				${
+					customers.length > 0
+						? `<label>Aus Kunden wählen<select id="w-customer">
+							<option value="">– manuell eingeben –</option>
+							${customers.map(c => `<option value="${esc(c.id)}" ${s.selectedCustomer === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+						</select></label>`
+						: `<p class="muted">Tipp: Unter <a href="#/customers">Kunden</a> einmal anlegen, dann hier auswählbar.</p>`
+				}
+				${partyFields('buyer', s.buyer, false)}</div>`;
+		}
 		if (s.step === 2) {
 			body = `<div class="card"><h3>Positionen & Termine</h3>
 				<label>Dokumenttyp<select id="w-title">
@@ -275,6 +296,17 @@ export function wizard(root: HTMLElement): void {
 				render(true);
 			} else {
 				s.selectedCompany = null;
+			}
+		});
+		root.querySelector('#w-customer')?.addEventListener('change', () => {
+			const id = root.querySelector<HTMLSelectElement>('#w-customer')?.value ?? '';
+			const found = customers.find(c => c.id === id);
+			if (found) {
+				s.buyer = { ...s.buyer, ...found.profile };
+				s.selectedCustomer = found.id;
+				render(true);
+			} else {
+				s.selectedCustomer = null;
 			}
 		});
 		root.querySelector('#w-next')?.addEventListener('click', () => {

@@ -160,6 +160,14 @@ export const api = {
 		update: (id: string, patch: { name?: string; profile?: Party }) =>
 			request<CompanyProfile>(`/api/company-profiles/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
 	},
+	customers: {
+		list: () => request<CompanyProfile[]>('/api/customers'),
+		create: (name: string, profile: Party) =>
+			request<CompanyProfile>('/api/customers', { method: 'POST', body: JSON.stringify({ name, profile }) }),
+		update: (id: string, patch: { name?: string; profile?: Party }) =>
+			request<CompanyProfile>(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
+		remove: (id: string) => request<{ ok: boolean }>(`/api/customers/${id}`, { method: 'DELETE' }),
+	},
 	exportUrl: (params: Record<string, string> = {}) => {
 		const q = new URLSearchParams(params).toString();
 		return `/api/invoices/export.xlsx${q ? `?${q}` : ''}`;

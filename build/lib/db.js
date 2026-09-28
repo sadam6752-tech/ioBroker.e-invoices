@@ -95,6 +95,15 @@ function mapCompanyRow(row) {
     updatedAt: row.updated_at
   };
 }
+function mapCustomerRow(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    profile: parseJson(row.profile_json, "customer"),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
 class InvoiceDatabase {
   db;
   /**
@@ -617,6 +626,7 @@ class InvoiceDatabase {
       counters,
       templates: this.listTemplates(),
       companies: this.listCompanyProfiles(),
+      customers: this.listCustomers(),
       attachments: attachments.map((row) => ({
         id: row.id,
         invoiceId: row.invoice_id,
@@ -644,12 +654,13 @@ class InvoiceDatabase {
       }
     }
     const run = this.db.transaction(() => {
-      var _a, _b, _c, _d, _e, _f;
+      var _a, _b, _c, _d, _e, _f, _g;
       this.db.prepare(`DELETE FROM attachments`).run();
       this.db.prepare(`DELETE FROM invoices`).run();
       this.db.prepare(`DELETE FROM counters`).run();
       this.db.prepare(`DELETE FROM templates`).run();
       this.db.prepare(`DELETE FROM company_profiles`).run();
+      this.db.prepare(`DELETE FROM customers`).run();
       for (const counter of (_a = dump.counters) != null ? _a : []) {
         const employee = (0, import_invoice_model.normalizeEmployeeCode)((_b = counter.employee) != null ? _b : "00");
         this.db.prepare(`INSERT INTO counters (year, employee, last_seq) VALUES (?, ?, ?)`).run(counter.year, employee, counter.last_seq);
@@ -711,7 +722,19 @@ class InvoiceDatabase {
           company.updatedAt
         );
       }
-      for (const attachment of (_f = dump.attachments) != null ? _f : []) {
+      for (const customer of (_f = dump.customers) != null ? _f : []) {
+        this.db.prepare(
+          `INSERT INTO customers (id, name, profile_json, created_at, updated_at)
+						VALUES (?, ?, ?, ?, ?)`
+        ).run(
+          customer.id,
+          customer.name,
+          JSON.stringify(customer.profile),
+          customer.createdAt,
+          customer.updatedAt
+        );
+      }
+      for (const attachment of (_g = dump.attachments) != null ? _g : []) {
         this.db.prepare(
           `INSERT INTO attachments (invoice_id, filename, mime, size, data, created_at)
 						VALUES (?, ?, ?, ?, ?, ?)`
@@ -876,6 +899,73 @@ class InvoiceDatabase {
       throw new Error("The default company profile cannot be deleted");
     }
     this.db.prepare(`DELETE FROM company_profiles WHERE id = ?`).run(id);
+  }
+  /**
+   * Creates a customer (buyer master data).
+   *
+   * @param name - Display name.
+   * @param profile - Buyer party data.
+   */
+  createCustomer(name, profile) {
+    if (name.trim().length === 0) {
+      throw new Error("Customer needs a name");
+    }
+    const id = (0, import_node_crypto.randomUUID)();
+    const stamp = nowIso();
+    this.db.prepare(`INSERT INTO customers (id, name, profile_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`).run(id, name.trim(), JSON.stringify(profile), stamp, stamp);
+    const created = this.getCustomer(id);
+    if (!created) {
+      throw new Error("Customer was not stored");
+    }
+    return created;
+  }
+  /**
+   * Loads one customer by id.
+   *
+   * @param id - Customer UUID.
+   */
+  getCustomer(id) {
+    const row = this.db.prepare(`SELECT * FROM customers WHERE id = ?`).get(id);
+    return row ? mapCustomerRow(row) : null;
+  }
+  /**
+   * Lists customers by name.
+   */
+  listCustomers() {
+    const rows = this.db.prepare(`SELECT * FROM customers ORDER BY name ASC`).all();
+    return rows.map(mapCustomerRow);
+  }
+  /**
+   * Updates name/party data of a customer.
+   *
+   * @param id - Customer UUID.
+   * @param patch - Partial update.
+   */
+  updateCustomer(id, patch) {
+    var _a, _b;
+    const current = this.getCustomer(id);
+    if (!current) {
+      throw new Error(`Customer not found: ${id}`);
+    }
+    const name = ((_a = patch.name) == null ? void 0 : _a.trim()) || current.name;
+    const profile = (_b = patch.profile) != null ? _b : current.profile;
+    this.db.prepare(`UPDATE customers SET name = ?, profile_json = ?, updated_at = ? WHERE id = ?`).run(name, JSON.stringify(profile), nowIso(), id);
+    const updated = this.getCustomer(id);
+    if (!updated) {
+      throw new Error("Customer update failed");
+    }
+    return updated;
+  }
+  /**
+   * Deletes a customer.
+   *
+   * @param id - Customer UUID.
+   */
+  deleteCustomer(id) {
+    if (!this.getCustomer(id)) {
+      throw new Error(`Customer not found: ${id}`);
+    }
+    this.db.prepare(`DELETE FROM customers WHERE id = ?`).run(id);
   }
 }
 // Annotate the CommonJS export names for ESM import in node:

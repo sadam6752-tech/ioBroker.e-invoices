@@ -299,6 +299,46 @@ export interface CompanyPatch {
 	profile?: Party;
 }
 
+/** Partial customer update. */
+export interface CustomerPatch {
+	/** New display name. */
+	name?: string;
+	/** New buyer party data. */
+	profile?: Party;
+}
+
+/** Stored customer (buyer) profile. */
+export interface StoredCustomer {
+	/** Profile UUID. */
+	id: string;
+	/** Display name. */
+	name: string;
+	/** Buyer party data. */
+	profile: Party;
+	/** Creation timestamp. */
+	createdAt: string;
+	/** Last update timestamp. */
+	updatedAt: string;
+}
+
+interface CustomerRow {
+	id: string;
+	name: string;
+	profile_json: string;
+	created_at: string;
+	updated_at: string;
+}
+
+function mapCustomerRow(row: CustomerRow): StoredCustomer {
+	return {
+		id: row.id,
+		name: row.name,
+		profile: parseJson(row.profile_json, 'customer'),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
 /** Full database content for backup/restore. */
 export interface DatabaseDump {
 	/** Dump format version, always 1. */
@@ -317,6 +357,8 @@ export interface DatabaseDump {
 	attachments: StoredAttachment[];
 	/** All company profiles. */
 	companies: StoredCompanyProfile[];
+	/** All customers. */
+	customers: StoredCustomer[];
 }
 
 /** Backup log entry. */
@@ -944,6 +986,7 @@ export class InvoiceDatabase {
 			counters,
 			templates: this.listTemplates(),
 			companies: this.listCompanyProfiles(),
+			customers: this.listCustomers(),
 			attachments: attachments.map(row => ({
 				id: row.id,
 				invoiceId: row.invoice_id,
@@ -977,6 +1020,7 @@ export class InvoiceDatabase {
 			this.db.prepare(`DELETE FROM counters`).run();
 			this.db.prepare(`DELETE FROM templates`).run();
 			this.db.prepare(`DELETE FROM company_profiles`).run();
+			this.db.prepare(`DELETE FROM customers`).run();
 			for (const counter of dump.counters ?? []) {
 				const employee = normalizeEmployeeCode((counter as { employee?: string }).employee ?? '00');
 				this.db
@@ -1044,6 +1088,20 @@ export class InvoiceDatabase {
 						company.isDefault ? 1 : 0,
 						company.createdAt,
 						company.updatedAt,
+					);
+			}
+			for (const customer of dump.customers ?? []) {
+				this.db
+					.prepare(
+						`INSERT INTO customers (id, name, profile_json, created_at, updated_at)
+						VALUES (?, ?, ?, ?, ?)`,
+					)
+					.run(
+						customer.id,
+						customer.name,
+						JSON.stringify(customer.profile),
+						customer.createdAt,
+						customer.updatedAt,
 					);
 			}
 			for (const attachment of dump.attachments ?? []) {
@@ -1240,5 +1298,80 @@ export class InvoiceDatabase {
 			throw new Error('The default company profile cannot be deleted');
 		}
 		this.db.prepare(`DELETE FROM company_profiles WHERE id = ?`).run(id);
+	}
+
+	/**
+	 * Creates a customer (buyer master data).
+	 *
+	 * @param name - Display name.
+	 * @param profile - Buyer party data.
+	 */
+	public createCustomer(name: string, profile: Party): StoredCustomer {
+		if (name.trim().length === 0) {
+			throw new Error('Customer needs a name');
+		}
+		const id = randomUUID();
+		const stamp = nowIso();
+		this.db
+			.prepare(`INSERT INTO customers (id, name, profile_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`)
+			.run(id, name.trim(), JSON.stringify(profile), stamp, stamp);
+		const created = this.getCustomer(id);
+		if (!created) {
+			throw new Error('Customer was not stored');
+		}
+		return created;
+	}
+
+	/**
+	 * Loads one customer by id.
+	 *
+	 * @param id - Customer UUID.
+	 */
+	public getCustomer(id: string): StoredCustomer | null {
+		const row = this.db.prepare(`SELECT * FROM customers WHERE id = ?`).get(id) as CustomerRow | undefined;
+		return row ? mapCustomerRow(row) : null;
+	}
+
+	/**
+	 * Lists customers by name.
+	 */
+	public listCustomers(): StoredCustomer[] {
+		const rows = this.db.prepare(`SELECT * FROM customers ORDER BY name ASC`).all() as CustomerRow[];
+		return rows.map(mapCustomerRow);
+	}
+
+	/**
+	 * Updates name/party data of a customer.
+	 *
+	 * @param id - Customer UUID.
+	 * @param patch - Partial update.
+	 */
+	public updateCustomer(id: string, patch: CustomerPatch): StoredCustomer {
+		const current = this.getCustomer(id);
+		if (!current) {
+			throw new Error(`Customer not found: ${id}`);
+		}
+		const name = patch.name?.trim() || current.name;
+		const profile = patch.profile ?? current.profile;
+		this.db
+			.prepare(`UPDATE customers SET name = ?, profile_json = ?, updated_at = ? WHERE id = ?`)
+			.run(name, JSON.stringify(profile), nowIso(), id);
+		const updated = this.getCustomer(id);
+		if (!updated) {
+			throw new Error('Customer update failed');
+		}
+		return updated;
+	}
+
+	/**
+	 * Deletes a customer.
+	 *
+	 * @param id - Customer UUID.
+	 */
+	public deleteCustomer(id: string): void {
+		if (!this.getCustomer(id)) {
+			throw new Error(`Customer not found: ${id}`);
+		}
+		this.db.prepare(`DELETE FROM customers WHERE id = ?`).run(id);
 	}
 }

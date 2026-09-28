@@ -4,9 +4,6 @@
  * covers real file creation.
  */
 import { expect } from 'chai';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { InvoiceDatabase } from './db';
 import type { InvoiceDraftInput, Party } from './invoice-model';
 
@@ -47,17 +44,16 @@ function openMemoryDb(): InvoiceDatabase {
 }
 
 describe('db => migrations', () => {
-	it('migrates a fresh file database to the latest version', () => {
-		const dir = mkdtempSync(join(tmpdir(), 'einv-'));
+	it('migrates a fresh database to the latest version', () => {
+		const db = openMemoryDb();
 		try {
-			const db = new InvoiceDatabase(join(dir, 'invoices.db'));
-			db.migrate();
-			expect(db.currentVersion()).to.equal(3);
+			expect(db.currentVersion()).to.equal(4);
 			const columns = db.tableColumns('invoices');
 			expect(columns).to.contain('payment_terms');
-			db.close();
+			expect(columns).to.contain('employee_code');
+			expect(db.tableColumns('customers')).to.contain('profile_json');
 		} finally {
-			rmSync(dir, { recursive: true, force: true });
+			db.close();
 		}
 	});
 
@@ -65,7 +61,7 @@ describe('db => migrations', () => {
 		const db = openMemoryDb();
 		try {
 			db.migrate();
-			expect(db.currentVersion()).to.equal(3);
+			expect(db.currentVersion()).to.equal(4);
 		} finally {
 			db.close();
 		}
@@ -170,6 +166,30 @@ describe('db => company profiles', () => {
 			expect(() => db.deleteCompanyProfile(second.id)).to.throw(/default/i);
 			db.deleteCompanyProfile(seeded.id);
 			expect(db.listCompanyProfiles()).to.have.lengthOf(1);
+		} finally {
+			db.close();
+		}
+	});
+});
+
+describe('db => customers', () => {
+	const customer = { ...seller, name: 'Kunde AG', customerNumber: 'K-7' };
+
+	it('creates, updates, lists and deletes customers', () => {
+		const db = openMemoryDb();
+		try {
+			expect(db.listCustomers()).to.deep.equal([]);
+			const created = db.createCustomer('Kunde AG', customer);
+			expect(db.getCustomer(created.id)?.profile.customerNumber).to.equal('K-7');
+			const updated = db.updateCustomer(created.id, { name: 'Kunde GmbH' });
+			expect(updated.name).to.equal('Kunde GmbH');
+			expect(updated.profile.customerNumber).to.equal('K-7');
+			db.createCustomer('Beta', { ...customer, name: 'Beta' });
+			expect(db.listCustomers().map(c => c.name)).to.deep.equal(['Beta', 'Kunde GmbH']);
+			db.deleteCustomer(created.id);
+			expect(db.getCustomer(created.id)).to.equal(null);
+			expect(() => db.deleteCustomer('nope')).to.throw(/not found/i);
+			expect(() => db.createCustomer('  ', customer)).to.throw(/name/i);
 		} finally {
 			db.close();
 		}
