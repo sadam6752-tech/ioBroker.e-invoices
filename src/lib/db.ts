@@ -484,6 +484,20 @@ export interface StoredBackup {
 	manifestJson: string;
 }
 
+/** One re-render step of an issued invoice's artifacts. */
+export interface RenderHistoryEntry {
+	/** Which artifact was regenerated, e.g. `pdf`. */
+	artifact: string;
+	/** Path of the archived original, null on the first re-render. */
+	previousPath: string | null;
+	/** Path of the freshly rendered file. */
+	newPath: string;
+	/** Free-text reason given by the user. */
+	reason: string | null;
+	/** ISO timestamp. */
+	createdAt: string;
+}
+
 /**
  * Invoice database with atomic numbering and migrations.
  */
@@ -1442,6 +1456,55 @@ export class InvoiceDatabase {
 			size: row.size,
 			sha256: row.sha256,
 			manifestJson: row.manifest_json,
+		}));
+	}
+
+	/**
+	 * Records that an issued invoice's artifacts were re-rendered. The original
+	 * file is archived rather than overwritten, so the delivered document stays
+	 * reproducible (GoBD) while a corrected rendering becomes available.
+	 *
+	 * @param invoiceId - Issued invoice UUID.
+	 * @param artifact - Which file was regenerated, e.g. `pdf`.
+	 * @param previousPath - Path of the archived original, if any.
+	 * @param newPath - Path of the freshly rendered file.
+	 * @param reason - Free text, stored for the audit trail.
+	 */
+	public logRender(
+		invoiceId: string,
+		artifact: string,
+		previousPath: string | null,
+		newPath: string,
+		reason: string | null,
+	): void {
+		this.db
+			.prepare(
+				`INSERT INTO render_history (invoice_id, artifact, previous_path, new_path, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			)
+			.run(invoiceId, artifact, previousPath, newPath, reason, nowIso());
+	}
+
+	/**
+	 * Lists the re-render history of an invoice, newest first.
+	 *
+	 * @param invoiceId - Issued invoice UUID.
+	 */
+	public listRenderHistory(invoiceId: string): RenderHistoryEntry[] {
+		const rows = this.db
+			.prepare(`SELECT * FROM render_history WHERE invoice_id = ? ORDER BY created_at DESC, id DESC`)
+			.all(invoiceId) as {
+			artifact: string;
+			previous_path: string | null;
+			new_path: string;
+			reason: string | null;
+			created_at: string;
+		}[];
+		return rows.map(row => ({
+			artifact: row.artifact,
+			previousPath: row.previous_path,
+			newPath: row.new_path,
+			reason: row.reason,
+			createdAt: row.created_at,
 		}));
 	}
 

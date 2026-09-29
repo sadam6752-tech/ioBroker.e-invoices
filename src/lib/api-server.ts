@@ -24,7 +24,7 @@ import {
 	ALLOWED_VAT_RATES,
 	DEFAULT_NUMBER_FORMAT,
 } from './invoice-model';
-import { issueInvoiceWithArtifacts, type ArtifactWriter, type IssueLogger } from './issue-service';
+import { issueInvoiceWithArtifacts, rerenderInvoicePdf, type ArtifactWriter, type IssueLogger } from './issue-service';
 import { createBackup, restoreBackup } from './backup';
 import { renderInvoiceListWorkbook } from './excel';
 import { renderInvoicePdf } from './pdf';
@@ -423,6 +423,32 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			} catch (error) {
 				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
 			}
+		}),
+	);
+
+	app.post(
+		'/api/invoices/:id/rerender',
+		route(async (req, res) => {
+			const body = (req.body ?? {}) as { reason?: unknown };
+			const reason = typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : null;
+			try {
+				const outcome = await rerenderInvoicePdf(db, log, routeParam(req, 'id'), storage, reason);
+				res.json({ invoice: outcome.invoice, archivedPath: outcome.archivedPath });
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.get(
+		'/api/invoices/:id/renders',
+		route((req, res) => {
+			const id = routeParam(req, 'id');
+			if (!db.getInvoice(id)) {
+				res.status(404).json({ error: 'Invoice not found' });
+				return;
+			}
+			res.json(db.listRenderHistory(id));
 		}),
 	);
 

@@ -117,6 +117,33 @@ describe('api => invoices', function () {
 		await request(app).post(`/api/invoices/${id}/issue`).expect(400);
 	});
 
+	it('re-renders an issued invoice and keeps the original', async () => {
+		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
+
+		const res = await request(app)
+			.post(`/api/invoices/${created.body.id}/rerender`)
+			.send({ reason: 'Layoutkorrektur' })
+			.expect(200);
+		expect(res.body.invoice.status).to.equal('issued');
+		expect(res.body.invoice.number).to.match(/^2026-00-\d{3}$/);
+		// the original stays retrievable next to the fresh rendering
+		expect(res.body.archivedPath).to.match(/\.orig-1\.pdf$/);
+
+		const history = await request(app).get(`/api/invoices/${created.body.id}/renders`).expect(200);
+		expect(history.body).to.have.lengthOf(1);
+		expect(history.body[0].reason).to.equal('Layoutkorrektur');
+		expect(history.body[0].artifact).to.equal('pdf');
+	});
+
+	it('refuses to re-render a draft', async () => {
+		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		await request(app).post(`/api/invoices/${created.body.id}/rerender`).expect(400);
+		await request(app).get('/api/invoices/gibt-es-nicht/renders').expect(404);
+		// there is no DELETE for drafts, so mark it issued again to leave no draft
+		await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
+	});
+
 	it('marks every API response as non-cacheable', async () => {
 		// A stored PDF keeps the layout of the moment it was rendered. Serving it
 		// from a cache hid corrected renderings, so no answer may be reused.

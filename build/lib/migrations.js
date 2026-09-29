@@ -168,6 +168,25 @@ const MIGRATIONS = [
 				last_seq INTEGER NOT NULL DEFAULT 0
 			)`
     ]
+  },
+  {
+    version: 8,
+    name: "render-history",
+    sql: [
+      // GoBD: an issued document must stay reproducible. A re-render never
+      // overwrites the delivered file silently, the previous artifact and
+      // the reason are kept here.
+      `CREATE TABLE IF NOT EXISTS render_history (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				invoice_id TEXT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+				artifact TEXT NOT NULL,
+				previous_path TEXT,
+				new_path TEXT,
+				reason TEXT,
+				created_at TEXT NOT NULL
+			)`,
+      `CREATE INDEX IF NOT EXISTS idx_render_history_invoice ON render_history(invoice_id)`
+    ]
   }
 ];
 const LATEST_SCHEMA_VERSION = MIGRATIONS.reduce((max, item) => Math.max(max, item.version), 0);

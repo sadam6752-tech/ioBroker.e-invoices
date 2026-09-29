@@ -351,6 +351,31 @@ function createApiServer(deps) {
     })
   );
   app.post(
+    "/api/invoices/:id/rerender",
+    route(async (req, res) => {
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
+      const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
+      try {
+        const outcome = await (0, import_issue_service.rerenderInvoicePdf)(db, log, routeParam(req, "id"), storage, reason);
+        res.json({ invoice: outcome.invoice, archivedPath: outcome.archivedPath });
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.get(
+    "/api/invoices/:id/renders",
+    route((req, res) => {
+      const id = routeParam(req, "id");
+      if (!db.getInvoice(id)) {
+        res.status(404).json({ error: "Invoice not found" });
+        return;
+      }
+      res.json(db.listRenderHistory(id));
+    })
+  );
+  app.post(
     "/api/invoices/:id/validate",
     route(async (req, res) => {
       const invoice = db.getInvoice(routeParam(req, "id"));

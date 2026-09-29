@@ -120,6 +120,78 @@ export async function issueInvoiceWithArtifacts(
 }
 
 /**
+ * Re-renders the PDF of an already issued invoice.
+ *
+ * GoBD: the delivered file must stay reproducible. The original is therefore
+ * copied to an archive path first, the fresh rendering is written next to it
+ * and the DB keeps pointing at the new file. The invoice content itself is
+ * never touched — only the visual rendering of an unchanged document.
+ *
+ * @param db - Open invoice database.
+ * @param log - Logger.
+ * @param invoiceId - Issued invoice UUID.
+ * @param storage - Artifact file backend.
+ * @param reason - Free text stored in the render history.
+ */
+export async function rerenderInvoicePdf(
+	db: InvoiceDatabase,
+	log: IssueLogger,
+	invoiceId: string,
+	storage: IssueStorage,
+	reason: string | null,
+): Promise<{ invoice: StoredInvoice; pdfPath: string; archivedPath: string | null }> {
+	const invoice = db.getInvoice(invoiceId);
+	if (!invoice) {
+		throw new Error(`Invoice not found: ${invoiceId}`);
+	}
+	if (invoice.status === 'draft') {
+		throw new Error('Only issued invoices can be re-rendered. Issue the draft first.');
+	}
+	if (!invoice.number) {
+		throw new Error('Invoice has no number yet - issue it before re-rendering');
+	}
+
+	// Render from the stored invoice data, not from a fresh preview: the numbers,
+	// totals and Storno reference must stay exactly as they were issued.
+	const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
+	const { xml } = await generateInvoiceXml(invoice);
+	const sight = await renderInvoicePdf(invoice, template, logo, {
+		stornoOfNumber: invoice.stornoOfId ? (db.getInvoice(invoice.stornoOfId)?.number ?? null) : null,
+	});
+	const hybrid = await embedHybridPdf(sight, xml, invoice.profile, `${invoice.documentTitle} ${invoice.number}`);
+
+	const base = `invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}`;
+	const newPath = `${base}.pdf`;
+
+	// Archive the previous artifact before overwriting it. A missing original is
+	// not an error: it just means the file was never stored (write failure).
+	let archivedPath: string | null = null;
+	if (invoice.pdfPath) {
+		archivedPath = `${base}.orig-1.pdf`;
+		try {
+			const original = await storage.read(invoice.pdfPath);
+			await storage.write(archivedPath, original);
+			log.info(`Original PDF archived: ${archivedPath}`);
+		} catch (error) {
+			log.error(`Cannot archive ${invoice.pdfPath}: ${(error as Error).message}`);
+			archivedPath = null;
+		}
+	}
+
+	await storage.write(newPath, Buffer.from(hybrid));
+	log.info(`PDF re-rendered: ${newPath} (${invoice.number})`);
+
+	const updated = db.attachIssueArtifacts(invoiceId, {
+		xml,
+		pdfPath: newPath,
+		xlsxPath: invoice.xlsxPath ?? undefined,
+		templateId: templateId ?? invoice.templateId,
+	});
+	db.logRender(invoiceId, 'pdf', archivedPath, newPath, reason);
+	return { invoice: updated, pdfPath: newPath, archivedPath };
+}
+
+/**
  * Loads the default template and its logo (fail-soft to Standard).
  *
  * @param db - Open invoice database.

@@ -107,6 +107,20 @@ export interface ValidationOutcome {
 	businessErrors: string[];
 }
 
+/** One re-render step of an issued invoice's artifacts. */
+export interface RenderHistoryEntry {
+	/** Which artifact was regenerated, e.g. `pdf`. */
+	artifact: string;
+	/** Path of the archived original, null on the first re-render. */
+	previousPath: string | null;
+	/** Path of the freshly rendered file. */
+	newPath: string;
+	/** Free-text reason given by the user. */
+	reason: string | null;
+	/** ISO timestamp. */
+	createdAt: string;
+}
+
 /** API token storage (localStorage, set on the login page). */
 const TOKEN_KEY = 'einv-token';
 
@@ -232,6 +246,12 @@ export const api = {
 			body: JSON.stringify({ reason }),
 		}),
 	validate: (id: string) => request<ValidationOutcome>(`/api/invoices/${id}/validate`, { method: 'POST' }),
+	rerender: (id: string, reason?: string) =>
+		request<{ invoice: Invoice; archivedPath: string | null }>(`/api/invoices/${id}/rerender`, {
+			method: 'POST',
+			body: JSON.stringify({ reason }),
+		}),
+	renders: (id: string) => request<RenderHistoryEntry[]>(`/api/invoices/${id}/renders`),
 	pdfUrl: (id: string) => `/api/invoices/${id}.pdf`,
 	xmlUrl: (id: string) => `/api/invoices/${id}.xml`,
 	xlsxUrl: (id: string) => `/api/invoices/${id}.xlsx`,

@@ -68,18 +68,49 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 				${inv.status === 'draft' ? `<button id="d-issue">Ausstellen</button><span class="muted">Danach nicht mehr änderbar.</span>` : ''}
 				${inv.status === 'issued' ? `<label class="pay"><input type="checkbox" id="d-paid" ${inv.paid ? 'checked' : ''} /><span>bezahlt${inv.paid && inv.paidAt ? ` (${esc(inv.paidAt.slice(0, 10))})` : ''}</span></label>` : ''}
 				${inv.status === 'issued' ? `<button class="secondary" id="d-storno">Storno</button>` : ''}
+				${inv.status !== 'draft' && inv.pdfPath ? `<button class="secondary" id="d-rerender" title="Erzeugt die PDF neu, z. B. nach einer Layout-Korrektur. Der Inhalt der Rechnung bleibt unverändert, das Original wird archiviert.">Neu rendern</button>` : ''}
 				<button class="secondary" id="d-validate">Validieren</button>
 			${inv.pdfPath ? `<button class="secondary" data-view="pdf">PDF ansehen</button>` : ''}
 			${inv.pdfPath ? `<button class="secondary" data-dl="pdf">PDF ↓</button>` : ''}
 			${inv.status === 'issued' && inv.pdfPath ? `<button class="secondary" id="d-mail">E-Mail (PDF)</button>` : ''}
 			${inv.xml ? `<button class="secondary" data-dl="xml">XML ↓</button>` : ''}
 			${inv.xlsxPath ? `<button class="secondary" data-dl="xlsx">Excel ↓</button>` : ''}
-			</div><div id="d-out"></div></div>`;
+			</div><div id="d-out"></div><div id="d-history"></div></div>`;
 
 		const out = root.querySelector('#d-out')!;
 		const fail = (e: unknown): void => {
 			out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
 		};
+		// Render history: shows that a document was re-rendered and where the
+		// originally delivered file was kept.
+		const historyBox = root.querySelector('#d-history')!;
+		const loadHistory = async (): Promise<void> => {
+			if (inv.status === 'draft') {
+				return;
+			}
+			try {
+				const entries = await api.renders(inv.id);
+				if (!entries.length) {
+					historyBox.innerHTML = '';
+					return;
+				}
+				historyBox.innerHTML = `<details><summary>Neu gerendert (${entries.length})</summary><ul>${entries
+					.map(
+						e =>
+							`<li>${esc(e.createdAt.slice(0, 16).replace('T', ' '))} – ${esc(
+								e.artifact.toUpperCase(),
+							)}${e.reason ? ` – ${esc(e.reason)}` : ''}${
+								e.previousPath
+									? ` – Original: <code>${esc(e.previousPath.split('/').pop() ?? '')}</code>`
+									: ''
+							}</li>`,
+					)
+					.join('')}</ul></details>`;
+			} catch {
+				// history is informational, never block the view
+			}
+		};
+		await loadHistory();
 		root.querySelectorAll('[data-dl]').forEach(btn =>
 			btn.addEventListener('click', async () => {
 				const kind = (btn as HTMLElement).dataset.dl as 'pdf' | 'xml' | 'xlsx';
@@ -149,6 +180,35 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			out.innerHTML = to
 				? `<p class="muted">PDF wurde gespeichert. Die Mail wurde an ${esc(to)} vorbereitet – bitte die PDF aus dem Download-Ordner anhängen.</p>`
 				: `<p class="muted">PDF wurde gespeichert. Für diesen Kunden ist keine E-Mail hinterlegt – bitte im Mailfenster eintragen und die PDF anhängen.</p>`;
+		});
+		root.querySelector('#d-rerender')?.addEventListener('click', async () => {
+			const reason = window.prompt(
+				'Grund für das Neu rendern (wird protokolliert, z. B. "Layout-Korrektur"):',
+				'Layout-Korrektur',
+			);
+			if (reason === null) {
+				return;
+			}
+			if (
+				!window.confirm(
+					'Die PDF wird aus den unveränderten Rechnungsdaten neu erzeugt. Nummer, Beträge und Daten der Rechnung ändern sich nicht. Das bisherige Dokument wird als .orig-1.pdf archiviert. Fortfahren?',
+				)
+			) {
+				return;
+			}
+			out.innerHTML = `<p class="muted">Rendere neu…</p>`;
+			try {
+				const res = await api.rerender(inv.id, reason.trim() || undefined);
+				inv = res.invoice;
+				out.innerHTML = `<p style="color:var(--ok)">PDF neu erzeugt.${
+					res.archivedPath
+						? ` Das Original liegt als <code>${esc(res.archivedPath.split('/').pop() ?? '')}</code> daneben.`
+						: ''
+				}</p>`;
+				await loadHistory();
+			} catch (e) {
+				out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
+			}
 		});
 		root.querySelector('#d-storno')?.addEventListener('click', async () => {
 			const reason = window.prompt('Grund für den Storno (erscheint auf der Gutschrift):', 'Falsch ausgestellt');

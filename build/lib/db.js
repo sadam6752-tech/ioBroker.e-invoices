@@ -954,6 +954,37 @@ class InvoiceDatabase {
     }));
   }
   /**
+   * Records that an issued invoice's artifacts were re-rendered. The original
+   * file is archived rather than overwritten, so the delivered document stays
+   * reproducible (GoBD) while a corrected rendering becomes available.
+   *
+   * @param invoiceId - Issued invoice UUID.
+   * @param artifact - Which file was regenerated, e.g. `pdf`.
+   * @param previousPath - Path of the archived original, if any.
+   * @param newPath - Path of the freshly rendered file.
+   * @param reason - Free text, stored for the audit trail.
+   */
+  logRender(invoiceId, artifact, previousPath, newPath, reason) {
+    this.db.prepare(
+      `INSERT INTO render_history (invoice_id, artifact, previous_path, new_path, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(invoiceId, artifact, previousPath, newPath, reason, nowIso());
+  }
+  /**
+   * Lists the re-render history of an invoice, newest first.
+   *
+   * @param invoiceId - Issued invoice UUID.
+   */
+  listRenderHistory(invoiceId) {
+    const rows = this.db.prepare(`SELECT * FROM render_history WHERE invoice_id = ? ORDER BY created_at DESC, id DESC`).all(invoiceId);
+    return rows.map((row) => ({
+      artifact: row.artifact,
+      previousPath: row.previous_path,
+      newPath: row.new_path,
+      reason: row.reason,
+      createdAt: row.created_at
+    }));
+  }
+  /**
    * Creates a company (seller) profile; the first one becomes default.
    *
    * @param name - Display name.

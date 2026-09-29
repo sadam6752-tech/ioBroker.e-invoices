@@ -19,7 +19,8 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var issue_service_exports = {};
 __export(issue_service_exports, {
   issueInvoiceWithArtifacts: () => issueInvoiceWithArtifacts,
-  loadRenderTemplate: () => loadRenderTemplate
+  loadRenderTemplate: () => loadRenderTemplate,
+  rerenderInvoicePdf: () => rerenderInvoicePdf
 });
 module.exports = __toCommonJS(issue_service_exports);
 var import_excel = require("./excel");
@@ -80,6 +81,49 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
   });
   return { invoice: withArtifacts, pdfPath: `${base}.pdf`, xmlPath: `${base}.xml` };
 }
+async function rerenderInvoicePdf(db, log, invoiceId, storage, reason) {
+  var _a, _b, _c;
+  const invoice = db.getInvoice(invoiceId);
+  if (!invoice) {
+    throw new Error(`Invoice not found: ${invoiceId}`);
+  }
+  if (invoice.status === "draft") {
+    throw new Error("Only issued invoices can be re-rendered. Issue the draft first.");
+  }
+  if (!invoice.number) {
+    throw new Error("Invoice has no number yet - issue it before re-rendering");
+  }
+  const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
+  const { xml } = await (0, import_zugferd.generateInvoiceXml)(invoice);
+  const sight = await (0, import_pdf.renderInvoicePdf)(invoice, template, logo, {
+    stornoOfNumber: invoice.stornoOfId ? (_b = (_a = db.getInvoice(invoice.stornoOfId)) == null ? void 0 : _a.number) != null ? _b : null : null
+  });
+  const hybrid = await (0, import_zugferd.embedHybridPdf)(sight, xml, invoice.profile, `${invoice.documentTitle} ${invoice.number}`);
+  const base = `invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}`;
+  const newPath = `${base}.pdf`;
+  let archivedPath = null;
+  if (invoice.pdfPath) {
+    archivedPath = `${base}.orig-1.pdf`;
+    try {
+      const original = await storage.read(invoice.pdfPath);
+      await storage.write(archivedPath, original);
+      log.info(`Original PDF archived: ${archivedPath}`);
+    } catch (error) {
+      log.error(`Cannot archive ${invoice.pdfPath}: ${error.message}`);
+      archivedPath = null;
+    }
+  }
+  await storage.write(newPath, Buffer.from(hybrid));
+  log.info(`PDF re-rendered: ${newPath} (${invoice.number})`);
+  const updated = db.attachIssueArtifacts(invoiceId, {
+    xml,
+    pdfPath: newPath,
+    xlsxPath: (_c = invoice.xlsxPath) != null ? _c : void 0,
+    templateId: templateId != null ? templateId : invoice.templateId
+  });
+  db.logRender(invoiceId, "pdf", archivedPath, newPath, reason);
+  return { invoice: updated, pdfPath: newPath, archivedPath };
+}
 async function loadRenderTemplate(db, log, storage) {
   var _a;
   let template = import_templates.DEFAULT_TEMPLATE;
@@ -106,6 +150,7 @@ async function loadRenderTemplate(db, log, storage) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   issueInvoiceWithArtifacts,
-  loadRenderTemplate
+  loadRenderTemplate,
+  rerenderInvoicePdf
 });
 //# sourceMappingURL=issue-service.js.map
