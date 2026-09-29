@@ -21,13 +21,20 @@ interface Template {
 		signatureName: string;
 		headerExtra: string;
 		blocks: Record<string, boolean>;
-		logo?: { path: string; position: string; widthMm: number };
+		logo?: { path: string; position: string; widthMm: number; allPages?: boolean };
 	};
 	isDefault: boolean;
 }
 
 const LOCKED = ['title', 'meta', 'parties', 'positions', 'totals'];
 const FREE = ['payment', 'notes'];
+
+/** Logo placement options with German labels. */
+const LOGO_POSITIONS: { value: 'left' | 'center' | 'right'; label: string }[] = [
+	{ value: 'right', label: 'rechts' },
+	{ value: 'left', label: 'links' },
+	{ value: 'center', label: 'zentriert' },
+];
 
 /** Layout studio: list, edit, logo upload, PDF preview. */
 export async function templates(root: HTMLElement): Promise<void> {
@@ -88,10 +95,13 @@ export async function templates(root: HTMLElement): Promise<void> {
 		<label>Fußzeile<textarea id="t-footer">${esc(d.footerText)}</textarea></label>
 		<div class="grid2">
 			<label>Logo-Position<select id="t-lpos">
-				${['right', 'left', 'center'].map(p => `<option ${d.logo?.position === p ? 'selected' : ''}>${p}</option>`).join('')}
+				${LOGO_POSITIONS.map(p => `<option value="${p.value}" ${d.logo?.position === p.value ? 'selected' : ''}>${p.label}</option>`).join('')}
 			</select></label>
 			<label>Logo-Breite (mm)<input id="t-lw" type="number" min="10" max="500" value="${d.logo?.widthMm ?? 30}" /></label>
 		</div>
+		<label class="pay" title="Ohne Haken erscheint das Logo nur auf der ersten Seite">
+			<input type="checkbox" id="t-lall" ${d.logo?.allPages ? 'checked' : ''} /><span>Logo auf allen Seiten anzeigen</span>
+		</label>
 		<label>Logo (PNG/JPEG, max. 2 MB)<input id="t-logo" type="file" accept="image/png,image/jpeg" /></label>
 		${d.logo ? `<p class="muted">Aktuell: ${esc(d.logo.path)}</p>` : ''}`;
 	}
@@ -247,6 +257,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 		if (def.logo) {
 			def.logo.position = (root.querySelector<HTMLSelectElement>('#t-lpos')?.value ?? 'right') as 'left' | 'right' | 'center';
 			def.logo.widthMm = Number(root.querySelector<HTMLInputElement>('#t-lw')?.value ?? 30);
+			def.logo.allPages = root.querySelector<HTMLInputElement>('#t-lall')?.checked === true;
 		}
 		return { name: def.name, definition: def };
 	}

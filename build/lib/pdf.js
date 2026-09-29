@@ -63,6 +63,7 @@ function imageHeightForWidth(data, widthPt) {
   return widthPt;
 }
 const LOGO_MAX_HEIGHT_PT = 220;
+const LOGO_CONTINUATION_HEIGHT_PT = 80;
 async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEMPLATE, logo, context = {}) {
   var _a, _b, _c, _d, _e, _f, _g;
   if (!invoice.number) {
@@ -104,19 +105,23 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     const right = left + pageWidth;
     let pageCount = 1;
     doc.fillColor(colors.text);
-    let logoBottom = 0;
-    if (logo && template.logo) {
+    const drawLogo = (maxHeight) => {
+      if (!logo || !template.logo) {
+        return 0;
+      }
       const widthPt = Math.min(300, Math.max(28, template.logo.widthMm * 72 / 25.4 * 0.6));
       const naturalHeight = imageHeightForWidth(logo.data, widthPt);
-      const drawHeight = Math.min(naturalHeight, LOGO_MAX_HEIGHT_PT);
-      const drawWidth = naturalHeight > LOGO_MAX_HEIGHT_PT ? widthPt * LOGO_MAX_HEIGHT_PT / naturalHeight : widthPt;
+      const drawHeight = Math.min(naturalHeight, maxHeight);
+      const drawWidth = naturalHeight > maxHeight ? widthPt * maxHeight / naturalHeight : widthPt;
       const lx = template.logo.position === "left" ? left : template.logo.position === "center" ? left + (pageWidth - drawWidth) / 2 : left + pageWidth - drawWidth;
       try {
         doc.image(logo.data, lx, 36, { width: drawWidth, height: drawHeight });
-        logoBottom = 36 + drawHeight;
+        return 36 + drawHeight;
       } catch {
+        return 0;
       }
-    }
+    };
+    const logoBottom = drawLogo(LOGO_MAX_HEIGHT_PT);
     let cursor = logoBottom > 0 ? logoBottom + 10 : 50;
     if (showTagline) {
       doc.fillColor(colors.muted).fontSize(7);
@@ -191,9 +196,11 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     const totalW = right - colX.total;
     let rowY = cursor;
     const newPage = () => {
+      var _a3;
       doc.addPage();
       pageCount += 1;
-      rowY = 60;
+      doc.fillColor(colors.text);
+      rowY = ((_a3 = template.logo) == null ? void 0 : _a3.allPages) ? Math.max(60, drawLogo(LOGO_CONTINUATION_HEIGHT_PT) + 10) : 60;
     };
     const maxY = () => doc.page.height - BOTTOM_MARGIN;
     const ensureSpace = (points) => {

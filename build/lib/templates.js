@@ -128,6 +128,9 @@ function validateTemplate(template) {
     if (typeof logo.widthMm !== "number" || logo.widthMm < 10 || logo.widthMm > 500) {
       errors.push("Logo-Breite muss 10\u2013500 mm sein");
     }
+    if (logo.allPages !== void 0 && typeof logo.allPages !== "boolean") {
+      errors.push("Logo-Seitenoption muss wahr oder falsch sein");
+    }
   }
   return errors;
 }

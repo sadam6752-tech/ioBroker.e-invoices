@@ -6,11 +6,12 @@
 import { extractXml } from '@stackforge-eu/factur-x';
 import { PDFDocument } from 'pdf-lib';
 import { expect } from 'chai';
-import { inflateSync } from 'node:zlib';
+import { deflateSync, inflateSync } from 'node:zlib';
 import { InvoiceDatabase, type StoredInvoice } from './db';
-import type { InvoiceDraftInput, Party } from './invoice-model';
+import type { InvoiceDraftInput, InvoiceLine, Party } from './invoice-model';
 import { embedHybridPdf, generateInvoiceXml, mapUnitCode, mapVatCategory, resolveProfile } from './zugferd';
-import { renderInvoicePdf } from './pdf';
+import { renderInvoicePdf, type TemplateLogoImage } from './pdf';
+import { DEFAULT_TEMPLATE } from './templates';
 import { validateArtifacts } from './validation';
 
 const seller: Party = {
@@ -64,6 +65,56 @@ function draft(overrides: Partial<InvoiceDraftInput> = {}): InvoiceDraftInput {
  *
  * @param pdf - Rendered PDF bytes.
  */
+/**
+ * Counts embedded image XObjects, i.e. how often the logo was drawn.
+ *
+ * @param pdf - Rendered PDF buffer.
+ */
+function countImageObjects(pdf: Buffer): number {
+	return (pdf.toString('latin1').match(/\/Subtype\s*\/Image/g) ?? []).length;
+}
+
+/**
+ * Minimal 1x1-ish PNG with the given size, so imageHeightForWidth works.
+ *
+ * @param width - Pixel width stored in the PNG header.
+ * @param height - Pixel height stored in the PNG header.
+ */
+function makePng(width: number, height: number): Buffer {
+	const ihdr = Buffer.alloc(13);
+	ihdr.writeUInt32BE(width, 0);
+	ihdr.writeUInt32BE(height, 4);
+	ihdr[8] = 8;
+	ihdr[9] = 2;
+	const chunk = (type: string, data: Buffer): Buffer => {
+		const len = Buffer.alloc(4);
+		len.writeUInt32BE(data.length, 0);
+		const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);
+		const crc = Buffer.alloc(4);
+		crc.writeUInt32BE(crc32(body), 0);
+		return Buffer.concat([len, body, crc]);
+	};
+	// 2x2 truecolour image
+	const raw = Buffer.from([0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+	return Buffer.concat([
+		Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+		chunk('IHDR', ihdr),
+		chunk('IDAT', deflateSync(raw)),
+		chunk('IEND', Buffer.alloc(0)),
+	]);
+}
+
+function crc32(buf: Buffer): number {
+	let crc = 0xffffffff;
+	for (const byte of buf) {
+		crc ^= byte;
+		for (let k = 0; k < 8; k++) {
+			crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+		}
+	}
+	return (crc ^ 0xffffffff) >>> 0;
+}
+
 function pdfText(pdf: Buffer): string {
 	const raw = pdf.toString('latin1');
 	const parts = [raw];
@@ -307,6 +358,32 @@ describe('pdf => custom footer boxes', () => {
 			expect(text).to.contain('BoxEins');
 			expect(text).to.contain('BoxVier');
 			expect(await pageCount(pdf)).to.equal(1);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('repeats the logo on continuation pages only when the template asks for it', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const logo: TemplateLogoImage = { data: makePng(120, 40) };
+			const lines: InvoiceLine[] = [];
+			for (let i = 0; i < 30; i++) {
+				lines.push({ description: `Pos ${i + 1}`, quantity: 1, unit: 'Stk', unitPriceNet: 10, vatRate: 19 });
+			}
+			const withLogo = async (allPages: boolean): Promise<number> => {
+				const created = db.createDraft(draft({ lines }));
+				const issued = db.issueDraft(created.id);
+				const pdf = await renderInvoicePdf(
+					issued,
+					{ ...DEFAULT_TEMPLATE, logo: { path: 'logos/x.png', position: 'right', widthMm: 30, allPages } },
+					logo,
+				);
+				return countImageObjects(pdf);
+			};
+			expect(await withLogo(true)).to.be.greaterThan(1);
+			expect(await withLogo(false)).to.equal(1);
 		} finally {
 			db.close();
 		}

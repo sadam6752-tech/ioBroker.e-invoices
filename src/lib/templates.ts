@@ -20,6 +20,8 @@ export interface TemplateLogo {
 	path: string;
 	/** Placement. */
 	position: LogoPosition;
+	/** Draw the logo on every page, not only on the first one. */
+	allPages?: boolean;
 	/** Width in mm, 10–80. */
 	widthMm: number;
 }
@@ -202,6 +204,9 @@ export function validateTemplate(template: unknown): string[] {
 		}
 		if (typeof logo.widthMm !== 'number' || logo.widthMm < 10 || logo.widthMm > 500) {
 			errors.push('Logo-Breite muss 10–500 mm sein');
+		}
+		if (logo.allPages !== undefined && typeof logo.allPages !== 'boolean') {
+			errors.push('Logo-Seitenoption muss wahr oder falsch sein');
 		}
 	}
 	return errors;

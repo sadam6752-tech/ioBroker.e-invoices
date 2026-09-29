@@ -74,6 +74,9 @@ export function imageHeightForWidth(data: Buffer, widthPt: number): number {
 /** Longest logo height in pt before the image is scaled down to fit. */
 const LOGO_MAX_HEIGHT_PT = 220;
 
+/** Logo height cap on continuation pages, so a long invoice stays readable. */
+const LOGO_CONTINUATION_HEIGHT_PT = 80;
+
 /** Logo image bytes for the header (PNG/JPEG). */
 export interface TemplateLogoImage {
 	/** Raw image bytes. */
@@ -138,15 +141,18 @@ export async function renderInvoicePdf(
 
 		// Logo (optional) — company data lives in the footer boxes, so the
 		// header only carries the logo; content flows below tall logos.
-		let logoBottom = 0;
-		if (logo && template.logo) {
+		// On continuation pages the logo is drawn smaller (when the template
+		// asks for it), so a multi-page invoice still carries the branding.
+		const drawLogo = (maxHeight: number): number => {
+			if (!logo || !template.logo) {
+				return 0;
+			}
 			const widthPt = Math.min(300, Math.max(28, ((template.logo.widthMm * 72) / 25.4) * 0.6));
 			// the cap must also be applied to the drawn size, otherwise a tall
 			// image runs off the page and over the whole layout
 			const naturalHeight = imageHeightForWidth(logo.data, widthPt);
-			const drawHeight = Math.min(naturalHeight, LOGO_MAX_HEIGHT_PT);
-			const drawWidth =
-				naturalHeight > LOGO_MAX_HEIGHT_PT ? (widthPt * LOGO_MAX_HEIGHT_PT) / naturalHeight : widthPt;
+			const drawHeight = Math.min(naturalHeight, maxHeight);
+			const drawWidth = naturalHeight > maxHeight ? (widthPt * maxHeight) / naturalHeight : widthPt;
 			const lx =
 				template.logo.position === 'left'
 					? left
@@ -155,11 +161,13 @@ export async function renderInvoicePdf(
 						: left + pageWidth - drawWidth;
 			try {
 				doc.image(logo.data, lx, 36, { width: drawWidth, height: drawHeight });
-				logoBottom = 36 + drawHeight;
+				return 36 + drawHeight;
 			} catch {
 				// broken logo must never break the invoice
+				return 0;
 			}
-		}
+		};
+		const logoBottom = drawLogo(LOGO_MAX_HEIGHT_PT);
 
 		let cursor = logoBottom > 0 ? logoBottom + 10 : 50;
 		if (showTagline) {
@@ -249,7 +257,9 @@ export async function renderInvoicePdf(
 		const newPage = (): void => {
 			doc.addPage();
 			pageCount += 1;
-			rowY = 60;
+			doc.fillColor(colors.text);
+			// repeat the logo on continuation pages when the template wants it
+			rowY = template.logo?.allPages ? Math.max(60, drawLogo(LOGO_CONTINUATION_HEIGHT_PT) + 10) : 60;
 		};
 		// Bottom text edge enforced by pdfkit itself: never position text
 		// below maxY, otherwise pdfkit paginates on its own and scatters lines.
