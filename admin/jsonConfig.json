@@ -15,8 +15,10 @@
 			"xl": 4
 		},
 		"bind": {
-			"type": "text",
+			"type": "ip",
+			"listenOnAllPorts": true,
 			"label": "Bind address",
+			"help": "127.0.0.1 = only this machine, 0.0.0.0 = all interfaces",
 			"newLine": false,
 			"xs": 12,
 			"sm": 12,

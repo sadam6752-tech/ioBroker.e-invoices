@@ -1,7 +1,8 @@
 {
-	"e-invoices adapter settings": "Configurações do adaptador para e-invoices",
-	"API port": "Porta da API",
-	"Bind address": "Endereço de ligação",
-	"API token (optional)": "Token da API (opcional)",
-	"Empty means no authentication (LAN trust)": "Vazio significa sem autenticação (confiança na LAN)"
+  "127.0.0.1 = only this machine, 0.0.0.0 = all interfaces": "127.0.0.1 = apenas esta máquina, 0.0.0.0 = todas as interfaces",
+  "API port": "Porta da API",
+  "API token (optional)": "Token da API (opcional)",
+  "Bind address": "Endereço de ligação",
+  "e-invoices adapter settings": "Configurações do adaptador para e-invoices",
+  "Empty means no authentication (LAN trust)": "Vazio significa sem autenticação (confiança na LAN)"
 }

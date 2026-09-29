@@ -1,7 +1,8 @@
 {
-	"e-invoices adapter settings": "Ustawienia adaptera dla e-invoices",
-	"API port": "Port API",
-	"Bind address": "Adres nasłuchu",
-	"API token (optional)": "Token API (opcjonalnie)",
-	"Empty means no authentication (LAN trust)": "Puste oznacza brak uwierzytelniania (zaufanie LAN)"
+  "127.0.0.1 = only this machine, 0.0.0.0 = all interfaces": "127.0.0.1 = tylko ta maszyna, 0.0.0.0 = wszystkie interfejsy",
+  "API port": "Port API",
+  "API token (optional)": "Token API (opcjonalnie)",
+  "Bind address": "Adres nasłuchu",
+  "e-invoices adapter settings": "Ustawienia adaptera dla e-invoices",
+  "Empty means no authentication (LAN trust)": "Puste oznacza brak uwierzytelniania (zaufanie LAN)"
 }

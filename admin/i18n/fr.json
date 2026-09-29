@@ -1,7 +1,8 @@
 {
-	"e-invoices adapter settings": "Paramètres d'adaptateur pour e-invoices",
-	"API port": "Port de l'API",
-	"Bind address": "Adresse d'écoute",
-	"API token (optional)": "Jeton API (facultatif)",
-	"Empty means no authentication (LAN trust)": "Vide signifie aucune authentification (confiance LAN)"
+  "127.0.0.1 = only this machine, 0.0.0.0 = all interfaces": "127.0.0.1 = uniquement cette machine, 0.0.0.0 = toutes les interfaces",
+  "API port": "Port de l'API",
+  "API token (optional)": "Jeton API (facultatif)",
+  "Bind address": "Adresse d'écoute",
+  "e-invoices adapter settings": "Paramètres d'adaptateur pour e-invoices",
+  "Empty means no authentication (LAN trust)": "Vide signifie aucune authentification (confiance LAN)"
 }

@@ -1,7 +1,8 @@
 {
-	"e-invoices adapter settings": "Adapterinstellingen voor e-invoices",
-	"API port": "API-poort",
-	"Bind address": "Bindadres",
-	"API token (optional)": "API-token (optioneel)",
-	"Empty means no authentication (LAN trust)": "Leeg betekent geen authenticatie (LAN-vertrouwen)"
+  "127.0.0.1 = only this machine, 0.0.0.0 = all interfaces": "127.0.0.1 = alleen deze machine, 0.0.0.0 = alle interfaces",
+  "API port": "API-poort",
+  "API token (optional)": "API-token (optioneel)",
+  "Bind address": "Bindadres",
+  "e-invoices adapter settings": "Adapterinstellingen voor e-invoices",
+  "Empty means no authentication (LAN trust)": "Leeg betekent geen authenticatie (LAN-vertrouwen)"
 }
