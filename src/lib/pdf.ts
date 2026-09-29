@@ -113,7 +113,9 @@ export async function renderInvoicePdf(
 	const colors = template.colors;
 	const intro = template.introText ?? DEFAULT_TEMPLATE.introText;
 	const closing = template.closingText ?? DEFAULT_TEMPLATE.closingText;
-	const signature = template.signatureName?.trim() || invoice.seller.name;
+	// Kein Rückfall auf den Firmennamen: die Namenszeile erscheint nur, wenn im
+	// Template bewusst ein Unterschriftsname gepflegt wurde.
+	const signature = template.signatureName?.trim() || '';
 	const showTagline = template.showTagline ?? true;
 
 	return new Promise<Buffer>((resolve, reject) => {
@@ -418,9 +420,9 @@ export async function renderInvoicePdf(
 			rowY += 14;
 		}
 
-		// Signature: no "Mit freundlichen Grüßen" line, the invoice ends with the
-		// name. An optional closing text above is kept.
-		ensureSpace(60);
+		// Signature: no "Mit freundlichen Grüßen" line and no automatic seller
+		// name. Only the closing text and an explicitly configured name are drawn.
+		ensureSpace(closing.trim() || signature ? 60 : 10);
 		if (closing.trim()) {
 			rowY += 6;
 			doc.text(closing.trim(), left, rowY, { width: pageWidth });
@@ -428,9 +430,11 @@ export async function renderInvoicePdf(
 		} else {
 			rowY += 10;
 		}
-		doc.font('Helvetica-Bold').text(signature, left, rowY, { width: pageWidth });
-		doc.font('Helvetica');
-		rowY += 20;
+		if (signature) {
+			doc.font('Helvetica-Bold').text(signature, left, rowY, { width: pageWidth });
+			doc.font('Helvetica');
+			rowY += 20;
+		}
 
 		// Company footer: 4 boxes pinned to the page bottom (address, contact, bank, tax).
 		// Custom texts from the company profile win; otherwise auto from company data.

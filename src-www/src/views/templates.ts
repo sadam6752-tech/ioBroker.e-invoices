@@ -89,7 +89,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 		<label>Einleitungssatz<textarea id="t-intro">${esc(d.introText ?? '')}</textarea></label>
 		<label>Schlusssatz<textarea id="t-closing">${esc(d.closingText ?? '')}</textarea></label>
 		<div class="grid2">
-			<label>Unterschrift (Name)<input id="t-sign" value="${esc(d.signatureName ?? '')}" /></label>
+			<label title="Leer lassen: es wird kein Name gedruckt">Unterschrift (Name, optional)<input id="t-sign" value="${esc(d.signatureName ?? '')}" /></label>
 			<label>Kopfzusatz (z.B. Geschäftsführer)<input id="t-hextra" value="${esc(d.headerExtra ?? '')}" /></label>
 		</div>
 		<label>Fußzeile<textarea id="t-footer">${esc(d.footerText)}</textarea></label>

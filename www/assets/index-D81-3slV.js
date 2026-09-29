@@ -187,7 +187,7 @@
 		<label>Einleitungssatz<textarea id="t-intro">${s(l.introText??"")}</textarea></label>
 		<label>Schlusssatz<textarea id="t-closing">${s(l.closingText??"")}</textarea></label>
 		<div class="grid2">
-			<label>Unterschrift (Name)<input id="t-sign" value="${s(l.signatureName??"")}" /></label>
+			<label title="Leer lassen: es wird kein Name gedruckt">Unterschrift (Name, optional)<input id="t-sign" value="${s(l.signatureName??"")}" /></label>
 			<label>Kopfzusatz (z.B. Geschäftsführer)<input id="t-hextra" value="${s(l.headerExtra??"")}" /></label>
 		</div>
 		<label>Fußzeile<textarea id="t-footer">${s(l.footerText)}</textarea></label>

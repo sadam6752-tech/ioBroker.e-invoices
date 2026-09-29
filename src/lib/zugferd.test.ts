@@ -11,7 +11,7 @@ import { InvoiceDatabase, type StoredInvoice } from './db';
 import type { InvoiceDraftInput, InvoiceLine, Party } from './invoice-model';
 import { embedHybridPdf, generateInvoiceXml, mapUnitCode, mapVatCategory, resolveProfile } from './zugferd';
 import { renderInvoicePdf, type TemplateLogoImage } from './pdf';
-import { DEFAULT_TEMPLATE } from './templates';
+import { DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
 import { validateArtifacts } from './validation';
 
 const seller: Party = {
@@ -404,6 +404,40 @@ describe('pdf => custom footer boxes', () => {
 			// requested layout: no "Mit freundlichen Grüßen" line below the name
 			expect(text).to.not.contain('Mitfreundlichen');
 			expect(text).to.contain('Zahlungsbedingungen');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('draws a signature name only when the template configures one', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			// footer boxes are overridden so the seller name appears nowhere else
+			const boxes: [string, string, string, string] = ['Box Eins', 'Box Zwei', 'Box Drei', 'Box Vier'];
+			const issuedName = db.issueDraft(
+				db.createDraft(draft({ seller: { ...seller, footerBoxes: [...boxes] } })).id,
+			);
+			const issuedPlain = db.issueDraft(
+				db.createDraft(draft({ seller: { ...seller, footerBoxes: [...boxes] } })).id,
+			);
+			const named: LayoutTemplate = { ...DEFAULT_TEMPLATE, signatureName: 'Erika Muster' };
+			const plain: LayoutTemplate = { ...DEFAULT_TEMPLATE, signatureName: '' };
+
+			const textWith = pdfText(await renderInvoicePdf(issuedName, named)).replace(/\s+/g, '');
+			const textWithout = pdfText(await renderInvoicePdf(issuedPlain, plain)).replace(/\s+/g, '');
+
+			expect(textWith).to.contain('ErikaMuster');
+			expect(textWithout).to.not.contain('ErikaMuster');
+			// The seller name occurs in metadata, subject line and address block
+			// anyway. Without a configured name it must not gain an extra
+			// occurrence from an automatic signature fallback.
+			const asName: LayoutTemplate = { ...DEFAULT_TEMPLATE, signatureName: seller.name };
+			const textAsName = pdfText(await renderInvoicePdf(issuedPlain, asName)).replace(/\s+/g, '');
+			// pdfText concatenates raw and inflated streams, so a single drawn line
+			// counts twice: only the relative difference is meaningful here.
+			const count = (text: string): number => text.split('MusterGmbH').length - 1;
+			expect(count(textAsName)).to.be.greaterThan(count(textWithout));
 		} finally {
 			db.close();
 		}

@@ -81,7 +81,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
   const colors = template.colors;
   const intro = (_d = template.introText) != null ? _d : import_templates.DEFAULT_TEMPLATE.introText;
   const closing = (_e = template.closingText) != null ? _e : import_templates.DEFAULT_TEMPLATE.closingText;
-  const signature = ((_f = template.signatureName) == null ? void 0 : _f.trim()) || invoice.seller.name;
+  const signature = ((_f = template.signatureName) == null ? void 0 : _f.trim()) || "";
   const showTagline = (_g = template.showTagline) != null ? _g : true;
   return new Promise((resolve, reject) => {
     var _a2, _b2, _c2, _d2, _e2, _f2, _g2, _h, _i;
@@ -349,7 +349,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.text(`Hinweis: ${invoice.notes.trim()}`, left, rowY, { width: pageWidth });
       rowY += 14;
     }
-    ensureSpace(60);
+    ensureSpace(closing.trim() || signature ? 60 : 10);
     if (closing.trim()) {
       rowY += 6;
       doc.text(closing.trim(), left, rowY, { width: pageWidth });
@@ -357,9 +357,11 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     } else {
       rowY += 10;
     }
-    doc.font("Helvetica-Bold").text(signature, left, rowY, { width: pageWidth });
-    doc.font("Helvetica");
-    rowY += 20;
+    if (signature) {
+      doc.font("Helvetica-Bold").text(signature, left, rowY, { width: pageWidth });
+      doc.font("Helvetica");
+      rowY += 20;
+    }
     if ((_d2 = template.showFooterBoxes) != null ? _d2 : true) {
       const rawBoxes = invoice.seller.footerBoxes;
       const customBoxes = Array.isArray(rawBoxes) && rawBoxes.length === 4 && rawBoxes.some((box) => typeof box === "string" && box.trim() !== "") ? rawBoxes.filter((box) => typeof box === "string") : null;
