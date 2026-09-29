@@ -4,6 +4,7 @@
  * cleanly; the hybrid PDF must round-trip its XML.
  */
 import { extractXml } from '@stackforge-eu/factur-x';
+import { PDFDocument } from 'pdf-lib';
 import { expect } from 'chai';
 import { inflateSync } from 'node:zlib';
 import { InvoiceDatabase, type StoredInvoice } from './db';
@@ -83,6 +84,16 @@ function pdfText(pdf: Buffer): string {
 	}
 	parts.push(fragments.join(''));
 	return parts.join('\n');
+}
+
+/**
+ * Counts PDF pages (regression guard against pdfkit auto-pagination
+ * scattering positioned content).
+ *
+ * @param pdf - Rendered PDF bytes.
+ */
+async function pageCount(pdf: Buffer): Promise<number> {
+	return (await PDFDocument.load(pdf)).getPageCount();
 }
 
 /**
@@ -295,6 +306,28 @@ describe('pdf => custom footer boxes', () => {
 			const text = pdfText(pdf).replace(/\s+/g, '');
 			expect(text).to.contain('BoxEins');
 			expect(text).to.contain('BoxVier');
+			expect(await pageCount(pdf)).to.equal(1);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('keeps short invoices on one page and long ones sane', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const boxes: [string, string, string, string] = ['Test 1', 'Test 1', 'Test 1', 'Test 1'];
+			const short = db.createDraft(draft({ seller: { ...seller, footerBoxes: [...boxes] } }));
+			const shortIssued = db.issueDraft(short.id);
+			expect(await pageCount(await renderInvoicePdf(shortIssued))).to.equal(1);
+
+			const lines = [];
+			for (let i = 0; i < 30; i++) {
+				lines.push({ description: `Pos ${i + 1}`, quantity: 1, unit: 'Stk', unitPriceNet: 10, vatRate: 19 });
+			}
+			const long = db.createDraft(draft({ seller: { ...seller, footerBoxes: [...boxes] }, lines }));
+			const longIssued = db.issueDraft(long.id);
+			expect(await pageCount(await renderInvoicePdf(longIssued))).to.be.lessThan(5);
 		} finally {
 			db.close();
 		}

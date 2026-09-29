@@ -32,6 +32,9 @@ export function formatEurDe(value: number): string {
 	return `${value.toFixed(2).replace('.', ',')} €`;
 }
 
+/** Bottom margin in pt (foot zone stays printable, page numbers fit below). */
+const BOTTOM_MARGIN = 36;
+
 /** Light gray for table header cells and the total row. */
 const HEADER_GRAY = '#D9D9D9';
 
@@ -82,7 +85,7 @@ export async function renderInvoicePdf(
 	return new Promise<Buffer>((resolve, reject) => {
 		const doc = new PDFDocument({
 			size: 'A4',
-			margin: 50,
+			margins: { top: 50, bottom: 36, left: 50, right: 50 },
 			bufferPages: template.showPageNumbers === true,
 			info: {
 				Title: `${invoice.documentTitle} ${invoice.number}`,
@@ -224,6 +227,14 @@ export async function renderInvoicePdf(
 			pageCount += 1;
 			rowY = 60;
 		};
+		// Bottom text edge enforced by pdfkit itself: never position text
+		// below maxY, otherwise pdfkit paginates on its own and scatters lines.
+		const maxY = (): number => doc.page.height - BOTTOM_MARGIN;
+		const ensureSpace = (points: number): void => {
+			if (rowY + points > maxY()) {
+				newPage();
+			}
+		};
 		const headerRow = (): void => {
 			const height = 17;
 			doc.save();
@@ -319,12 +330,14 @@ export async function renderInvoicePdf(
 		// Exemption reason always (Pflicht bei 0 %)
 		const exempt = invoice.lines.find(line => line.vatRate === 0 && line.exemptionReason?.trim());
 		if (exempt?.exemptionReason) {
+			ensureSpace(28);
 			doc.text(`Steuerbefreiung: ${exempt.exemptionReason}`, left, rowY, { width: pageWidth });
 			rowY += 14;
 		}
 
 		// Payment + notes
 		if (template.blocks.payment && invoice.seller.iban) {
+			ensureSpace(16);
 			doc.text(
 				`Zahlung an IBAN ${invoice.seller.iban}${invoice.seller.bic ? `, BIC ${invoice.seller.bic}` : ''}`,
 				left,
@@ -334,15 +347,18 @@ export async function renderInvoicePdf(
 			rowY += 14;
 		}
 		if (template.showPaymentTerms && invoice.paymentTerms) {
+			ensureSpace(28);
 			doc.text(`Zahlungsbedingungen: ${invoice.paymentTerms}`, left, rowY, { width: pageWidth });
 			rowY += 14;
 		}
 		if (template.blocks.notes && invoice.notes?.trim()) {
+			ensureSpace(40);
 			doc.text(`Hinweis: ${invoice.notes.trim()}`, left, rowY, { width: pageWidth });
 			rowY += 14;
 		}
 
 		// Closing + signature
+		ensureSpace(90);
 		if (closing.trim()) {
 			rowY += 6;
 			doc.text(closing.trim(), left, rowY, { width: pageWidth });
@@ -358,6 +374,8 @@ export async function renderInvoicePdf(
 
 		// Company footer: 4 boxes pinned to the page bottom (address, contact, bank, tax).
 		// Custom texts from the company profile win; otherwise auto from company data.
+		// Line height is measured (never guessed): pdfkit paginates text placed
+		// below maxY on its own, which scattered the boxes across pages.
 		if (template.showFooterBoxes ?? true) {
 			const rawBoxes: unknown = invoice.seller.footerBoxes;
 			const customBoxes: string[] | null =
@@ -391,45 +409,47 @@ export async function renderInvoicePdf(
 							...(template.headerExtra ? template.headerExtra.split('\n').slice(0, 3) : []),
 						],
 					].map(lines => lines.filter(line => line.trim() !== ''));
+			const colW = pageWidth / 4;
+			doc.fontSize(8);
+			const lineHeight = doc.heightOfString('Xg', { width: colW - 8 });
 			const maxLines = Math.max(1, ...boxes.map(lines => lines.length));
-			const need = 8 + maxLines * 10 + 6;
-			// foot zone ~13 mm above the edge: visibly lower, still printable,
-			// page numbers (centered, at height-30) keep their room below
-			const footBottom = doc.page.height - 36;
-			let footTop = Math.max(rowY + 6, footBottom - need);
-			if (footTop + need > footBottom + 2) {
+			// room for the page-number line below (only rendered when needed)
+			const numberReserve = template.showPageNumbers === true ? lineHeight + 4 : 0;
+			const need = 8 + maxLines * lineHeight + 6 + numberReserve;
+			let footTop = Math.max(rowY + 6, maxY() - need);
+			if (footTop + need > maxY() + 2) {
 				newPage();
-				footTop = doc.page.height - 36 - need;
+				footTop = maxY() - need;
 			}
 			doc.save();
 			doc.moveTo(left, footTop).lineTo(right, footTop).strokeColor(colors.muted).lineWidth(0.5).stroke();
 			doc.restore();
 			footTop += 8;
-			const colW = pageWidth / 4;
 			const rawAlign: unknown = invoice.seller.footerAlign;
 			const aligns: ('left' | 'center' | 'right')[] = [0, 1, 2, 3].map(i => {
 				const value = Array.isArray(rawAlign) ? (rawAlign[i] as unknown) : undefined;
 				return value === 'center' || value === 'right' ? value : 'left';
 			});
-			doc.fontSize(8);
 			boxes.forEach((lines, index) => {
 				const align = aligns[index] ?? 'left';
 				// last column reaches exactly to the right edge (rule end)
 				const width = index === boxes.length - 1 ? colW : colW - 8;
 				lines.forEach((line, lineIndex) => {
-					doc.text(line, left + index * colW, footTop + lineIndex * 10, { width, align });
+					doc.text(line, left + index * colW, footTop + lineIndex * lineHeight, { width, align });
 				});
 			});
 			doc.fontSize(10);
-			rowY = footTop + maxLines * 10 + 8;
+			rowY = footTop + maxLines * lineHeight + 8;
 		}
 
 		if (template.showArchiveHint) {
+			ensureSpace(36);
 			doc.fontSize(9).fillColor(colors.muted).text(ARCHIVE_HINT, left, rowY, { width: pageWidth });
 			doc.fontSize(10).fillColor(colors.text);
 			rowY += 24;
 		}
 		if (template.footerText.trim()) {
+			ensureSpace(30);
 			doc.fontSize(9).fillColor(colors.muted).text(template.footerText.trim(), left, rowY, { width: pageWidth });
 			doc.fontSize(10).fillColor(colors.text);
 		}
@@ -439,7 +459,7 @@ export async function renderInvoicePdf(
 			for (let i = 0; i < range.count; i++) {
 				doc.switchToPage(i);
 				doc.fontSize(8).fillColor(colors.muted);
-				doc.text(`Seite ${i + 1} von ${range.count}`, left, doc.page.height - 30, {
+				doc.text(`Seite ${i + 1} von ${range.count}`, left, maxY() - 11, {
 					width: pageWidth,
 					align: 'center',
 				});

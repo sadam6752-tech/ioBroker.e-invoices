@@ -43,6 +43,7 @@ function formatEur(value) {
 function formatEurDe(value) {
   return `${value.toFixed(2).replace(".", ",")} \u20AC`;
 }
+const BOTTOM_MARGIN = 36;
 const HEADER_GRAY = "#D9D9D9";
 function formatDeDate(iso) {
   const date = iso.split("..")[0];
@@ -68,7 +69,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     var _a2, _b2, _c2, _d2, _e, _f, _g, _h;
     const doc = new import_pdfkit.default({
       size: "A4",
-      margin: 50,
+      margins: { top: 50, bottom: 36, left: 50, right: 50 },
       bufferPages: template.showPageNumbers === true,
       info: {
         Title: `${invoice.documentTitle} ${invoice.number}`,
@@ -194,6 +195,12 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       pageCount += 1;
       rowY = 60;
     };
+    const maxY = () => doc.page.height - BOTTOM_MARGIN;
+    const ensureSpace = (points) => {
+      if (rowY + points > maxY()) {
+        newPage();
+      }
+    };
     const headerRow = () => {
       const height = 17;
       doc.save();
@@ -287,10 +294,12 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       return line.vatRate === 0 && ((_a3 = line.exemptionReason) == null ? void 0 : _a3.trim());
     });
     if (exempt == null ? void 0 : exempt.exemptionReason) {
+      ensureSpace(28);
       doc.text(`Steuerbefreiung: ${exempt.exemptionReason}`, left, rowY, { width: pageWidth });
       rowY += 14;
     }
     if (template.blocks.payment && invoice.seller.iban) {
+      ensureSpace(16);
       doc.text(
         `Zahlung an IBAN ${invoice.seller.iban}${invoice.seller.bic ? `, BIC ${invoice.seller.bic}` : ""}`,
         left,
@@ -300,13 +309,16 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       rowY += 14;
     }
     if (template.showPaymentTerms && invoice.paymentTerms) {
+      ensureSpace(28);
       doc.text(`Zahlungsbedingungen: ${invoice.paymentTerms}`, left, rowY, { width: pageWidth });
       rowY += 14;
     }
     if (template.blocks.notes && ((_b2 = invoice.notes) == null ? void 0 : _b2.trim())) {
+      ensureSpace(40);
       doc.text(`Hinweis: ${invoice.notes.trim()}`, left, rowY, { width: pageWidth });
       rowY += 14;
     }
+    ensureSpace(90);
     if (closing.trim()) {
       rowY += 6;
       doc.text(closing.trim(), left, rowY, { width: pageWidth });
@@ -342,42 +354,45 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
           ...template.headerExtra ? template.headerExtra.split("\n").slice(0, 3) : []
         ]
       ].map((lines) => lines.filter((line) => line.trim() !== ""));
+      const colW = pageWidth / 4;
+      doc.fontSize(8);
+      const lineHeight = doc.heightOfString("Xg", { width: colW - 8 });
       const maxLines = Math.max(1, ...boxes.map((lines) => lines.length));
-      const need = 8 + maxLines * 10 + 6;
-      const footBottom = doc.page.height - 36;
-      let footTop = Math.max(rowY + 6, footBottom - need);
-      if (footTop + need > footBottom + 2) {
+      const numberReserve = template.showPageNumbers === true ? lineHeight + 4 : 0;
+      const need = 8 + maxLines * lineHeight + 6 + numberReserve;
+      let footTop = Math.max(rowY + 6, maxY() - need);
+      if (footTop + need > maxY() + 2) {
         newPage();
-        footTop = doc.page.height - 36 - need;
+        footTop = maxY() - need;
       }
       doc.save();
       doc.moveTo(left, footTop).lineTo(right, footTop).strokeColor(colors.muted).lineWidth(0.5).stroke();
       doc.restore();
       footTop += 8;
-      const colW = pageWidth / 4;
       const rawAlign = invoice.seller.footerAlign;
       const aligns = [0, 1, 2, 3].map((i) => {
         const value = Array.isArray(rawAlign) ? rawAlign[i] : void 0;
         return value === "center" || value === "right" ? value : "left";
       });
-      doc.fontSize(8);
       boxes.forEach((lines, index) => {
         var _a3;
         const align = (_a3 = aligns[index]) != null ? _a3 : "left";
         const width = index === boxes.length - 1 ? colW : colW - 8;
         lines.forEach((line, lineIndex) => {
-          doc.text(line, left + index * colW, footTop + lineIndex * 10, { width, align });
+          doc.text(line, left + index * colW, footTop + lineIndex * lineHeight, { width, align });
         });
       });
       doc.fontSize(10);
-      rowY = footTop + maxLines * 10 + 8;
+      rowY = footTop + maxLines * lineHeight + 8;
     }
     if (template.showArchiveHint) {
+      ensureSpace(36);
       doc.fontSize(9).fillColor(colors.muted).text(import_templates.ARCHIVE_HINT, left, rowY, { width: pageWidth });
       doc.fontSize(10).fillColor(colors.text);
       rowY += 24;
     }
     if (template.footerText.trim()) {
+      ensureSpace(30);
       doc.fontSize(9).fillColor(colors.muted).text(template.footerText.trim(), left, rowY, { width: pageWidth });
       doc.fontSize(10).fillColor(colors.text);
     }
@@ -386,7 +401,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       for (let i = 0; i < range.count; i++) {
         doc.switchToPage(i);
         doc.fontSize(8).fillColor(colors.muted);
-        doc.text(`Seite ${i + 1} von ${range.count}`, left, doc.page.height - 30, {
+        doc.text(`Seite ${i + 1} von ${range.count}`, left, maxY() - 11, {
           width: pageWidth,
           align: "center"
         });
