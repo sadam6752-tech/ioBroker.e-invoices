@@ -40,11 +40,24 @@ var import_node_fs = require("node:fs");
 var import_invoice_model = require("./invoice-model");
 var import_issue_service = require("./issue-service");
 var import_backup = require("./backup");
+var import_csv = require("./csv");
 var import_excel = require("./excel");
+var import_invoice_model2 = require("./invoice-model");
 var import_pdf = require("./pdf");
 var import_templates = require("./templates");
 var import_validation = require("./validation");
 var import_zugferd = require("./zugferd");
+function filteredInvoices(db, query) {
+  const status = typeof query.status === "string" ? query.status : void 0;
+  const year = typeof query.year === "string" ? Number(query.year) : void 0;
+  const text = typeof query.q === "string" ? query.q : void 0;
+  return db.listInvoices({
+    status: status && ["draft", "issued", "cancelled"].includes(status) ? status : void 0,
+    year: Number.isInteger(year) ? year : void 0,
+    query: text,
+    limit: 500
+  });
+}
 function previewInvoice(draft) {
   var _a, _b, _c, _d, _e, _f;
   const stamp = (/* @__PURE__ */ new Date()).toISOString();
@@ -67,6 +80,13 @@ function previewInvoice(draft) {
     employeeCode: (_e = draft.employeeCode) != null ? _e : null,
     skontoPercent: Number(draft.skontoPercent) || 0,
     skontoDueDate: (_f = draft.skontoDueDate) != null ? _f : null,
+    sentAt: null,
+    sendChannel: null,
+    paymentCheck: null,
+    paymentCheckedAt: null,
+    remindedAt: null,
+    reminderLevel: 0,
+    retainUntil: null,
     paid: false,
     paidAt: null,
     stornoOfId: null,
@@ -205,10 +225,7 @@ function createApiServer(deps) {
     })
   );
   app.get("/api/invoices/export.xlsx", (req, res) => {
-    const status = typeof req.query.status === "string" ? req.query.status : void 0;
-    const year = typeof req.query.year === "string" ? Number(req.query.year) : void 0;
-    const query = typeof req.query.q === "string" ? req.query.q : void 0;
-    const invoices = db.listInvoices({ status, year, query, limit: 500 });
+    const invoices = filteredInvoices(db, req.query);
     const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     void (0, import_excel.renderInvoiceListWorkbook)(invoices, `Rechnungs\xFCbersicht ${stamp}`).then(
       (buffer) => {
@@ -348,6 +365,152 @@ function createApiServer(deps) {
       } catch (error) {
         res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
       }
+    })
+  );
+  app.delete(
+    "/api/invoices/:id",
+    route((req, res) => {
+      const id = routeParam(req, "id");
+      try {
+        db.deleteDraft(id);
+        res.status(204).end();
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.post(
+    "/api/invoices/issue-batch",
+    route(async (req, res) => {
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
+      const ids = Array.isArray(body.ids) ? body.ids.filter((v) => typeof v === "string") : [];
+      if (ids.length === 0) {
+        res.status(400).json({ error: "ids must be a non-empty array" });
+        return;
+      }
+      if (ids.length > 200) {
+        res.status(400).json({ error: "At most 200 drafts per run" });
+        return;
+      }
+      try {
+        const outcome = await (0, import_issue_service.issueInvoiceBatch)(db, log, ids, storage);
+        res.json(outcome);
+      } catch (error) {
+        res.status(400).json({ error: error.message });
+      }
+    })
+  );
+  app.post(
+    "/api/invoices/:id/sent",
+    route((req, res) => {
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
+      const channel = typeof body.channel === "string" && body.channel.trim() ? body.channel.trim() : "E-Mail";
+      const sentAt = typeof body.sentAt === "string" && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z?$/.test(body.sentAt) ? new Date(body.sentAt).toISOString() : (/* @__PURE__ */ new Date()).toISOString();
+      try {
+        res.json(db.markSent(routeParam(req, "id"), sentAt, channel));
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.post(
+    "/api/invoices/:id/payment-check",
+    route((req, res) => {
+      var _a2;
+      const id = routeParam(req, "id");
+      const invoice = db.getInvoice(id);
+      if (!invoice) {
+        res.status(404).json({ error: "Invoice not found" });
+        return;
+      }
+      const duty = (0, import_invoice_model2.paymentCheckDuty)(invoice.dueDate, invoice.totals.grossTotal);
+      const body = (_a2 = req.body) != null ? _a2 : {};
+      if (typeof body.outcome === "string" && body.outcome.trim()) {
+        res.json({
+          invoice: db.setPaymentCheck(id, body.outcome.trim()),
+          duty,
+          checked: true
+        });
+        return;
+      }
+      res.json({ invoice, duty, checked: Boolean(invoice.paymentCheckedAt) });
+    })
+  );
+  app.get(
+    "/api/reminders",
+    route((_req, res) => {
+      res.json((0, import_issue_service.collectReminderCandidates)(db));
+    })
+  );
+  app.post(
+    "/api/invoices/:id/reminded",
+    route((req, res) => {
+      try {
+        res.json(db.registerReminder(routeParam(req, "id")));
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.get(
+    "/api/invoice-templates",
+    route((_req, res) => {
+      res.json(db.listInvoiceTemplates());
+    })
+  );
+  app.post(
+    "/api/invoice-templates",
+    route((req, res) => {
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
+      if (typeof body.name !== "string" || !body.name.trim()) {
+        res.status(400).json({ error: "name is required" });
+        return;
+      }
+      if (typeof body.body !== "object" || body.body === null) {
+        res.status(400).json({ error: "body is required" });
+        return;
+      }
+      try {
+        res.status(201).json(db.createInvoiceTemplate(body.name, body.body));
+      } catch (error) {
+        res.status(400).json({ error: error.message });
+      }
+    })
+  );
+  app.delete(
+    "/api/invoice-templates/:id",
+    route((req, res) => {
+      try {
+        db.deleteInvoiceTemplate(routeParam(req, "id"));
+        res.status(204).end();
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.get(
+    "/api/invoices/export.csv",
+    route((req, res) => {
+      const invoices = filteredInvoices(db, req.query);
+      res.type("text/csv; charset=utf-8");
+      res.set("Content-Disposition", 'attachment; filename="rechnungen.csv"');
+      res.send((0, import_csv.renderInvoiceListCsv)(invoices));
+    })
+  );
+  app.get(
+    "/api/invoices/export.datev",
+    route((req, res) => {
+      var _a2, _b2, _c2;
+      const invoices = filteredInvoices(db, req.query);
+      const company = (_a2 = db.getDefaultCompanyProfile()) == null ? void 0 : _a2.profile;
+      const head = (0, import_csv.renderDatevHead)((_b2 = company == null ? void 0 : company.name) != null ? _b2 : "Firma", (_c2 = company == null ? void 0 : company.taxNumber) != null ? _c2 : "");
+      res.type("text/plain; charset=iso-8859-1");
+      res.set("Content-Disposition", 'attachment; filename="rechnungen.datev"');
+      res.send(`${head}
+${(0, import_csv.renderDatevRows)(invoices)}`);
     })
   );
   app.post(
@@ -626,6 +789,33 @@ function createApiServer(deps) {
     })
   );
   app.post(
+    "/api/restore/preview",
+    route(async (req, res) => {
+      var _a2, _b2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
+      let data;
+      if (typeof body.dataBase64 === "string" && body.dataBase64.length > 0) {
+        try {
+          data = Buffer.from(body.dataBase64, "base64");
+        } catch {
+          res.status(400).json({ error: "dataBase64 is not valid base64" });
+          return;
+        }
+      } else if (typeof body.filename === "string" && body.filename.length > 0) {
+        try {
+          data = await storage.read(`backups/${(_b2 = body.filename.split("/").pop()) != null ? _b2 : ""}`);
+        } catch {
+          res.status(404).json({ error: "Backup file not found" });
+          return;
+        }
+      } else {
+        res.status(400).json({ error: "filename or dataBase64 is required" });
+        return;
+      }
+      res.json(await (0, import_backup.previewRestore)(db, data));
+    })
+  );
+  app.post(
     "/api/restore",
     route(async (req, res) => {
       var _a2, _b2;
@@ -725,8 +915,9 @@ function createApiServer(deps) {
       }
     })
   );
-  app.get("/api/customers", (_req, res) => {
-    res.json(db.listCustomers());
+  app.get("/api/customers", (req, res) => {
+    const query = typeof req.query.q === "string" ? req.query.q : void 0;
+    res.json(db.listCustomers(query));
   });
   app.post(
     "/api/customers/number-assign",

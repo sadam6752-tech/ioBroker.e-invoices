@@ -65,6 +65,18 @@ export interface Invoice {
 	stornoOfId: string | null;
 	skontoPercent: number;
 	skontoDueDate: string | null;
+	/** ISO time of the handover to the customer, null while unsent. */
+	sentAt: string | null;
+	/** Delivery channel, e.g. `E-Mail`. */
+	sendChannel: string | null;
+	/** § 16 Abs. 2 Nr. 2 UStG check outcome. */
+	paymentCheck: string | null;
+	paymentCheckedAt: string | null;
+	/** Last dunning step. */
+	remindedAt: string | null;
+	reminderLevel: number;
+	/** Earliest legal deletion date (§ 147 AO). */
+	retainUntil: string | null;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -105,6 +117,54 @@ export interface Product {
 export interface ValidationOutcome {
 	formatErrors: string[];
 	businessErrors: string[];
+}
+
+/** § 16 Abs. 2 Nr. 2 UStG: whether the payment method has to be checked. */
+export interface PaymentCheckDuty {
+	/** True when the check is legally required. */
+	required: boolean;
+	/** Human-readable reason, empty when not required. */
+	reason: string;
+	/** Whole days the invoice is overdue. */
+	overdueDays: number;
+}
+
+/** One issued invoice that is overdue and due for a dunning reminder. */
+export interface ReminderCandidate {
+	/** The invoice itself. */
+	invoice: Invoice;
+	/** Whole days overdue. */
+	overdueDays: number;
+	/** Reminders already sent. */
+	level: number;
+	/** Skonto is still available, so the reminder must mention the discount. */
+	skontoActive: boolean;
+}
+
+/** Reusable invoice content, e.g. a monthly maintenance invoice. */
+export interface InvoiceTemplate {
+	/** Template UUID. */
+	id: string;
+	/** Display name. */
+	name: string;
+	/** Draft content reused for new invoices. */
+	body: Record<string, unknown>;
+}
+
+/** What a restore would change, without writing anything. */
+export interface RestorePreview {
+	/** Invoice count in the backup. */
+	invoices: number;
+	/** Issued invoices among them. */
+	issued: number;
+	/** Invoice count currently in the database. */
+	currentInvoices: number;
+	/** Numbers that would be overwritten by this backup. */
+	overwritten: string[];
+	/** Numbers that only exist here and would be new. */
+	added: string[];
+	/** Files that would be written. */
+	filesWritten: number;
 }
 
 /** One re-render step of an issued invoice's artifacts. */
@@ -235,6 +295,39 @@ export const api = {
 	update: (id: string, patch: Partial<DraftInput>) =>
 		request<Invoice>(`/api/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
 	issue: (id: string) => request<Invoice>(`/api/invoices/${id}/issue`, { method: 'POST' }),
+	issueBatch: (ids: string[]) =>
+		request<{ issued: Invoice[]; failed: { id: string; error: string }[] }>('/api/invoices/issue-batch', {
+			method: 'POST',
+			body: JSON.stringify({ ids }),
+		}),
+	/** Deletes a draft. Issued invoices must be cancelled with a Storno. */
+	deleteDraft: (id: string) => request<void>(`/api/invoices/${id}`, { method: 'DELETE' }),
+	/** Records the handover of an issued invoice to the customer. */
+	markSent: (id: string, channel?: string) =>
+		request<Invoice>(`/api/invoices/${id}/sent`, {
+			method: 'POST',
+			body: JSON.stringify({ channel }),
+		}),
+	/**
+	 * Reports the § 16 Abs. 2 Nr. 2 UStG duty, or stores the outcome when one
+	 * is passed.
+	 */
+	paymentCheck: (id: string, outcome?: string) =>
+		request<{ invoice: Invoice; duty: PaymentCheckDuty; checked: boolean }>(
+			`/api/invoices/${id}/payment-check`,
+			{ method: 'POST', body: JSON.stringify({ outcome }) },
+		),
+	reminders: () => request<ReminderCandidate[]>('/api/reminders'),
+	reminded: (id: string) => request<Invoice>(`/api/invoices/${id}/reminded`, { method: 'POST' }),
+	invoiceTemplates: {
+		list: () => request<InvoiceTemplate[]>('/api/invoice-templates'),
+		create: (name: string, body: unknown) =>
+			request<InvoiceTemplate>('/api/invoice-templates', {
+				method: 'POST',
+				body: JSON.stringify({ name, body }),
+			}),
+		remove: (id: string) => request<void>(`/api/invoice-templates/${id}`, { method: 'DELETE' }),
+	},
 	setPaid: (id: string, paid: boolean, paidAt?: string) =>
 		request<Invoice>(`/api/invoices/${id}/paid`, {
 			method: 'POST',
@@ -264,7 +357,8 @@ export const api = {
 			request<CompanyProfile>(`/api/company-profiles/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
 	},
 	customers: {
-		list: () => request<CompanyProfile[]>('/api/customers'),
+		/** `q` enables the fuzzy search over name, number and city. */
+		list: (q?: string) => request<CompanyProfile[]>(`/api/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
 		create: (name: string, profile: Party) =>
 			request<CompanyProfile>('/api/customers', { method: 'POST', body: JSON.stringify({ name, profile }) }),
 		update: (id: string, patch: { name?: string; profile?: Party }) =>
@@ -284,6 +378,22 @@ export const api = {
 		const q = new URLSearchParams(params).toString();
 		return `/api/invoices/export.xlsx${q ? `?${q}` : ''}`;
 	},
+	/** Semicolon CSV for the accounting department. */
+	csvUrl: (params: Record<string, string> = {}) => {
+		const q = new URLSearchParams(params).toString();
+		return `/api/invoices/export.csv${q ? `?${q}` : ''}`;
+	},
+	/** DATEV booking lines. */
+	datevUrl: (params: Record<string, string> = {}) => {
+		const q = new URLSearchParams(params).toString();
+		return `/api/invoices/export.datev${q ? `?${q}` : ''}`;
+	},
+	/** What a restore would change, without writing anything. */
+	restorePreview: (filename?: string, dataBase64?: string) =>
+		request<RestorePreview>('/api/restore/preview', {
+			method: 'POST',
+			body: JSON.stringify({ filename, dataBase64 }),
+		}),
 };
 
 /** Minimal HTML escaping for user data. */

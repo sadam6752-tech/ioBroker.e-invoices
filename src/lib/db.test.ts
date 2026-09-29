@@ -49,12 +49,15 @@ describe('db => migrations', () => {
 	it('migrates a fresh database to the latest version', () => {
 		const db = openMemoryDb();
 		try {
-			expect(db.currentVersion()).to.equal(8);
+			expect(db.currentVersion()).to.equal(10);
 			const columns = db.tableColumns('invoices');
 			expect(columns).to.contain('payment_terms');
 			expect(columns).to.contain('employee_code');
+			expect(columns).to.contain('sent_at');
+			expect(columns).to.contain('retain_until');
 			expect(db.tableColumns('customers')).to.contain('profile_json');
 			expect(db.tableColumns('render_history')).to.contain('previous_path');
+			expect(db.tableColumns('invoice_templates')).to.contain('body_json');
 		} finally {
 			db.close();
 		}
@@ -64,7 +67,7 @@ describe('db => migrations', () => {
 		const db = openMemoryDb();
 		try {
 			db.migrate();
-			expect(db.currentVersion()).to.equal(8);
+			expect(db.currentVersion()).to.equal(10);
 		} finally {
 			db.close();
 		}

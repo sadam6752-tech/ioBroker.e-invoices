@@ -413,6 +413,67 @@ export function todayIso(date = new Date()): string {
 }
 
 /**
+ * Whole days between two ISO dates; negative when `to` lies in the past.
+ *
+ * @param from - ISO start date.
+ * @param to - ISO end date.
+ * @returns Difference in days, 0 when a date is unparsable.
+ */
+export function daysBetween(from: string, to: string): number {
+	const a = Date.parse(`${from}T00:00:00Z`);
+	const b = Date.parse(`${to}T00:00:00Z`);
+	if (Number.isNaN(a) || Number.isNaN(b)) {
+		return 0;
+	}
+	return Math.floor((b - a) / 86_400_000);
+}
+
+/** Result of the § 16 Abs. 2 Nr. 2 UStG payment-method check. */
+export interface PaymentCheckDuty {
+	/** True when the check is legally required. */
+	required: boolean;
+	/** Human-readable reason, empty when not required. */
+	reason: string;
+	/** Whole days the invoice is overdue (0 when not yet due). */
+	overdueDays: number;
+}
+
+/**
+ * § 16 Abs. 2 Nr. 2 UStG: once an invoice is unpaid and either more than 10.000
+ * EUR gross or more than 40 days overdue, the *payment method* has to be
+ * checked before the next delivery. The law prescribes no method, so the
+ * adapter only reports the duty and leaves the decision to the user.
+ *
+ * @param dueDate - ISO due date, null when payable on receipt.
+ * @param grossTotal - Gross total in EUR.
+ * @param today - ISO reference date, default today.
+ * @returns Whether the check is due, with the reason and the overdue days.
+ */
+export function paymentCheckDuty(
+	dueDate: string | null,
+	grossTotal: number,
+	today: string = todayIso(),
+): PaymentCheckDuty {
+	const overdueDays = dueDate ? Math.max(0, daysBetween(dueDate, today)) : 0;
+	// Both alternatives of the paragraph trigger the duty on their own.
+	if (Number(grossTotal) > 10_000) {
+		return {
+			required: true,
+			reason: `Betrag über 10.000 EUR (${Number(grossTotal).toFixed(2)} EUR) – Zahlungsweise nach § 16 Abs. 2 Nr. 2 UStG prüfen.`,
+			overdueDays,
+		};
+	}
+	if (overdueDays > 40) {
+		return {
+			required: true,
+			reason: `Mehr als 40 Tage überfällig (${overdueDays} Tage) – Zahlungsweise nach § 16 Abs. 2 Nr. 2 UStG prüfen.`,
+			overdueDays,
+		};
+	}
+	return { required: false, reason: '', overdueDays };
+}
+
+/**
  * Creates an empty invoice draft skeleton (used by the control command
  * and later the PWA "new invoice" flow). Drafts may be incomplete —
  * validation happens only at issue.

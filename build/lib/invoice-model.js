@@ -24,6 +24,7 @@ __export(invoice_model_exports, {
   blankDraft: () => blankDraft,
   calcSkonto: () => calcSkonto,
   calcTotals: () => calcTotals,
+  daysBetween: () => daysBetween,
   formatCustomerNumber: () => formatCustomerNumber,
   formatDeliveryDateDe: () => formatDeliveryDateDe,
   formatInvoiceNumber: () => formatInvoiceNumber,
@@ -33,6 +34,7 @@ __export(invoice_model_exports, {
   normalizeEmployeeCode: () => normalizeEmployeeCode,
   normalizeNumberFormat: () => normalizeNumberFormat,
   parseDeliveryPeriod: () => parseDeliveryPeriod,
+  paymentCheckDuty: () => paymentCheckDuty,
   renderInvoiceNumber: () => renderInvoiceNumber,
   roundCents: () => roundCents,
   todayIso: () => todayIso,
@@ -172,6 +174,32 @@ function formatCustomerNumber(seq) {
 function todayIso(date = /* @__PURE__ */ new Date()) {
   return date.toISOString().slice(0, 10);
 }
+function daysBetween(from, to) {
+  const a = Date.parse(`${from}T00:00:00Z`);
+  const b = Date.parse(`${to}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) {
+    return 0;
+  }
+  return Math.floor((b - a) / 864e5);
+}
+function paymentCheckDuty(dueDate, grossTotal, today = todayIso()) {
+  const overdueDays = dueDate ? Math.max(0, daysBetween(dueDate, today)) : 0;
+  if (Number(grossTotal) > 1e4) {
+    return {
+      required: true,
+      reason: `Betrag \xFCber 10.000 EUR (${Number(grossTotal).toFixed(2)} EUR) \u2013 Zahlungsweise nach \xA7 16 Abs. 2 Nr. 2 UStG pr\xFCfen.`,
+      overdueDays
+    };
+  }
+  if (overdueDays > 40) {
+    return {
+      required: true,
+      reason: `Mehr als 40 Tage \xFCberf\xE4llig (${overdueDays} Tage) \u2013 Zahlungsweise nach \xA7 16 Abs. 2 Nr. 2 UStG pr\xFCfen.`,
+      overdueDays
+    };
+  }
+  return { required: false, reason: "", overdueDays };
+}
 function blankDraft(date = todayIso()) {
   const emptyParty = { name: "", street: "", zip: "", city: "", country: "DE" };
   return {
@@ -277,6 +305,7 @@ function validateInvoiceForIssue(input) {
   blankDraft,
   calcSkonto,
   calcTotals,
+  daysBetween,
   formatCustomerNumber,
   formatDeliveryDateDe,
   formatInvoiceNumber,
@@ -286,6 +315,7 @@ function validateInvoiceForIssue(input) {
   normalizeEmployeeCode,
   normalizeNumberFormat,
   parseDeliveryPeriod,
+  paymentCheckDuty,
   renderInvoiceNumber,
   roundCents,
   todayIso,

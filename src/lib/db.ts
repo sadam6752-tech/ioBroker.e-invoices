@@ -79,6 +79,20 @@ export interface StoredInvoice {
 	skontoPercent: number;
 	/** Last day for the cash discount, null when none. */
 	skontoDueDate: string | null;
+	/** ISO date/time of the handover to the customer, null while unsent. */
+	sentAt: string | null;
+	/** How it was delivered, e.g. `E-Mail`. */
+	sendChannel: string | null;
+	/** § 16 Abs. 2 Nr. 2 UStG payment-method check: pending | passed | failed. */
+	paymentCheck: string | null;
+	/** When the payment method was checked. */
+	paymentCheckedAt: string | null;
+	/** When the last reminder was sent. */
+	remindedAt: string | null;
+	/** How many reminders were already sent. */
+	reminderLevel: number;
+	/** Earliest legal deletion date (§ 147 AO / § 14b UStG). */
+	retainUntil: string | null;
 	/** Creation timestamp. */
 	createdAt: string;
 	/** Last update timestamp. */
@@ -103,8 +117,14 @@ export interface InvoiceFilter {
 	status?: InvoiceStatus;
 	/** Filter by issue year. */
 	year?: number;
-	/** Free-text search over number and parties. */
+	/** Free-text search over number, parties, position texts and notes. */
 	query?: string;
+	/** Only sent (true) or only unsent (false) invoices. */
+	sent?: boolean;
+	/** Sort column: date, amount, customer, number, due or status. */
+	sort?: 'date' | 'amount' | 'customer' | 'number' | 'due' | 'status';
+	/** Sort direction, default desc. */
+	order?: 'asc' | 'desc';
 	/** Page size 1-500, default 50. */
 	limit?: number;
 	/** Page offset, default 0. */
@@ -113,6 +133,143 @@ export interface InvoiceFilter {
 
 function nowIso(): string {
 	return new Date().toISOString();
+}
+
+/**
+ * Lowercase, collapse whitespace and drop diacritics for fuzzy comparison.
+ *
+ * @param value - Raw text.
+ * @returns Comparable form.
+ */
+function normalizeForSearch(value: string): string {
+	return value
+		.toLowerCase()
+		.normalize('NFD')
+		.replace(/[̀-ͯ]/g, '')
+		.replace(/ß/g, 'ss')
+		.replace(/[^a-z0-9]+/g, ' ')
+		.trim();
+}
+
+/**
+ * Levenshtein distance with a two-row buffer. Used to survive typos and
+ * spelling variants such as "Brod GmbH" vs "Brod GMBH & Co".
+ *
+ * @param a - First string.
+ * @param b - Second string.
+ * @returns Edit distance.
+ */
+export function levenshtein(a: string, b: string): number {
+	if (a === b) {
+		return 0;
+	}
+	if (!a.length) {
+		return b.length;
+	}
+	if (!b.length) {
+		return a.length;
+	}
+	let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+	let curr = new Array<number>(b.length + 1);
+	for (let i = 1; i <= a.length; i++) {
+		curr[0] = i;
+		for (let j = 1; j <= b.length; j++) {
+			const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+			curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+		}
+		[prev, curr] = [curr, prev];
+	}
+	return prev[b.length];
+}
+
+/**
+ * How well a customer matches the search term; higher is better.
+ *
+ * @param customer - Candidate.
+ * @param needle - Normalised search term.
+ * @returns Relevance score, 0 when the customer does not match.
+ */
+function customerScore(customer: StoredCustomer, needle: string): number {
+	const haystacks = [
+		customer.name,
+		customer.profile.name,
+		customer.profile.customerNumber ?? '',
+		customer.profile.city ?? '',
+	]
+		.map(normalizeForSearch)
+		.filter(Boolean);
+	if (!haystacks.length) {
+		return 0;
+	}
+	let best = 0;
+	for (const hay of haystacks) {
+		if (hay === needle) {
+			return 1000;
+		}
+		// prefix matches are what a human expects from a search box
+		if (hay.startsWith(needle)) {
+			best = Math.max(best, 500 - hay.length);
+		}
+		if (hay.includes(needle)) {
+			best = Math.max(best, 400 - hay.length);
+		}
+		// Compare word by word: a typo hits one word, not the whole name, so
+		// "brof" must match "Brod GmbH & Co. KG" instead of its full 16 chars.
+		const words = hay.split(' ');
+		for (const word of words) {
+			if (word.startsWith(needle)) {
+				best = Math.max(best, 300 - word.length);
+			}
+			// one typo per three characters, at least three characters
+			const tolerance = needle.length >= 5 ? 2 : needle.length >= 3 ? 1 : 0;
+			if (
+				tolerance > 0 &&
+				Math.abs(word.length - needle.length) <= tolerance &&
+				levenshtein(word, needle) <= tolerance
+			) {
+				best = Math.max(best, 200);
+			}
+		}
+	}
+	return best;
+}
+
+/**
+ * Ranks customers by relevance, dropping everything that does not match at
+ * all. A fixed number of results is enough to catch a typo without flooding
+ * the picker with unrelated customers.
+ *
+ * @param customers - All customers.
+ * @param query - Search term.
+ * @returns Matching customers, best first.
+ */
+export function rankCustomers(customers: StoredCustomer[], query: string): StoredCustomer[] {
+	const needle = normalizeForSearch(query);
+	if (!needle) {
+		return customers;
+	}
+	return customers
+		.map(c => ({ c, score: customerScore(c, needle) }))
+		.filter(entry => entry.score > 0)
+		.sort((a, b) => b.score - a.score || a.c.name.localeCompare(b.c.name, 'de'))
+		.slice(0, 50)
+		.map(entry => entry.c);
+}
+
+/**
+ * Earliest legal deletion date of an issued invoice: ten years after the end
+ * of the year it was issued (§ 147 Abs. 3 AO, § 14b Abs. 3 UStG).
+ *
+ * @param issueDate - ISO issue date.
+ * @returns ISO date, or null when the input is unusable.
+ */
+export function retentionUntil(issueDate: string): string | null {
+	const year = Number((issueDate ?? '').slice(0, 4));
+	if (!Number.isInteger(year) || year < 1990 || year > 2200) {
+		return null;
+	}
+	// Retention runs to the end of the tenth year after issuance.
+	return `${year + 10}-12-31`;
 }
 
 function parseJson<T>(value: string, label: string): T {
@@ -148,6 +305,13 @@ interface InvoiceRow {
 	storno_of_id: string | null;
 	skonto_percent: number;
 	skonto_due_date: string | null;
+	sent_at: string | null;
+	send_channel: string | null;
+	payment_check: string | null;
+	payment_checked_at: string | null;
+	reminded_at: string | null;
+	reminder_level: number;
+	retain_until: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -178,6 +342,13 @@ function mapRow(row: InvoiceRow): StoredInvoice {
 		stornoOfId: row.storno_of_id,
 		skontoPercent: row.skonto_percent ?? 0,
 		skontoDueDate: row.skonto_due_date,
+		sentAt: row.sent_at,
+		sendChannel: row.send_channel,
+		paymentCheck: row.payment_check,
+		paymentCheckedAt: row.payment_checked_at,
+		remindedAt: row.reminded_at,
+		reminderLevel: row.reminder_level,
+		retainUntil: row.retain_until,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -498,6 +669,20 @@ export interface RenderHistoryEntry {
 	createdAt: string;
 }
 
+/** Reusable invoice content, e.g. a monthly maintenance invoice. */
+export interface StoredInvoiceTemplate {
+	/** Template UUID. */
+	id: string;
+	/** Display name. */
+	name: string;
+	/** Draft content, reused for new invoices. */
+	body: InvoiceDraftInput;
+	/** Creation timestamp. */
+	createdAt: string;
+	/** Last update timestamp. */
+	updatedAt: string;
+}
+
 /**
  * Invoice database with atomic numbering and migrations.
  */
@@ -694,18 +879,41 @@ export class InvoiceDatabase {
 			params.push(String(filter.year));
 		}
 		if (filter.query) {
-			where.push(`(number LIKE ? OR buyer_json LIKE ? OR seller_json LIKE ?)`);
+			// lines_json holds the position texts, so a search for "Ladersessel"
+			// finds the invoice even when number and customer do not match.
+			where.push(
+				`(number LIKE ? OR buyer_json LIKE ? OR seller_json LIKE ? OR lines_json LIKE ? OR notes LIKE ?)`,
+			);
 			const like = `%${filter.query}%`;
-			params.push(like, like, like);
+			params.push(like, like, like, like, like);
+		}
+		if (filter.sent === true) {
+			where.push(`sent_at IS NOT NULL`);
+		} else if (filter.sent === false) {
+			where.push(`sent_at IS NULL`);
 		}
 		// NaN-safe: an unparsable ?limit=abc must not reach the driver as NaN.
 		const rawLimit = Number(filter.limit);
 		const rawOffset = Number(filter.offset);
 		const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 500) : 50;
 		const offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
+		// Every sort column is a fixed whitelist, never client input, so no
+		// injection via ORDER BY is possible.
+		const sortColumns: Record<string, string> = {
+			date: 'issue_date',
+			// single quotes: SQLite wants them around the JSON path, and the
+			// value is already numeric, so ordering is a plain numeric compare
+			amount: `json_extract(totals_json, '$.grossTotal')`,
+			customer: 'buyer_json',
+			number: 'number',
+			due: 'due_date',
+			status: 'status',
+		};
+		const column = sortColumns[filter.sort ?? 'date'] ?? 'issue_date';
+		const direction = filter.order === 'asc' ? 'ASC' : 'DESC';
 		const rows = this.db
 			.prepare(
-				`SELECT * FROM invoices ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
+				`SELECT * FROM invoices ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY ${column} ${direction}, id DESC LIMIT ? OFFSET ?`,
 			)
 			.all(...params, limit, offset) as InvoiceRow[];
 		return rows.map(mapRow);
@@ -827,9 +1035,16 @@ export class InvoiceDatabase {
 			// rules can never be frozen with stale figures.
 			this.db
 				.prepare(
-					`UPDATE invoices SET number = ?, status = 'issued', totals_json = ?, updated_at = ? WHERE id = ? AND status = 'draft'`,
+					`UPDATE invoices SET number = ?, status = 'issued', totals_json = ?, retain_until = ?, updated_at = ? WHERE id = ? AND status = 'draft'`,
 				)
-				.run(number, JSON.stringify(calcTotals(current.lines)), nowIso(), id);
+				.run(
+					number,
+					JSON.stringify(calcTotals(current.lines)),
+					// § 147 AO / § 14b UStG: ten years, computed once at issuance
+					retentionUntil(current.issueDate),
+					nowIso(),
+					id,
+				);
 			const issued = this.getInvoice(id);
 			if (!issued || issued.number !== number) {
 				throw new Error('Issue transaction failed');
@@ -1509,6 +1724,206 @@ export class InvoiceDatabase {
 	}
 
 	/**
+	 * Deletes a draft. Issued, cancelled and Storno documents are never deleted:
+	 * they are tax relevant and must stay reproducible (GoBD, § 147 AO).
+	 *
+	 * @param id - Draft UUID.
+	 */
+	public deleteDraft(id: string): void {
+		const current = this.getInvoice(id);
+		if (!current) {
+			throw new Error(`Invoice not found: ${id}`);
+		}
+		if (current.status !== 'draft') {
+			throw new Error('Only drafts can be deleted. An issued invoice must be cancelled with a Storno.');
+		}
+		if (current.number) {
+			// A consumed number must never be freed for reuse.
+			throw new Error('This draft already carries a number and cannot be deleted.');
+		}
+		this.db.prepare(`DELETE FROM invoices WHERE id = ? AND status = 'draft'`).run(id);
+	}
+
+	/**
+	 * Records the handover of an issued invoice to the customer.
+	 *
+	 * @param id - Issued invoice UUID.
+	 * @param sentAt - ISO timestamp, default now.
+	 * @param channel - Delivery channel, e.g. `E-Mail`.
+	 */
+	public markSent(id: string, sentAt: string, channel: string): StoredInvoice {
+		const current = this.getInvoice(id);
+		if (!current) {
+			throw new Error(`Invoice not found: ${id}`);
+		}
+		if (current.status === 'draft') {
+			throw new Error('Only issued invoices can be marked as sent.');
+		}
+		this.db
+			.prepare(`UPDATE invoices SET sent_at = ?, send_channel = ?, updated_at = ? WHERE id = ?`)
+			.run(sentAt, channel, nowIso(), id);
+		return this.getInvoice(id) as StoredInvoice;
+	}
+
+	/**
+	 * Stores the result of the § 16 Abs. 2 Nr. 2 UStG payment-method check.
+	 *
+	 * @param id - Issued invoice UUID.
+	 * @param outcome - `passed`, `failed` or a free-text remark.
+	 */
+	public setPaymentCheck(id: string, outcome: string): StoredInvoice {
+		this.db
+			.prepare(`UPDATE invoices SET payment_check = ?, payment_checked_at = ?, updated_at = ? WHERE id = ?`)
+			.run(outcome, nowIso(), nowIso(), id);
+		const updated = this.getInvoice(id);
+		if (!updated) {
+			throw new Error(`Invoice not found: ${id}`);
+		}
+		return updated;
+	}
+
+	/**
+	 * Counts and remembers a dunning step.
+	 *
+	 * @param id - Issued invoice UUID.
+	 * @param on - Reference day, used for the "already reminded today" check.
+	 */
+	public registerReminder(id: string, on: string = todayIso()): StoredInvoice {
+		this.db
+			.prepare(
+				`UPDATE invoices SET reminder_level = reminder_level + 1, reminded_at = ?, updated_at = ? WHERE id = ?`,
+			)
+			.run(`${on}T00:00:00.000Z`, nowIso(), id);
+		const updated = this.getInvoice(id);
+		if (!updated) {
+			throw new Error(`Invoice not found: ${id}`);
+		}
+		return updated;
+	}
+
+	/**
+	 * Sets the earliest legal deletion date (§ 147 AO / § 14b UStG, 10 years).
+	 *
+	 * @param id - Issued invoice UUID.
+	 * @param issueDate - ISO issue date the period starts from.
+	 */
+	public setRetention(id: string, issueDate: string): StoredInvoice {
+		const until = retentionUntil(issueDate);
+		this.db.prepare(`UPDATE invoices SET retain_until = ? WHERE id = ?`).run(until, id);
+		const updated = this.getInvoice(id);
+		if (!updated) {
+			throw new Error(`Invoice not found: ${id}`);
+		}
+		return updated;
+	}
+
+	/**
+	 * Creates a reusable invoice content template (recurring maintenance, flat
+	 * fees, ...). The buyer is left empty on purpose: a template describes the
+	 * positions, the customer is picked per invoice.
+	 *
+	 * @param name - Display name.
+	 * @param body - Draft content to reuse.
+	 */
+	public createInvoiceTemplate(name: string, body: InvoiceDraftInput): StoredInvoiceTemplate {
+		if (!name.trim()) {
+			throw new Error('Template needs a name');
+		}
+		const id = randomUUID();
+		const stamp = nowIso();
+		this.db
+			.prepare(
+				`INSERT INTO invoice_templates (id, name, body_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			)
+			.run(id, name, JSON.stringify(body), stamp, stamp);
+		return { id, name, body, createdAt: stamp, updatedAt: stamp };
+	}
+
+	/**
+	 * Lists invoice content templates by name.
+	 */
+	public listInvoiceTemplates(): StoredInvoiceTemplate[] {
+		const rows = this.db.prepare(`SELECT * FROM invoice_templates ORDER BY name ASC`).all() as {
+			id: string;
+			name: string;
+			body_json: string;
+			created_at: string;
+			updated_at: string;
+		}[];
+		return rows.map(row => ({
+			id: row.id,
+			name: row.name,
+			body: parseJson(row.body_json, 'invoice template'),
+			createdAt: row.created_at,
+			updatedAt: row.updated_at,
+		}));
+	}
+
+	/**
+	 * Updates an invoice content template.
+	 *
+	 * @param id - Template UUID.
+	 * @param patch - New name and/or body.
+	 * @param patch.name - New display name.
+	 * @param patch.body - New draft content.
+	 * @returns The updated template.
+	 */
+	public updateInvoiceTemplate(
+		id: string,
+		patch: { name?: string; body?: InvoiceDraftInput },
+	): StoredInvoiceTemplate {
+		if (!this.getInvoiceTemplate(id)) {
+			throw new Error(`Template not found: ${id}`);
+		}
+		if (patch.name !== undefined) {
+			if (!patch.name.trim()) {
+				throw new Error('Template needs a name');
+			}
+			this.db.prepare(`UPDATE invoice_templates SET name = ? WHERE id = ?`).run(patch.name, id);
+		}
+		if (patch.body !== undefined) {
+			this.db
+				.prepare(`UPDATE invoice_templates SET body_json = ? WHERE id = ?`)
+				.run(JSON.stringify(patch.body), id);
+		}
+		this.db.prepare(`UPDATE invoice_templates SET updated_at = ? WHERE id = ?`).run(nowIso(), id);
+		return this.getInvoiceTemplate(id) as StoredInvoiceTemplate;
+	}
+
+	/**
+	 * Loads one invoice content template.
+	 *
+	 * @param id - Template UUID.
+	 */
+	public getInvoiceTemplate(id: string): StoredInvoiceTemplate | null {
+		const row = this.db.prepare(`SELECT * FROM invoice_templates WHERE id = ?`).get(id) as
+			{ id: string; name: string; body_json: string; created_at: string; updated_at: string } | undefined;
+		if (!row) {
+			return null;
+		}
+		return {
+			id: row.id,
+			name: row.name,
+			body: parseJson(row.body_json, 'invoice template'),
+			createdAt: row.created_at,
+			updatedAt: row.updated_at,
+		};
+	}
+
+	/**
+	 * Deletes an invoice content template. Issued invoices keep their own copy
+	 * of the content, so deleting a template never changes a document.
+	 *
+	 * @param id - Template UUID.
+	 */
+	public deleteInvoiceTemplate(id: string): void {
+		if (!this.getInvoiceTemplate(id)) {
+			throw new Error(`Template not found: ${id}`);
+		}
+		this.db.prepare(`DELETE FROM invoice_templates WHERE id = ?`).run(id);
+	}
+
+	/**
 	 * Creates a company (seller) profile; the first one becomes default.
 	 *
 	 * @param name - Display name.
@@ -1738,11 +2153,18 @@ export class InvoiceDatabase {
 	}
 
 	/**
-	 * Lists customers by name.
+	 * Lists customers by name, optionally filtered by a fuzzy search term.
+	 *
+	 * @param query - Search term; typos and case differences are tolerated.
 	 */
-	public listCustomers(): StoredCustomer[] {
-		const rows = this.db.prepare(`SELECT * FROM customers ORDER BY name ASC`).all() as CustomerRow[];
-		return rows.map(mapCustomerRow);
+	public listCustomers(query?: string): StoredCustomer[] {
+		const all = this.db.prepare(`SELECT * FROM customers ORDER BY name ASC`).all() as CustomerRow[];
+		const mapped = all.map(mapCustomerRow);
+		const needle = (query ?? '').trim();
+		if (!needle) {
+			return mapped;
+		}
+		return rankCustomers(mapped, needle);
 	}
 
 	/**

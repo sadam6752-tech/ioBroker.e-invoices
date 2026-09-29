@@ -68,6 +68,15 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 				${inv.status === 'draft' ? `<button id="d-issue">Ausstellen</button><span class="muted">Danach nicht mehr änderbar.</span>` : ''}
 				${inv.status === 'issued' ? `<label class="pay"><input type="checkbox" id="d-paid" ${inv.paid ? 'checked' : ''} /><span>bezahlt${inv.paid && inv.paidAt ? ` (${esc(inv.paidAt.slice(0, 10))})` : ''}</span></label>` : ''}
 				${inv.status === 'issued' ? `<button class="secondary" id="d-storno">Storno</button>` : ''}
+				${
+					inv.status === 'issued'
+						? inv.sentAt
+							? `<span class="badge issued" title="${esc(
+									inv.sendChannel ?? 'E-Mail',
+								)} am ${esc(inv.sentAt.slice(0, 10))}">versendet</span>`
+							: `<button class="secondary" id="d-sent" title="Als versendet markieren">Als versendet markieren</button>`
+						: ''
+				}
 				${inv.status !== 'draft' && inv.pdfPath ? `<button class="secondary" id="d-rerender" title="Erzeugt die PDF neu, z. B. nach einer Layout-Korrektur. Der Inhalt der Rechnung bleibt unverändert, das Original wird archiviert.">Neu rendern</button>` : ''}
 				<button class="secondary" id="d-validate">Validieren</button>
 			${inv.pdfPath ? `<button class="secondary" data-view="pdf">PDF ansehen</button>` : ''}
@@ -75,7 +84,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			${inv.status === 'issued' && inv.pdfPath ? `<button class="secondary" id="d-mail">E-Mail (PDF)</button>` : ''}
 			${inv.xml ? `<button class="secondary" data-dl="xml">XML ↓</button>` : ''}
 			${inv.xlsxPath ? `<button class="secondary" data-dl="xlsx">Excel ↓</button>` : ''}
-			</div><div id="d-out"></div><div id="d-history"></div></div>`;
+			</div><div id="d-out"></div><div id="d-duty"></div><div id="d-history"></div></div>`;
 
 		const out = root.querySelector('#d-out')!;
 		const fail = (e: unknown): void => {
@@ -181,6 +190,15 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 				? `<p class="muted">PDF wurde gespeichert. Die Mail wurde an ${esc(to)} vorbereitet – bitte die PDF aus dem Download-Ordner anhängen.</p>`
 				: `<p class="muted">PDF wurde gespeichert. Für diesen Kunden ist keine E-Mail hinterlegt – bitte im Mailfenster eintragen und die PDF anhängen.</p>`;
 		});
+		root.querySelector('#d-sent')?.addEventListener('click', async () => {
+			try {
+				inv = await api.markSent(inv.id, 'E-Mail');
+				out.innerHTML = `<p style="color:var(--ok)">Als versendet markiert${inv.sentAt ? ` (${esc(inv.sentAt.slice(0, 10))})` : ''}.</p>`;
+				root.querySelector('#d-sent')?.remove();
+			} catch (e) {
+				fail(e);
+			}
+		});
 		root.querySelector('#d-rerender')?.addEventListener('click', async () => {
 			const reason = window.prompt(
 				'Grund für das Neu rendern (wird protokolliert, z. B. "Layout-Korrektur"):',
@@ -205,7 +223,34 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 						? ` Das Original liegt als <code>${esc(res.archivedPath.split('/').pop() ?? '')}</code> daneben.`
 						: ''
 				}</p>`;
-				await loadHistory();
+		await loadHistory();
+
+		// § 16 Abs. 2 Nr. 2 UStG: the server states whether the payment method
+		// has to be checked. The decision itself stays with the user.
+		const dutyBox = root.querySelector('#d-duty')!;
+		if (inv.status !== 'draft' && !inv.paid) {
+			try {
+				const { duty, checked } = await api.paymentCheck(inv.id);
+				if (duty.required && !checked) {
+					dutyBox.innerHTML = `<p class="error">${esc(duty.reason)}</p>
+						<button class="secondary" id="d-duty-ok">Zahlungsweise geprüft</button>`;
+					root.querySelector('#d-duty-ok')?.addEventListener('click', async () => {
+						try {
+							await api.paymentCheck(inv.id, 'geprüft');
+							dutyBox.innerHTML = `<p style="color:var(--ok)">Zahlungsweise geprüft.</p>`;
+						} catch (e) {
+							fail(e);
+						}
+					});
+				} else if (checked) {
+					dutyBox.innerHTML = `<p class="muted">Zahlungsweise geprüft${
+						inv.paymentCheckedAt ? ` am ${esc(inv.paymentCheckedAt.slice(0, 10))}` : ''
+					}.</p>`;
+				}
+			} catch {
+				// the duty hint is informational, never block the view
+			}
+		}
 			} catch (e) {
 				out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
 			}

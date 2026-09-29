@@ -1,4 +1,4 @@
-import { apiFetch, downloadUrl, esc } from '../api';
+import { api, apiFetch, downloadUrl, esc, type RestorePreview } from '../api';
 
 interface BackupEntry {
 	id: string;
@@ -10,6 +10,41 @@ interface BackupEntry {
 
 function baseName(path: string): string {
 	return path.split('/').pop() ?? path;
+}
+
+/**
+ * A restore replaces the whole database, so the user always sees the effect
+ * first. The preview is mandatory: there is no way to skip it.
+ *
+ * @param source - Stored filename or an uploaded file.
+ * @returns Whether the user confirmed the restore.
+ */
+async function confirmRestore(source: { filename?: string; dataBase64?: string }): Promise<boolean> {
+	let preview: RestorePreview;
+	try {
+		preview = await api.restorePreview(source.filename, source.dataBase64);
+	} catch (e) {
+		alert(`Backup kann nicht gelesen werden: ${(e as Error).message}`);
+		return false;
+	}
+	const overwritten = preview.overwritten.length;
+	return window.confirm(
+		[
+			`Vorschau für ${source.filename ? baseName(source.filename) : 'der hochgeladenen Datei'}:`,
+			``,
+			`  Im Backup:   ${preview.invoices} Rechnungen (davon ${preview.issued} ausgestellt)`,
+			`  Aktuell:     ${preview.currentInvoices} Rechnungen`,
+			`  Dateien:     ${preview.filesWritten}`,
+			`  Neu dazu:    ${preview.added.length} Nummern`,
+			`  Überschrieben: ${overwritten} Nummern ${overwritten ? `(${preview.overwritten.slice(0, 5).join(', ')}${preview.overwritten.length > 5 ? ' …' : ''})` : ''}`,
+			``,
+			overwritten > 0
+				? 'ACHTUNG: Rechnungen, die nur hier existieren, gehen unwiederbringlich verloren.'
+				: 'Die aktuelle Datenbank wird durch das Backup ersetzt.',
+			``,
+			'Trotzdem wiederherstellen?',
+		].join('\n'),
+	);
 }
 
 /** Backup page: create, list, download, restore. */
@@ -80,7 +115,7 @@ export async function backup(root: HTMLElement): Promise<void> {
 		root.querySelectorAll('[data-restore]').forEach(btn =>
 			btn.addEventListener('click', async () => {
 				const filename = (btn as HTMLElement).dataset.restore ?? '';
-				if (!window.confirm(`Wirklich wiederherstellen aus ${baseName(filename)}? Die aktuelle Datenbank wird ersetzt.`)) return;
+				if (!(await confirmRestore({ filename }))) return;
 				try {
 					const res = await apiFetch('/api/restore', {
 						method: 'POST',
@@ -107,14 +142,26 @@ export async function backup(root: HTMLElement): Promise<void> {
 				render();
 				return;
 			}
-			if (!window.confirm(`Wirklich wiederherstellen aus ${file.name}? Die aktuelle Datenbank wird ersetzt.`)) return;
+			let dataBase64: string;
 			try {
-				const dataBase64 = await new Promise<string>((resolve, reject) => {
+				dataBase64 = await new Promise<string>((resolve, reject) => {
 					const r = new FileReader();
 					r.onload = () => resolve(String(r.result).split(',')[1]);
 					r.onerror = () => reject(new Error('Datei nicht lesbar'));
 					r.readAsDataURL(file);
 				});
+			} catch (e) {
+				message = (e as Error).message;
+				isError = true;
+				render();
+				return;
+			}
+			// The preview runs on the uploaded bytes, so a broken file is
+			// rejected before the current database is touched.
+			if (!(await confirmRestore({ dataBase64 }))) {
+				return;
+			}
+			try {
 				const res = await apiFetch('/api/restore', {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },

@@ -187,6 +187,38 @@ const MIGRATIONS = [
 			)`,
       `CREATE INDEX IF NOT EXISTS idx_render_history_invoice ON render_history(invoice_id)`
     ]
+  },
+  {
+    version: 9,
+    name: "dispatch-and-organisation",
+    sql: [
+      // GoBD/VAT: proof that the invoice was handed over to the customer.
+      `ALTER TABLE invoices ADD COLUMN sent_at TEXT`,
+      `ALTER TABLE invoices ADD COLUMN send_channel TEXT`,
+      // § 16 Abs. 2 Nr. 2 UStG: the payment method has to be checked once an
+      // invoice is overdue by more than 40 days or above 10.000 EUR.
+      `ALTER TABLE invoices ADD COLUMN payment_check TEXT`,
+      `ALTER TABLE invoices ADD COLUMN payment_checked_at TEXT`,
+      // Reminder state for the dunning job.
+      `ALTER TABLE invoices ADD COLUMN reminded_at TEXT`,
+      `ALTER TABLE invoices ADD COLUMN reminder_level INTEGER NOT NULL DEFAULT 0`,
+      // § 147 AO / § 14b UStG: the earliest deletion date of the record.
+      `ALTER TABLE invoices ADD COLUMN retain_until TEXT`
+    ]
+  },
+  {
+    version: 10,
+    name: "invoice-templates",
+    sql: [
+      // Reusable draft content (recurring maintenance, flat fees, ...).
+      `CREATE TABLE IF NOT EXISTS invoice_templates (
+				id TEXT PRIMARY KEY,
+				name TEXT NOT NULL,
+				body_json TEXT NOT NULL,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`
+    ]
   }
 ];
 const LATEST_SCHEMA_VERSION = MIGRATIONS.reduce((max, item) => Math.max(max, item.version), 0);

@@ -54,9 +54,11 @@ export async function customers(root: HTMLElement): Promise<void> {
 	let message = '';
 	let isError = false;
 	let sort: SortKey = 'name-asc';
+	/** Current search term; the server tolerates typos in it. */
+	let search = '';
 
 	async function reload(): Promise<void> {
-		items = await api.customers.list();
+		items = await api.customers.list(search || undefined);
 		render();
 	}
 
@@ -76,6 +78,7 @@ export async function customers(root: HTMLElement): Promise<void> {
 		const visible = sortCustomers(items, sort);
 		root.innerHTML = `
 		<div class="card"><div class="row"><strong>Kunden</strong>
+			<input id="k-q" placeholder="Suche (Name, Nummer, Ort)…" value="${esc(search)}" style="max-width:240px" />
 			<button id="k-new">+ Neu</button>
 			<label class="sortsel">Sortieren<select id="k-sort">
 				${SORTS.map(o => `<option value="${o.value}" ${o.value === sort ? 'selected' : ''}>${o.label}</option>`).join('')}
@@ -101,10 +104,19 @@ export async function customers(root: HTMLElement): Promise<void> {
 			<div class="row"><button id="k-save">Speichern</button><button class="secondary" id="k-cancel">Abbrechen</button></div>
 		</div>` : ''}`;
 
-		root.querySelector('#k-sort')?.addEventListener('change', event => {
-			sort = (event.target as HTMLSelectElement).value as SortKey;
-			render();
-		});
+	root.querySelector('#k-sort')?.addEventListener('change', event => {
+		sort = (event.target as HTMLSelectElement).value as SortKey;
+		render();
+	});
+	// The search runs on the server so typos and case differences still hit.
+	let searchTimer: ReturnType<typeof setTimeout> | undefined;
+	root.querySelector('#k-q')?.addEventListener('input', event => {
+		search = (event.target as HTMLInputElement).value;
+		if (searchTimer !== undefined) {
+			clearTimeout(searchTimer);
+		}
+		searchTimer = setTimeout(() => void reload(), 250);
+	});
 		root.querySelector('#k-number')?.addEventListener('click', async () => {
 			try {
 				const result = await api.customers.assignNumbers();

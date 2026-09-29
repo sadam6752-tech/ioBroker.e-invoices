@@ -229,21 +229,85 @@ export async function createBackup(
 	return { filename, size: data.length, sha256: sha256Hex(data), manifest, data };
 }
 
+/** What a restore would change, without touching anything. */
+export interface RestorePreview {
+	/** Manifest of the inspected backup. */
+	manifest: BackupManifest;
+	/** Invoice count in the backup. */
+	invoices: number;
+	/** Issued invoices among them. */
+	issued: number;
+	/** Invoice numbers carried by the backup. */
+	numbers: string[];
+	/** Template count. */
+	templates: number;
+	/** Customer count. */
+	customers: number;
+	/** Product count. */
+	products: number;
+	/** Company profile count. */
+	companies: number;
+	/** Invoice count currently in the database. */
+	currentInvoices: number;
+	/** Numbers that would be overwritten by this backup. */
+	overwritten: string[];
+	/** Numbers that only exist here and would be new. */
+	added: string[];
+	/** Files that would be written. */
+	filesWritten: number;
+}
+
 /**
- * Restores a backup ZIP: verifies the manifest, replaces the database
- * transactionally and rewrites the files.
+ * Inspects a backup ZIP without writing anything.
  *
- * @param db - Open invoice database.
- * @param storage - File backend for writing artifacts.
+ * A restore replaces the whole database, so the user should see exactly what
+ * would change before confirming. Every integrity check of the real restore
+ * runs here as well, so a broken backup is rejected in the preview and never
+ * half-applied.
+ *
+ * @param db - Open invoice database (read-only use).
  * @param zipData - Backup ZIP bytes.
- * @param log - Logger.
+ * @returns Counts and the diff against the current state.
+ * @throws {Error} When the ZIP, manifest, checksums or schema are not usable.
  */
-export async function restoreBackup(
-	db: InvoiceDatabase,
-	storage: BackupStorage,
+export async function previewRestore(db: InvoiceDatabase, zipData: Buffer): Promise<RestorePreview> {
+	const { manifest, dump } = await readAndVerifyBackup(zipData);
+	const numbers = dump.invoices.map(i => i.number).filter((n): n is string => Boolean(n));
+	const currentNumbers = new Set(
+		db
+			.allInvoices()
+			.map(i => i.number)
+			.filter(Boolean) as string[],
+	);
+	return {
+		manifest,
+		invoices: dump.invoices.length,
+		issued: dump.invoices.filter(i => i.status === 'issued').length,
+		numbers,
+		templates: dump.templates.length,
+		customers: dump.customers.length,
+		products: dump.products.length,
+		companies: dump.companies.length,
+		currentInvoices: db.allInvoices().length,
+		overwritten: numbers.filter(n => currentNumbers.has(n)),
+		added: numbers.filter(n => !currentNumbers.has(n)),
+		filesWritten: (manifest.files ?? []).length,
+	};
+}
+
+/**
+ * Opens a backup ZIP and verifies it completely: structure, application id,
+ * format version, schema compatibility, per-file checksums and the dump
+ * checksum. Shared by the preview and the real restore, so a broken backup
+ * can never be half applied.
+ *
+ * @param zipData - Backup ZIP bytes.
+ * @returns The verified manifest, the parsed database dump and the verified files.
+ * @throws {Error} When anything about the archive is unusable.
+ */
+async function readAndVerifyBackup(
 	zipData: Buffer,
-	log: BackupLogger,
-): Promise<RestoreSummary> {
+): Promise<{ manifest: BackupManifest; dump: DatabaseDump; files: { path: string; data: Buffer }[] }> {
 	let zip: JSZip;
 	try {
 		zip = await JSZip.loadAsync(zipData);
@@ -262,6 +326,9 @@ export async function restoreBackup(
 	if (manifest.schemaVersion > LATEST_SCHEMA_VERSION) {
 		throw new Error(`Backup needs schema v${manifest.schemaVersion}, adapter knows v${LATEST_SCHEMA_VERSION}`);
 	}
+	// Read the artifact files once: the restore writes exactly these buffers,
+	// so a second read can no longer fail after the database was replaced.
+	const files: { path: string; data: Buffer }[] = [];
 	for (const file of manifest.files ?? []) {
 		assertSafeEntryPath(file.path);
 		const entry = zip.file(`files/${file.path}`);
@@ -272,6 +339,7 @@ export async function restoreBackup(
 		if (sha256Hex(data) !== file.sha256 || data.length !== file.size) {
 			throw new Error(`Checksum mismatch: files/${file.path}`);
 		}
+		files.push({ path: file.path, data });
 	}
 
 	const dumpJsonText = await dumpFile.async('string');
@@ -304,6 +372,25 @@ export async function restoreBackup(
 			createdAt: attachment.createdAt,
 		})),
 	};
+	return { manifest, dump, files };
+}
+
+/**
+ * Restores a backup ZIP: verifies the manifest, replaces the database
+ * transactionally and rewrites the files.
+ *
+ * @param db - Open invoice database.
+ * @param storage - File backend for writing artifacts.
+ * @param zipData - Backup ZIP bytes.
+ * @param log - Logger.
+ */
+export async function restoreBackup(
+	db: InvoiceDatabase,
+	storage: BackupStorage,
+	zipData: Buffer,
+	log: BackupLogger,
+): Promise<RestoreSummary> {
+	const { manifest, dump, files } = await readAndVerifyBackup(zipData);
 	db.importData(dump);
 	if (!db.getDefaultTemplate()) {
 		db.ensureDefaultTemplate();
@@ -312,18 +399,9 @@ export async function restoreBackup(
 
 	const filesWritten: string[] = [];
 	const fileErrors: string[] = [];
-	for (const file of manifest.files ?? []) {
-		const entry = zip.file(`files/${file.path}`);
-		if (!entry) {
-			fileErrors.push(`${file.path}: missing in ZIP`);
-			continue;
-		}
+	for (const file of files) {
 		try {
-			const data = Buffer.from(await entry.async('nodebuffer'));
-			if (sha256Hex(data) !== file.sha256 || data.length !== file.size) {
-				throw new Error('checksum mismatch on second read');
-			}
-			await storage.write(file.path, data);
+			await storage.write(file.path, file.data);
 			filesWritten.push(file.path);
 		} catch (error) {
 			const message = `${file.path}: ${(error as Error).message}`;

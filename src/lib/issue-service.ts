@@ -8,6 +8,7 @@
  */
 import type { InvoiceDatabase, StoredInvoice } from './db';
 import { renderInvoiceWorkbook } from './excel';
+import { daysBetween, todayIso } from './invoice-model';
 import { renderInvoicePdf, type TemplateLogoImage } from './pdf';
 import { DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
 import { embedHybridPdf, generateInvoiceXml } from './zugferd';
@@ -117,6 +118,98 @@ export async function issueInvoiceWithArtifacts(
 		templateId,
 	});
 	return { invoice: withArtifacts, pdfPath: `${base}.pdf`, xmlPath: `${base}.xml` };
+}
+
+/**
+ * Issues a batch of drafts in one go ("Serienrechnung").
+ *
+ * Each draft is numbered and stored on its own, exactly as a single issue
+ * would do. A failure in the middle does not roll back what already succeeded:
+ * a consumed number must never be reused (GoBD), so the caller gets the list
+ * of failures and decides how to continue.
+ *
+ * @param db - Open invoice database.
+ * @param log - Logger.
+ * @param invoiceIds - Draft UUIDs, in the order they should be numbered.
+ * @param storage - Artifact file backend.
+ * @returns Issued invoices and the per-draft errors.
+ */
+export async function issueInvoiceBatch(
+	db: InvoiceDatabase,
+	log: IssueLogger,
+	invoiceIds: string[],
+	storage: IssueStorage,
+): Promise<{ issued: StoredInvoice[]; failed: { id: string; error: string }[] }> {
+	const issued: StoredInvoice[] = [];
+	const failed: { id: string; error: string }[] = [];
+	for (const id of invoiceIds) {
+		try {
+			const outcome = await issueInvoiceWithArtifacts(db, log, id, storage);
+			issued.push(outcome.invoice);
+		} catch (error) {
+			failed.push({ id, error: (error as Error).message });
+			log.error(`Batch issue failed for ${id}: ${(error as Error).message}`);
+		}
+	}
+	return { issued, failed };
+}
+
+/** One invoice that is due for a dunning reminder. */
+export interface ReminderCandidate {
+	/** Issued invoice. */
+	invoice: StoredInvoice;
+	/** Whole days overdue. */
+	overdueDays: number;
+	/** Reminders already sent. */
+	level: number;
+	/**
+	 * Skonto is still available, so the reminder must mention the discount
+	 * instead of demanding the full amount.
+	 */
+	skontoActive: boolean;
+}
+
+/** Day from which an unpaid invoice is chased. */
+const REMINDER_GRACE_DAYS = 5;
+
+/**
+ * Collects issued, unpaid invoices that are overdue and not yet chased today.
+ *
+ * The adapter only decides *when* to remind; it never sends anything by
+ * itself. That stays a conscious act of the user.
+ *
+ * @param db - Open invoice database.
+ * @param today - ISO reference date, default today.
+ * @returns Candidates, oldest first.
+ */
+export function collectReminderCandidates(db: InvoiceDatabase, today: string = todayIso()): ReminderCandidate[] {
+	const out: ReminderCandidate[] = [];
+	for (const invoice of db.allInvoices()) {
+		if (invoice.status !== 'issued' || invoice.paid || !invoice.dueDate) {
+			continue;
+		}
+		// A Storno reverses an original, chasing the original makes no sense.
+		if (db.listInvoices({ status: 'cancelled' }).some(c => c.stornoOfId === invoice.id)) {
+			continue;
+		}
+		const overdueDays = daysBetween(invoice.dueDate, today);
+		if (overdueDays < REMINDER_GRACE_DAYS) {
+			continue;
+		}
+		// Never send two reminders on the same day.
+		if (invoice.remindedAt?.slice(0, 10) === today) {
+			continue;
+		}
+		const skontoActive =
+			(invoice.skontoPercent ?? 0) > 0 && !!invoice.skontoDueDate && invoice.skontoDueDate >= today;
+		out.push({
+			invoice,
+			overdueDays,
+			level: invoice.reminderLevel,
+			skontoActive,
+		});
+	}
+	return out.sort((a, b) => b.overdueDays - a.overdueDays);
 }
 
 /**

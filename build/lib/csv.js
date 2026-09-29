@@ -1,0 +1,161 @@
+"use strict";
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var csv_exports = {};
+__export(csv_exports, {
+  CSV_COPY_NOTICE: () => CSV_COPY_NOTICE,
+  renderDatevHead: () => renderDatevHead,
+  renderDatevRows: () => renderDatevRows,
+  renderInvoiceListCsv: () => renderInvoiceListCsv,
+  toCsvRow: () => toCsvRow
+});
+module.exports = __toCommonJS(csv_exports);
+const CSV_COPY_NOTICE = "KOPIE \u2013 kein Steuerdokument. Ma\xDFgeblich ist das eingebettete XML der ZUGFeRD-Rechnung.";
+const UTF8_BOM = String.fromCharCode(65279);
+function csvField(value) {
+  let text = value === null || value === void 0 ? "" : String(value);
+  if (/^[=+\-@\t\r]/.test(text)) {
+    text = `'${text}`;
+  }
+  return /[";\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+function de(value) {
+  return (Number(value) || 0).toFixed(2).replace(".", ",");
+}
+function toCsvRow(invoice) {
+  var _a, _b, _c, _d, _e, _f, _g;
+  return {
+    number: (_a = invoice.number) != null ? _a : "",
+    issueDate: invoice.issueDate,
+    documentTitle: invoice.documentTitle,
+    status: invoice.status,
+    dueDate: (_b = invoice.dueDate) != null ? _b : "",
+    sentAt: invoice.sentAt ? invoice.sentAt.slice(0, 10) : "",
+    paidAt: invoice.paidAt ? invoice.paidAt.slice(0, 10) : "",
+    createdAt: invoice.createdAt,
+    customerNumber: (_c = invoice.buyer.customerNumber) != null ? _c : "",
+    customerName: invoice.buyer.name,
+    customerCity: invoice.buyer.city,
+    vatId: (_e = (_d = invoice.seller.vatId) != null ? _d : invoice.seller.taxNumber) != null ? _e : "",
+    net: invoice.totals.netTotal,
+    tax: invoice.totals.taxTotal,
+    gross: invoice.totals.grossTotal,
+    skontoPercent: Number(invoice.skontoPercent) || 0,
+    retainUntil: (_f = invoice.retainUntil) != null ? _f : "",
+    pdfPath: (_g = invoice.pdfPath) != null ? _g : ""
+  };
+}
+const HEADERS = [
+  ["number", "Rechnungsnummer"],
+  ["issueDate", "Rechnungsdatum"],
+  ["documentTitle", "Belegart"],
+  ["status", "Status"],
+  ["dueDate", "Faelligkeit"],
+  ["sentAt", "Versendet am"],
+  ["paidAt", "Bezahlt am"],
+  ["createdAt", "Erstellt am"],
+  ["customerNumber", "Kundennummer"],
+  ["customerName", "Kunde"],
+  ["customerCity", "Ort"],
+  ["vatId", "USt-IdNr"],
+  ["net", "Netto EUR"],
+  ["tax", "USt EUR"],
+  ["gross", "Brutto EUR"],
+  ["skontoPercent", "Skonto Prozent"],
+  ["retainUntil", "Aufbewahren bis"],
+  ["pdfPath", "PDF-Datei"]
+];
+function renderInvoiceListCsv(invoices) {
+  const lines = [];
+  lines.push(csvField(CSV_COPY_NOTICE));
+  lines.push(HEADERS.map(([, label]) => csvField(label)).join(";"));
+  for (const invoice of invoices) {
+    const row = toCsvRow(invoice);
+    lines.push(
+      HEADERS.map(([key]) => {
+        const value = row[key];
+        return csvField(typeof value === "number" ? de(value) : value);
+      }).join(";")
+    );
+  }
+  return `${UTF8_BOM}${lines.join("\r\n")}\r
+`;
+}
+function renderDatevHead(sellerName, taxNumber) {
+  const year = (/* @__PURE__ */ new Date()).getFullYear();
+  const parts = [
+    "EXTF",
+    "510",
+    // Mandant
+    sellerName,
+    "1",
+    // Konto (Ertrag)
+    "EUR",
+    "G",
+    "",
+    // Güterbereich
+    "",
+    "",
+    "",
+    year.toString()
+  ];
+  void taxNumber;
+  return parts.join(";");
+}
+function renderDatevRows(invoices) {
+  var _a;
+  const lines = [];
+  for (const invoice of invoices) {
+    const isCredit = invoice.documentTitle.toLowerCase().includes("gutschrift");
+    const sign = isCredit ? "-" : "";
+    const rows = toCsvRow(invoice);
+    lines.push(
+      [
+        "U",
+        invoice.number,
+        rows.issueDate,
+        rows.issueDate,
+        (_a = invoice.employeeCode) != null ? _a : "00",
+        "1026",
+        `${sign}${de(invoice.totals.grossTotal)}`,
+        "H",
+        invoice.documentTitle,
+        rows.customerNumber,
+        "",
+        rows.customerName.slice(0, 30),
+        "",
+        "",
+        "",
+        `${sign}${de(invoice.totals.taxTotal)}`,
+        "0",
+        "",
+        ""
+      ].join(";")
+    );
+  }
+  return lines.join("\n");
+}
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  CSV_COPY_NOTICE,
+  renderDatevHead,
+  renderDatevRows,
+  renderInvoiceListCsv,
+  toCsvRow
+});
+//# sourceMappingURL=csv.js.map

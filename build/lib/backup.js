@@ -32,6 +32,7 @@ __export(backup_exports, {
   BACKUP_FORMAT_VERSION: () => BACKUP_FORMAT_VERSION,
   collectArtifactPaths: () => collectArtifactPaths,
   createBackup: () => createBackup,
+  previewRestore: () => previewRestore,
   restoreBackup: () => restoreBackup
 });
 module.exports = __toCommonJS(backup_exports);
@@ -128,8 +129,30 @@ async function createBackup(db, storage, log, adapterVersion) {
   const filename = `backups/e-invoices-backup-${stampName()}.zip`;
   return { filename, size: data.length, sha256: sha256Hex(data), manifest, data };
 }
-async function restoreBackup(db, storage, zipData, log) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+async function previewRestore(db, zipData) {
+  var _a;
+  const { manifest, dump } = await readAndVerifyBackup(zipData);
+  const numbers = dump.invoices.map((i) => i.number).filter((n) => Boolean(n));
+  const currentNumbers = new Set(
+    db.allInvoices().map((i) => i.number).filter(Boolean)
+  );
+  return {
+    manifest,
+    invoices: dump.invoices.length,
+    issued: dump.invoices.filter((i) => i.status === "issued").length,
+    numbers,
+    templates: dump.templates.length,
+    customers: dump.customers.length,
+    products: dump.products.length,
+    companies: dump.companies.length,
+    currentInvoices: db.allInvoices().length,
+    overwritten: numbers.filter((n) => currentNumbers.has(n)),
+    added: numbers.filter((n) => !currentNumbers.has(n)),
+    filesWritten: ((_a = manifest.files) != null ? _a : []).length
+  };
+}
+async function readAndVerifyBackup(zipData) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   let zip;
   try {
     zip = await import_jszip.default.loadAsync(zipData);
@@ -148,6 +171,7 @@ async function restoreBackup(db, storage, zipData, log) {
   if (manifest.schemaVersion > import_migrations.LATEST_SCHEMA_VERSION) {
     throw new Error(`Backup needs schema v${manifest.schemaVersion}, adapter knows v${import_migrations.LATEST_SCHEMA_VERSION}`);
   }
+  const files = [];
   for (const file of (_a = manifest.files) != null ? _a : []) {
     assertSafeEntryPath(file.path);
     const entry = zip.file(`files/${file.path}`);
@@ -158,6 +182,7 @@ async function restoreBackup(db, storage, zipData, log) {
     if (sha256Hex(data) !== file.sha256 || data.length !== file.size) {
       throw new Error(`Checksum mismatch: files/${file.path}`);
     }
+    files.push({ path: file.path, data });
   }
   const dumpJsonText = await dumpFile.async("string");
   if (manifest.dumpSha256 && sha256Hex(dumpJsonText) !== manifest.dumpSha256) {
@@ -192,6 +217,10 @@ async function restoreBackup(db, storage, zipData, log) {
       };
     })
   };
+  return { manifest, dump, files };
+}
+async function restoreBackup(db, storage, zipData, log) {
+  const { manifest, dump, files } = await readAndVerifyBackup(zipData);
   db.importData(dump);
   if (!db.getDefaultTemplate()) {
     db.ensureDefaultTemplate();
@@ -199,18 +228,9 @@ async function restoreBackup(db, storage, zipData, log) {
   log.info(`Database restored: ${dump.invoices.length} invoices, ${dump.templates.length} templates`);
   const filesWritten = [];
   const fileErrors = [];
-  for (const file of (_k = manifest.files) != null ? _k : []) {
-    const entry = zip.file(`files/${file.path}`);
-    if (!entry) {
-      fileErrors.push(`${file.path}: missing in ZIP`);
-      continue;
-    }
+  for (const file of files) {
     try {
-      const data = Buffer.from(await entry.async("nodebuffer"));
-      if (sha256Hex(data) !== file.sha256 || data.length !== file.size) {
-        throw new Error("checksum mismatch on second read");
-      }
-      await storage.write(file.path, data);
+      await storage.write(file.path, file.data);
       filesWritten.push(file.path);
     } catch (error) {
       const message = `${file.path}: ${error.message}`;
@@ -226,6 +246,7 @@ async function restoreBackup(db, storage, zipData, log) {
   BACKUP_FORMAT_VERSION,
   collectArtifactPaths,
   createBackup,
+  previewRestore,
   restoreBackup
 });
 //# sourceMappingURL=backup.js.map

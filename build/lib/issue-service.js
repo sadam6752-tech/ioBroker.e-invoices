@@ -18,12 +18,15 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var issue_service_exports = {};
 __export(issue_service_exports, {
+  collectReminderCandidates: () => collectReminderCandidates,
+  issueInvoiceBatch: () => issueInvoiceBatch,
   issueInvoiceWithArtifacts: () => issueInvoiceWithArtifacts,
   loadRenderTemplate: () => loadRenderTemplate,
   rerenderInvoicePdf: () => rerenderInvoicePdf
 });
 module.exports = __toCommonJS(issue_service_exports);
 var import_excel = require("./excel");
+var import_invoice_model = require("./invoice-model");
 var import_pdf = require("./pdf");
 var import_templates = require("./templates");
 var import_zugferd = require("./zugferd");
@@ -80,6 +83,48 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
     templateId
   });
   return { invoice: withArtifacts, pdfPath: `${base}.pdf`, xmlPath: `${base}.xml` };
+}
+async function issueInvoiceBatch(db, log, invoiceIds, storage) {
+  const issued = [];
+  const failed = [];
+  for (const id of invoiceIds) {
+    try {
+      const outcome = await issueInvoiceWithArtifacts(db, log, id, storage);
+      issued.push(outcome.invoice);
+    } catch (error) {
+      failed.push({ id, error: error.message });
+      log.error(`Batch issue failed for ${id}: ${error.message}`);
+    }
+  }
+  return { issued, failed };
+}
+const REMINDER_GRACE_DAYS = 5;
+function collectReminderCandidates(db, today = (0, import_invoice_model.todayIso)()) {
+  var _a, _b;
+  const out = [];
+  for (const invoice of db.allInvoices()) {
+    if (invoice.status !== "issued" || invoice.paid || !invoice.dueDate) {
+      continue;
+    }
+    if (db.listInvoices({ status: "cancelled" }).some((c) => c.stornoOfId === invoice.id)) {
+      continue;
+    }
+    const overdueDays = (0, import_invoice_model.daysBetween)(invoice.dueDate, today);
+    if (overdueDays < REMINDER_GRACE_DAYS) {
+      continue;
+    }
+    if (((_a = invoice.remindedAt) == null ? void 0 : _a.slice(0, 10)) === today) {
+      continue;
+    }
+    const skontoActive = ((_b = invoice.skontoPercent) != null ? _b : 0) > 0 && !!invoice.skontoDueDate && invoice.skontoDueDate >= today;
+    out.push({
+      invoice,
+      overdueDays,
+      level: invoice.reminderLevel,
+      skontoActive
+    });
+  }
+  return out.sort((a, b) => b.overdueDays - a.overdueDays);
 }
 async function rerenderInvoicePdf(db, log, invoiceId, storage, reason) {
   var _a, _b, _c;
@@ -149,6 +194,8 @@ async function loadRenderTemplate(db, log, storage) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  collectReminderCandidates,
+  issueInvoiceBatch,
   issueInvoiceWithArtifacts,
   loadRenderTemplate,
   rerenderInvoicePdf

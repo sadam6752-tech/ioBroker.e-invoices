@@ -28,7 +28,10 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var db_exports = {};
 __export(db_exports, {
-  InvoiceDatabase: () => InvoiceDatabase
+  InvoiceDatabase: () => InvoiceDatabase,
+  levenshtein: () => levenshtein,
+  rankCustomers: () => rankCustomers,
+  retentionUntil: () => retentionUntil
 });
 module.exports = __toCommonJS(db_exports);
 var import_better_sqlite3 = __toESM(require("better-sqlite3"));
@@ -40,6 +43,80 @@ var import_migrations = require("./migrations");
 var import_templates = require("./templates");
 function nowIso() {
   return (/* @__PURE__ */ new Date()).toISOString();
+}
+function normalizeForSearch(value) {
+  return value.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function levenshtein(a, b) {
+  if (a === b) {
+    return 0;
+  }
+  if (!a.length) {
+    return b.length;
+  }
+  if (!b.length) {
+    return a.length;
+  }
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  let curr = new Array(b.length + 1);
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[b.length];
+}
+function customerScore(customer, needle) {
+  var _a, _b;
+  const haystacks = [
+    customer.name,
+    customer.profile.name,
+    (_a = customer.profile.customerNumber) != null ? _a : "",
+    (_b = customer.profile.city) != null ? _b : ""
+  ].map(normalizeForSearch).filter(Boolean);
+  if (!haystacks.length) {
+    return 0;
+  }
+  let best = 0;
+  for (const hay of haystacks) {
+    if (hay === needle) {
+      return 1e3;
+    }
+    if (hay.startsWith(needle)) {
+      best = Math.max(best, 500 - hay.length);
+    }
+    if (hay.includes(needle)) {
+      best = Math.max(best, 400 - hay.length);
+    }
+    const words = hay.split(" ");
+    for (const word of words) {
+      if (word.startsWith(needle)) {
+        best = Math.max(best, 300 - word.length);
+      }
+      const tolerance = needle.length >= 5 ? 2 : needle.length >= 3 ? 1 : 0;
+      if (tolerance > 0 && Math.abs(word.length - needle.length) <= tolerance && levenshtein(word, needle) <= tolerance) {
+        best = Math.max(best, 200);
+      }
+    }
+  }
+  return best;
+}
+function rankCustomers(customers, query) {
+  const needle = normalizeForSearch(query);
+  if (!needle) {
+    return customers;
+  }
+  return customers.map((c) => ({ c, score: customerScore(c, needle) })).filter((entry) => entry.score > 0).sort((a, b) => b.score - a.score || a.c.name.localeCompare(b.c.name, "de")).slice(0, 50).map((entry) => entry.c);
+}
+function retentionUntil(issueDate) {
+  const year = Number((issueDate != null ? issueDate : "").slice(0, 4));
+  if (!Number.isInteger(year) || year < 1990 || year > 2200) {
+    return null;
+  }
+  return `${year + 10}-12-31`;
 }
 function parseJson(value, label) {
   try {
@@ -75,6 +152,13 @@ function mapRow(row) {
     stornoOfId: row.storno_of_id,
     skontoPercent: (_c = row.skonto_percent) != null ? _c : 0,
     skontoDueDate: row.skonto_due_date,
+    sentAt: row.sent_at,
+    sendChannel: row.send_channel,
+    paymentCheck: row.payment_check,
+    paymentCheckedAt: row.payment_checked_at,
+    remindedAt: row.reminded_at,
+    reminderLevel: row.reminder_level,
+    retainUntil: row.retain_until,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -282,6 +366,7 @@ class InvoiceDatabase {
    * @param filter - Status/year/search/pagination filter.
    */
   listInvoices(filter = {}) {
+    var _a, _b;
     const where = [];
     const params = [];
     if (filter.status) {
@@ -293,16 +378,35 @@ class InvoiceDatabase {
       params.push(String(filter.year));
     }
     if (filter.query) {
-      where.push(`(number LIKE ? OR buyer_json LIKE ? OR seller_json LIKE ?)`);
+      where.push(
+        `(number LIKE ? OR buyer_json LIKE ? OR seller_json LIKE ? OR lines_json LIKE ? OR notes LIKE ?)`
+      );
       const like = `%${filter.query}%`;
-      params.push(like, like, like);
+      params.push(like, like, like, like, like);
+    }
+    if (filter.sent === true) {
+      where.push(`sent_at IS NOT NULL`);
+    } else if (filter.sent === false) {
+      where.push(`sent_at IS NULL`);
     }
     const rawLimit = Number(filter.limit);
     const rawOffset = Number(filter.offset);
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 500) : 50;
     const offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
+    const sortColumns = {
+      date: "issue_date",
+      // single quotes: SQLite wants them around the JSON path, and the
+      // value is already numeric, so ordering is a plain numeric compare
+      amount: `json_extract(totals_json, '$.grossTotal')`,
+      customer: "buyer_json",
+      number: "number",
+      due: "due_date",
+      status: "status"
+    };
+    const column = (_b = sortColumns[(_a = filter.sort) != null ? _a : "date"]) != null ? _b : "issue_date";
+    const direction = filter.order === "asc" ? "ASC" : "DESC";
     const rows = this.db.prepare(
-      `SELECT * FROM invoices ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
+      `SELECT * FROM invoices ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY ${column} ${direction}, id DESC LIMIT ? OFFSET ?`
     ).all(...params, limit, offset);
     return rows.map(mapRow);
   }
@@ -418,8 +522,15 @@ class InvoiceDatabase {
       var _a2;
       const number = this.nextInvoiceNumber(year, (_a2 = current.employeeCode) != null ? _a2 : void 0);
       this.db.prepare(
-        `UPDATE invoices SET number = ?, status = 'issued', totals_json = ?, updated_at = ? WHERE id = ? AND status = 'draft'`
-      ).run(number, JSON.stringify((0, import_invoice_model.calcTotals)(current.lines)), nowIso(), id);
+        `UPDATE invoices SET number = ?, status = 'issued', totals_json = ?, retain_until = ?, updated_at = ? WHERE id = ? AND status = 'draft'`
+      ).run(
+        number,
+        JSON.stringify((0, import_invoice_model.calcTotals)(current.lines)),
+        // § 147 AO / § 14b UStG: ten years, computed once at issuance
+        retentionUntil(current.issueDate),
+        nowIso(),
+        id
+      );
       const issued = this.getInvoice(id);
       if (!issued || issued.number !== number) {
         throw new Error("Issue transaction failed");
@@ -985,6 +1096,175 @@ class InvoiceDatabase {
     }));
   }
   /**
+   * Deletes a draft. Issued, cancelled and Storno documents are never deleted:
+   * they are tax relevant and must stay reproducible (GoBD, § 147 AO).
+   *
+   * @param id - Draft UUID.
+   */
+  deleteDraft(id) {
+    const current = this.getInvoice(id);
+    if (!current) {
+      throw new Error(`Invoice not found: ${id}`);
+    }
+    if (current.status !== "draft") {
+      throw new Error("Only drafts can be deleted. An issued invoice must be cancelled with a Storno.");
+    }
+    if (current.number) {
+      throw new Error("This draft already carries a number and cannot be deleted.");
+    }
+    this.db.prepare(`DELETE FROM invoices WHERE id = ? AND status = 'draft'`).run(id);
+  }
+  /**
+   * Records the handover of an issued invoice to the customer.
+   *
+   * @param id - Issued invoice UUID.
+   * @param sentAt - ISO timestamp, default now.
+   * @param channel - Delivery channel, e.g. `E-Mail`.
+   */
+  markSent(id, sentAt, channel) {
+    const current = this.getInvoice(id);
+    if (!current) {
+      throw new Error(`Invoice not found: ${id}`);
+    }
+    if (current.status === "draft") {
+      throw new Error("Only issued invoices can be marked as sent.");
+    }
+    this.db.prepare(`UPDATE invoices SET sent_at = ?, send_channel = ?, updated_at = ? WHERE id = ?`).run(sentAt, channel, nowIso(), id);
+    return this.getInvoice(id);
+  }
+  /**
+   * Stores the result of the § 16 Abs. 2 Nr. 2 UStG payment-method check.
+   *
+   * @param id - Issued invoice UUID.
+   * @param outcome - `passed`, `failed` or a free-text remark.
+   */
+  setPaymentCheck(id, outcome) {
+    this.db.prepare(`UPDATE invoices SET payment_check = ?, payment_checked_at = ?, updated_at = ? WHERE id = ?`).run(outcome, nowIso(), nowIso(), id);
+    const updated = this.getInvoice(id);
+    if (!updated) {
+      throw new Error(`Invoice not found: ${id}`);
+    }
+    return updated;
+  }
+  /**
+   * Counts and remembers a dunning step.
+   *
+   * @param id - Issued invoice UUID.
+   * @param on - Reference day, used for the "already reminded today" check.
+   */
+  registerReminder(id, on = (0, import_invoice_model.todayIso)()) {
+    this.db.prepare(
+      `UPDATE invoices SET reminder_level = reminder_level + 1, reminded_at = ?, updated_at = ? WHERE id = ?`
+    ).run(`${on}T00:00:00.000Z`, nowIso(), id);
+    const updated = this.getInvoice(id);
+    if (!updated) {
+      throw new Error(`Invoice not found: ${id}`);
+    }
+    return updated;
+  }
+  /**
+   * Sets the earliest legal deletion date (§ 147 AO / § 14b UStG, 10 years).
+   *
+   * @param id - Issued invoice UUID.
+   * @param issueDate - ISO issue date the period starts from.
+   */
+  setRetention(id, issueDate) {
+    const until = retentionUntil(issueDate);
+    this.db.prepare(`UPDATE invoices SET retain_until = ? WHERE id = ?`).run(until, id);
+    const updated = this.getInvoice(id);
+    if (!updated) {
+      throw new Error(`Invoice not found: ${id}`);
+    }
+    return updated;
+  }
+  /**
+   * Creates a reusable invoice content template (recurring maintenance, flat
+   * fees, ...). The buyer is left empty on purpose: a template describes the
+   * positions, the customer is picked per invoice.
+   *
+   * @param name - Display name.
+   * @param body - Draft content to reuse.
+   */
+  createInvoiceTemplate(name, body) {
+    if (!name.trim()) {
+      throw new Error("Template needs a name");
+    }
+    const id = (0, import_node_crypto.randomUUID)();
+    const stamp = nowIso();
+    this.db.prepare(
+      `INSERT INTO invoice_templates (id, name, body_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
+    ).run(id, name, JSON.stringify(body), stamp, stamp);
+    return { id, name, body, createdAt: stamp, updatedAt: stamp };
+  }
+  /**
+   * Lists invoice content templates by name.
+   */
+  listInvoiceTemplates() {
+    const rows = this.db.prepare(`SELECT * FROM invoice_templates ORDER BY name ASC`).all();
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      body: parseJson(row.body_json, "invoice template"),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  }
+  /**
+   * Updates an invoice content template.
+   *
+   * @param id - Template UUID.
+   * @param patch - New name and/or body.
+   * @param patch.name - New display name.
+   * @param patch.body - New draft content.
+   * @returns The updated template.
+   */
+  updateInvoiceTemplate(id, patch) {
+    if (!this.getInvoiceTemplate(id)) {
+      throw new Error(`Template not found: ${id}`);
+    }
+    if (patch.name !== void 0) {
+      if (!patch.name.trim()) {
+        throw new Error("Template needs a name");
+      }
+      this.db.prepare(`UPDATE invoice_templates SET name = ? WHERE id = ?`).run(patch.name, id);
+    }
+    if (patch.body !== void 0) {
+      this.db.prepare(`UPDATE invoice_templates SET body_json = ? WHERE id = ?`).run(JSON.stringify(patch.body), id);
+    }
+    this.db.prepare(`UPDATE invoice_templates SET updated_at = ? WHERE id = ?`).run(nowIso(), id);
+    return this.getInvoiceTemplate(id);
+  }
+  /**
+   * Loads one invoice content template.
+   *
+   * @param id - Template UUID.
+   */
+  getInvoiceTemplate(id) {
+    const row = this.db.prepare(`SELECT * FROM invoice_templates WHERE id = ?`).get(id);
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      name: row.name,
+      body: parseJson(row.body_json, "invoice template"),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  }
+  /**
+   * Deletes an invoice content template. Issued invoices keep their own copy
+   * of the content, so deleting a template never changes a document.
+   *
+   * @param id - Template UUID.
+   */
+  deleteInvoiceTemplate(id) {
+    if (!this.getInvoiceTemplate(id)) {
+      throw new Error(`Template not found: ${id}`);
+    }
+    this.db.prepare(`DELETE FROM invoice_templates WHERE id = ?`).run(id);
+  }
+  /**
    * Creates a company (seller) profile; the first one becomes default.
    *
    * @param name - Display name.
@@ -1190,11 +1470,18 @@ class InvoiceDatabase {
     return row ? mapCustomerRow(row) : null;
   }
   /**
-   * Lists customers by name.
+   * Lists customers by name, optionally filtered by a fuzzy search term.
+   *
+   * @param query - Search term; typos and case differences are tolerated.
    */
-  listCustomers() {
-    const rows = this.db.prepare(`SELECT * FROM customers ORDER BY name ASC`).all();
-    return rows.map(mapCustomerRow);
+  listCustomers(query) {
+    const all = this.db.prepare(`SELECT * FROM customers ORDER BY name ASC`).all();
+    const mapped = all.map(mapCustomerRow);
+    const needle = (query != null ? query : "").trim();
+    if (!needle) {
+      return mapped;
+    }
+    return rankCustomers(mapped, needle);
   }
   /**
    * Updates name/party data of a customer.
@@ -1331,6 +1618,9 @@ class InvoiceDatabase {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  InvoiceDatabase
+  InvoiceDatabase,
+  levenshtein,
+  rankCustomers,
+  retentionUntil
 });
 //# sourceMappingURL=db.js.map
