@@ -187,6 +187,17 @@ table.ovw.sums tr.total td {
 	color: var(--text);
 	font-size: 15px;
 }
+label.sortsel {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 13px;
+	color: var(--muted);
+	white-space: nowrap;
+}
+label.sortsel select {
+	min-width: 170px;
+}
 .error {
 	color: var(--danger);
 	font-size: 14px;

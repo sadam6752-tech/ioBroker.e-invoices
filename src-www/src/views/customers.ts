@@ -2,6 +2,43 @@ import { api, esc, type CompanyProfile, type Party } from '../api';
 
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
 
+/** Sort modes offered in the customers list. */
+type SortKey = 'name-asc' | 'name-desc' | 'number-asc' | 'number-desc';
+
+const SORTS: { value: SortKey; label: string }[] = [
+	{ value: 'name-asc', label: 'Name A–Z' },
+	{ value: 'name-desc', label: 'Name Z–A' },
+	{ value: 'number-asc', label: 'Nummer aufsteigend' },
+	{ value: 'number-desc', label: 'Nummer absteigend' },
+];
+
+/**
+ * Compares two customer numbers: numerically when both end in digits
+ * (K-00002 before K-00010), alphabetically otherwise (KD-4711).
+ */
+function compareNumbers(a: string, b: string): number {
+	const na = Number(a.replace(/\D+/g, ''));
+	const nb = Number(b.replace(/\D+/g, ''));
+	const aHas = /\d/.test(a) && Number.isFinite(na);
+	const bHas = /\d/.test(b) && Number.isFinite(nb);
+	if (aHas && bHas && na !== nb) {
+		return na - nb;
+	}
+	return a.localeCompare(b, 'de');
+}
+
+function sortCustomers(items: CompanyProfile[], sort: SortKey): CompanyProfile[] {
+	const dir = sort.endsWith('desc') ? -1 : 1;
+	const sorted = [...items];
+	sorted.sort((x, y) => {
+		if (sort.startsWith('number')) {
+			return compareNumbers(x.profile.customerNumber?.trim() ?? '', y.profile.customerNumber?.trim() ?? '') * dir;
+		}
+		return x.name.localeCompare(y.name, 'de') * dir;
+	});
+	return sorted;
+}
+
 function field(obj: Party, key: keyof Party, label: string): string {
 	const value = obj[key];
 	const text = Array.isArray(value) ? value.join('\n') : (value ?? '');
@@ -16,6 +53,7 @@ export async function customers(root: HTMLElement): Promise<void> {
 	let isNew = false;
 	let message = '';
 	let isError = false;
+	let sort: SortKey = 'name-asc';
 
 	async function reload(): Promise<void> {
 		items = await api.customers.list();
@@ -35,12 +73,16 @@ export async function customers(root: HTMLElement): Promise<void> {
 
 	function render(): void {
 		const missing = items.filter(c => !c.profile.customerNumber?.trim()).length;
+		const visible = sortCustomers(items, sort);
 		root.innerHTML = `
 		<div class="card"><div class="row"><strong>Kunden</strong>
 			<button id="k-new">+ Neu</button>
+			<label class="sortsel">Sortieren<select id="k-sort">
+				${SORTS.map(o => `<option value="${o.value}" ${o.value === sort ? 'selected' : ''}>${o.label}</option>`).join('')}
+			</select></label>
 			${missing > 0 ? `<button class="secondary" id="k-number">${missing} ohne Nummer: automatisch vergeben</button>` : ''}
 		</div>
-			${items
+			${visible
 				.map(
 					c => `<div class="row" style="margin-top:8px">
 				<strong>${esc(c.name)}</strong>
@@ -51,6 +93,7 @@ export async function customers(root: HTMLElement): Promise<void> {
 			</div>`,
 				)
 				.join('') || '<p class="muted">Noch keine Kunden.</p>'}
+			<p class="muted">${visible.length} Kunden</p>
 		</div>
 		${editing || isNew ? `<div class="card"><h3>${isNew ? 'Neuer Kunde' : esc(editing?.name ?? '')}</h3>
 			${formHtml(editing?.profile ?? emptyParty(), editing?.name ?? '')}
@@ -58,6 +101,10 @@ export async function customers(root: HTMLElement): Promise<void> {
 			<div class="row"><button id="k-save">Speichern</button><button class="secondary" id="k-cancel">Abbrechen</button></div>
 		</div>` : ''}`;
 
+		root.querySelector('#k-sort')?.addEventListener('change', event => {
+			sort = (event.target as HTMLSelectElement).value as SortKey;
+			render();
+		});
 		root.querySelector('#k-number')?.addEventListener('click', async () => {
 			try {
 				const result = await api.customers.assignNumbers();
