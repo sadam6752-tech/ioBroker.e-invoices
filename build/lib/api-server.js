@@ -494,6 +494,23 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query))}`);
       }
     })
   );
+  app.put(
+    "/api/invoice-templates/:id",
+    route((req, res) => {
+      var _a2, _b2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
+      try {
+        res.json(
+          db.updateInvoiceTemplate(routeParam(req, "id"), {
+            name: typeof body.name === "string" ? body.name : void 0,
+            body: (_b2 = body.body) != null ? _b2 : void 0
+          })
+        );
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
   app.delete(
     "/api/invoice-templates/:id",
     route((req, res) => {

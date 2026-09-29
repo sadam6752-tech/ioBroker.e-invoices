@@ -599,6 +599,23 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		}),
 	);
 
+	app.put(
+		'/api/invoice-templates/:id',
+		route((req, res) => {
+			const body = (req.body ?? {}) as { name?: unknown; body?: unknown };
+			try {
+				res.json(
+					db.updateInvoiceTemplate(routeParam(req, 'id'), {
+						name: typeof body.name === 'string' ? body.name : undefined,
+						body: (body.body ?? undefined) as InvoiceDraftInput | undefined,
+					}),
+				);
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
 	app.delete(
 		'/api/invoice-templates/:id',
 		route((req, res) => {

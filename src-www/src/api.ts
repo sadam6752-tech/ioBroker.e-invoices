@@ -326,6 +326,11 @@ export const api = {
 				method: 'POST',
 				body: JSON.stringify({ name, body }),
 			}),
+		update: (id: string, patch: { name?: string; body?: unknown }) =>
+			request<InvoiceTemplate>(`/api/invoice-templates/${id}`, {
+				method: 'PUT',
+				body: JSON.stringify(patch),
+			}),
 		remove: (id: string) => request<void>(`/api/invoice-templates/${id}`, { method: 'DELETE' }),
 	},
 	setPaid: (id: string, paid: boolean, paidAt?: string) =>

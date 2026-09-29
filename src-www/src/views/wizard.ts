@@ -1,4 +1,4 @@
-import { api, esc, eur, type CompanyProfile, type DraftInput, type Invoice, type InvoiceLine, type Party, type Product } from '../api';
+import { api, esc, eur, type CompanyProfile, type DraftInput, type Invoice, type InvoiceLine, type InvoiceTemplate, type Party, type Product } from '../api';
 
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
 const emptyLine = (): InvoiceLine => ({
@@ -235,6 +235,8 @@ export function wizard(root: HTMLElement, editId?: string): void {
 	let companies: CompanyProfile[] = [];
 	let customers: CompanyProfile[] = [];
 	let catalog: Product[] = [];
+/** Reusable invoice content (recurring maintenance, flat fees). */
+let invoiceTemplates: InvoiceTemplate[] = [];
 	/** Guards save/issue against double clicks creating two invoices. */
 	let busy = false;
 	// invoicing defaults (standard VAT rate, payment terms) from the instance config
@@ -335,6 +337,13 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			.then(list => {
 				catalog = list;
 				if (s.step === 2 && !root.querySelector('#w-catalog')) render();
+			})
+			.catch(() => undefined);
+		void api.invoiceTemplates
+			.list()
+			.then(list => {
+				invoiceTemplates = list;
+				if (s.step === 2 && !root.querySelector('#w-inv-tpl')) render();
 			})
 			.catch(() => undefined);
 	}
@@ -446,6 +455,15 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				<label>Dokumenttyp<select id="w-title">
 					${DOC_TITLES.map(t => `<option ${t === s.documentTitle ? 'selected' : ''}>${t}</option>`).join('')}
 				</select></label>
+				${
+					invoiceTemplates.length > 0
+						? `<label>Wiederkehrende Rechnung<select id="w-inv-tpl">
+							<option value="">– eigene Positionen –</option>
+							${invoiceTemplates.map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}
+						</select></label>
+						<p class="muted">Übernimmt Positionen, Termine, Zahlungsbedingungen und Skonto. Käufer und Datum bleiben deine Angaben.</p>`
+						: `<p class="muted">Tipp: Unter <a href="#/invoice-templates">Rechnungsvorlagen</a> eine Vorlage anlegen, um wiederkehrende Rechnungen nicht jedes Mal neu einzutippen.</p>`
+				}
 				${
 					catalog.length > 0
 						? `<div class="row"><label style="flex:1">Aus Positionen übernehmen<select id="w-catalog">
@@ -648,6 +666,40 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			} else {
 				s.selectedCustomer = null;
 			}
+		});
+		root.querySelector('#w-inv-tpl')?.addEventListener('change', event => {
+			const id = (event.target as HTMLSelectElement).value;
+			const tpl = invoiceTemplates.find(t => t.id === id);
+			if (!tpl) {
+				return;
+			}
+			if (s.lines.length > 0 && !window.confirm(`Positionen durch "${tpl.name}" ersetzen?`)) {
+				return;
+			}
+			// Content comes from the template, parties and dates stay the user's.
+			const body = tpl.body as Partial<DraftInput>;
+			if (Array.isArray(body.lines) && body.lines.length > 0) {
+				s.lines = body.lines.map(l => ({ ...emptyLine(), ...l }));
+			}
+			if (typeof body.paymentTerms === 'string') {
+				s.paymentTerms = body.paymentTerms;
+			}
+			if (typeof body.notes === 'string') {
+				s.notes = body.notes;
+			}
+			if (typeof body.documentTitle === 'string' && body.documentTitle) {
+				s.documentTitle = body.documentTitle;
+			}
+			if (typeof body.skontoPercent === 'number' && body.skontoPercent > 0) {
+				s.skontoPercent = body.skontoPercent;
+			}
+			if (typeof body.dueDate === 'string') {
+				s.dueDate = body.dueDate;
+			}
+			if (typeof body.deliveryDate === 'string') {
+				s.deliveryDate = body.deliveryDate;
+			}
+			render(true);
 		});
 		root.querySelector('#w-next')?.addEventListener('click', () => {
 			s.step++;

@@ -5,6 +5,7 @@ import { company } from './views/company';
 import { customers } from './views/customers';
 import { dashboard } from './views/dashboard';
 import { detail } from './views/detail';
+import { invoiceTemplates } from './views/invoice-templates';
 import { login, logout } from './views/login';
 import { products } from './views/products';
 import { status } from './views/status';
@@ -22,6 +23,7 @@ function shell(route: string): void {
 		['#/company', 'Firma'],
 		['#/customers', 'Kunden'],
 		['#/products', 'Positionen'],
+		['#/invoice-templates', 'Rechnungsvorlagen'],
 		['#/backup', 'Backup'],
 		['#/status', 'Status'],
 		[logged ? '#/logout' : '#/login', logged ? 'Logout' : 'Login'],
@@ -52,6 +54,8 @@ async function route(): Promise<void> {
 		await customers(v);
 	} else if (hash === '#/products') {
 		await products(v);
+	} else if (hash === '#/invoice-templates') {
+		await invoiceTemplates(v);
 	} else if (hash === '#/backup') {
 		await backup(v);
 	} else if (hash === '#/login') {

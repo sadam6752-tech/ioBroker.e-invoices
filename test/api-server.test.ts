@@ -144,6 +144,39 @@ describe('api => invoices', function () {
 		await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
 	});
 
+	it('manages invoice content templates', async () => {
+		const body = {
+			lines: [{ description: 'Wartung', quantity: 1, unit: 'Stk', unitPriceNet: 250, vatRate: 19 }],
+			paymentTerms: 'Zahlbar innerhalb von 14 Tagen',
+			skontoPercent: 2,
+		};
+		const created = await request(app)
+			.post('/api/invoice-templates')
+			.send({ name: 'Monatliche Wartung', body })
+			.expect(201);
+		expect(created.body.name).to.equal('Monatliche Wartung');
+
+		const list = await request(app).get('/api/invoice-templates').expect(200);
+		expect(list.body).to.have.lengthOf(1);
+
+		// update keeps the id, so the wizard selection stays valid
+		const updated = await request(app)
+			.put(`/api/invoice-templates/${created.body.id}`)
+			.send({ name: 'Wartung Jährlich', body: { ...body, skontoPercent: 0 } })
+			.expect(200);
+		expect(updated.body.id).to.equal(created.body.id);
+		expect(updated.body.name).to.equal('Wartung Jährlich');
+
+		await request(app).delete(`/api/invoice-templates/${created.body.id}`).expect(204);
+		expect((await request(app).get('/api/invoice-templates').expect(200)).body).to.have.lengthOf(0);
+	});
+
+	it('rejects an invoice template without a name', async () => {
+		await request(app).post('/api/invoice-templates').send({ name: '  ', body: {} }).expect(400);
+		await request(app).post('/api/invoice-templates').send({ name: 'X' }).expect(400);
+		await request(app).put('/api/invoice-templates/gibt-es-nicht').send({ name: 'X' }).expect(404);
+	});
+
 	it('serves the accounting exports instead of looking them up as an invoice', async () => {
 		// Express matches /api/invoices/:id against dotted names too, so the
 		// export routes must be registered first. Both used to answer 404
