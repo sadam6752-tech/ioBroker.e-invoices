@@ -1,4 +1,4 @@
-import { api, esc, eur, type InvoiceLine, type InvoiceTemplate } from '../api';
+import { api, esc, eur, type Product, type InvoiceTemplate } from '../api';
 
 /** One line of a template preview. */
 interface TemplateLine {
@@ -67,6 +67,8 @@ const VAT_RATES = [19, 7, 0];
 export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">Lade Rechnungsvorlagen…</div>`;
 	let items: InvoiceTemplate[] = [];
+	/** Catalog lines offered next to "add position". */
+	let catalog: Product[] = [];
 	/** Template being edited, null while a new one is being created. */
 	let editing: InvoiceTemplate | null = null;
 	/**
@@ -85,6 +87,18 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 	async function reload(): Promise<void> {
 		items = await api.invoiceTemplates.list();
 		render();
+	}
+
+	/** Catalog is a convenience, so a failure must not break the page. */
+	async function loadCatalog(): Promise<void> {
+		try {
+			catalog = await api.products.list();
+			if (formOpen) {
+				render();
+			}
+		} catch {
+			catalog = [];
+		}
 	}
 
 	function startEdit(tpl: InvoiceTemplate | null): void {
@@ -154,8 +168,26 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 					</div>
 					<label>Notiz<textarea id="t-notes" rows="2">${esc(draftNotes)}</textarea></label>
 					<p class="muted">Summe netto: <strong>${eur(net)}</strong></p>
+					${
+						catalog.length > 0
+							? `<div class="row">
+								<label style="flex:1">Aus dem Positionskatalog übernehmen<select id="t-catalog">
+									<option value="">– Position wählen –</option>
+									${catalog
+										.map(
+											p =>
+												`<option value="${esc(p.id)}">${esc(p.sku ? `${p.sku} · ` : '')}${esc(p.name)} · ${eur(
+													p.unitPriceNet,
+												)}</option>`,
+										)
+										.join('')}
+								</select></label>
+								<button class="secondary" id="t-take" style="align-self:end">Position hinzufügen</button>
+							</div>`
+							: `<p class="muted">Unter <a href="#/products">Positionen</a> kannst du den Katalog pflegen.</p>`
+					}
 					${draftLines.map((l, i) => lineRow(l, i, VAT_RATES)).join('')}
-					<button class="secondary" id="t-add-line">+ Position</button>
+					<button class="secondary" id="t-add-line">+ Leere Position</button>
 					<p><button id="t-save">Speichern</button>
 					<button class="secondary" id="t-cancel">Abbrechen</button></p>
 				</div>`
@@ -196,7 +228,28 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 				render();
 			}),
 		);
+		root.querySelector('#t-take')?.addEventListener('click', () => {
+			// Read the form back first, otherwise the catalog line would discard
+			// edits the user just typed into the other rows.
+			draftLines = collectLines();
+			const id = root.querySelector<HTMLSelectElement>('#t-catalog')?.value ?? '';
+			const found = catalog.find(p => p.id === id);
+			if (!found) {
+				return;
+			}
+			draftLines.push({
+				description: found.name,
+				sku: found.sku || undefined,
+				details: found.details || undefined,
+				quantity: 1,
+				unit: found.unit,
+				unitPriceNet: found.unitPriceNet,
+				vatRate: found.vatRate,
+			} as TemplateLine);
+			render();
+		});
 		root.querySelector('#t-add-line')?.addEventListener('click', () => {
+			draftLines = collectLines();
 			draftLines.push(newLine());
 			render();
 		});
@@ -247,6 +300,7 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 
 	try {
 		await reload();
+		void loadCatalog();
 	} catch (e) {
 		root.innerHTML = `<div class="card error">${esc((e as Error).message)}</div>`;
 	}

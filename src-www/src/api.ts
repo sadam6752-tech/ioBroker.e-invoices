@@ -344,6 +344,12 @@ export const api = {
 			body: JSON.stringify({ reason }),
 		}),
 	validate: (id: string) => request<ValidationOutcome>(`/api/invoices/${id}/validate`, { method: 'POST' }),
+	/** Copies the content of an invoice into a new template (no customer, no dates). */
+	asTemplate: (id: string, name: string) =>
+		request<InvoiceTemplate>(`/api/invoices/${id}/as-template`, {
+			method: 'POST',
+			body: JSON.stringify({ name }),
+		}),
 	rerender: (id: string, reason?: string) =>
 		request<{ invoice: Invoice; archivedPath: string | null }>(`/api/invoices/${id}/rerender`, {
 			method: 'POST',

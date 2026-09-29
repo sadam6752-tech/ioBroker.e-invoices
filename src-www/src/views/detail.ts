@@ -78,6 +78,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 						: ''
 				}
 				${inv.status !== 'draft' && inv.pdfPath ? `<button class="secondary" id="d-rerender" title="Erzeugt die PDF neu, z. B. nach einer Layout-Korrektur. Der Inhalt der Rechnung bleibt unverändert, das Original wird archiviert.">Neu rendern</button>` : ''}
+				<button class="secondary" id="d-as-tpl" title="Legt eine Rechnungsvorlage mit diesen Positionen, Terminen und Zahlungsbedingungen an. Käufer und Datum werden nicht übernommen.">Vorlage erstellen</button>
 				<button class="secondary" id="d-validate">Validieren</button>
 			${inv.pdfPath ? `<button class="secondary" data-view="pdf">PDF ansehen</button>` : ''}
 			${inv.pdfPath ? `<button class="secondary" data-dl="pdf">PDF ↓</button>` : ''}
@@ -195,6 +196,20 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 				inv = await api.markSent(inv.id, 'E-Mail');
 				out.innerHTML = `<p style="color:var(--ok)">Als versendet markiert${inv.sentAt ? ` (${esc(inv.sentAt.slice(0, 10))})` : ''}.</p>`;
 				root.querySelector('#d-sent')?.remove();
+			} catch (e) {
+				fail(e);
+			}
+		});
+		root.querySelector('#d-as-tpl')?.addEventListener('click', async () => {
+			const suggested = `${inv.buyer.name || 'Rechnung'} ${new Date().getFullYear()}`;
+			const name = window.prompt('Name der Vorlage:', suggested);
+			if (!name || !name.trim()) {
+				return;
+			}
+			try {
+				const tpl = await api.asTemplate(inv.id, name.trim());
+				out.innerHTML = `<p style="color:var(--ok)">Vorlage „${esc(tpl.name)}" angelegt –
+					<a href="#/invoice-templates">jetzt bearbeiten</a>.</p>`;
 			} catch (e) {
 				fail(e);
 			}

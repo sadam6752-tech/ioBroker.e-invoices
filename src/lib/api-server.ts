@@ -629,6 +629,47 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	);
 
 	app.post(
+		'/api/invoices/:id/as-template',
+		route((req, res) => {
+			const invoice = db.getInvoice(routeParam(req, 'id'));
+			if (!invoice) {
+				res.status(404).json({ error: 'Invoice not found' });
+				return;
+			}
+			const body = (req.body ?? {}) as { name?: unknown };
+			const name = typeof body.name === 'string' ? body.name.trim() : '';
+			if (!name) {
+				res.status(400).json({ error: 'name is required' });
+				return;
+			}
+			// Only the content is copied. The customer, the number and the dates
+			// belong to the single invoice and must not leak into the template.
+			try {
+				res.status(201).json(
+					db.createInvoiceTemplate(name, {
+						seller: invoice.seller,
+						// a placeholder the user replaces per invoice (BT-10 is mandatory)
+						buyer: invoice.buyer,
+						lines: invoice.lines,
+						issueDate: invoice.issueDate,
+						deliveryDate: invoice.deliveryDate,
+						dueDate: invoice.dueDate ?? undefined,
+						currency: 'EUR',
+						documentTitle: invoice.documentTitle,
+						notes: invoice.notes ?? undefined,
+						paymentTerms: invoice.paymentTerms ?? undefined,
+						skontoPercent: Number(invoice.skontoPercent) || 0,
+						skontoDueDate: invoice.skontoDueDate ?? undefined,
+						employeeCode: invoice.employeeCode ?? undefined,
+					}),
+				);
+			} catch (error) {
+				res.status(400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.post(
 		'/api/invoices/:id/rerender',
 		route(async (req, res) => {
 			const body = (req.body ?? {}) as { reason?: unknown };

@@ -523,6 +523,45 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query))}`);
     })
   );
   app.post(
+    "/api/invoices/:id/as-template",
+    route((req, res) => {
+      var _a2, _b2, _c2, _d2, _e2, _f2;
+      const invoice = db.getInvoice(routeParam(req, "id"));
+      if (!invoice) {
+        res.status(404).json({ error: "Invoice not found" });
+        return;
+      }
+      const body = (_a2 = req.body) != null ? _a2 : {};
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (!name) {
+        res.status(400).json({ error: "name is required" });
+        return;
+      }
+      try {
+        res.status(201).json(
+          db.createInvoiceTemplate(name, {
+            seller: invoice.seller,
+            // a placeholder the user replaces per invoice (BT-10 is mandatory)
+            buyer: invoice.buyer,
+            lines: invoice.lines,
+            issueDate: invoice.issueDate,
+            deliveryDate: invoice.deliveryDate,
+            dueDate: (_b2 = invoice.dueDate) != null ? _b2 : void 0,
+            currency: "EUR",
+            documentTitle: invoice.documentTitle,
+            notes: (_c2 = invoice.notes) != null ? _c2 : void 0,
+            paymentTerms: (_d2 = invoice.paymentTerms) != null ? _d2 : void 0,
+            skontoPercent: Number(invoice.skontoPercent) || 0,
+            skontoDueDate: (_e2 = invoice.skontoDueDate) != null ? _e2 : void 0,
+            employeeCode: (_f2 = invoice.employeeCode) != null ? _f2 : void 0
+          })
+        );
+      } catch (error) {
+        res.status(400).json({ error: error.message });
+      }
+    })
+  );
+  app.post(
     "/api/invoices/:id/rerender",
     route(async (req, res) => {
       var _a2;

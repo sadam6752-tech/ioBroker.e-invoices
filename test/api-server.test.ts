@@ -144,6 +144,30 @@ describe('api => invoices', function () {
 		await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
 	});
 
+	it('creates a template from an issued invoice', async () => {
+		const created = await request(app)
+			.post('/api/invoices')
+			.send({ ...draftBody, paymentTerms: 'Zahlbar innerhalb von 14 Tagen' })
+			.expect(201);
+		await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
+
+		const res = await request(app)
+			.post(`/api/invoices/${created.body.id}/as-template`)
+			.send({ name: 'Beratung jährlich' })
+			.expect(201);
+		expect(res.body.name).to.equal('Beratung jährlich');
+		// content travels with the template
+		expect(res.body.body.lines).to.have.lengthOf(1);
+		expect(res.body.body.paymentTerms).to.be.a('string');
+
+		// a missing name is refused
+		await request(app).post(`/api/invoices/${created.body.id}/as-template`).send({}).expect(400);
+		await request(app).post('/api/invoices/gibt-es-nicht/as-template').send({ name: 'X' }).expect(404);
+
+		// clean up so the next test starts from an empty list
+		await request(app).delete(`/api/invoice-templates/${res.body.id}`).expect(204);
+	});
+
 	it('manages invoice content templates', async () => {
 		const body = {
 			lines: [{ description: 'Wartung', quantity: 1, unit: 'Stk', unitPriceNet: 250, vatRate: 19 }],

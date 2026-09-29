@@ -316,35 +316,40 @@ let invoiceTemplates: InvoiceTemplate[] = [];
 			.catch(() => undefined);
 	}
 
-	/** Loads company/customer lists for the dropdowns (re-renders step if needed). */
+	/**
+	 * Loads the company, customer, catalog and template lists once per visit.
+	 *
+	 * Each list renders itself when it arrives, guarded by its own field: the
+	 * catalog field is `#w-catalog`, so a re-render must not restart the whole
+	 * chain or the select would keep its stale (empty) options.
+	 */
+	let listsLoaded = false;
 	function bootLists(): void {
+		if (listsLoaded) {
+			return;
+		}
+		listsLoaded = true;
+		const rerender = (field: string, apply: () => void): void => {
+			apply();
+			if (!root.querySelector(field)) {
+				render(true);
+			}
+		};
 		void api.company
 			.list()
-			.then(list => {
-				companies = list;
-				if ((s.step === 0 || s.step === 1) && !root.querySelector('#w-company') && !root.querySelector('#w-customer')) render();
-			})
+			.then(list => rerender('#w-company', () => (companies = list)))
 			.catch(() => undefined);
 		void api.customers
 			.list()
-			.then(list => {
-				customers = list;
-				if (s.step === 1 && !root.querySelector('#w-customer')) render();
-			})
+			.then(list => rerender('#w-customer', () => (customers = list)))
 			.catch(() => undefined);
 		void api.products
 			.list()
-			.then(list => {
-				catalog = list;
-				if (s.step === 2 && !root.querySelector('#w-catalog')) render();
-			})
+			.then(list => rerender('#w-catalog', () => (catalog = list)))
 			.catch(() => undefined);
 		void api.invoiceTemplates
 			.list()
-			.then(list => {
-				invoiceTemplates = list;
-				if (s.step === 2 && !root.querySelector('#w-inv-tpl')) render();
-			})
+			.then(list => rerender('#w-inv-tpl', () => (invoiceTemplates = list)))
 			.catch(() => undefined);
 	}
 
