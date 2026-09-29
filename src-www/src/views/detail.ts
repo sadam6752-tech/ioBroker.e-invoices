@@ -40,7 +40,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			</div></div>
 			<div class="card"><div class="grid2">
 				<div><strong>Verkäufer</strong><br />${esc(inv.seller.name)}<br />${esc(inv.seller.street)}<br />${esc(inv.seller.zip)} ${esc(inv.seller.city)}</div>
-				<div><strong>Käufer</strong><br />${esc(inv.buyer.name)}<br />${esc(inv.buyer.street)}<br />${esc(inv.buyer.zip)} ${esc(inv.buyer.city)}</div>
+				<div><strong>Käufer</strong><br />${esc(inv.buyer.name)}<br />${esc(inv.buyer.street)}<br />${esc(inv.buyer.zip)} ${esc(inv.buyer.city)}${inv.buyer.email ? `<br />${esc(inv.buyer.email)}` : ''}</div>
 			</div>
 			<p>Ausgestellt: ${esc(inv.issueDate)} · Leistung: ${esc(deliveryDe(inv.deliveryDate))}${inv.dueDate ? ` · Fällig: ${esc(inv.dueDate)}` : ''}</p>
 			<table class="lines"><tr>
@@ -69,10 +69,11 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 				${inv.status === 'issued' ? `<label class="pay"><input type="checkbox" id="d-paid" ${inv.paid ? 'checked' : ''} /><span>bezahlt${inv.paid && inv.paidAt ? ` (${esc(inv.paidAt.slice(0, 10))})` : ''}</span></label>` : ''}
 				${inv.status === 'issued' ? `<button class="secondary" id="d-storno">Storno</button>` : ''}
 				<button class="secondary" id="d-validate">Validieren</button>
-				${inv.pdfPath ? `<button class="secondary" data-view="pdf">PDF ansehen</button>` : ''}
-				${inv.pdfPath ? `<button class="secondary" data-dl="pdf">PDF ↓</button>` : ''}
-				${inv.xml ? `<button class="secondary" data-dl="xml">XML ↓</button>` : ''}
-				${inv.xlsxPath ? `<button class="secondary" data-dl="xlsx">Excel ↓</button>` : ''}
+			${inv.pdfPath ? `<button class="secondary" data-view="pdf">PDF ansehen</button>` : ''}
+			${inv.pdfPath ? `<button class="secondary" data-dl="pdf">PDF ↓</button>` : ''}
+			${inv.status === 'issued' && inv.pdfPath ? `<button class="secondary" id="d-mail">E-Mail (PDF)</button>` : ''}
+			${inv.xml ? `<button class="secondary" data-dl="xml">XML ↓</button>` : ''}
+			${inv.xlsxPath ? `<button class="secondary" data-dl="xlsx">Excel ↓</button>` : ''}
 			</div><div id="d-out"></div></div>`;
 
 		const out = root.querySelector('#d-out')!;
@@ -122,6 +123,32 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			} finally {
 				box.disabled = false;
 			}
+		});
+		root.querySelector('#d-mail')?.addEventListener('click', async () => {
+			// A mailto: link cannot carry an attachment, so the PDF is saved to the
+			// download folder first and the user drags it into the mail window.
+			const to = (inv.buyer.email ?? '').trim();
+			const subject = `${inv.documentTitle ?? 'Rechnung'} ${inv.number ?? ''}`.trim();
+			const body =
+				`Guten Tag ${inv.buyer.name || ''},\n\n` +
+				`anbei erhalten Sie ${subject} vom ${inv.issueDate}.\n` +
+				`Gesamtbetrag: ${eur(inv.totals.grossTotal)}.\n` +
+				`${inv.dueDate ? `Bitte überweisen bis ${inv.dueDate}.\n` : ''}\n` +
+				`Mit freundlichen Grüßen\n${inv.seller.name}\n`;
+			try {
+				await downloadUrl(api.pdfUrl(inv.id), `${inv.number ?? 'rechnung'}.pdf`);
+			} catch (e) {
+				fail(e);
+				return;
+			}
+			const href =
+				`mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+			// set to empty when the customer has no address: the mail program then
+			// asks for the recipient instead of failing silently
+			window.location.href = href;
+			out.innerHTML = to
+				? `<p class="muted">PDF wurde gespeichert. Die Mail wurde an ${esc(to)} vorbereitet – bitte die PDF aus dem Download-Ordner anhängen.</p>`
+				: `<p class="muted">PDF wurde gespeichert. Für diesen Kunden ist keine E-Mail hinterlegt – bitte im Mailfenster eintragen und die PDF anhängen.</p>`;
 		});
 		root.querySelector('#d-storno')?.addEventListener('click', async () => {
 			const reason = window.prompt('Grund für den Storno (erscheint auf der Gutschrift):', 'Falsch ausgestellt');
