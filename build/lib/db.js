@@ -206,6 +206,39 @@ function mapProductRow(row) {
     updatedAt: row.updated_at
   };
 }
+function registerAmountMatcher(totalsJson, term) {
+  const needle = String(term != null ? term : "").trim();
+  const cleaned = needle.replace(/[€\s]/g, "").replace(/EUR|eur/g, "").trim();
+  let digits;
+  const grouped = /^(\d{1,3}(?:[.,]\d{3})+)([.,])(\d+)$/.exec(cleaned);
+  if (grouped) {
+    digits = `${grouped[1].replace(/[.,]/g, "")}.${grouped[3]}`;
+  } else {
+    digits = cleaned.replace(",", ".");
+  }
+  if (!/^\d+(\.\d+)?$/.test(digits)) {
+    return 0;
+  }
+  const wanted = Number(digits);
+  if (!Number.isFinite(wanted)) {
+    return 0;
+  }
+  let totals;
+  try {
+    totals = JSON.parse(String(totalsJson != null ? totalsJson : "{}"));
+  } catch {
+    return 0;
+  }
+  const cent = Math.round(wanted * 100);
+  const rounded = Number.isInteger(wanted);
+  for (const value of [totals.grossTotal, totals.netTotal, totals.taxTotal]) {
+    const stored = Math.round(Number(value) * 100);
+    if (Number.isFinite(stored) && (stored === cent || rounded && Math.abs(stored - cent) < 100)) {
+      return 1;
+    }
+  }
+  return 0;
+}
 class InvoiceDatabase {
   db;
   /** Invoice number format from the instance config. */
@@ -221,6 +254,7 @@ class InvoiceDatabase {
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.db.pragma("busy_timeout = 5000");
+    this.db.function("amountMatches", { deterministic: true }, registerAmountMatcher);
   }
   /**
    * Applies the instance configuration that influences numbering.
@@ -379,10 +413,10 @@ class InvoiceDatabase {
     }
     if (filter.query) {
       where.push(
-        `(number LIKE ? OR buyer_json LIKE ? OR seller_json LIKE ? OR lines_json LIKE ? OR notes LIKE ?)`
+        `(number LIKE ? OR buyer_json LIKE ? OR seller_json LIKE ? OR lines_json LIKE ? OR notes LIKE ? OR amountMatches(totals_json, ?))`
       );
       const like = `%${filter.query}%`;
-      params.push(like, like, like, like, like);
+      params.push(like, like, like, like, like, filter.query);
     }
     if (filter.sent === true) {
       where.push(`sent_at IS NOT NULL`);

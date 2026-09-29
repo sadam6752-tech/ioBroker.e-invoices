@@ -210,6 +210,35 @@ describe('list => search, sort and filter', () => {
 		}
 	});
 
+	it('finds an invoice by its amount, in every notation', () => {
+		const db = openDb();
+		try {
+			const issued = db.issueDraft(
+				db.createDraft(
+					draft({
+						lines: [{ description: 'Anlage', quantity: 1, unit: 'Stk', unitPriceNet: 2500, vatRate: 19 }],
+					}),
+				).id,
+			);
+			// 2500 + 19 % = 2975,00
+			const gross = issued.totals.grossTotal;
+			for (const term of ['2975,00', '2975.00', '2.975,00', '2,975.00', '2975', '2975,00 EUR']) {
+				const hits = db.listInvoices({ query: term });
+				expect(hits, term).to.have.lengthOf(1);
+				expect(hits[0].id, term).to.equal(issued.id);
+			}
+			// the net total is searchable too, the tax total as well
+			expect(db.listInvoices({ query: '2500,00' })).to.have.lengthOf(1);
+			// no false positive on an amount that does not exist
+			expect(db.listInvoices({ query: '99,99' })).to.have.lengthOf(0);
+			// a word must not be read as a number
+			expect(db.listInvoices({ query: 'abc' })).to.have.lengthOf(0);
+			void gross;
+		} finally {
+			db.close();
+		}
+	});
+
 	it('sorts by amount and direction', () => {
 		const db = openDb();
 		try {

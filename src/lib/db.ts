@@ -684,6 +684,64 @@ export interface StoredInvoiceTemplate {
 }
 
 /**
+ * SQL helper for the invoice list: matches a search term against net, tax and
+ * gross total of a stored `totals_json`.
+ *
+ * A user types an amount as they see it, so "2963,10", "2963.10", "2.963,10",
+ * "2963" and a currency-appended "2963,10 EUR" must all find the same invoice.
+ * A term that is not a number never matches, so the text search keeps its
+ * meaning.
+ *
+ * @param totalsJson - The raw `totals_json` column.
+ * @param term - The user's search term.
+ * @returns 1 when one of the totals matches, else 0.
+ */
+function registerAmountMatcher(totalsJson: string | null, term: string | null): number {
+	const needle = String(term ?? '').trim();
+	// Accept what a user actually types: a currency suffix, either decimal
+	// mark and either thousands separator.
+	const cleaned = needle
+		.replace(/[€\s]/g, '')
+		.replace(/EUR|eur/g, '')
+		.trim();
+	// Split off a thousands separator first: "2.963,10" and "2,963.10" both
+	// group the leading digits, and the mark that remains is the decimal one.
+	let digits: string;
+	const grouped = /^(\d{1,3}(?:[.,]\d{3})+)([.,])(\d+)$/.exec(cleaned);
+	if (grouped) {
+		digits = `${grouped[1].replace(/[.,]/g, '')}.${grouped[3]}`;
+	} else {
+		// No grouping: a comma is a decimal mark, a dot may be one too.
+		digits = cleaned.replace(',', '.');
+	}
+	if (!/^\d+(\.\d+)?$/.test(digits)) {
+		return 0;
+	}
+	const wanted = Number(digits);
+	if (!Number.isFinite(wanted)) {
+		return 0;
+	}
+	let totals: { netTotal?: number; taxTotal?: number; grossTotal?: number };
+	try {
+		totals = JSON.parse(String(totalsJson ?? '{}')) as typeof totals;
+	} catch {
+		return 0;
+	}
+	// Compare in cents so 2963,1 and 2963,10 stay distinct. A bare integer
+	// term may also match a value with cents, because users round mentally:
+	// typing 2963 should find 2963.10.
+	const cent = Math.round(wanted * 100);
+	const rounded = Number.isInteger(wanted);
+	for (const value of [totals.grossTotal, totals.netTotal, totals.taxTotal]) {
+		const stored = Math.round(Number(value) * 100);
+		if (Number.isFinite(stored) && (stored === cent || (rounded && Math.abs(stored - cent) < 100))) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/**
  * Invoice database with atomic numbering and migrations.
  */
 export class InvoiceDatabase {
@@ -702,6 +760,8 @@ export class InvoiceDatabase {
 		this.db.pragma('journal_mode = WAL');
 		this.db.pragma('foreign_keys = ON');
 		this.db.pragma('busy_timeout = 5000');
+		// Amount search helper, see registerAmountMatcher below.
+		this.db.function('amountMatches', { deterministic: true }, registerAmountMatcher);
 	}
 
 	/**
@@ -881,11 +941,15 @@ export class InvoiceDatabase {
 		if (filter.query) {
 			// lines_json holds the position texts, so a search for "Ladersessel"
 			// finds the invoice even when number and customer do not match.
+			// totals_json is included because an amount is the other thing people
+			// look for. Amounts are compared numerically, so "2963,10", "2963.10"
+			// and "2963,1" all hit the same record.
 			where.push(
-				`(number LIKE ? OR buyer_json LIKE ? OR seller_json LIKE ? OR lines_json LIKE ? OR notes LIKE ?)`,
+				`(number LIKE ? OR buyer_json LIKE ? OR seller_json LIKE ? OR lines_json LIKE ? OR notes LIKE ?` +
+					` OR amountMatches(totals_json, ?))`,
 			);
 			const like = `%${filter.query}%`;
-			params.push(like, like, like, like, like);
+			params.push(like, like, like, like, like, filter.query);
 		}
 		if (filter.sent === true) {
 			where.push(`sent_at IS NOT NULL`);
