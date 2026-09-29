@@ -67,7 +67,14 @@ const VAT_RATES = [19, 7, 0];
 export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">Lade Rechnungsvorlagen…</div>`;
 	let items: InvoiceTemplate[] = [];
+	/** Template being edited, null while a new one is being created. */
 	let editing: InvoiceTemplate | null = null;
+	/**
+	 * Whether the editor form is open. This is deliberately separate from
+	 * `editing`: a new template has no id yet, so `editing` is null and binding
+	 * the form to it would hide the form for exactly the "+ Neue Vorlage" case.
+	 */
+	let formOpen = false;
 	let draftLines: TemplateLine[] = [];
 	let draftTerms = '';
 	let draftSkonto = 0;
@@ -82,6 +89,7 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 
 	function startEdit(tpl: InvoiceTemplate | null): void {
 		editing = tpl;
+		formOpen = true;
 		const body = readBody(tpl?.body ?? {});
 		draftLines = body.lines.length ? body.lines.map(l => ({ ...l })) : [newLine()];
 		draftTerms = body.paymentTerms;
@@ -121,22 +129,24 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 			${message ? `<span class="${isError ? 'error' : 'muted'}">${esc(message)}</span>` : ''}</div>
 			<p class="muted">Wiederkehrende Rechnungen (Wartung, Honorar, Abo) einmal anlegen und im Assistenten
 				übernehmen. Käufer und Datum werden bewusst nicht gespeichert.</p>
-			${items
-				.map(t => {
-					const b = readBody(t.body);
-					return `<div class="row" style="margin-top:8px">
+			${
+				items
+					.map(t => {
+						const b = readBody(t.body);
+						return `<div class="row" style="margin-top:8px">
 						<strong>${esc(t.name)}</strong>
 						<span class="muted">${b.lines.length} Position(en) · ${eur(netOf(b.lines))}${b.skontoPercent ? ` · ${b.skontoPercent} % Skonto` : ''}</span>
 						<button class="secondary" data-tpl-edit="${esc(t.id)}">Bearbeiten</button>
 						<button class="danger" data-tpl-del="${esc(t.id)}">Löschen</button>
 					</div>`;
-				})
-				.join('') || '<p class="muted">Noch keine Vorlagen.</p>'}
+					})
+					.join('') || '<p class="muted">Noch keine Vorlagen.</p>'
+			}
 		</div>
 		${
-			editing
-				? `<div class="card"><h3>${editing.id ? esc(editing.name) : 'Neue Vorlage'}</h3>
-					<label>Name<input id="t-name" value="${esc(editing.name)}" placeholder="z. B. Monatliche Wartung" /></label>
+			formOpen
+				? `<div class="card"><h3>${editing ? esc(editing.name) : 'Neue Vorlage'}</h3>
+					<label>Name<input id="t-name" value="${esc(editing?.name ?? '')}" placeholder="z. B. Monatliche Wartung" /></label>
 					<label>Zahlungsbedingungen<input id="t-terms" value="${esc(draftTerms)}" placeholder="Zahlbar innerhalb von 14 Tagen" /></label>
 					<div class="grid2">
 						<label>Skonto %<input id="t-skonto" type="number" min="0" max="20" step="0.5" value="${esc(draftSkonto)}" /></label>
@@ -190,7 +200,11 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 			draftLines.push(newLine());
 			render();
 		});
-		root.querySelector('#t-cancel')?.addEventListener('click', () => startEdit(null));
+		root.querySelector('#t-cancel')?.addEventListener('click', () => {
+			editing = null;
+			formOpen = false;
+			render();
+		});
 		root.querySelector('#t-save')?.addEventListener('click', async () => {
 			const name = root.querySelector<HTMLInputElement>('#t-name')?.value.trim() ?? '';
 			if (!name) {
@@ -221,6 +235,7 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 				message = `Gespeichert: ${name}`;
 				isError = false;
 				editing = null;
+				formOpen = false;
 				await reload();
 			} catch (e) {
 				message = (e as Error).message;
