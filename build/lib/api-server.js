@@ -137,6 +137,11 @@ function createApiServer(deps) {
   const app = (0, import_express.default)();
   app.disable("x-powered-by");
   app.use(import_express.default.json({ limit: "25mb" }));
+  app.use("/api", (_req, res, next) => {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.set("Pragma", "no-cache");
+    next();
+  });
   if (authToken) {
     app.use("/api", (req, res, next) => {
       if (req.path === "/health") {

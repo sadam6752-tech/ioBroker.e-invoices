@@ -13,9 +13,9 @@ export default defineConfig({
 		},
 	},
 	plugins: [
-		VitePWA({
-			registerType: 'autoUpdate',
-			manifest: {
+			VitePWA({
+				registerType: 'autoUpdate',
+				manifest: {
 				name: 'E-Invoices',
 				short_name: 'E-Invoices',
 				description: 'ZUGFeRD E-Rechnungen erstellen, speichern und sichern',
@@ -30,17 +30,23 @@ export default defineConfig({
 					{ src: 'icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
 				],
 			},
-			workbox: {
-				// Never serve the app shell for API navigations (PDF/XML downloads).
-				navigateFallbackDenylist: [/^\/api\//],
-				runtimeCaching: [
-					{
-						urlPattern: ({ url }) => url.pathname.startsWith('/api/invoices') && !url.pathname.endsWith('/issue'),
-						handler: 'NetworkFirst',
-						options: { cacheName: 'api-read', networkTimeoutSeconds: 5 },
-					},
-				],
-			},
+				workbox: {
+					// Drop runtime caches from earlier versions, otherwise a PDF stored
+					// by the old NetworkFirst rule survives the update.
+					cleanupOutdatedCaches: true,
+					// Never serve the app shell for API navigations (PDF/XML downloads).
+					navigateFallbackDenylist: [/^\/api\//],
+					runtimeCaching: [
+						{
+							// Read-only invoice data. NetworkOnly: a cached PDF would show
+							// a stale rendering after a layout fix, and NetworkFirst falls
+							// back to the cache on timeout, which had exactly that effect.
+							urlPattern: ({ url }) => url.pathname.startsWith('/api/invoices') && !url.pathname.endsWith('/issue'),
+							handler: 'NetworkOnly',
+							options: { cacheName: 'api-read' },
+						},
+					],
+				},
 		}),
 	],
 });

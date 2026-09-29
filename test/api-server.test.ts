@@ -117,6 +117,18 @@ describe('api => invoices', function () {
 		await request(app).post(`/api/invoices/${id}/issue`).expect(400);
 	});
 
+	it('marks every API response as non-cacheable', async () => {
+		// A stored PDF keeps the layout of the moment it was rendered. Serving it
+		// from a cache hid corrected renderings, so no answer may be reused.
+		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
+		for (const url of ['/api/health', '/api/invoices', `/api/invoices/${created.body.id}.pdf`]) {
+			const res = await request(app).get(url);
+			expect(res.status, url).to.be.oneOf([200, 401, 404]);
+			expect(res.headers['cache-control'], url).to.contain('no-store');
+		}
+	});
+
 	it('lists and filters invoices', async () => {
 		const all = await request(app).get('/api/invoices').expect(200);
 		expect(all.body.length).to.be.greaterThan(0);

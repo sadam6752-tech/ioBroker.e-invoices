@@ -194,6 +194,14 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	const app = express();
 	app.disable('x-powered-by');
 	app.use(express.json({ limit: '25mb' }));
+	// Invoice data and rendered artifacts must never be reused from a cache:
+	// a stored PDF keeps the layout it had when it was issued, and a cached
+	// preview would hide a corrected rendering until the cache expired.
+	app.use('/api', (_req, res, next) => {
+		res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+		res.set('Pragma', 'no-cache');
+		next();
+	});
 
 	if (authToken) {
 		app.use('/api', (req, res, next) => {
