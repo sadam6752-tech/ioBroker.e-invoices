@@ -24,7 +24,12 @@ const OWN_TERMS = '__own__';
 
 /** True when the text is not one of the presets (so the own field shows). */
 function isCustomTerms(value?: string | null): boolean {
-	return !!value && !PAYMENT_TERMS_PRESETS.includes(value as (typeof PAYMENT_TERMS_PRESETS)[number]);
+	return !!value && !isPreset(value);
+}
+
+/** True when the text is one of the three presets. */
+function isPreset(value?: string | null): boolean {
+	return !!value && PAYMENT_TERMS_PRESETS.includes(value as (typeof PAYMENT_TERMS_PRESETS)[number]);
 }
 
 /** Rounds to cents without the float trap of a bare Math.round (544 × 19 % = 103,36 → 103). */
@@ -350,20 +355,6 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		if (notesEl) s.notes = notesEl.value;
 		const termsEl = root.querySelector<HTMLTextAreaElement>('#w-terms');
 		if (termsEl) s.paymentTerms = termsEl.value;
-		root.querySelector('#w-terms-select')?.addEventListener('change', event => {
-			const value = (event.target as HTMLSelectElement).value;
-			if (value === OWN_TERMS) {
-				s.termsCustom = true;
-				// start with an empty field unless the text already is free text
-				if (PAYMENT_TERMS_PRESETS.includes(s.paymentTerms as (typeof PAYMENT_TERMS_PRESETS)[number])) {
-					s.paymentTerms = '';
-				}
-			} else {
-				s.termsCustom = false;
-				s.paymentTerms = value;
-			}
-			render();
-		});
 		if (root.querySelector('#w-skonto')) {
 			const raw = Number(get('w-skonto'));
 			s.skontoPercent = Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 100) : 0;
@@ -558,6 +549,22 @@ export function wizard(root: HTMLElement, editId?: string): void {
 
 		root.querySelector('#w-back')?.addEventListener('click', () => {
 			s.step--;
+			render();
+		});
+		// must be bound here and not in collect(): collect() runs *before* the
+		// new innerHTML exists, so a listener bound there would be thrown away
+		root.querySelector('#w-terms-select')?.addEventListener('change', event => {
+			const value = (event.target as HTMLSelectElement).value;
+			if (value === OWN_TERMS) {
+				s.termsCustom = true;
+				// start empty unless the current text already is free text
+				if (isPreset(s.paymentTerms)) {
+					s.paymentTerms = '';
+				}
+			} else {
+				s.termsCustom = false;
+				s.paymentTerms = value;
+			}
 			render();
 		});
 		root.querySelector('#w-company')?.addEventListener('change', () => {
