@@ -412,8 +412,10 @@ export async function renderInvoicePdf(
 			doc.fontSize(8);
 			boxes.forEach((lines, index) => {
 				const align = aligns[index] ?? 'left';
+				// last column reaches exactly to the right edge (rule end)
+				const width = index === boxes.length - 1 ? colW : colW - 8;
 				lines.forEach((line, lineIndex) => {
-					doc.text(line, left + index * colW, footTop + lineIndex * 10, { width: colW - 8, align });
+					doc.text(line, left + index * colW, footTop + lineIndex * 10, { width, align });
 				});
 			});
 			doc.fontSize(10);

@@ -364,8 +364,9 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       boxes.forEach((lines, index) => {
         var _a3;
         const align = (_a3 = aligns[index]) != null ? _a3 : "left";
+        const width = index === boxes.length - 1 ? colW : colW - 8;
         lines.forEach((line, lineIndex) => {
-          doc.text(line, left + index * colW, footTop + lineIndex * 10, { width: colW - 8, align });
+          doc.text(line, left + index * colW, footTop + lineIndex * 10, { width, align });
         });
       });
       doc.fontSize(10);
