@@ -366,8 +366,8 @@ class InvoiceDatabase {
       var _a2;
       const number = this.nextInvoiceNumber(year, (_a2 = current.employeeCode) != null ? _a2 : void 0);
       this.db.prepare(
-        `UPDATE invoices SET number = ?, status = 'issued', updated_at = ? WHERE id = ? AND status = 'draft'`
-      ).run(number, nowIso(), id);
+        `UPDATE invoices SET number = ?, status = 'issued', totals_json = ?, updated_at = ? WHERE id = ? AND status = 'draft'`
+      ).run(number, JSON.stringify((0, import_invoice_model.calcTotals)(current.lines)), nowIso(), id);
       const issued = this.getInvoice(id);
       if (!issued || issued.number !== number) {
         throw new Error("Issue transaction failed");

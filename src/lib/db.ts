@@ -732,11 +732,13 @@ export class InvoiceDatabase {
 		}
 		const run = this.db.transaction((): StoredInvoice => {
 			const number = this.nextInvoiceNumber(year, current.employeeCode ?? undefined);
+			// Refresh the totals snapshot so a draft saved under older rounding
+			// rules can never be frozen with stale figures.
 			this.db
 				.prepare(
-					`UPDATE invoices SET number = ?, status = 'issued', updated_at = ? WHERE id = ? AND status = 'draft'`,
+					`UPDATE invoices SET number = ?, status = 'issued', totals_json = ?, updated_at = ? WHERE id = ? AND status = 'draft'`,
 				)
-				.run(number, nowIso(), id);
+				.run(number, JSON.stringify(calcTotals(current.lines)), nowIso(), id);
 			const issued = this.getInvoice(id);
 			if (!issued || issued.number !== number) {
 				throw new Error('Issue transaction failed');

@@ -6,6 +6,7 @@
 import { expect } from 'chai';
 import { InvoiceDatabase } from './db';
 import type { InvoiceDraftInput, Party } from './invoice-model';
+import { calcTotals } from './invoice-model';
 
 const seller: Party = {
 	name: 'Muster GmbH',
@@ -100,6 +101,26 @@ describe('db => drafts and issue flow', () => {
 		try {
 			const bad = db.createDraft(draft({ lines: [] }));
 			expect(() => db.issueDraft(bad.id)).to.throw(/issuable|line/i);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('refreshes the totals snapshot when issuing', () => {
+		const db = openMemoryDb();
+		try {
+			const created = db.createDraft(
+				draft({
+					lines: [
+						{ description: 'A', quantity: 1, unit: 'Stk', unitPriceNet: 33.335, vatRate: 19 },
+						{ description: 'B', quantity: 1, unit: 'Stk', unitPriceNet: 33.335, vatRate: 19 },
+						{ description: 'C', quantity: 1, unit: 'Stk', unitPriceNet: 33.335, vatRate: 19 },
+					],
+				}),
+			);
+			expect(created.totals.taxTotal).to.equal(calcTotals(created.lines).taxTotal);
+			const issued = db.issueDraft(created.id);
+			expect(issued.totals.taxTotal).to.equal(Math.round((issued.totals.netTotal * 19) / 100));
 		} finally {
 			db.close();
 		}
