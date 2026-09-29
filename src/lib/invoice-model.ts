@@ -60,11 +60,23 @@ export interface InvoiceLine {
 	unitPriceNet: number;
 	/** VAT rate in percent: 0, 7 or 19. Use 0 + exemptionReason for exempt. */
 	vatRate: number;
-	/** Reason for tax exemption (Pflicht when vatRate is 0 and exempt). */
+	/** Reason for tax exemption (Pflicht when vatRate is 0). */
 	exemptionReason?: string;
+	/**
+	 * Tax category for 0 % lines: `E` steuerfrei, `AE` Reverse Charge (§13b,
+	 * Ausland), `K` Kfz (§4 Nr. 1b), `G` Gold (§4 Nr. 1a), `O` Nicht
+	 * umkehrbar. Only used when vatRate is 0; defaults to `E`.
+	 */
+	exemptionCategory?: ExemptionCategory;
 	/** Pre-agreed line discount in percent, 0-100 (optional). */
 	discountPercent?: number;
 }
+
+/** Tax category for a 0 % line (EN 16931 VAT category code list). */
+export type ExemptionCategory = 'E' | 'AE' | 'K' | 'G' | 'O';
+
+/** All allowed 0 % categories. */
+export const EXEMPTION_CATEGORIES: ExemptionCategory[] = ['E', 'AE', 'K', 'G', 'O'];
 
 /** Tax totals for one VAT rate. */
 export interface TaxBreakdown {
@@ -251,6 +263,49 @@ export function isIsoDate(value: string): boolean {
 }
 
 /**
+ * A service/delivery date, either a single day or a period.
+ */
+export interface DeliveryPeriod {
+	/** First day, ISO YYYY-MM-DD (BT-72). */
+	start: string;
+	/** Last day, ISO YYYY-MM-DD (BT-74), null for a single day. */
+	end: string | null;
+}
+
+/**
+ * Parses the delivery date field, which may hold a single ISO day
+ * (`2026-10-01`) or a period (`2026-10-01..2026-10-31`).
+ * Returns null when the value is not a valid calendar date / period.
+ *
+ * @param value - Raw delivery date from the draft.
+ */
+export function parseDeliveryPeriod(value: string): DeliveryPeriod | null {
+	const raw = (value ?? '').trim();
+	if (raw.includes('..')) {
+		const [start, end] = raw.split('..').map(part => part.trim());
+		if (!isIsoDate(start ?? '') || !isIsoDate(end ?? '') || (end ?? '') < (start ?? '')) {
+			return null;
+		}
+		return { start: start, end: end };
+	}
+	return isIsoDate(raw) ? { start: raw, end: null } : null;
+}
+
+/**
+ * Human readable delivery date, e.g. `01.10.2026` or `01.10.2026 – 31.10.2026`.
+ *
+ * @param value - Raw delivery date from the draft.
+ */
+export function formatDeliveryDateDe(value: string): string {
+	const period = parseDeliveryPeriod(value);
+	if (!period) {
+		return value;
+	}
+	const de = (iso: string): string => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
+	return period.end ? `${de(period.start)} – ${de(period.end)}` : de(period.start);
+}
+
+/**
  * Current date as ISO `YYYY-MM-DD` (UTC).
  *
  * @param date - Reference point, defaults to now.
@@ -303,15 +358,21 @@ export function validateInvoiceForIssue(input: InvoiceDraftInput): string[] {
 	if (isBlank(buyer.name) || isBlank(buyer.street) || isBlank(buyer.zip) || isBlank(buyer.city)) {
 		errors.push('Buyer needs full name and address (name, street, zip, city).');
 	}
+	// BT-10 (Käuferreferenz) is mandatory in the German EN 16931 profile; without
+	// it the receiver's validation tooling rejects the invoice
+	if (isBlank(buyer.customerNumber)) {
+		errors.push('Buyer needs a customer number (Kundennummer, BT-10) for the German e-invoice.');
+	}
 	if (isBlank(input.issueDate) || !isIsoDate(input.issueDate)) {
 		errors.push('Issue date must be a real calendar date in ISO format (YYYY-MM-DD).');
 	}
-	// the CII mapping only carries one date (BT-72); a period or free text
-	// would be silently truncated, so it is rejected instead
+	// a period is allowed and carried into the XML as BT-72 + BT-74
 	if (isBlank(input.deliveryDate)) {
 		errors.push('Delivery/service date is required.');
-	} else if (!isIsoDate(input.deliveryDate)) {
-		errors.push('Delivery/service date must be a real calendar date in ISO format (YYYY-MM-DD).');
+	} else if (!parseDeliveryPeriod(input.deliveryDate)) {
+		errors.push(
+			'Delivery/service date must be a real calendar date (YYYY-MM-DD) or a period (YYYY-MM-DD..YYYY-MM-DD).',
+		);
 	}
 	if (lines.length === 0) {
 		errors.push('At least one line item is required.');
@@ -332,6 +393,9 @@ export function validateInvoiceForIssue(input: InvoiceDraftInput): string[] {
 		}
 		if (line.vatRate === 0 && isBlank(line.exemptionReason)) {
 			errors.push(`Line ${pos}: exemption reason required for 0% VAT (or use a taxable rate).`);
+		}
+		if (line.vatRate === 0 && line.exemptionCategory && !EXEMPTION_CATEGORIES.includes(line.exemptionCategory)) {
+			errors.push(`Line ${pos}: exemption category must be one of ${EXEMPTION_CATEGORIES.join(', ')}.`);
 		}
 	});
 	if (input.currency !== undefined && input.currency !== 'EUR') {

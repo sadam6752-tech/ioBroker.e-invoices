@@ -93,7 +93,7 @@ async function renderInvoiceWorkbook(invoice) {
   );
   row += 1;
   sheet.getCell(`A${row}`).value = `Ausstellungsdatum: ${invoice.issueDate}`;
-  sheet.getCell(`A${row + 1}`).value = `Liefer-/Leistungsdatum: ${invoice.deliveryDate}`;
+  sheet.getCell(`A${row + 1}`).value = `Liefer-/Leistungsdatum: ${(0, import_invoice_model.formatDeliveryDateDe)(invoice.deliveryDate)}`;
   if (invoice.dueDate) {
     sheet.getCell(`A${row + 2}`).value = `F\xE4llig am: ${invoice.dueDate}`;
     row += 1;

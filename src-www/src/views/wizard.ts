@@ -16,6 +16,17 @@ function lineNet(line: InvoiceLine): number {
 	return round2(quantity * price * (1 - discount / 100));
 }
 
+/** Start day of a stored delivery value (`YYYY-MM-DD` or `from..to`). */
+function deliveryStart(value: string): string {
+	return (value ?? '').trim().split('..')[0] ?? '';
+}
+
+/** End day of a stored delivery value, empty for a single day. */
+function deliveryEnd(value: string): string {
+	const parts = (value ?? '').trim().split('..');
+	return parts.length > 1 ? parts[1] : '';
+}
+
 /** localStorage key for the unsent wizard state (survives reloads/back). */
 const STORAGE_KEY = 'einv-wizard-v1';
 
@@ -123,11 +134,20 @@ function partyFields(prefix: string, p: Party, withTax: boolean): string {
 			<label>Steuernummer<input data-p="${prefix}" data-f="taxNumber" value="${esc(p.taxNumber)}" /></label>
 		</div>
 		<label>IBAN<input data-p="${prefix}" data-f="iban" value="${esc(p.iban)}" /></label>`
-				: `<label>Kundennr. (BT-10)<input data-p="${prefix}" data-f="customerNumber" value="${esc(p.customerNumber)}" /></label>`
+				: `<label class="req">Kundennummer (BT-10) *<input data-p="${prefix}" data-f="customerNumber" value="${esc(p.customerNumber)}" placeholder="Pflicht im deutschen E-Rechnungs-Profil" /></label>`
 		}`;
 }
 
 const DOC_TITLES = ['Rechnung', 'Abschlagsrechnung', 'Schlussrechnung', 'Gutschrift'];
+
+/** German labels for the EN 16931 VAT category codes used on 0 % lines. */
+const EXEMPTION_LABELS: Record<string, string> = {
+	E: 'steuerfrei',
+	AE: 'Reverse Charge (§13b UStG)',
+	K: 'Kraftfahrzeug (§4 Nr. 1b UStG)',
+	G: 'Gold (§4 Nr. 1a UStG)',
+	O: 'nicht umkehrbar',
+};
 
 /** Multi-step invoice wizard: seller -> buyer -> lines -> review/issue. */
 export function wizard(root: HTMLElement, editId?: string): void {
@@ -267,8 +287,16 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			}
 		});
 		const get = (id: string): string => root.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value ?? '';
+		const readDelivery = (): void => {
+			const from = get('w-delivery');
+			if (!from) {
+				return;
+			}
+			const to = get('w-delivery-to');
+			s.deliveryDate = to && to !== from ? `${from}..${to}` : from;
+		};
 		s.issueDate = get('w-issue') || s.issueDate;
-		s.deliveryDate = get('w-delivery') || s.deliveryDate;
+		readDelivery();
 		if (root.querySelector('#w-due')) s.dueDate = get('w-due');
 		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
 		if (root.querySelector('#w-title')) s.documentTitle = get('w-title') || s.documentTitle;
@@ -343,7 +371,12 @@ export function wizard(root: HTMLElement, editId?: string): void {
 						<label>USt %<select data-l="${i}.vatRate">
 							${[19, 7, 0].map(r => `<option ${r === Number(l.vatRate) ? 'selected' : ''}>${r}</option>`).join('')}
 						</select></label>
-						${Number(l.vatRate) === 0 ? `<label>Steuerbefreiung<textarea data-l="${i}.exemptionReason" rows="1" placeholder="z. B. Reverse Charge §13b UStG">${esc(l.exemptionReason)}</textarea></label>` : ''}
+						${Number(l.vatRate) === 0 ? `<label>Steuerbefreiung<select data-l="${i}.exemptionCategory">
+								${(['E', 'AE', 'K', 'G', 'O'] as const)
+									.map(c => `<option ${(l.exemptionCategory ?? 'E') === c ? 'selected' : ''} value="${c}">${c} — ${EXEMPTION_LABELS[c]}</option>`)
+									.join('')}
+							</select></label>
+							<label>Begründung<textarea data-l="${i}.exemptionReason" rows="1" placeholder="z. B. Reverse Charge §13b UStG">${esc(l.exemptionReason)}</textarea></label>` : ''}
 					</div>
 					<button class="secondary" data-del="${i}">Position entfernen</button>
 				</div>`,
@@ -352,9 +385,16 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				<p><button class="secondary" id="w-add">+ Position</button></p>
 				<div class="grid2">
 					<label>Ausstellungsdatum<input id="w-issue" type="date" value="${esc(s.issueDate)}" /></label>
-					<label>Leistungsdatum<input id="w-delivery" type="date" value="${esc(s.deliveryDate)}" /></label>
+					<label>Fällig am<input id="w-due" type="date" value="${esc(s.dueDate)}" /></label>
 				</div>
-				<label>Fällig am<input id="w-due" type="date" value="${esc(s.dueDate)}" /></label>
+				<fieldset class="period">
+					<legend>Leistungszeitraum</legend>
+					<div class="grid2">
+						<label>von<input id="w-delivery" type="date" value="${esc(deliveryStart(s.deliveryDate))}" /></label>
+						<label>bis (optional)<input id="w-delivery-to" type="date" value="${esc(deliveryEnd(s.deliveryDate))}" /></label>
+					</div>
+					<p class="muted">Nur „von" angeben, wenn die Leistung an einem Tag erbracht wurde. Mit „bis" wird der Zeitraum als BT-74/BT-75 in die Rechnung geschrieben.</p>
+				</fieldset>
 				<label>Mitarbeiter-Kürzel (für Nr. JJJJ-KK-LLL)<input id="w-employee" maxlength="8" placeholder="z.B. 01" value="${esc(s.employee)}" /></label>
 				<label>Notizen<textarea id="w-notes">${esc(s.notes)}</textarea></label>
 			</div>`;
@@ -585,8 +625,9 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			root.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value ?? '';
 		const issue = get('w-issue');
 		const delivery = get('w-delivery');
+		const deliveryTo = get('w-delivery-to');
 		if (issue) s.issueDate = issue;
-		if (delivery) s.deliveryDate = delivery;
+		if (delivery) s.deliveryDate = deliveryTo && deliveryTo !== delivery ? `${delivery}..${deliveryTo}` : delivery;
 		if (root.querySelector('#w-due')) s.dueDate = get('w-due');
 		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
 		const title = get('w-title');

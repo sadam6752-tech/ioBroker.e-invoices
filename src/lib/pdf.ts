@@ -9,7 +9,7 @@
  * exemption reasons are always rendered (Pflicht).
  */
 import PDFDocument from 'pdfkit';
-import { calcTotals, lineNetAmount, lineNetUnitPrice } from './invoice-model';
+import { calcTotals, formatDeliveryDateDe, lineNetAmount, lineNetUnitPrice } from './invoice-model';
 import { ARCHIVE_HINT, DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
 import type { StoredInvoice } from './db';
 
@@ -42,15 +42,10 @@ const HEADER_GRAY = '#D9D9D9';
  * Formats ISO dates German style (DD.MM.YYYY) for display.
  * XML keeps ISO; this is sight-component only.
  *
- * @param iso - ISO date or date period start.
+ * @param iso - ISO date or a period `YYYY-MM-DD..YYYY-MM-DD`.
  */
 export function formatDeDate(iso: string): string {
-	const date = iso.split('..')[0];
-	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-	if (!match) {
-		return iso;
-	}
-	return `${match[3]}.${match[2]}.${match[1]}`;
+	return formatDeliveryDateDe(iso);
 }
 
 /**

@@ -6,8 +6,10 @@ import {
 	blankDraft,
 	calcTotals,
 	formatInvoiceNumber,
+	formatDeliveryDateDe,
 	isIsoDate,
 	lineNetAmount,
+	parseDeliveryPeriod,
 	lineNetUnitPrice,
 	normalizeEmployeeCode,
 	todayIso,
@@ -112,9 +114,31 @@ describe('invoice-model => calcTotals', () => {
 		).to.throw(/Discount/);
 	});
 
+	it('rejects a delivery period with an impossible or reversed range', () => {
+		expect(parseDeliveryPeriod('2026-10-01..2026-10-31')).to.deep.equal({
+			start: '2026-10-01',
+			end: '2026-10-31',
+		});
+		expect(parseDeliveryPeriod('2026-10-01')).to.deep.equal({ start: '2026-10-01', end: null });
+		expect(parseDeliveryPeriod('2026-10-31..2026-10-01')).to.equal(null);
+		expect(parseDeliveryPeriod('2026-10-01..2026-02-31')).to.equal(null);
+		expect(parseDeliveryPeriod('irgendwann')).to.equal(null);
+		expect(formatDeliveryDateDe('2026-10-01..2026-10-31')).to.equal('01.10.2026 – 31.10.2026');
+		expect(formatDeliveryDateDe('2026-10-01')).to.equal('01.10.2026');
+	});
+
+	it('accepts a delivery period but rejects free text', () => {
+		const period = validDraft();
+		period.deliveryDate = '2026-10-01..2026-10-31';
+		expect(validateInvoiceForIssue(period)).to.deep.equal([]);
+		const free = validDraft();
+		free.deliveryDate = '03.10.2026';
+		expect(validateInvoiceForIssue(free).join(' ')).to.contain('Delivery/service date');
+	});
+
 	it('rejects a delivery period instead of truncating it silently', () => {
 		const draft = validDraft();
-		draft.deliveryDate = '2026-10-01..2026-10-31';
+		draft.deliveryDate = '2026-10-01..2026-09-30';
 		const errors = validateInvoiceForIssue(draft);
 		expect(errors.join(' | ')).to.contain('Delivery/service date');
 	});

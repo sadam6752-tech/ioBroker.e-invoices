@@ -5,6 +5,14 @@ function round2(value: number): number {
 	return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+/** Formats `2026-10-01` or `2026-10-01..2026-10-31` for display. */
+function deliveryDe(value: string): string {
+	const raw = (value ?? '').trim();
+	const [start, end] = raw.split('..');
+	const de = (iso: string): string => (/^\d{4}-\d{2}-\d{2}$/.test(iso ?? '') ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : (iso ?? ''));
+	return end ? `${de(start)} – ${de(end)}` : de(start);
+}
+
 /** Invoice detail: fields, validation, downloads, issue action. */
 export async function detail(root: HTMLElement, id: string): Promise<void> {
 	root.innerHTML = `<div class="card">Lade…</div>`;
@@ -33,7 +41,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 				<div><strong>Verkäufer</strong><br />${esc(inv.seller.name)}<br />${esc(inv.seller.street)}<br />${esc(inv.seller.zip)} ${esc(inv.seller.city)}</div>
 				<div><strong>Käufer</strong><br />${esc(inv.buyer.name)}<br />${esc(inv.buyer.street)}<br />${esc(inv.buyer.zip)} ${esc(inv.buyer.city)}</div>
 			</div>
-			<p>Ausgestellt: ${esc(inv.issueDate)} · Leistung: ${esc(inv.deliveryDate)}${inv.dueDate ? ` · Fällig: ${esc(inv.dueDate)}` : ''}</p>
+			<p>Ausgestellt: ${esc(inv.issueDate)} · Leistung: ${esc(deliveryDe(inv.deliveryDate))}${inv.dueDate ? ` · Fällig: ${esc(inv.dueDate)}` : ''}</p>
 			<table class="lines"><tr>
 				<th>#</th><th>Bezeichnung</th><th class="r">Menge</th><th class="r">Preis netto</th>
 				${hasDiscount ? '<th class="r">Rabatt</th><th class="r">Rabatt €</th>' : ''}

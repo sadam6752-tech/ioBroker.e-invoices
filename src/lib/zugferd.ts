@@ -21,7 +21,14 @@ import {
 	validateXsd,
 	type FacturXInvoiceInput,
 } from '@stackforge-eu/factur-x';
-import { calcTotals, lineNetUnitPrice, roundCents } from './invoice-model';
+import {
+	calcTotals,
+	lineNetUnitPrice,
+	parseDeliveryPeriod,
+	roundCents,
+	type DeliveryPeriod,
+	type ExemptionCategory,
+} from './invoice-model';
 import type { StoredInvoice } from './db';
 
 /** Profiles this adapter can generate in v1. */
@@ -73,12 +80,24 @@ export function mapUnitCode(unit: string): UnitCode {
  * v1 knows domestic standard rates (S) and documented exemptions (E).
  *
  * @param vatRate - VAT rate in percent.
+ * @param exemptionCategory - Category of a 0 % line, defaults to `E`.
  */
-export function mapVatCategory(vatRate: number): VatCategoryCode {
-	if (vatRate === 0) {
-		return VatCategoryCode.EXEMPT;
+export function mapVatCategory(vatRate: number, exemptionCategory?: ExemptionCategory): VatCategoryCode {
+	if (vatRate !== 0) {
+		return VatCategoryCode.STANDARD_RATE;
 	}
-	return VatCategoryCode.STANDARD_RATE;
+	switch (exemptionCategory) {
+		case 'AE':
+			return VatCategoryCode.REVERSE_CHARGE;
+		case 'K':
+			return VatCategoryCode.INTRA_COMMUNITY_SUPPLY;
+		case 'G':
+			return VatCategoryCode.FREE_EXPORT;
+		case 'O':
+			return VatCategoryCode.OUTSIDE_SCOPE;
+		default:
+			return VatCategoryCode.EXEMPT;
+	}
 }
 
 /**
@@ -187,7 +206,7 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 				unitPrice: netUnit,
 				grossUnitPrice: discount > 0 ? line.unitPriceNet : undefined,
 				priceDiscount: discount > 0 ? roundCents(line.unitPriceNet - netUnit) : undefined,
-				vatCategoryCode: mapVatCategory(line.vatRate),
+				vatCategoryCode: mapVatCategory(line.vatRate, line.exemptionCategory),
 				vatRatePercent: line.vatRate,
 			};
 		}),
@@ -199,16 +218,27 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 			duePayableAmount: totals.grossTotal,
 			currency: 'EUR',
 		},
-		vatBreakdown: totals.breakdown.map(entry => ({
-			categoryCode: entry.vatRate === 0 ? VatCategoryCode.EXEMPT : VatCategoryCode.STANDARD_RATE,
-			ratePercent: entry.vatRate,
-			taxableAmount: entry.net,
-			taxAmount: entry.tax,
-			exemptionReason:
-				entry.vatRate === 0
-					? invoice.lines.find(line => line.vatRate === 0 && line.exemptionReason?.trim())?.exemptionReason
-					: undefined,
-		})),
+		vatBreakdown: totals.breakdown.map(entry => {
+			// the 0 % breakdown entry aggregates all 0 % lines, so the category
+			// and reason must be checked for consistency instead of taken
+			// from an arbitrary line
+			const zeroLines = entry.vatRate === 0 ? invoice.lines.filter(line => line.vatRate === 0) : [];
+			const categories = new Set(zeroLines.map(line => line.exemptionCategory ?? 'E'));
+			const reasons = [...new Set(zeroLines.map(line => line.exemptionReason?.trim()).filter(Boolean))];
+			if (categories.size > 1 || reasons.length > 1) {
+				throw new Error(
+					`0% lines use different exemption categories (${[...categories].join('/')}) or reasons — ` +
+						'split them into separate invoices or make them identical',
+				);
+			}
+			return {
+				categoryCode: mapVatCategory(entry.vatRate, [...categories][0]),
+				ratePercent: entry.vatRate,
+				taxableAmount: entry.net,
+				taxAmount: entry.tax,
+				exemptionReason: entry.vatRate === 0 ? reasons[0] : undefined,
+			};
+		}),
 		payment: {
 			meansCode: '58',
 			iban: invoice.seller.iban?.trim() || undefined,
@@ -218,8 +248,9 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 			termsDescription: invoice.paymentTerms ?? undefined,
 		},
 		delivery: {
-			// validated as a plain ISO date at issue time, no period support
-			date: invoice.deliveryDate,
+			// validated at issue time; for a period only BT-72 goes through the
+			// library, BT-74 is added by applyDeliveryPeriodEnd()
+			date: parseDeliveryPeriod(invoice.deliveryDate)?.start,
 		},
 	};
 }
@@ -250,11 +281,45 @@ export async function generateInvoiceXml(invoice: StoredInvoice): Promise<Genera
 	}
 
 	const xml = buildXml(input, profile, Flavor.ZUGFERD);
-	const xsd = await validateXsd(xml, profile);
+	const withPeriod = applyBillingPeriod(xml, parseDeliveryPeriod(invoice.deliveryDate));
+	const xsd = await validateXsd(withPeriod, profile);
 	if (!xsd.valid) {
 		throw new Error(`Factur-X XSD invalid: ${xsd.errors.map(e => e.message).join(' | ')}`);
 	}
-	return { xml, profile };
+	return { xml: withPeriod, profile };
+}
+
+/**
+ * Adds BG-26 Billing Period (BT-74/BT-75) when the invoice covers a service
+ * period. The library's input model has no field for it and
+ * `ram:UltimateDeliveryDateTime` does not exist in the shipped ZUGFeRD
+ * flavours, so the node is injected here — the result is XSD-validated
+ * afterwards, and the XSD sequence requires it right before
+ * SpecifiedTradeSettlementHeaderMonetarySummation.
+ *
+ * @param xml - CII XML from the builder.
+ * @param period - Parsed delivery period, or null.
+ */
+export function applyBillingPeriod(xml: string, period: DeliveryPeriod | null): string {
+	if (!period?.end) {
+		return xml;
+	}
+	const day = (iso: string): string =>
+		`<udt:DateTimeString format="102">${iso.replace(/-/g, '')}</udt:DateTimeString>`;
+	const node =
+		`<ram:BillingSpecifiedPeriod><ram:StartDateTime>${day(period.start)}</ram:StartDateTime>` +
+		`<ram:EndDateTime>${day(period.end)}</ram:EndDateTime></ram:BillingSpecifiedPeriod>`;
+	const anchor = '<ram:SpecifiedTradeSettlementHeaderMonetarySummation>';
+	const at = xml.indexOf(anchor);
+	if (at < 0) {
+		throw new Error('Cannot place the billing period: settlement summation not found');
+	}
+	// the XSD sequence is ApplicableTradeTax → BillingSpecifiedPeriod →
+	// allowances → payment terms → summation, so the node has to follow the
+	// header tax breakdown and not just precede the summation
+	const taxEnd = xml.lastIndexOf('</ram:ApplicableTradeTax>', at);
+	const insertAt = taxEnd > 0 ? taxEnd + '</ram:ApplicableTradeTax>'.length : at;
+	return `${xml.slice(0, insertAt)}${node}${xml.slice(insertAt)}`;
 }
 
 /**

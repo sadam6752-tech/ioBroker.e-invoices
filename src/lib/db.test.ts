@@ -23,6 +23,7 @@ const buyer: Party = {
 	zip: '80331',
 	city: 'München',
 	country: 'DE',
+	customerNumber: 'K-42',
 };
 
 function draft(overrides: Partial<InvoiceDraftInput> = {}): InvoiceDraftInput {

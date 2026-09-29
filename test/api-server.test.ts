@@ -135,7 +135,7 @@ describe('api => invoices', function () {
 			.post('/api/invoices')
 			.send({
 				seller: { name: 'S', street: 'a', zip: '1', city: 'b', country: 'DE' },
-				buyer: { name: 'B', street: 'c', zip: '2', city: 'd', country: 'DE' },
+				buyer: { name: 'B', street: 'c', zip: '2', city: 'd', country: 'DE', customerNumber: 'K-1' },
 				lines: [{ description: 'A', quantity: 1, unit: 'Stk', unitPriceNet: 10, vatRate: 19 }],
 			})
 			.expect(201);

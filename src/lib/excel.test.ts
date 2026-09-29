@@ -11,7 +11,14 @@ function issueSample(): { db: InvoiceDatabase; invoice: StoredInvoice } {
 	db.migrate();
 	const created = db.createDraft({
 		seller: { name: 'Muster GmbH', street: 'B 1', zip: '10115', city: 'Berlin', country: 'DE', vatId: 'DE1' },
-		buyer: { name: 'Kunde AG', street: 'K 5', zip: '80331', city: 'München', country: 'DE' },
+		buyer: {
+			name: 'Kunde AG',
+			street: 'K 5',
+			zip: '80331',
+			city: 'München',
+			country: 'DE',
+			customerNumber: 'K-42',
+		},
 		lines: [{ description: 'Beratung', quantity: 2, unit: 'Std', unitPriceNet: 100, vatRate: 19 }],
 		issueDate: '2026-09-28',
 		deliveryDate: '2026-09-27',
@@ -59,7 +66,7 @@ describe('excel => single invoice', () => {
 		try {
 			const draft = db.createDraft({
 				seller: { name: 'S', street: 'a', zip: '1', city: 'B', country: 'DE', vatId: 'DE1' },
-				buyer: { name: 'K', street: 'a', zip: '1', city: 'B', country: 'DE' },
+				buyer: { name: 'K', street: 'a', zip: '1', city: 'B', country: 'DE', customerNumber: 'K-7' },
 				lines: [],
 				issueDate: '2026-09-28',
 				deliveryDate: '2026-09-28',

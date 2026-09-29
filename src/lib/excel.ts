@@ -7,7 +7,7 @@
  * (stored next to PDF/XML); the list export is generated on demand.
  */
 import ExcelJS from 'exceljs';
-import { calcTotals, lineNetAmount, lineNetUnitPrice } from './invoice-model';
+import { calcTotals, formatDeliveryDateDe, lineNetAmount, lineNetUnitPrice } from './invoice-model';
 import type { StoredInvoice } from './db';
 
 /** Copy notice printed on every Excel sheet (German). */
@@ -90,7 +90,7 @@ export async function renderInvoiceWorkbook(invoice: StoredInvoice): Promise<Buf
 	);
 	row += 1;
 	sheet.getCell(`A${row}`).value = `Ausstellungsdatum: ${invoice.issueDate}`;
-	sheet.getCell(`A${row + 1}`).value = `Liefer-/Leistungsdatum: ${invoice.deliveryDate}`;
+	sheet.getCell(`A${row + 1}`).value = `Liefer-/Leistungsdatum: ${formatDeliveryDateDe(invoice.deliveryDate)}`;
 	if (invoice.dueDate) {
 		sheet.getCell(`A${row + 2}`).value = `Fällig am: ${invoice.dueDate}`;
 		row += 1;

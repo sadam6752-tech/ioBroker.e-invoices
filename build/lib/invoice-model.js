@@ -19,18 +19,22 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var invoice_model_exports = {};
 __export(invoice_model_exports, {
   ALLOWED_VAT_RATES: () => ALLOWED_VAT_RATES,
+  EXEMPTION_CATEGORIES: () => EXEMPTION_CATEGORIES,
   blankDraft: () => blankDraft,
   calcTotals: () => calcTotals,
+  formatDeliveryDateDe: () => formatDeliveryDateDe,
   formatInvoiceNumber: () => formatInvoiceNumber,
   isIsoDate: () => isIsoDate,
   lineNetAmount: () => lineNetAmount,
   lineNetUnitPrice: () => lineNetUnitPrice,
   normalizeEmployeeCode: () => normalizeEmployeeCode,
+  parseDeliveryPeriod: () => parseDeliveryPeriod,
   roundCents: () => roundCents,
   todayIso: () => todayIso,
   validateInvoiceForIssue: () => validateInvoiceForIssue
 });
 module.exports = __toCommonJS(invoice_model_exports);
+const EXEMPTION_CATEGORIES = ["E", "AE", "K", "G", "O"];
 const ALLOWED_VAT_RATES = [0, 7, 19];
 function roundCents(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -99,6 +103,25 @@ function isIsoDate(value) {
   const date = new Date(Date.UTC(year, month - 1, day));
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
+function parseDeliveryPeriod(value) {
+  const raw = (value != null ? value : "").trim();
+  if (raw.includes("..")) {
+    const [start, end] = raw.split("..").map((part) => part.trim());
+    if (!isIsoDate(start != null ? start : "") || !isIsoDate(end != null ? end : "") || (end != null ? end : "") < (start != null ? start : "")) {
+      return null;
+    }
+    return { start, end };
+  }
+  return isIsoDate(raw) ? { start: raw, end: null } : null;
+}
+function formatDeliveryDateDe(value) {
+  const period = parseDeliveryPeriod(value);
+  if (!period) {
+    return value;
+  }
+  const de = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
+  return period.end ? `${de(period.start)} \u2013 ${de(period.end)}` : de(period.start);
+}
 function todayIso(date = /* @__PURE__ */ new Date()) {
   return date.toISOString().slice(0, 10);
 }
@@ -129,13 +152,18 @@ function validateInvoiceForIssue(input) {
   if (isBlank(buyer.name) || isBlank(buyer.street) || isBlank(buyer.zip) || isBlank(buyer.city)) {
     errors.push("Buyer needs full name and address (name, street, zip, city).");
   }
+  if (isBlank(buyer.customerNumber)) {
+    errors.push("Buyer needs a customer number (Kundennummer, BT-10) for the German e-invoice.");
+  }
   if (isBlank(input.issueDate) || !isIsoDate(input.issueDate)) {
     errors.push("Issue date must be a real calendar date in ISO format (YYYY-MM-DD).");
   }
   if (isBlank(input.deliveryDate)) {
     errors.push("Delivery/service date is required.");
-  } else if (!isIsoDate(input.deliveryDate)) {
-    errors.push("Delivery/service date must be a real calendar date in ISO format (YYYY-MM-DD).");
+  } else if (!parseDeliveryPeriod(input.deliveryDate)) {
+    errors.push(
+      "Delivery/service date must be a real calendar date (YYYY-MM-DD) or a period (YYYY-MM-DD..YYYY-MM-DD)."
+    );
   }
   if (lines.length === 0) {
     errors.push("At least one line item is required.");
@@ -156,6 +184,9 @@ function validateInvoiceForIssue(input) {
     }
     if (line.vatRate === 0 && isBlank(line.exemptionReason)) {
       errors.push(`Line ${pos}: exemption reason required for 0% VAT (or use a taxable rate).`);
+    }
+    if (line.vatRate === 0 && line.exemptionCategory && !EXEMPTION_CATEGORIES.includes(line.exemptionCategory)) {
+      errors.push(`Line ${pos}: exemption category must be one of ${EXEMPTION_CATEGORIES.join(", ")}.`);
     }
   });
   if (input.currency !== void 0 && input.currency !== "EUR") {
@@ -178,13 +209,16 @@ function validateInvoiceForIssue(input) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ALLOWED_VAT_RATES,
+  EXEMPTION_CATEGORIES,
   blankDraft,
   calcTotals,
+  formatDeliveryDateDe,
   formatInvoiceNumber,
   isIsoDate,
   lineNetAmount,
   lineNetUnitPrice,
   normalizeEmployeeCode,
+  parseDeliveryPeriod,
   roundCents,
   todayIso,
   validateInvoiceForIssue

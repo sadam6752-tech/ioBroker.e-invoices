@@ -18,6 +18,7 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var zugferd_exports = {};
 __export(zugferd_exports, {
+  applyBillingPeriod: () => applyBillingPeriod,
   embedHybridPdf: () => embedHybridPdf,
   generateInvoiceXml: () => generateInvoiceXml,
   mapDocumentTypeCode: () => mapDocumentTypeCode,
@@ -57,11 +58,22 @@ function mapUnitCode(unit) {
   }
   return import_factur_x.UnitCode.UNIT;
 }
-function mapVatCategory(vatRate) {
-  if (vatRate === 0) {
-    return import_factur_x.VatCategoryCode.EXEMPT;
+function mapVatCategory(vatRate, exemptionCategory) {
+  if (vatRate !== 0) {
+    return import_factur_x.VatCategoryCode.STANDARD_RATE;
   }
-  return import_factur_x.VatCategoryCode.STANDARD_RATE;
+  switch (exemptionCategory) {
+    case "AE":
+      return import_factur_x.VatCategoryCode.REVERSE_CHARGE;
+    case "K":
+      return import_factur_x.VatCategoryCode.INTRA_COMMUNITY_SUPPLY;
+    case "G":
+      return import_factur_x.VatCategoryCode.FREE_EXPORT;
+    case "O":
+      return import_factur_x.VatCategoryCode.OUTSIDE_SCOPE;
+    default:
+      return import_factur_x.VatCategoryCode.EXEMPT;
+  }
 }
 function mapDocumentTypeCode(documentTitle) {
   const title = (documentTitle != null ? documentTitle : "").toLowerCase();
@@ -80,7 +92,7 @@ function mapDocumentTypeCode(documentTitle) {
   return import_factur_x.DocumentTypeCode.COMMERCIAL_INVOICE;
 }
 function toFacturXInput(invoice) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
   if (!invoice.number) {
     throw new Error("Invoice has no number yet \u2014 issue it before generating XML");
   }
@@ -144,7 +156,7 @@ function toFacturXInput(invoice) {
         unitPrice: netUnit,
         grossUnitPrice: discount > 0 ? line.unitPriceNet : void 0,
         priceDiscount: discount > 0 ? (0, import_invoice_model.roundCents)(line.unitPriceNet - netUnit) : void 0,
-        vatCategoryCode: mapVatCategory(line.vatRate),
+        vatCategoryCode: mapVatCategory(line.vatRate, line.exemptionCategory),
         vatRatePercent: line.vatRate
       };
     }),
@@ -157,16 +169,26 @@ function toFacturXInput(invoice) {
       currency: "EUR"
     },
     vatBreakdown: totals.breakdown.map((entry) => {
-      var _a2;
+      const zeroLines = entry.vatRate === 0 ? invoice.lines.filter((line) => line.vatRate === 0) : [];
+      const categories = new Set(zeroLines.map((line) => {
+        var _a2;
+        return (_a2 = line.exemptionCategory) != null ? _a2 : "E";
+      }));
+      const reasons = [...new Set(zeroLines.map((line) => {
+        var _a2;
+        return (_a2 = line.exemptionReason) == null ? void 0 : _a2.trim();
+      }).filter(Boolean))];
+      if (categories.size > 1 || reasons.length > 1) {
+        throw new Error(
+          `0% lines use different exemption categories (${[...categories].join("/")}) or reasons \u2014 split them into separate invoices or make them identical`
+        );
+      }
       return {
-        categoryCode: entry.vatRate === 0 ? import_factur_x.VatCategoryCode.EXEMPT : import_factur_x.VatCategoryCode.STANDARD_RATE,
+        categoryCode: mapVatCategory(entry.vatRate, [...categories][0]),
         ratePercent: entry.vatRate,
         taxableAmount: entry.net,
         taxAmount: entry.tax,
-        exemptionReason: entry.vatRate === 0 ? (_a2 = invoice.lines.find((line) => {
-          var _a3;
-          return line.vatRate === 0 && ((_a3 = line.exemptionReason) == null ? void 0 : _a3.trim());
-        })) == null ? void 0 : _a2.exemptionReason : void 0
+        exemptionReason: entry.vatRate === 0 ? reasons[0] : void 0
       };
     }),
     payment: {
@@ -178,8 +200,9 @@ function toFacturXInput(invoice) {
       termsDescription: (_s = invoice.paymentTerms) != null ? _s : void 0
     },
     delivery: {
-      // validated as a plain ISO date at issue time, no period support
-      date: invoice.deliveryDate
+      // validated at issue time; for a period only BT-72 goes through the
+      // library, BT-74 is added by applyDeliveryPeriodEnd()
+      date: (_t = (0, import_invoice_model.parseDeliveryPeriod)(invoice.deliveryDate)) == null ? void 0 : _t.start
     }
   };
 }
@@ -193,11 +216,27 @@ async function generateInvoiceXml(invoice) {
     );
   }
   const xml = (0, import_factur_x.buildXml)(input, profile, import_factur_x.Flavor.ZUGFERD);
-  const xsd = await (0, import_factur_x.validateXsd)(xml, profile);
+  const withPeriod = applyBillingPeriod(xml, (0, import_invoice_model.parseDeliveryPeriod)(invoice.deliveryDate));
+  const xsd = await (0, import_factur_x.validateXsd)(withPeriod, profile);
   if (!xsd.valid) {
     throw new Error(`Factur-X XSD invalid: ${xsd.errors.map((e) => e.message).join(" | ")}`);
   }
-  return { xml, profile };
+  return { xml: withPeriod, profile };
+}
+function applyBillingPeriod(xml, period) {
+  if (!(period == null ? void 0 : period.end)) {
+    return xml;
+  }
+  const day = (iso) => `<udt:DateTimeString format="102">${iso.replace(/-/g, "")}</udt:DateTimeString>`;
+  const node = `<ram:BillingSpecifiedPeriod><ram:StartDateTime>${day(period.start)}</ram:StartDateTime><ram:EndDateTime>${day(period.end)}</ram:EndDateTime></ram:BillingSpecifiedPeriod>`;
+  const anchor = "<ram:SpecifiedTradeSettlementHeaderMonetarySummation>";
+  const at = xml.indexOf(anchor);
+  if (at < 0) {
+    throw new Error("Cannot place the billing period: settlement summation not found");
+  }
+  const taxEnd = xml.lastIndexOf("</ram:ApplicableTradeTax>", at);
+  const insertAt = taxEnd > 0 ? taxEnd + "</ram:ApplicableTradeTax>".length : at;
+  return `${xml.slice(0, insertAt)}${node}${xml.slice(insertAt)}`;
 }
 async function embedHybridPdf(pdfBytes, xml, profileName, title) {
   const profile = resolveProfile(profileName);
@@ -216,6 +255,7 @@ async function embedHybridPdf(pdfBytes, xml, profileName, title) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  applyBillingPeriod,
   embedHybridPdf,
   generateInvoiceXml,
   mapDocumentTypeCode,

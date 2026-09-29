@@ -29,6 +29,7 @@ export interface InvoiceLine {
 	unitPriceNet: number;
 	vatRate: number;
 	exemptionReason?: string;
+	exemptionCategory?: 'E' | 'AE' | 'K' | 'G' | 'O';
 	discountPercent?: number;
 }
 

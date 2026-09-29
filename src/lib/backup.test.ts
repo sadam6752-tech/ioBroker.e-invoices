@@ -29,7 +29,7 @@ function memoryStorage(): BackupStorage & { files: Map<string, Buffer> } {
 }
 
 const seller = { name: 'S', street: 'a', zip: '1', city: 'B', country: 'DE', vatId: 'DE1' };
-const buyer = { name: 'K', street: 'a', zip: '1', city: 'B', country: 'DE' };
+const buyer = { name: 'K', street: 'a', zip: '1', city: 'B', country: 'DE', customerNumber: 'K-7' };
 
 async function seedIssued(db: InvoiceDatabase, storage: BackupStorage): Promise<string> {
 	db.ensureDefaultTemplate();

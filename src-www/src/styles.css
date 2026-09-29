@@ -191,6 +191,28 @@ table.ovw.sums tr.total td {
 	color: var(--danger);
 	font-size: 14px;
 }
+fieldset.period {
+	border: 1px solid #e5e7eb;
+	border-radius: 8px;
+	padding: 10px 12px 12px;
+	margin: 0 0 10px;
+}
+fieldset.period legend {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--muted);
+	padding: 0 4px;
+}
+fieldset.period p {
+	margin: 8px 0 0;
+}
+label.req {
+	font-weight: 600;
+	color: var(--text);
+}
+label.req input {
+	border-color: var(--brand);
+}
 .card.line {
 	padding: 12px;
 }

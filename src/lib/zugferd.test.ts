@@ -385,6 +385,58 @@ describe('zugferd => fractional line amounts', function () {
 	});
 });
 
+describe('zugferd => delivery period', function () {
+	this.timeout(60000);
+
+	it('writes BT-74/BT-75 and stays XSD-valid', async () => {
+		const { db, invoice } = issueInMemoryDb(draft({ deliveryDate: '2026-10-01..2026-10-31' }));
+		try {
+			const { xml } = await generateInvoiceXml(invoice);
+			const period = xml.match(/<ram:BillingSpecifiedPeriod>.*?<\/ram:BillingSpecifiedPeriod>/s)?.[0];
+			expect(period).to.contain('20261001');
+			expect(period).to.contain('20261031');
+			// BT-72 keeps the first day
+			expect(xml).to.contain('<ram:OccurrenceDateTime><udt:DateTimeString format="102">20261001');
+			const check = await validateArtifacts(invoice, xml);
+			expect(check.formatErrors).to.deep.equal([]);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('writes BT-74/BT-75 next to a due date and payment terms', async () => {
+		const { db, invoice } = issueInMemoryDb(
+			draft({
+				deliveryDate: '2026-10-01..2026-10-31',
+				dueDate: '2026-11-15',
+				paymentTerms: 'Zahlbar innerhalb 14 Tagen',
+			}),
+		);
+		try {
+			// the XSD sequence is tax breakdown → billing period → allowances →
+			// payment terms → summation
+			const { xml } = await generateInvoiceXml(invoice);
+			const at = xml.indexOf('<ram:SpecifiedTradeSettlementHeaderMonetarySummation>');
+			const period = xml.indexOf('BillingSpecifiedPeriod');
+			const terms = xml.indexOf('SpecifiedTradePaymentTerms');
+			expect(period).to.be.lessThan(terms);
+			expect(terms).to.be.lessThan(at);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('omits the billing period for a single-day service', async () => {
+		const { db, invoice } = issueInMemoryDb(draft({ deliveryDate: '2026-10-01' }));
+		try {
+			const { xml } = await generateInvoiceXml(invoice);
+			expect(xml).to.not.contain('BillingSpecifiedPeriod');
+		} finally {
+			db.close();
+		}
+	});
+});
+
 describe('validation => tampered xml', function () {
 	this.timeout(60000);
 

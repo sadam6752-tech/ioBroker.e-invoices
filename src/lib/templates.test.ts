@@ -98,7 +98,7 @@ describe('templates => database', () => {
 			const other = db.createTemplate('Zweit', { ...valid(), name: 'Zweit' });
 			const created = db.createDraft({
 				seller: { name: 'S', street: 'a', zip: '1', city: 'B', country: 'DE', vatId: 'DE1' },
-				buyer: { name: 'K', street: 'a', zip: '1', city: 'B', country: 'DE' },
+				buyer: { name: 'K', street: 'a', zip: '1', city: 'B', country: 'DE', customerNumber: 'K-7' },
 				lines: [{ description: 'X', quantity: 1, unit: 'Stk', unitPriceNet: 10, vatRate: 19 }],
 				issueDate: '2026-09-28',
 				deliveryDate: '2026-09-28',
