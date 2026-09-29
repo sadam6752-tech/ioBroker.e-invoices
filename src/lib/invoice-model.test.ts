@@ -11,8 +11,10 @@ import {
 	isIsoDate,
 	lineNetAmount,
 	parseDeliveryPeriod,
+	renderInvoiceNumber,
 	lineNetUnitPrice,
 	normalizeEmployeeCode,
+	normalizeNumberFormat,
 	todayIso,
 	validateInvoiceForIssue,
 	type InvoiceDraftInput,
@@ -58,6 +60,32 @@ describe('invoice-model => formatInvoiceNumber', () => {
 	it('rejects invalid year/sequence', () => {
 		expect(() => formatInvoiceNumber(1999, '01', 1)).to.throw();
 		expect(() => formatInvoiceNumber(2026, '01', 0)).to.throw();
+	});
+});
+
+describe('invoice-model => number format', () => {
+	it('accepts the documented tokens and rejects everything else', () => {
+		expect(normalizeNumberFormat('{YYYY}-{EMPLOYEE}-{SEQ}')).to.equal('{YYYY}-{EMPLOYEE}-{SEQ}');
+		expect(normalizeNumberFormat('{YYYY}-{SEQ}')).to.equal('{YYYY}-{SEQ}');
+		expect(normalizeNumberFormat('RE-{SEQ}')).to.equal('RE-{SEQ}');
+		// {SEQ} must appear exactly once, otherwise the series breaks
+		expect(normalizeNumberFormat('{YYYY}-{EMPLOYEE}')).to.equal(null);
+		expect(normalizeNumberFormat('{SEQ}-{SEQ}')).to.equal(null);
+		// unknown tokens and unsafe separators are refused
+		expect(normalizeNumberFormat('{YEAR}-{SEQ}')).to.equal(null);
+		expect(normalizeNumberFormat('{SEQ}/../{SEQ}')).to.equal(null);
+		expect(normalizeNumberFormat('{SEQ }')).to.equal(null);
+		expect(normalizeNumberFormat('  {SEQ}  ')).to.equal('{SEQ}');
+		expect(normalizeNumberFormat('')).to.equal(null);
+		expect(normalizeNumberFormat(undefined)).to.equal(null);
+	});
+
+	it('renders a custom format and pads the sequence', () => {
+		expect(renderInvoiceNumber('{YYYY}-{EMPLOYEE}-{SEQ}', { year: 2026, employee: '01', seq: 1 })).to.equal(
+			'2026-01-001',
+		);
+		expect(renderInvoiceNumber('{YYYY}-{SEQ}', { year: 2026, employee: '01', seq: 42 })).to.equal('2026-042');
+		expect(renderInvoiceNumber('RE-{SEQ}', { year: 2026, employee: '1', seq: 7 })).to.equal('RE-007');
 	});
 });
 

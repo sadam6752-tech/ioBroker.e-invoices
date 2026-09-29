@@ -19,6 +19,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var invoice_model_exports = {};
 __export(invoice_model_exports, {
   ALLOWED_VAT_RATES: () => ALLOWED_VAT_RATES,
+  DEFAULT_NUMBER_FORMAT: () => DEFAULT_NUMBER_FORMAT,
   EXEMPTION_CATEGORIES: () => EXEMPTION_CATEGORIES,
   blankDraft: () => blankDraft,
   calcSkonto: () => calcSkonto,
@@ -30,7 +31,9 @@ __export(invoice_model_exports, {
   lineNetAmount: () => lineNetAmount,
   lineNetUnitPrice: () => lineNetUnitPrice,
   normalizeEmployeeCode: () => normalizeEmployeeCode,
+  normalizeNumberFormat: () => normalizeNumberFormat,
   parseDeliveryPeriod: () => parseDeliveryPeriod,
+  renderInvoiceNumber: () => renderInvoiceNumber,
   roundCents: () => roundCents,
   todayIso: () => todayIso,
   validateInvoiceForIssue: () => validateInvoiceForIssue
@@ -40,6 +43,29 @@ const EXEMPTION_CATEGORIES = ["E", "AE", "K", "G", "O"];
 const ALLOWED_VAT_RATES = [0, 7, 19];
 function roundCents(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+const DEFAULT_NUMBER_FORMAT = "{YYYY}-{EMPLOYEE}-{SEQ}";
+const NUMBER_FORMAT_TOKENS = ["YYYY", "EMPLOYEE", "SEQ"];
+function normalizeNumberFormat(format) {
+  const raw = (format != null ? format : "").trim();
+  if (raw === "" || raw.length > 40) {
+    return null;
+  }
+  if (raw.split("{SEQ}").length - 1 !== 1) {
+    return null;
+  }
+  let rest = raw;
+  for (const token of NUMBER_FORMAT_TOKENS) {
+    rest = rest.split(`{${token}}`).join("");
+  }
+  if (rest.length > 0 && !/^[A-Za-z0-9.\-_]+$/.test(rest)) {
+    return null;
+  }
+  return raw;
+}
+function renderInvoiceNumber(format, parts) {
+  const width = Math.max(3, String(parts.seq).length);
+  return format.replace("{YYYY}", String(parts.year)).replace("{EMPLOYEE}", normalizeEmployeeCode(parts.employee)).replace("{SEQ}", String(parts.seq).padStart(width, "0"));
 }
 function formatInvoiceNumber(year, employee, seq, width = 3) {
   if (!Number.isInteger(year) || year < 2e3 || year > 2100) {
@@ -246,6 +272,7 @@ function validateInvoiceForIssue(input) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ALLOWED_VAT_RATES,
+  DEFAULT_NUMBER_FORMAT,
   EXEMPTION_CATEGORIES,
   blankDraft,
   calcSkonto,
@@ -257,7 +284,9 @@ function validateInvoiceForIssue(input) {
   lineNetAmount,
   lineNetUnitPrice,
   normalizeEmployeeCode,
+  normalizeNumberFormat,
   parseDeliveryPeriod,
+  renderInvoiceNumber,
   roundCents,
   todayIso,
   validateInvoiceForIssue

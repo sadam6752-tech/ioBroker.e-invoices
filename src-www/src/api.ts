@@ -203,6 +203,14 @@ export async function openUrl(url: string): Promise<void> {
 
 export const api = {
 	health: () => request<{ status: string; version: string; schemaVersion: number; counts: Record<string, number> }>('/api/health'),
+	settings: () =>
+		request<{
+			defaultVatRate: number;
+			defaultPaymentTerms: string;
+			numberFormat: string;
+			storageMount: string;
+			backupIntervalMinutes: number;
+		}>('/api/settings'),
 	list: (params: Record<string, string> = {}) => {
 		const q = new URLSearchParams(params).toString();
 		return request<Invoice[]>(`/api/invoices${q ? `?${q}` : ''}`);

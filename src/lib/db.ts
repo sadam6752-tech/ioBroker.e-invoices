@@ -13,9 +13,12 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import {
 	calcTotals,
+	DEFAULT_NUMBER_FORMAT,
 	formatCustomerNumber,
 	formatInvoiceNumber,
 	normalizeEmployeeCode,
+	normalizeNumberFormat,
+	renderInvoiceNumber,
 	todayIso,
 	validateInvoiceForIssue,
 	type InvoiceDraftInput,
@@ -486,6 +489,8 @@ export interface StoredBackup {
  */
 export class InvoiceDatabase {
 	private readonly db: Database.Database;
+	/** Invoice number format from the instance config. */
+	private numberFormat = DEFAULT_NUMBER_FORMAT;
 
 	/**
 	 * Opens (and creates) the SQLite file.
@@ -498,6 +503,27 @@ export class InvoiceDatabase {
 		this.db.pragma('journal_mode = WAL');
 		this.db.pragma('foreign_keys = ON');
 		this.db.pragma('busy_timeout = 5000');
+	}
+
+	/**
+	 * Applies the instance configuration that influences numbering.
+	 * An invalid format is rejected here so the adapter can warn once.
+	 *
+	 * @param options - Adapter options from the instance config.
+	 * @param options.numberFormat - Desired invoice number pattern.
+	 */
+	public applyOptions(options: { numberFormat?: string }): void {
+		this.numberFormat = options.numberFormat ?? DEFAULT_NUMBER_FORMAT;
+	}
+
+	/**
+	 * The number format actually in use (falls back to the default when the
+	 * configured one was rejected).
+	 *
+	 * @returns A validated format string.
+	 */
+	public effectiveNumberFormat(): string {
+		return normalizeNumberFormat(this.numberFormat) ?? DEFAULT_NUMBER_FORMAT;
 	}
 
 	/** Closes the database handle. */
@@ -565,6 +591,8 @@ export class InvoiceDatabase {
 			throw new Error(`Invalid year: ${year}`);
 		}
 		const code = normalizeEmployeeCode(employee);
+		// only a validated custom format is honoured, otherwise the default
+		const format = normalizeNumberFormat(this.numberFormat) ?? DEFAULT_NUMBER_FORMAT;
 		const run = this.db.transaction((): string => {
 			const row = this.db
 				.prepare(`SELECT last_seq AS seq FROM counters WHERE year = ? AND employee = ?`)
@@ -578,7 +606,9 @@ export class InvoiceDatabase {
 					ON CONFLICT(year, employee) DO UPDATE SET last_seq = excluded.last_seq`,
 				)
 				.run(year, code, next);
-			return formatInvoiceNumber(year, code, next);
+			return format === DEFAULT_NUMBER_FORMAT
+				? formatInvoiceNumber(year, code, next)
+				: renderInvoiceNumber(format, { year, employee: code, seq: next });
 		});
 		return run();
 	}

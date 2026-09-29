@@ -12,7 +12,7 @@ import { version as adapterVersion } from '../package.json';
 import { attachStatic, createApiServer } from './lib/api-server';
 import { createBackup, restoreBackup } from './lib/backup';
 import { InvoiceDatabase } from './lib/db';
-import { blankDraft } from './lib/invoice-model';
+import { blankDraft, DEFAULT_NUMBER_FORMAT, normalizeNumberFormat } from './lib/invoice-model';
 import { issueInvoiceWithArtifacts } from './lib/issue-service';
 
 const MOUNT_POINT = 'storage';
@@ -27,6 +27,8 @@ class EInvoices extends utils.Adapter {
 	private mountId = '';
 	private filesAvailable = false;
 	private server: Server | null = null;
+	/** Pending automatic backup, cancelled on unload. */
+	private backupTimer: NodeJS.Timeout | undefined;
 
 	public constructor(options: Partial<utils.AdapterOptions> = {}) {
 		super({
@@ -52,11 +54,10 @@ class EInvoices extends utils.Adapter {
 			this.db = new InvoiceDatabase(dbPath);
 			this.db.migrate();
 			this.log.info(`Database ready (schema v${this.db.currentVersion()}): ${dbPath}`);
+			this.applyNumberFormat();
 			const defaultTemplate = this.db.ensureDefaultTemplate();
 			this.log.info(`Layout template: ${defaultTemplate.name} v${defaultTemplate.version}`);
-			const company = this.db.ensureDefaultCompanyProfile();
-			this.log.info(`Company profile: ${company.name}`);
-
+			this.syncCompanyFromConfig();
 			await this.ensureObjects();
 			await this.ensureMountPoint();
 			await this.publishStatusFile();
@@ -64,12 +65,75 @@ class EInvoices extends utils.Adapter {
 
 			this.subscribeStates('control.*');
 			this.startApiServer();
+			this.startBackupTimer();
 			await this.setState('info.connection', true, true);
 			this.log.info('e-invoices started: drafts, issue flow and status file are ready.');
 		} catch (error) {
 			this.log.error(`Startup failed: ${(error as Error).message}`);
 			await this.setState('info.connection', false, true);
 		}
+	}
+
+	/**
+	 * Validates the configured invoice number format once and warns loudly if
+	 * it is unusable, so the fallback to the default is never silent.
+	 */
+	private applyNumberFormat(): void {
+		const raw = typeof this.config.numberFormat === 'string' ? this.config.numberFormat : '';
+		const validated = normalizeNumberFormat(raw);
+		if (raw.trim() !== '' && !validated) {
+			this.log.warn(
+				`Invoice number format "${raw.trim()}" is unusable (needs {SEQ} and may only use {YYYY}, {EMPLOYEE}, {SEQ} plus separators) — falling back to ${DEFAULT_NUMBER_FORMAT}`,
+			);
+		}
+		this.db?.applyOptions({ numberFormat: raw });
+	}
+
+	/**
+	 * Mirrors the company master data from the instance config into the
+	 * default company profile. Only non-empty config values overwrite, so a
+	 * profile edited in the PWA keeps its data as long as the field is left
+	 * empty here.
+	 */
+	private syncCompanyFromConfig(): void {
+		if (!this.db) {
+			return;
+		}
+		const current = this.db.getDefaultCompanyProfile();
+		if (!current) {
+			return;
+		}
+		const str = (key: string): string => {
+			const value = (this.config as unknown as Record<string, unknown>)[key];
+			return typeof value === 'string' ? value.trim() : '';
+		};
+		const merged: Record<string, unknown> = { ...current.profile };
+		const map: Record<string, string> = {
+			name: str('companyName'),
+			street: str('companyStreet'),
+			zip: str('companyZip'),
+			city: str('companyCity'),
+			country: str('companyCountry'),
+			vatId: str('vatId'),
+			taxNumber: str('taxNumber'),
+			email: str('companyEmail'),
+			iban: str('iban'),
+			bic: str('bic'),
+			website: str('website'),
+		};
+		let changed = false;
+		for (const [field, value] of Object.entries(map)) {
+			if (value !== '' && merged[field] !== value) {
+				merged[field] = value;
+				changed = true;
+			}
+		}
+		if (!changed) {
+			return;
+		}
+		const name = (typeof merged.name === 'string' ? merged.name.trim() : '') || current.name;
+		this.db.updateCompanyProfile(current.id, { name, profile: merged as unknown as typeof current.profile });
+		this.log.info(`Company profile "${name}" updated from the instance config.`);
 	}
 
 	/**
@@ -226,6 +290,39 @@ class EInvoices extends utils.Adapter {
 		} catch (error) {
 			this.filesAvailable = false;
 			this.log.error(`Cannot create file mount point ${this.mountId}: ${(error as Error).message}`);
+			return;
+		}
+		// an explicitly configured mount wins, but only when it really exists
+		const configured = typeof this.config.storageMount === 'string' ? this.config.storageMount.trim() : '';
+		if (configured === '') {
+			return;
+		}
+		try {
+			const target = await this.getForeignObjectAsync(configured);
+			if (!target) {
+				this.log.warn(
+					`Storage mount "${configured}" does not exist — falling back to the own directory ${this.mountId}. Check the name in the instance config.`,
+				);
+				return;
+			}
+			// a meta or folder object is a usable file mount, a state is not
+			if (
+				target.type !== 'meta' &&
+				target.type !== 'folder' &&
+				target.type !== 'channel' &&
+				target.type !== 'device'
+			) {
+				this.log.warn(
+					`Object "${configured}" is a ${target.type}, not a file mount — keeping ${this.namespace}.${MOUNT_POINT}.`,
+				);
+				return;
+			}
+			this.mountId = configured;
+			this.log.info(`Invoice files are stored on the mount ${this.mountId}.`);
+		} catch (error) {
+			this.log.warn(
+				`Storage mount "${configured}" is not usable (${(error as Error).message}) — keeping ${this.namespace}.${MOUNT_POINT}.`,
+			);
 		}
 	}
 
@@ -304,17 +401,7 @@ class EInvoices extends utils.Adapter {
 				await this.refreshStats();
 				await this.publishStatusFile();
 			} else if (id === `${this.namespace}.control.backup`) {
-				const backup = await createBackup(this.db, { read: this.storageReader }, this.log, adapterVersion);
-				await this.writeFileAsync(this.mountId, backup.filename, backup.data);
-				this.db.logBackup({
-					filename: backup.filename,
-					size: backup.size,
-					sha256: backup.sha256,
-					manifestJson: JSON.stringify(backup.manifest),
-				});
-				await this.setState('info.lastBackup', backup.filename, true);
-				this.log.info(`Backup finished: ${backup.filename}`);
-				await this.publishStatusFile();
+				await this.runBackup();
 			} else if (id === `${this.namespace}.control.restore`) {
 				const idState = await this.getStateAsync('control.restoreId');
 				const name =
@@ -339,6 +426,59 @@ class EInvoices extends utils.Adapter {
 		} catch (error) {
 			this.log.error(`Command ${id} failed: ${(error as Error).message}`);
 			await this.setState(id, { val: true, ack: true });
+		}
+	}
+
+	/**
+	 * Creates one backup and records it in the backup log.
+	 */
+	private async runBackup(): Promise<void> {
+		if (!this.db) {
+			throw new Error('Database is not ready');
+		}
+		const backup = await createBackup(this.db, { read: this.storageReader }, this.log, adapterVersion);
+		await this.writeFileAsync(this.mountId, backup.filename, backup.data);
+		this.db.logBackup({
+			filename: backup.filename,
+			size: backup.size,
+			sha256: backup.sha256,
+			manifestJson: JSON.stringify(backup.manifest),
+		});
+		await this.setState('info.lastBackup', backup.filename, true);
+		this.log.info(`Backup finished: ${backup.filename}`);
+		await this.publishStatusFile();
+	}
+
+	/**
+	 * Starts the automatic backup as a setTimeout chain (never a fixed cron
+	 * second) and keeps a handle so `onUnload` can cancel it. Interval 0 or
+	 * missing means off.
+	 */
+	private startBackupTimer(): void {
+		this.stopBackupTimer();
+		const minutes = Number(this.config.backupIntervalMinutes);
+		if (!Number.isFinite(minutes) || minutes <= 0) {
+			return;
+		}
+		const delay = Math.min(Math.max(Math.round(minutes * 60_000), 60_000), 7 * 24 * 60 * 60_000);
+		const schedule = (): void => {
+			this.backupTimer = setTimeout(() => {
+				void this.runBackup()
+					.catch((error: Error) => this.log.error(`Automatic backup failed: ${error.message}`))
+					.finally(schedule);
+			}, delay);
+			// must not hold the event loop on stop
+			this.backupTimer.unref?.();
+		};
+		this.log.info(`Automatic backup every ${Math.round(delay / 60_000)} min into ${this.mountId}.`);
+		schedule();
+	}
+
+	/** Cancels a pending automatic backup. */
+	private stopBackupTimer(): void {
+		if (this.backupTimer) {
+			clearTimeout(this.backupTimer);
+			this.backupTimer = undefined;
 		}
 	}
 
@@ -382,6 +522,13 @@ class EInvoices extends utils.Adapter {
 				log: this.log,
 				version: adapterVersion,
 				authToken: this.config.authToken || undefined,
+				settings: {
+					defaultVatRate: Number(this.config.defaultVatRate ?? 19),
+					defaultPaymentTerms: this.config.defaultPaymentTerms ?? '',
+					numberFormat: this.db?.effectiveNumberFormat() ?? DEFAULT_NUMBER_FORMAT,
+					storageMount: this.mountId,
+					backupIntervalMinutes: Number(this.config.backupIntervalMinutes ?? 0),
+				},
 			});
 			const wwwDir = join(__dirname, '../www');
 			if (attachStatic(app, wwwDir)) {
@@ -418,6 +565,7 @@ class EInvoices extends utils.Adapter {
 	 */
 	private onUnload(callback: () => void): void {
 		try {
+			this.stopBackupTimer();
 			try {
 				this.server?.close();
 			} catch (error) {

@@ -124,6 +124,8 @@ function mapProductRow(row) {
 }
 class InvoiceDatabase {
   db;
+  /** Invoice number format from the instance config. */
+  numberFormat = import_invoice_model.DEFAULT_NUMBER_FORMAT;
   /**
    * Opens (and creates) the SQLite file.
    *
@@ -135,6 +137,27 @@ class InvoiceDatabase {
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.db.pragma("busy_timeout = 5000");
+  }
+  /**
+   * Applies the instance configuration that influences numbering.
+   * An invalid format is rejected here so the adapter can warn once.
+   *
+   * @param options - Adapter options from the instance config.
+   * @param options.numberFormat - Desired invoice number pattern.
+   */
+  applyOptions(options) {
+    var _a;
+    this.numberFormat = (_a = options.numberFormat) != null ? _a : import_invoice_model.DEFAULT_NUMBER_FORMAT;
+  }
+  /**
+   * The number format actually in use (falls back to the default when the
+   * configured one was rejected).
+   *
+   * @returns A validated format string.
+   */
+  effectiveNumberFormat() {
+    var _a;
+    return (_a = (0, import_invoice_model.normalizeNumberFormat)(this.numberFormat)) != null ? _a : import_invoice_model.DEFAULT_NUMBER_FORMAT;
   }
   /** Closes the database handle. */
   close() {
@@ -188,19 +211,21 @@ class InvoiceDatabase {
    * @param employee - Employee code, defaults to `00`.
    */
   nextInvoiceNumber(year, employee) {
+    var _a;
     if (!Number.isInteger(year) || year < 2e3 || year > 2100) {
       throw new Error(`Invalid year: ${year}`);
     }
     const code = (0, import_invoice_model.normalizeEmployeeCode)(employee);
+    const format = (_a = (0, import_invoice_model.normalizeNumberFormat)(this.numberFormat)) != null ? _a : import_invoice_model.DEFAULT_NUMBER_FORMAT;
     const run = this.db.transaction(() => {
-      var _a;
+      var _a2;
       const row = this.db.prepare(`SELECT last_seq AS seq FROM counters WHERE year = ? AND employee = ?`).get(year, code);
-      const next = ((_a = row == null ? void 0 : row.seq) != null ? _a : 0) + 1;
+      const next = ((_a2 = row == null ? void 0 : row.seq) != null ? _a2 : 0) + 1;
       this.db.prepare(
         `INSERT INTO counters (year, employee, last_seq) VALUES (?, ?, ?)
 					ON CONFLICT(year, employee) DO UPDATE SET last_seq = excluded.last_seq`
       ).run(year, code, next);
-      return (0, import_invoice_model.formatInvoiceNumber)(year, code, next);
+      return format === import_invoice_model.DEFAULT_NUMBER_FORMAT ? (0, import_invoice_model.formatInvoiceNumber)(year, code, next) : (0, import_invoice_model.renderInvoiceNumber)(format, { year, employee: code, seq: next });
     });
     return run();
   }

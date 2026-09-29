@@ -1,7 +1,16 @@
 import { api, esc, eur, type CompanyProfile, type DraftInput, type Invoice, type InvoiceLine, type Party, type Product } from '../api';
 
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
-const emptyLine = (): InvoiceLine => ({ description: '', quantity: 1, unit: 'Stk', unitPriceNet: 0, vatRate: 19 });
+const emptyLine = (): InvoiceLine => ({
+	description: '',
+	quantity: 1,
+	unit: 'Stk',
+	unitPriceNet: 0,
+	vatRate: settings.defaultVatRate,
+});
+
+/** Invoicing defaults from the instance config (see admin/jsonConfig.json). */
+let settings = { defaultVatRate: 19, defaultPaymentTerms: '' };
 
 /** Rounds to cents without the float trap of a bare Math.round (544 × 19 % = 103,36 → 103). */
 function round2(value: number): number {
@@ -56,6 +65,8 @@ interface WizardState {
 	skontoPercent: number;
 	/** Last day for the cash discount. */
 	skontoDueDate: string;
+	/** Payment terms text (default from the instance config). */
+	paymentTerms: string;
 	draftId: string | null;
 	selectedCompany: string | null;
 	selectedCustomer: string | null;
@@ -81,7 +92,7 @@ function freshState(): WizardState {
 		employee: loadEmployee(),
 		documentTitle: 'Rechnung',
 		notes: '',
-		skontoPercent: 0,
+		paymentTerms: settings.defaultPaymentTerms,		skontoPercent: 0,
 		skontoDueDate: '',
 		draftId: null,
 		selectedCompany: null,
@@ -164,6 +175,13 @@ export function wizard(root: HTMLElement, editId?: string): void {
 	let catalog: Product[] = [];
 	/** Guards save/issue against double clicks creating two invoices. */
 	let busy = false;
+	// invoicing defaults (standard VAT rate, payment terms) from the instance config
+	void api
+		.settings()
+		.then(cfg => {
+			settings = { defaultVatRate: Number(cfg.defaultVatRate) || 19, defaultPaymentTerms: cfg.defaultPaymentTerms ?? '' };
+		})
+		.catch(() => undefined);
 	if (editId) {
 		root.innerHTML = `<div class="card">Lade Entwurf…</div>`;
 		void api
@@ -184,6 +202,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 					employee: inv.employeeCode ?? loadEmployee(),
 					documentTitle: inv.documentTitle,
 					notes: inv.notes ?? '',
+					paymentTerms: inv.paymentTerms ?? settings.defaultPaymentTerms,
 					skontoPercent: inv.skontoPercent ?? 0,
 					skontoDueDate: inv.skontoDueDate ?? '',
 					draftId: inv.id,
@@ -310,6 +329,8 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		if (root.querySelector('#w-title')) s.documentTitle = get('w-title') || s.documentTitle;
 		const notesEl = root.querySelector<HTMLTextAreaElement>('#w-notes');
 		if (notesEl) s.notes = notesEl.value;
+		const termsEl = root.querySelector<HTMLTextAreaElement>('#w-terms');
+		if (termsEl) s.paymentTerms = termsEl.value;
 		if (root.querySelector('#w-skonto')) {
 			const raw = Number(get('w-skonto'));
 			s.skontoPercent = Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 100) : 0;
@@ -424,6 +445,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 					<p class="muted">Bei 0 % kein Skonto. Ohne eigenes Datum gilt das Fälligkeitsdatum. Der Skonto mindert den Zahlbetrag (BT-9) und steht als Bedingung mit Subject-Code AAK im XML.</p>
 				</fieldset>
 				<label>Notizen<textarea id="w-notes">${esc(s.notes)}</textarea></label>
+				<label>Zahlungsbedingungen<textarea id="w-terms" placeholder="z. B. Zahlbar innerhalb 14 Tagen ohne Abzug">${esc(s.paymentTerms)}</textarea></label>
 			</div>`;
 		}
 		if (s.step === 3) {
@@ -594,6 +616,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			employeeCode: s.employee.trim() || undefined,
 			documentTitle: s.documentTitle,
 			notes: s.notes || undefined,
+			paymentTerms: s.paymentTerms || undefined,
 			skontoPercent: s.skontoPercent || undefined,
 			skontoDueDate: s.skontoDueDate || undefined,
 		};
@@ -674,6 +697,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		}
 		if (root.querySelector('#w-skonto-due')) s.skontoDueDate = get('w-skonto-due');
 		s.notes = root.querySelector<HTMLTextAreaElement>('#w-notes')?.value ?? s.notes;
+		s.paymentTerms = root.querySelector<HTMLTextAreaElement>('#w-terms')?.value ?? s.paymentTerms;
 		persist();
 	}
 

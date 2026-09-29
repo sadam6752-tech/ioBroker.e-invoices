@@ -21,6 +21,8 @@ import {
 	validateInvoiceForIssue,
 	type InvoiceDraftInput,
 	type InvoiceStatus,
+	ALLOWED_VAT_RATES,
+	DEFAULT_NUMBER_FORMAT,
 } from './invoice-model';
 import { issueInvoiceWithArtifacts, type ArtifactWriter, type IssueLogger } from './issue-service';
 import { createBackup, restoreBackup } from './backup';
@@ -50,6 +52,14 @@ export interface ApiServerDeps {
 	version: string;
 	/** Bearer token; when empty, the API trusts the LAN (documented). */
 	authToken?: string;
+	/** Invoicing defaults from the instance config (read by the PWA). */
+	settings?: {
+		defaultVatRate: number;
+		defaultPaymentTerms: string;
+		numberFormat: string;
+		storageMount: string;
+		backupIntervalMinutes: number;
+	};
 }
 
 /**
@@ -172,6 +182,15 @@ export function routeParam(req: Request, name: string): string {
  */
 export function createApiServer(deps: ApiServerDeps): Express {
 	const { db, storage, log, version, authToken } = deps;
+	const settings = {
+		defaultVatRate: ALLOWED_VAT_RATES.includes(Number(deps.settings?.defaultVatRate))
+			? Number(deps.settings?.defaultVatRate)
+			: 19,
+		defaultPaymentTerms: deps.settings?.defaultPaymentTerms?.trim() ?? '',
+		numberFormat: deps.settings?.numberFormat?.trim() || DEFAULT_NUMBER_FORMAT,
+		storageMount: deps.settings?.storageMount?.trim() ?? '',
+		backupIntervalMinutes: Math.max(0, Math.round(Number(deps.settings?.backupIntervalMinutes) || 0)),
+	};
 	const app = express();
 	app.disable('x-powered-by');
 	app.use(express.json({ limit: '25mb' }));
@@ -205,6 +224,11 @@ export function createApiServer(deps: ApiServerDeps): Express {
 
 	app.get('/api/health', (_req, res) => {
 		res.json({ status: 'ok', version, schemaVersion: db.currentVersion(), counts: db.countByStatus() });
+	});
+
+	// Defaults from the instance config so the wizard can prefill sensibly
+	app.get('/api/settings', (_req, res) => {
+		res.json(settings);
 	});
 
 	app.get(

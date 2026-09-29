@@ -1,41 +1,245 @@
 {
 	"i18n": true,
-	"type": "panel",
+	"type": "tabs",
 	"items": {
-		"port": {
-			"type": "number",
-			"label": "API port",
-			"min": 1024,
-			"max": 65535,
-			"newLine": true,
-			"xs": 12,
-			"sm": 12,
-			"md": 6,
-			"lg": 4,
-			"xl": 4
+		"server": {
+			"type": "panel",
+			"label": "Server",
+			"items": {
+				"port": {
+					"type": "number",
+					"label": "API port",
+					"min": 1024,
+					"max": 65535,
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 6,
+					"lg": 4,
+					"xl": 4
+				},
+				"bind": {
+					"type": "ip",
+					"listenOnAllPorts": true,
+					"label": "Bind address",
+					"help": "127.0.0.1 = only this machine, 0.0.0.0 = all interfaces",
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 6,
+					"lg": 4,
+					"xl": 4
+				},
+				"storageMount": {
+					"type": "text",
+					"label": "Storage mount name",
+					"help": "empty = own data directory; otherwise an existing ioBroker file mount, e.g. e-invoices",
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 6,
+					"lg": 4,
+					"xl": 4
+				},
+				"backupIntervalMinutes": {
+					"type": "number",
+					"label": "Backup interval in minutes",
+					"help": "0 = off, otherwise an automatic backup into the storage mount",
+					"min": 0,
+					"max": 10080,
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 6,
+					"lg": 4,
+					"xl": 4
+				},
+				"authToken": {
+					"type": "password",
+					"label": "API token (optional)",
+					"help": "Empty means no authentication (LAN trust)",
+					"repeat": false,
+					"visible": true,
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 12,
+					"lg": 8,
+					"xl": 8
+				}
+			}
 		},
-		"bind": {
-			"type": "ip",
-			"listenOnAllPorts": true,
-			"label": "Bind address",
-			"help": "127.0.0.1 = only this machine, 0.0.0.0 = all interfaces",
-			"newLine": false,
-			"xs": 12,
-			"sm": 12,
-			"md": 6,
-			"lg": 4,
-			"xl": 4
+		"company": {
+			"type": "panel",
+			"label": "Company master data",
+			"items": {
+				"_companyHint": {
+					"type": "staticText",
+					"text": "These values fill the default company profile on every start. The PWA page “Firma” can still add further profiles; whatever is edited there is kept.",
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 12,
+					"lg": 12,
+					"xl": 12
+				},
+				"companyName": {
+					"type": "text",
+					"label": "Company name",
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 6,
+					"lg": 4,
+					"xl": 4
+				},
+				"companyStreet": {
+					"type": "text",
+					"label": "Company street",
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 6,
+					"lg": 4,
+					"xl": 4
+				},
+				"companyZip": {
+					"type": "text",
+					"label": "Company zip code",
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 3,
+					"lg": 2,
+					"xl": 2
+				},
+				"companyCity": {
+					"type": "text",
+					"label": "Company city",
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 3,
+					"lg": 3,
+					"xl": 3
+				},
+				"companyCountry": {
+					"type": "text",
+					"label": "Company country",
+					"default": "DE",
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 3,
+					"lg": 3,
+					"xl": 3
+				},
+				"vatId": {
+					"type": "text",
+					"label": "VAT ID (USt-IdNr.)",
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 3,
+					"xl": 3
+				},
+				"taxNumber": {
+					"type": "text",
+					"label": "Tax number (Steuernr.)",
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 3,
+					"xl": 3
+				},
+				"companyEmail": {
+					"type": "text",
+					"label": "Company e-mail",
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 3,
+					"xl": 3
+				},
+				"iban": {
+					"type": "text",
+					"label": "IBAN",
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 3,
+					"xl": 3
+				},
+				"bic": {
+					"type": "text",
+					"label": "BIC",
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 3,
+					"xl": 3
+				},
+				"website": {
+					"type": "text",
+					"label": "Website",
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 3,
+					"xl": 3
+				}
+			}
 		},
-		"authToken": {
-			"type": "password",
-			"label": "API token (optional)",
-			"help": "Empty means no authentication (LAN trust)",
-			"newLine": true,
-			"xs": 12,
-			"sm": 12,
-			"md": 12,
-			"lg": 8,
-			"xl": 8
+		"invoicing": {
+			"type": "panel",
+			"label": "Invoicing defaults",
+			"items": {
+				"numberFormat": {
+					"type": "text",
+					"label": "Invoice number format",
+					"help": "Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.",
+					"default": "{YYYY}-{EMPLOYEE}-{SEQ}",
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 6,
+					"lg": 5,
+					"xl": 5
+				},
+				"defaultVatRate": {
+					"type": "select",
+					"label": "Default VAT rate",
+					"options": [
+						{ "label": "19 %", "value": 19 },
+						{ "label": "7 %", "value": 7 },
+						{ "label": "0 %", "value": 0 }
+					],
+					"default": 19,
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 3,
+					"lg": 3,
+					"xl": 3
+				},
+				"defaultPaymentTerms": {
+					"type": "text",
+					"label": "Default payment terms",
+					"help": "prefilled for new invoices, e.g. payable within 14 days without deduction",
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 12,
+					"lg": 7,
+					"xl": 7
+				}
+			}
 		}
 	}
 }

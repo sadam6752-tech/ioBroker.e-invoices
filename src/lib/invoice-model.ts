@@ -152,6 +152,58 @@ export function roundCents(value: number): number {
 	return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+/** Default invoice number pattern: year, employee code, sequence. */
+export const DEFAULT_NUMBER_FORMAT = '{YYYY}-{EMPLOYEE}-{SEQ}';
+
+/** Tokens accepted in a custom number format. */
+const NUMBER_FORMAT_TOKENS = ['YYYY', 'EMPLOYEE', 'SEQ'] as const;
+
+/**
+ * Validates a custom invoice number format. Only the documented tokens are
+ * allowed, `{SEQ}` must appear exactly once (§ 14 UStG needs an unbroken
+ * sequence), and the result must stay filename-safe.
+ *
+ * @param format - Raw format string from the instance config.
+ * @returns The trimmed format, or null when unusable.
+ */
+export function normalizeNumberFormat(format?: string): string | null {
+	const raw = (format ?? '').trim();
+	if (raw === '' || raw.length > 40) {
+		return null;
+	}
+	// exactly one sequence token, otherwise the number series is not continuous
+	if (raw.split('{SEQ}').length - 1 !== 1) {
+		return null;
+	}
+	// remove the known tokens; everything left must be a filename-safe separator
+	let rest = raw;
+	for (const token of NUMBER_FORMAT_TOKENS) {
+		rest = rest.split(`{${token}}`).join('');
+	}
+	if (rest.length > 0 && !/^[A-Za-z0-9.\-_]+$/.test(rest)) {
+		return null;
+	}
+	return raw;
+}
+
+/**
+ * Renders an invoice number from a custom format.
+ *
+ * @param format - Validated format string.
+ * @param parts - Values for the tokens.
+ * @param parts.year - Calendar year.
+ * @param parts.employee - Employee code.
+ * @param parts.seq - Running sequence.
+ * @returns The rendered number.
+ */
+export function renderInvoiceNumber(format: string, parts: { year: number; employee: string; seq: number }): string {
+	const width = Math.max(3, String(parts.seq).length);
+	return format
+		.replace('{YYYY}', String(parts.year))
+		.replace('{EMPLOYEE}', normalizeEmployeeCode(parts.employee))
+		.replace('{SEQ}', String(parts.seq).padStart(width, '0'));
+}
+
 /**
  * Formats an invoice number as `YYYY-EE-NNN` (employee code + sequence).
  *

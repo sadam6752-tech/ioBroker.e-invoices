@@ -125,7 +125,15 @@ function routeParam(req, name) {
   return Array.isArray(value) ? (_a = value[0]) != null ? _a : "" : value != null ? value : "";
 }
 function createApiServer(deps) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   const { db, storage, log, version, authToken } = deps;
+  const settings = {
+    defaultVatRate: import_invoice_model.ALLOWED_VAT_RATES.includes(Number((_a = deps.settings) == null ? void 0 : _a.defaultVatRate)) ? Number((_b = deps.settings) == null ? void 0 : _b.defaultVatRate) : 19,
+    defaultPaymentTerms: (_e = (_d = (_c = deps.settings) == null ? void 0 : _c.defaultPaymentTerms) == null ? void 0 : _d.trim()) != null ? _e : "",
+    numberFormat: ((_g = (_f = deps.settings) == null ? void 0 : _f.numberFormat) == null ? void 0 : _g.trim()) || import_invoice_model.DEFAULT_NUMBER_FORMAT,
+    storageMount: (_j = (_i = (_h = deps.settings) == null ? void 0 : _h.storageMount) == null ? void 0 : _i.trim()) != null ? _j : "",
+    backupIntervalMinutes: Math.max(0, Math.round(Number((_k = deps.settings) == null ? void 0 : _k.backupIntervalMinutes) || 0))
+  };
   const app = (0, import_express.default)();
   app.disable("x-powered-by");
   app.use(import_express.default.json({ limit: "25mb" }));
@@ -155,6 +163,9 @@ function createApiServer(deps) {
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", version, schemaVersion: db.currentVersion(), counts: db.countByStatus() });
   });
+  app.get("/api/settings", (_req, res) => {
+    res.json(settings);
+  });
   app.get(
     "/api/invoices",
     route((req, res) => {
@@ -169,8 +180,8 @@ function createApiServer(deps) {
   app.post(
     "/api/invoices",
     route((req, res) => {
-      var _a;
-      const input = (_a = req.body) != null ? _a : {};
+      var _a2;
+      const input = (_a2 = req.body) != null ? _a2 : {};
       if (!input.seller || !input.buyer || !Array.isArray(input.lines)) {
         res.status(400).json({ error: "Body needs seller, buyer and lines[]" });
         return;
@@ -208,21 +219,21 @@ function createApiServer(deps) {
   app.get(
     "/api/invoices/:id.xml",
     route((req, res) => {
-      var _a;
+      var _a2;
       const invoice = db.getInvoice(routeParam(req, "id"));
       if (!(invoice == null ? void 0 : invoice.xml)) {
         res.status(404).json({ error: "No XML for this invoice (not issued yet?)" });
         return;
       }
       res.type("application/xml");
-      res.set("Content-Disposition", `attachment; filename="${(_a = invoice.number) != null ? _a : invoice.id}.xml"`);
+      res.set("Content-Disposition", `attachment; filename="${(_a2 = invoice.number) != null ? _a2 : invoice.id}.xml"`);
       res.send(invoice.xml);
     })
   );
   app.get(
     "/api/invoices/:id.pdf",
     route(async (req, res) => {
-      var _a;
+      var _a2;
       const invoice = db.getInvoice(routeParam(req, "id"));
       if (!(invoice == null ? void 0 : invoice.pdfPath)) {
         res.status(404).json({ error: "No PDF for this invoice (not issued yet?)" });
@@ -231,7 +242,7 @@ function createApiServer(deps) {
       try {
         const data = await storage.read(invoice.pdfPath);
         res.type("application/pdf");
-        res.set("Content-Disposition", `inline; filename="${(_a = invoice.number) != null ? _a : invoice.id}.pdf"`);
+        res.set("Content-Disposition", `inline; filename="${(_a2 = invoice.number) != null ? _a2 : invoice.id}.pdf"`);
         res.send(data);
       } catch {
         res.status(404).json({ error: `Artifact file missing: ${invoice.pdfPath}` });
@@ -241,7 +252,7 @@ function createApiServer(deps) {
   app.get(
     "/api/invoices/:id.xlsx",
     route(async (req, res) => {
-      var _a;
+      var _a2;
       const invoice = db.getInvoice(routeParam(req, "id"));
       if (!(invoice == null ? void 0 : invoice.xlsxPath)) {
         res.status(404).json({ error: "No Excel copy for this invoice (not issued yet?)" });
@@ -250,7 +261,7 @@ function createApiServer(deps) {
       try {
         const data = await storage.read(invoice.xlsxPath);
         res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.set("Content-Disposition", `attachment; filename="${(_a = invoice.number) != null ? _a : invoice.id}.xlsx"`);
+        res.set("Content-Disposition", `attachment; filename="${(_a2 = invoice.number) != null ? _a2 : invoice.id}.xlsx"`);
         res.send(data);
       } catch {
         res.status(404).json({ error: `Artifact file missing: ${invoice.xlsxPath}` });
@@ -271,8 +282,8 @@ function createApiServer(deps) {
   app.post(
     "/api/invoices/:id/paid",
     route((req, res) => {
-      var _a;
-      const body = (_a = req.body) != null ? _a : {};
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
       if (typeof body.paid !== "boolean") {
         res.status(400).json({ error: "Body needs { paid: true|false }" });
         return;
@@ -291,8 +302,8 @@ function createApiServer(deps) {
   app.post(
     "/api/invoices/:id/storno",
     route((req, res) => {
-      var _a;
-      const body = (_a = req.body) != null ? _a : {};
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
       if (body.reason !== void 0 && typeof body.reason !== "string") {
         res.status(400).json({ error: "reason must be a string" });
         return;
@@ -309,8 +320,8 @@ function createApiServer(deps) {
   app.patch(
     "/api/invoices/:id",
     route((req, res) => {
-      var _a;
-      const patch = (_a = req.body) != null ? _a : {};
+      var _a2;
+      const patch = (_a2 = req.body) != null ? _a2 : {};
       const bad = findShapeError(patch, { seller: "object", buyer: "object", lines: "array" });
       if (bad) {
         res.status(400).json({ error: bad });
@@ -363,8 +374,8 @@ function createApiServer(deps) {
   app.post(
     "/api/templates",
     route((req, res) => {
-      var _a;
-      const body = (_a = req.body) != null ? _a : {};
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
       if (typeof body.name !== "string") {
         res.status(400).json({ error: "Body needs name and definition" });
         return;
@@ -379,8 +390,8 @@ function createApiServer(deps) {
   app.post(
     "/api/templates/preview",
     route(async (req, res) => {
-      var _a, _b, _c;
-      const body = (_a = req.body) != null ? _a : {};
+      var _a2, _b2, _c2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
       const errors = (0, import_templates.validateTemplate)(body.definition);
       if (errors.length > 0) {
         res.status(400).json({ error: errors.join(" | ") });
@@ -399,7 +410,7 @@ function createApiServer(deps) {
         email: "rechnung@muster.example"
       };
       if (companyId) {
-        const company = (_b = db.getCompanyProfile(companyId)) != null ? _b : db.getDefaultCompanyProfile();
+        const company = (_b2 = db.getCompanyProfile(companyId)) != null ? _b2 : db.getDefaultCompanyProfile();
         if (company == null ? void 0 : company.profile.name.trim()) {
           seller = { ...seller, ...company.profile };
         }
@@ -427,7 +438,7 @@ function createApiServer(deps) {
         paymentTerms: "Zahlbar innerhalb von 14 Tagen ohne Abzug."
       });
       let logo;
-      if (((_c = definition.logo) == null ? void 0 : _c.path) && isContainedRelPath(definition.logo.path)) {
+      if (((_c2 = definition.logo) == null ? void 0 : _c2.path) && isContainedRelPath(definition.logo.path)) {
         try {
           logo = { data: await storage.read(definition.logo.path) };
         } catch {
@@ -452,8 +463,8 @@ function createApiServer(deps) {
   app.put(
     "/api/templates/:tid",
     route((req, res) => {
-      var _a;
-      const body = (_a = req.body) != null ? _a : {};
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
       try {
         res.json(db.updateTemplate(routeParam(req, "tid"), body));
       } catch (error) {
@@ -485,18 +496,18 @@ function createApiServer(deps) {
   app.post(
     "/api/templates/:tid/logo",
     route(async (req, res) => {
-      var _a, _b, _c, _d, _e, _f;
+      var _a2, _b2, _c2, _d2, _e2, _f2;
       const template = db.getTemplate(routeParam(req, "tid"));
       if (!template) {
         res.status(404).json({ error: "Template not found" });
         return;
       }
-      const body = (_a = req.body) != null ? _a : {};
+      const body = (_a2 = req.body) != null ? _a2 : {};
       if (typeof body.filename !== "string" || typeof body.mime !== "string" || typeof body.dataBase64 !== "string") {
         res.status(400).json({ error: "Body needs filename, mime and dataBase64" });
         return;
       }
-      const ext = (_b = body.filename.split(".").pop()) == null ? void 0 : _b.toLowerCase();
+      const ext = (_b2 = body.filename.split(".").pop()) == null ? void 0 : _b2.toLowerCase();
       if (ext !== "png" && ext !== "jpg" && ext !== "jpeg" || !body.mime.startsWith("image/")) {
         res.status(400).json({ error: "Only PNG/JPEG logos are supported" });
         return;
@@ -532,8 +543,8 @@ function createApiServer(deps) {
               ...template.definition,
               logo: {
                 path: logoPath,
-                position: (_d = (_c = template.definition.logo) == null ? void 0 : _c.position) != null ? _d : "right",
-                widthMm: (_f = (_e = template.definition.logo) == null ? void 0 : _e.widthMm) != null ? _f : 30
+                position: (_d2 = (_c2 = template.definition.logo) == null ? void 0 : _c2.position) != null ? _d2 : "right",
+                widthMm: (_f2 = (_e2 = template.definition.logo) == null ? void 0 : _e2.widthMm) != null ? _f2 : 30
               }
             }
           })
@@ -587,8 +598,8 @@ function createApiServer(deps) {
   app.post(
     "/api/restore",
     route(async (req, res) => {
-      var _a, _b;
-      const body = (_a = req.body) != null ? _a : {};
+      var _a2, _b2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
       let data;
       if (typeof body.dataBase64 === "string" && body.dataBase64.length > 0) {
         try {
@@ -598,7 +609,7 @@ function createApiServer(deps) {
           return;
         }
       } else if (typeof body.filename === "string" && body.filename.length > 0) {
-        const name = (_b = body.filename.split("/").pop()) != null ? _b : "";
+        const name = (_b2 = body.filename.split("/").pop()) != null ? _b2 : "";
         try {
           data = await storage.read(`backups/${name.replace(/[^A-Za-z0-9_.-]/g, "")}`);
         } catch {
@@ -625,8 +636,8 @@ function createApiServer(deps) {
   app.post(
     "/api/company-profiles",
     route((req, res) => {
-      var _a;
-      const body = (_a = req.body) != null ? _a : {};
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
       if (typeof body.name !== "string" || typeof body.profile !== "object" || !body.profile || Array.isArray(body.profile)) {
         res.status(400).json({ error: "Body needs name and profile" });
         return;
@@ -654,8 +665,8 @@ function createApiServer(deps) {
   app.put(
     "/api/company-profiles/:cid",
     route((req, res) => {
-      var _a;
-      const body = (_a = req.body) != null ? _a : {};
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
       try {
         res.json(db.updateCompanyProfile(routeParam(req, "cid"), body));
       } catch (error) {
@@ -702,8 +713,8 @@ function createApiServer(deps) {
   app.post(
     "/api/customers",
     route((req, res) => {
-      var _a;
-      const body = (_a = req.body) != null ? _a : {};
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
       if (typeof body.name !== "string" || typeof body.profile !== "object" || !body.profile || Array.isArray(body.profile)) {
         res.status(400).json({ error: "Body needs name and profile" });
         return;
@@ -729,8 +740,8 @@ function createApiServer(deps) {
   app.put(
     "/api/customers/:cid",
     route((req, res) => {
-      var _a;
-      const body = (_a = req.body) != null ? _a : {};
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
       try {
         res.json(db.updateCustomer(routeParam(req, "cid"), body));
       } catch (error) {
@@ -755,9 +766,9 @@ function createApiServer(deps) {
   app.post(
     "/api/products",
     route((req, res) => {
-      var _a;
+      var _a2;
       try {
-        res.status(201).json(db.createProduct((_a = req.body) != null ? _a : {}));
+        res.status(201).json(db.createProduct((_a2 = req.body) != null ? _a2 : {}));
       } catch (error) {
         res.status(400).json({ error: error.message });
       }
@@ -777,9 +788,9 @@ function createApiServer(deps) {
   app.put(
     "/api/products/:pid",
     route((req, res) => {
-      var _a;
+      var _a2;
       try {
-        res.json(db.updateProduct(routeParam(req, "pid"), (_a = req.body) != null ? _a : {}));
+        res.json(db.updateProduct(routeParam(req, "pid"), (_a2 = req.body) != null ? _a2 : {}));
       } catch (error) {
         res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
       }
@@ -800,11 +811,11 @@ function createApiServer(deps) {
     res.status(404).json({ error: "Unknown API route" });
   });
   app.use((error, _req, res, _next) => {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c2, _d2;
     const err = error;
-    const status = (_b = (_a = err == null ? void 0 : err.status) != null ? _a : err == null ? void 0 : err.statusCode) != null ? _b : 500;
-    const message = status < 500 ? String((_c = err == null ? void 0 : err.message) != null ? _c : "Request failed") : "Internal server error";
-    log.error(`API error (${status}): ${String((_d = err == null ? void 0 : err.message) != null ? _d : error)}`);
+    const status = (_b2 = (_a2 = err == null ? void 0 : err.status) != null ? _a2 : err == null ? void 0 : err.statusCode) != null ? _b2 : 500;
+    const message = status < 500 ? String((_c2 = err == null ? void 0 : err.message) != null ? _c2 : "Request failed") : "Internal server error";
+    log.error(`API error (${status}): ${String((_d2 = err == null ? void 0 : err.message) != null ? _d2 : error)}`);
     res.status(status).json({ error: message });
   });
   return app;

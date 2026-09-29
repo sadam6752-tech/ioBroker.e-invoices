@@ -140,6 +140,23 @@ describe('db => drafts and issue flow', () => {
 		}
 	});
 
+	it('uses a configured number format and falls back on an invalid one', () => {
+		const db = openMemoryDb();
+		try {
+			db.applyOptions({ numberFormat: 'RE-{SEQ}-{YYYY}' });
+			expect(db.nextInvoiceNumber(2026, '01')).to.equal('RE-001-2026');
+			expect(db.nextInvoiceNumber(2026, '01')).to.equal('RE-002-2026');
+			// a path separator is refused, it would break the file storage
+			db.applyOptions({ numberFormat: '{YYYY}/{SEQ}' });
+			expect(db.effectiveNumberFormat()).to.equal('{YYYY}-{EMPLOYEE}-{SEQ}');
+			db.applyOptions({ numberFormat: 'no sequence here' });
+			expect(db.effectiveNumberFormat()).to.equal('{YYYY}-{EMPLOYEE}-{SEQ}');
+			expect(db.nextInvoiceNumber(2026, '01')).to.equal('2026-01-003');
+		} finally {
+			db.close();
+		}
+	});
+
 	it('marks issued invoices as paid and refuses drafts', () => {
 		const db = openMemoryDb();
 		try {
