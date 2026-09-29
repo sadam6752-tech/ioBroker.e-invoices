@@ -3,6 +3,11 @@ import { api, esc, eur, type CompanyProfile, type DraftInput, type Invoice, type
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
 const emptyLine = (): InvoiceLine => ({ description: '', quantity: 1, unit: 'Stk', unitPriceNet: 0, vatRate: 19 });
 
+/** Rounds to cents without the float trap of a bare Math.round (544 × 19 % = 103,36 → 103). */
+function round2(value: number): number {
+	return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 /** localStorage key for the unsent wizard state (survives reloads/back). */
 const STORAGE_KEY = 'einv-wizard-v1';
 
@@ -335,19 +340,19 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			const lines = s.lines
 				.map(l => {
 					const discount = Math.min(Math.max(l.discountPercent ?? 0, 0), 100);
-					const gross = Math.round(l.quantity * l.unitPriceNet * 100) / 100;
-					const net = Math.round(gross * (1 - discount / 100) * 100) / 100;
+					const gross = round2(l.quantity * l.unitPriceNet);
+					const net = round2(gross * (1 - discount / 100));
 					return { ...l, discount, gross, net };
 				})
 				.filter(l => l.description || l.net > 0);
 			const byRate = new Map<number, number>();
-			for (const l of lines) byRate.set(l.vatRate, Math.round(((byRate.get(l.vatRate) ?? 0) + l.net) * 100) / 100);
+			for (const l of lines) byRate.set(l.vatRate, round2((byRate.get(l.vatRate) ?? 0) + l.net));
 			const breakdown = [...byRate.entries()]
 				.sort(([a], [b]) => a - b)
-				.map(([rate, net]) => ({ rate, net, tax: Math.round((net * rate) / 100) }));
-			const netTotal = Math.round(breakdown.reduce((a, b) => a + b.net, 0) * 100) / 100;
-			const taxTotal = Math.round(breakdown.reduce((a, b) => a + b.tax, 0) * 100) / 100;
-			const grossTotal = Math.round((netTotal + taxTotal) * 100) / 100;
+				.map(([rate, net]) => ({ rate, net, tax: round2((net * rate) / 100) }));
+			const netTotal = round2(breakdown.reduce((a, b) => a + b.net, 0));
+			const taxTotal = round2(breakdown.reduce((a, b) => a + b.tax, 0));
+			const grossTotal = round2(netTotal + taxTotal);
 			const hasDiscount = lines.some(l => l.discount > 0);
 			body = `<div class="card"><h3>Prüfen &amp; Ausstellen</h3>
 				<p><strong>${esc(s.documentTitle)}</strong> · ${esc(s.seller.name || '—')} → ${esc(s.buyer.name || '—')} · ${lines.length} Positionen</p>
@@ -363,7 +368,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 							<td>${esc(l.description) || '<span class="muted">–</span>'}</td>
 							<td class="r">${esc(l.quantity)} ${esc(l.unit)}</td>
 							<td class="r">${eur(l.unitPriceNet)}</td>
-							${hasDiscount ? `<td class="r">${l.discount > 0 ? `${esc(l.discount)} %` : '–'}</td><td class="r">${l.discount > 0 ? eur(Math.round((l.gross - l.net) * 100) / 100) : '–'}</td>` : ''}
+							${hasDiscount ? `<td class="r">${l.discount > 0 ? `${esc(l.discount)} %` : '–'}</td><td class="r">${l.discount > 0 ? eur(round2(l.gross - l.net)) : '–'}</td>` : ''}
 							<td class="r">${esc(l.vatRate)} %</td><td class="r"><strong>${eur(l.net)}</strong></td>
 						</tr>`,
 						)
@@ -371,9 +376,9 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				</table>
 				<table class="ovw sums">
 					<tbody>
-						<tr><td class="lbl">Netto</td><td class="r">${eur(netTotal)} EUR</td></tr>
-						${breakdown.map(b => `<tr class="sub"><td class="lbl">USt ${esc(b.rate)} % auf ${eur(b.net)} EUR</td><td class="r">${eur(b.tax)} EUR</td></tr>`).join('')}
-						<tr class="sum total"><td class="lbl">Gesamtbetrag</td><td class="r">${eur(grossTotal)} EUR</td></tr>
+						<tr><td class="lbl">Netto</td><td class="r">${eur(netTotal)}</td></tr>
+						${breakdown.map(b => `<tr class="sub"><td class="lbl">USt ${esc(b.rate)} % auf ${eur(b.net)}</td><td class="r">${eur(b.tax)}</td></tr>`).join('')}
+						<tr class="sum total"><td class="lbl">Gesamtbetrag</td><td class="r">${eur(grossTotal)}</td></tr>
 					</tbody>
 				</table>
 				<p class="muted">Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.</p>

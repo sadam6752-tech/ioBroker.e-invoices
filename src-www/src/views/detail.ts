@@ -1,5 +1,10 @@
 import { api, downloadUrl, esc, eur, openUrl } from '../api';
 
+/** Rounds to cents without the float trap of a bare Math.round. */
+function round2(value: number): number {
+	return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 /** Invoice detail: fields, validation, downloads, issue action. */
 export async function detail(root: HTMLElement, id: string): Promise<void> {
 	root.innerHTML = `<div class="card">Lade…</div>`;
@@ -11,8 +16,8 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			return {
 				line: l,
 				discount,
-				gross: Math.round(l.quantity * l.unitPriceNet * 100) / 100,
-				net: Math.round(l.quantity * netUnit * 100) / 100,
+				gross: round2(l.quantity * l.unitPriceNet),
+				net: round2(l.quantity * netUnit),
 			};
 		});
 		const hasDiscount = rows.some(r => r.discount > 0);
@@ -38,7 +43,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 					<td>${i + 1}</td><td>${esc(r.line.description)}${r.line.sku ? ` (${esc(r.line.sku)})` : ''}</td>
 					<td class="r">${r.line.quantity} ${esc(r.line.unit)}</td>
 					<td class="r">${eur(r.line.unitPriceNet)}</td>
-					${hasDiscount ? `<td class="r">${r.discount > 0 ? `${esc(r.discount)} %` : '–'}</td><td class="r">${r.discount > 0 ? eur(Math.round((r.gross - r.net) * 100) / 100) : '–'}</td>` : ''}
+					${hasDiscount ? `<td class="r">${r.discount > 0 ? `${esc(r.discount)} %` : '–'}</td><td class="r">${r.discount > 0 ? eur(round2(r.gross - r.net)) : '–'}</td>` : ''}
 					<td class="r">${r.line.vatRate} %</td><td class="r"><strong>${eur(r.net)}</strong></td>
 				</tr>`,
 				)
