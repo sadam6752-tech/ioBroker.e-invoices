@@ -53,7 +53,7 @@ async function validateArtifacts(invoice, xml) {
   if (invoice.number && !xml.includes(xmlText(invoice.number))) {
     businessErrors.push("Invoice number missing in XML");
   }
-  const typeCode = (invoice.documentTitle || "").toLowerCase().includes("gutschrift") ? "381" : "380";
+  const typeCode = (0, import_zugferd.mapDocumentTypeCode)(invoice.documentTitle);
   if (!xml.includes(`<ram:TypeCode>${typeCode}</ram:TypeCode>`)) {
     businessErrors.push(`Document type code ${typeCode} missing in XML`);
   }

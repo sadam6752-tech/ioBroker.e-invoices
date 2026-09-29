@@ -26,17 +26,24 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	const qEl = root.querySelector<HTMLInputElement>('#f-q')!;
 	const listEl = root.querySelector('#list')!;
 	const errEl = root.querySelector('#list-err')!;
+	/** Monotonic request counter to discard stale responses. */
+	let loadSeq = 0;
 
 	function fail(e: unknown): void {
 		errEl.innerHTML = `<div class="card error">${esc((e as Error).message)}</div>`;
 	}
 
 	async function load(): Promise<void> {
+		// guard against out-of-order responses overwriting a newer result
+		const seq = ++loadSeq;
 		const params: Record<string, string> = {};
 		if (statusEl.value) params.status = statusEl.value;
 		if (qEl.value.trim()) params.q = qEl.value.trim();
 		try {
 			const items = await api.list(params);
+			if (seq !== loadSeq) {
+				return;
+			}
 			listEl.innerHTML =
 				items
 					.map(
@@ -63,11 +70,21 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 				}),
 			);
 		} catch (e) {
+			if (seq !== loadSeq) {
+				return;
+			}
 			listEl.innerHTML = `<div class="card error">${esc((e as Error).message)}</div>`;
 		}
 	}
 	statusEl.onchange = () => void load();
-	qEl.oninput = () => void load();
+	let searchTimer: ReturnType<typeof setTimeout> | undefined;
+	qEl.oninput = () => {
+		// debounce: one request per pause instead of one per keystroke
+		if (searchTimer !== undefined) {
+			clearTimeout(searchTimer);
+		}
+		searchTimer = setTimeout(() => void load(), 250);
+	};
 
 	root.querySelector('#f-export')?.addEventListener('click', async () => {
 		const params: Record<string, string> = {};

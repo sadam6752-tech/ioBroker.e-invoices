@@ -106,6 +106,19 @@ describe('db => drafts and issue flow', () => {
 		}
 	});
 
+	it('clears due date and notes when the client sends an empty value', () => {
+		const db = openMemoryDb();
+		try {
+			const created = db.createDraft(draft({ dueDate: '2026-10-12', notes: 'bitte prüfen' }));
+			expect(created.dueDate).to.equal('2026-10-12');
+			const cleared = db.updateDraft(created.id, { dueDate: null as unknown as string, notes: '' });
+			expect(cleared.dueDate).to.equal(null);
+			expect(cleared.notes).to.equal(null);
+		} finally {
+			db.close();
+		}
+	});
+
 	it('refreshes the totals snapshot when issuing', () => {
 		const db = openMemoryDb();
 		try {

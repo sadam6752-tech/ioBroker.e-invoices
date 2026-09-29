@@ -20,6 +20,7 @@ var zugferd_exports = {};
 __export(zugferd_exports, {
   embedHybridPdf: () => embedHybridPdf,
   generateInvoiceXml: () => generateInvoiceXml,
+  mapDocumentTypeCode: () => mapDocumentTypeCode,
   mapUnitCode: () => mapUnitCode,
   mapVatCategory: () => mapVatCategory,
   resolveProfile: () => resolveProfile,
@@ -62,13 +63,28 @@ function mapVatCategory(vatRate) {
   }
   return import_factur_x.VatCategoryCode.STANDARD_RATE;
 }
+function mapDocumentTypeCode(documentTitle) {
+  const title = (documentTitle != null ? documentTitle : "").toLowerCase();
+  if (title.includes("gutschrift") || title.includes("credit")) {
+    return import_factur_x.DocumentTypeCode.CREDIT_NOTE;
+  }
+  if (title.includes("abschlag") || title.includes("zwischenrechnung")) {
+    return import_factur_x.DocumentTypeCode.PARTIAL_INVOICE;
+  }
+  if (title.includes("schlussrechnung") || title.includes("final")) {
+    return import_factur_x.DocumentTypeCode.FINAL_PAYMENT_REQUEST;
+  }
+  if (title.includes("korrektur")) {
+    return import_factur_x.DocumentTypeCode.CORRECTED_INVOICE;
+  }
+  return import_factur_x.DocumentTypeCode.COMMERCIAL_INVOICE;
+}
 function toFacturXInput(invoice) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
   if (!invoice.number) {
     throw new Error("Invoice has no number yet \u2014 issue it before generating XML");
   }
   const totals = (0, import_invoice_model.calcTotals)(invoice.lines);
-  const isCreditNote = (invoice.documentTitle || "").toLowerCase().includes("gutschrift");
   const sellerTax = [];
   if ((_a = invoice.seller.vatId) == null ? void 0 : _a.trim()) {
     sellerTax.push({ id: invoice.seller.vatId.trim(), schemeId: "VA" });
@@ -80,7 +96,7 @@ function toFacturXInput(invoice) {
     document: {
       id: invoice.number,
       issueDate: invoice.issueDate,
-      typeCode: isCreditNote ? import_factur_x.DocumentTypeCode.CREDIT_NOTE : import_factur_x.DocumentTypeCode.COMMERCIAL_INVOICE,
+      typeCode: mapDocumentTypeCode(invoice.documentTitle),
       dueDate: (_c = invoice.dueDate) != null ? _c : void 0,
       buyerReference: ((_d = invoice.buyer.customerNumber) == null ? void 0 : _d.trim()) || void 0,
       notes: ((_e = invoice.notes) == null ? void 0 : _e.trim()) ? [{ content: invoice.notes.trim() }] : void 0
@@ -162,7 +178,8 @@ function toFacturXInput(invoice) {
       termsDescription: (_s = invoice.paymentTerms) != null ? _s : void 0
     },
     delivery: {
-      date: invoice.deliveryDate.split("..")[0]
+      // validated as a plain ISO date at issue time, no period support
+      date: invoice.deliveryDate
     }
   };
 }
@@ -201,6 +218,7 @@ async function embedHybridPdf(pdfBytes, xml, profileName, title) {
 0 && (module.exports = {
   embedHybridPdf,
   generateInvoiceXml,
+  mapDocumentTypeCode,
   mapUnitCode,
   mapVatCategory,
   resolveProfile,

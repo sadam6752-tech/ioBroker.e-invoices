@@ -83,6 +83,31 @@ export function mapVatCategory(vatRate: number): VatCategoryCode {
 
 /**
  * Maps a stored invoice to the Factur-X input object.
+/**
+ * Maps the German document title to the UNTDID 1001 code list (BT-3).
+ * Everything that is not explicitly a progress or correction invoice stays a
+ * commercial invoice (380) — that is what the German EN 16931 profile expects.
+ *
+ * @param documentTitle - Free-text title chosen in the PWA.
+ */
+export function mapDocumentTypeCode(documentTitle?: string): DocumentTypeCode {
+	const title = (documentTitle ?? '').toLowerCase();
+	if (title.includes('gutschrift') || title.includes('credit')) {
+		return DocumentTypeCode.CREDIT_NOTE;
+	}
+	if (title.includes('abschlag') || title.includes('zwischenrechnung')) {
+		return DocumentTypeCode.PARTIAL_INVOICE;
+	}
+	if (title.includes('schlussrechnung') || title.includes('final')) {
+		return DocumentTypeCode.FINAL_PAYMENT_REQUEST;
+	}
+	if (title.includes('korrektur')) {
+		return DocumentTypeCode.CORRECTED_INVOICE;
+	}
+	return DocumentTypeCode.COMMERCIAL_INVOICE;
+}
+
+/**
  * Throws when mandatory generation data (number, parties, lines) is missing.
  *
  * @param invoice - Issued (or issuable) stored invoice.
@@ -92,7 +117,6 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 		throw new Error('Invoice has no number yet — issue it before generating XML');
 	}
 	const totals = calcTotals(invoice.lines);
-	const isCreditNote = (invoice.documentTitle || '').toLowerCase().includes('gutschrift');
 
 	const sellerTax: { id: string; schemeId: 'VA' | 'FC' }[] = [];
 	if (invoice.seller.vatId?.trim()) {
@@ -106,7 +130,7 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 		document: {
 			id: invoice.number,
 			issueDate: invoice.issueDate,
-			typeCode: isCreditNote ? DocumentTypeCode.CREDIT_NOTE : DocumentTypeCode.COMMERCIAL_INVOICE,
+			typeCode: mapDocumentTypeCode(invoice.documentTitle),
 			dueDate: invoice.dueDate ?? undefined,
 			buyerReference: invoice.buyer.customerNumber?.trim() || undefined,
 			notes: invoice.notes?.trim() ? [{ content: invoice.notes.trim() }] : undefined,
@@ -194,7 +218,8 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 			termsDescription: invoice.paymentTerms ?? undefined,
 		},
 		delivery: {
-			date: invoice.deliveryDate.split('..')[0],
+			// validated as a plain ISO date at issue time, no period support
+			date: invoice.deliveryDate,
 		},
 	};
 }

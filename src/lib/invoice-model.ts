@@ -241,7 +241,13 @@ export function calcTotals(lines: InvoiceLine[]): InvoiceTotals {
  * @param value - Candidate date string.
  */
 export function isIsoDate(value: string): boolean {
-	return /^\d{4}-\d{2}-\d{2}$/.test(value);
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+		return false;
+	}
+	// real calendar check: 2026-02-31 must not pass
+	const [year, month, day] = value.split('-').map(Number);
+	const date = new Date(Date.UTC(year, month - 1, day));
+	return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
 /**
@@ -298,10 +304,14 @@ export function validateInvoiceForIssue(input: InvoiceDraftInput): string[] {
 		errors.push('Buyer needs full name and address (name, street, zip, city).');
 	}
 	if (isBlank(input.issueDate) || !isIsoDate(input.issueDate)) {
-		errors.push('Issue date must be ISO YYYY-MM-DD.');
+		errors.push('Issue date must be a real calendar date in ISO format (YYYY-MM-DD).');
 	}
+	// the CII mapping only carries one date (BT-72); a period or free text
+	// would be silently truncated, so it is rejected instead
 	if (isBlank(input.deliveryDate)) {
 		errors.push('Delivery/service date is required.');
+	} else if (!isIsoDate(input.deliveryDate)) {
+		errors.push('Delivery/service date must be a real calendar date in ISO format (YYYY-MM-DD).');
 	}
 	if (lines.length === 0) {
 		errors.push('At least one line item is required.');

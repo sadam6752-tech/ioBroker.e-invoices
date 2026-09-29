@@ -291,7 +291,7 @@ class InvoiceDatabase {
    * @param patch - Partial draft content.
    */
   updateDraft(id, patch) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
     const current = this.getInvoice(id);
     if (!current) {
       throw new Error(`Invoice not found: ${id}`);
@@ -299,18 +299,22 @@ class InvoiceDatabase {
     if (current.status !== "draft") {
       throw new Error("Only drafts can be edited; issued invoices need a correction invoice.");
     }
+    const pick = (next, fallback) => {
+      var _a2;
+      return next === null || next === "" ? void 0 : (_a2 = next != null ? next : fallback) != null ? _a2 : void 0;
+    };
     const merged = {
       seller: (_a = patch.seller) != null ? _a : current.seller,
       buyer: (_b = patch.buyer) != null ? _b : current.buyer,
       lines: (_c = patch.lines) != null ? _c : current.lines,
       issueDate: (_d = patch.issueDate) != null ? _d : current.issueDate,
       deliveryDate: (_e = patch.deliveryDate) != null ? _e : current.deliveryDate,
-      dueDate: (_g = (_f = patch.dueDate) != null ? _f : current.dueDate) != null ? _g : void 0,
+      dueDate: pick(patch.dueDate, current.dueDate),
       currency: "EUR",
-      employeeCode: (_i = (_h = patch.employeeCode) != null ? _h : current.employeeCode) != null ? _i : void 0,
-      paymentTerms: (_k = (_j = patch.paymentTerms) != null ? _j : current.paymentTerms) != null ? _k : void 0,
-      documentTitle: (_l = patch.documentTitle) != null ? _l : current.documentTitle,
-      notes: (_n = (_m = patch.notes) != null ? _m : current.notes) != null ? _n : void 0
+      employeeCode: pick(patch.employeeCode, current.employeeCode),
+      paymentTerms: pick(patch.paymentTerms, current.paymentTerms),
+      documentTitle: (_f = patch.documentTitle) != null ? _f : current.documentTitle,
+      notes: pick(patch.notes, current.notes)
     };
     const totals = (0, import_invoice_model.calcTotals)(merged.lines.length > 0 ? merged.lines : []);
     this.db.prepare(
@@ -319,15 +323,15 @@ class InvoiceDatabase {
     ).run(
       merged.issueDate,
       merged.deliveryDate,
-      (_o = merged.dueDate) != null ? _o : null,
+      (_g = merged.dueDate) != null ? _g : null,
       JSON.stringify(merged.seller),
       JSON.stringify(merged.buyer),
       JSON.stringify(merged.lines),
       JSON.stringify(totals),
-      (_p = merged.documentTitle) != null ? _p : "Rechnung",
-      (_q = merged.notes) != null ? _q : null,
-      (_r = merged.paymentTerms) != null ? _r : null,
-      ((_s = merged.employeeCode) == null ? void 0 : _s.trim()) ? (0, import_invoice_model.normalizeEmployeeCode)(merged.employeeCode) : null,
+      (_h = merged.documentTitle) != null ? _h : "Rechnung",
+      (_i = merged.notes) != null ? _i : null,
+      (_j = merged.paymentTerms) != null ? _j : null,
+      ((_k = merged.employeeCode) == null ? void 0 : _k.trim()) ? (0, import_invoice_model.normalizeEmployeeCode)(merged.employeeCode) : null,
       nowIso(),
       id
     );

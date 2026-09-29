@@ -6,6 +6,7 @@ import {
 	blankDraft,
 	calcTotals,
 	formatInvoiceNumber,
+	isIsoDate,
 	lineNetAmount,
 	lineNetUnitPrice,
 	normalizeEmployeeCode,
@@ -109,6 +110,23 @@ describe('invoice-model => calcTotals', () => {
 				},
 			]),
 		).to.throw(/Discount/);
+	});
+
+	it('rejects a delivery period instead of truncating it silently', () => {
+		const draft = validDraft();
+		draft.deliveryDate = '2026-10-01..2026-10-31';
+		const errors = validateInvoiceForIssue(draft);
+		expect(errors.join(' | ')).to.contain('Delivery/service date');
+	});
+
+	it('rejects impossible and non-ISO dates', () => {
+		expect(isIsoDate('2026-02-31')).to.equal(false);
+		expect(isIsoDate('2026-13-01')).to.equal(false);
+		expect(isIsoDate('2026-00-10')).to.equal(false);
+		expect(isIsoDate('29.09.2026')).to.equal(false);
+		expect(isIsoDate('2026-02-28')).to.equal(true);
+		expect(isIsoDate('2024-02-29')).to.equal(true);
+		expect(isIsoDate('2026-02-29')).to.equal(false);
 	});
 
 	it('rejects unsupported VAT rates', () => {

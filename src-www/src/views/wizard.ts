@@ -8,6 +8,14 @@ function round2(value: number): number {
 	return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+/** Line net exactly as the server computes it (one rounding, quantity × price × discount). */
+function lineNet(line: InvoiceLine): number {
+	const quantity = Number(line.quantity) || 0;
+	const price = Number(line.unitPriceNet) || 0;
+	const discount = Math.min(Math.max(Number(line.discountPercent) || 0, 0), 100);
+	return round2(quantity * price * (1 - discount / 100));
+}
+
 /** localStorage key for the unsent wizard state (survives reloads/back). */
 const STORAGE_KEY = 'einv-wizard-v1';
 
@@ -315,7 +323,9 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				}
 				${s.lines
 					.map(
-						(l, i) => `<div class="card" style="background:var(--bg)">
+						(l, i) => `<div class="card line" style="background:var(--bg)">
+					<div class="line-head"><span class="line-no">${i + 1}</span><strong>Position ${i + 1}</strong>
+						<span class="line-sum">${eur(lineNet(l))}</span></div>
 					<div class="grid2">
 						<label>Bezeichnung<input data-l="${i}.description" value="${esc(l.description)}" /></label>
 						<label>Art.Nr.<input data-l="${i}.sku" value="${esc(l.sku)}" /></label>
@@ -354,11 +364,8 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			// quantity × price × discount, tax derived from the rate basis.
 			const lines = s.lines
 				.map(l => {
-					const quantity = Number(l.quantity) || 0;
-					const price = Number(l.unitPriceNet) || 0;
 					const discount = Math.min(Math.max(Number(l.discountPercent) || 0, 0), 100);
-					const gross = round2(quantity * price);
-					return { ...l, discount, gross, net: round2(quantity * price * (1 - discount / 100)) };
+					return { ...l, discount, gross: round2((Number(l.quantity) || 0) * (Number(l.unitPriceNet) || 0)), net: lineNet(l) };
 				})
 				.filter(l => l.description.trim() !== '' || l.gross > 0);
 			const byRate = new Map<number, number>();

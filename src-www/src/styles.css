@@ -147,8 +147,7 @@ table.ovw td {
 	padding: 5px 4px;
 	border-bottom: 1px solid #e5e7eb;
 }
-table.ovw th {
-	background: #f3f4f6;
+table.ovw th {	background: #f3f4f6;
 	font-weight: 600;
 }
 table.ovw .r {
@@ -191,6 +190,38 @@ table.ovw.sums tr.total td {
 .error {
 	color: var(--danger);
 	font-size: 14px;
+}
+.card.line {
+	padding: 12px;
+}
+.line-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 10px;
+}
+.line-no {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 22px;
+	height: 22px;
+	padding: 0 6px;
+	border-radius: 11px;
+	background: var(--brand);
+	color: #fff;
+	font-size: 12px;
+	font-weight: 700;
+}
+.line-head strong {
+	font-size: 14px;
+}
+.line-sum {
+	margin-left: auto;
+	font-size: 14px;
+	font-weight: 700;
+	color: var(--text);
+	white-space: nowrap;
 }
 .muted {
 	color: var(--muted);

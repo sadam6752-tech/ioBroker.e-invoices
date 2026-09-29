@@ -668,18 +668,22 @@ export class InvoiceDatabase {
 		if (current.status !== 'draft') {
 			throw new Error('Only drafts can be edited; issued invoices need a correction invoice.');
 		}
+		// an explicit null clears a field; an empty string is treated the same,
+		// because both mean "no value" in the PWA
+		const pick = (next: string | null | undefined, fallback: string | null | undefined): string | undefined =>
+			next === null || next === '' ? undefined : (next ?? fallback ?? undefined);
 		const merged: InvoiceDraftInput = {
 			seller: patch.seller ?? current.seller,
 			buyer: patch.buyer ?? current.buyer,
 			lines: patch.lines ?? current.lines,
 			issueDate: patch.issueDate ?? current.issueDate,
 			deliveryDate: patch.deliveryDate ?? current.deliveryDate,
-			dueDate: patch.dueDate ?? current.dueDate ?? undefined,
+			dueDate: pick(patch.dueDate, current.dueDate),
 			currency: 'EUR',
-			employeeCode: patch.employeeCode ?? current.employeeCode ?? undefined,
-			paymentTerms: patch.paymentTerms ?? current.paymentTerms ?? undefined,
+			employeeCode: pick(patch.employeeCode, current.employeeCode),
+			paymentTerms: pick(patch.paymentTerms, current.paymentTerms),
 			documentTitle: patch.documentTitle ?? current.documentTitle,
-			notes: patch.notes ?? current.notes ?? undefined,
+			notes: pick(patch.notes, current.notes),
 		};
 		const totals = calcTotals(merged.lines.length > 0 ? merged.lines : []);
 		this.db
