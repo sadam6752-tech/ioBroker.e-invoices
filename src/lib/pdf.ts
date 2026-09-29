@@ -9,7 +9,7 @@
  * exemption reasons are always rendered (Pflicht).
  */
 import PDFDocument from 'pdfkit';
-import { calcTotals, formatDeliveryDateDe, lineNetAmount, lineNetUnitPrice } from './invoice-model';
+import { calcSkonto, calcTotals, formatDeliveryDateDe, lineNetAmount, lineNetUnitPrice } from './invoice-model';
 import { ARCHIVE_HINT, DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
 import type { StoredInvoice } from './db';
 
@@ -86,17 +86,27 @@ export interface TemplateLogoImage {
  * @param invoice - Stored invoice (number assigned).
  * @param template - Layout template (defaults to Standard).
  * @param logo - Logo image bytes (optional, from template logo path).
+ * @param context - Extra render context.
+ * @param context.stornoOfNumber - Number of the invoice this one reverses.
  */
 export async function renderInvoicePdf(
 	invoice: StoredInvoice,
 	template: LayoutTemplate = DEFAULT_TEMPLATE,
 	logo?: TemplateLogoImage,
+	context: { stornoOfNumber?: string | null } = {},
 ): Promise<Buffer> {
 	if (!invoice.number) {
-		throw new Error('Invoice has no number yet — issue it before rendering');
+		throw new Error('Invoice has no number yet - issue it before rendering');
 	}
 	const invoiceNumber: string = invoice.number;
+	const originalNumber = context.stornoOfNumber ?? null;
 	const totals = calcTotals(invoice.lines);
+	const skonto = calcSkonto(
+		totals.grossTotal,
+		invoice.skontoPercent,
+		invoice.skontoDueDate ?? undefined,
+		invoice.dueDate ?? undefined,
+	);
 	const colors = template.colors;
 	const intro = template.introText ?? DEFAULT_TEMPLATE.introText;
 	const closing = template.closingText ?? DEFAULT_TEMPLATE.closingText;
@@ -203,6 +213,21 @@ export async function renderInvoicePdf(
 			doc.text(`${invoice.documentTitle} Nr. ${invoice.number}`, left, cursor, { width: pageWidth });
 			doc.fillColor(colors.text).fontSize(10).font('Helvetica');
 			cursor += 24;
+		}
+		// a Storno must state which invoice it reverses (GoBD/§ 14 UStG)
+		if (invoice.stornoOfId) {
+			const original = originalNumber;
+			doc.fillColor(colors.muted).fontSize(9);
+			doc.text(
+				original
+					? `Stornorechnung — storniert Rechnung ${original}.`
+					: 'Stornorechnung — storniert die oben genannte Rechnung.',
+				left,
+				cursor,
+				{ width: pageWidth },
+			);
+			doc.fillColor(colors.text).fontSize(10);
+			cursor += 14;
 		}
 		if (intro.trim()) {
 			doc.text(intro.trim(), left, cursor, { width: pageWidth });
@@ -331,6 +356,32 @@ export async function renderInvoicePdf(
 		if (exempt?.exemptionReason) {
 			ensureSpace(28);
 			doc.text(`Steuerbefreiung: ${exempt.exemptionReason}`, left, rowY, { width: pageWidth });
+			rowY += 14;
+		}
+
+		// Cash discount (Skonto) and payment state
+		if (invoice.paid) {
+			ensureSpace(16);
+			doc.fillColor(colors.muted).fontSize(9);
+			doc.text(
+				`Ausgeglichen am ${formatDeDate((invoice.paidAt ?? '').slice(0, 10)) || '—'}${skonto.percent > 0 ? ' (Skonto berücksichtigt)' : ''}.`,
+				left,
+				rowY,
+				{ width: pageWidth },
+			);
+			doc.fillColor(colors.text).fontSize(10);
+			rowY += 14;
+		} else if (skonto.percent > 0) {
+			ensureSpace(30);
+			doc.fillColor(colors.muted).fontSize(9);
+			doc.text(
+				`Bei Zahlung bis ${formatDeDate(skonto.dueDate ?? '')} ${formatEurDe(skonto.payableNow)} je Rechnung ` +
+					`(${skonto.percent} % Skonto = ${formatEurDe(skonto.amount)}).`,
+				left,
+				rowY,
+				{ width: pageWidth },
+			);
+			doc.fillColor(colors.text).fontSize(10);
 			rowY += 14;
 		}
 

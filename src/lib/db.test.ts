@@ -49,7 +49,7 @@ describe('db => migrations', () => {
 	it('migrates a fresh database to the latest version', () => {
 		const db = openMemoryDb();
 		try {
-			expect(db.currentVersion()).to.equal(5);
+			expect(db.currentVersion()).to.equal(6);
 			const columns = db.tableColumns('invoices');
 			expect(columns).to.contain('payment_terms');
 			expect(columns).to.contain('employee_code');
@@ -63,7 +63,7 @@ describe('db => migrations', () => {
 		const db = openMemoryDb();
 		try {
 			db.migrate();
-			expect(db.currentVersion()).to.equal(5);
+			expect(db.currentVersion()).to.equal(6);
 		} finally {
 			db.close();
 		}
@@ -135,6 +135,65 @@ describe('db => drafts and issue flow', () => {
 			expect(created.totals.taxTotal).to.equal(calcTotals(created.lines).taxTotal);
 			const issued = db.issueDraft(created.id);
 			expect(issued.totals.taxTotal).to.equal(Math.round((issued.totals.netTotal * 19) / 100));
+		} finally {
+			db.close();
+		}
+	});
+
+	it('marks issued invoices as paid and refuses drafts', () => {
+		const db = openMemoryDb();
+		try {
+			const issued = db.issueDraft(db.createDraft(draft()).id);
+			expect(issued.paid).to.equal(false);
+			const paid = db.setPaid(issued.id, true, '2026-10-01');
+			expect(paid.paid).to.equal(true);
+			expect(paid.paidAt).to.equal('2026-10-01');
+			const unpaid = db.setPaid(issued.id, false);
+			expect(unpaid.paid).to.equal(false);
+			expect(unpaid.paidAt).to.equal(null);
+			const fresh = db.createDraft(draft());
+			expect(() => db.setPaid(fresh.id, true)).to.throw(/issued/i);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('reverses an invoice with a linked credit note', () => {
+		const db = openMemoryDb();
+		try {
+			const original = db.issueDraft(db.createDraft(draft()).id);
+			const { reversal, original: cancelled } = db.reverseInvoice(original.id, 'Falsch ausgestellt');
+			expect(cancelled.status).to.equal('cancelled');
+			expect(cancelled.number).to.equal(original.number);
+			expect(reversal.status).to.equal('draft');
+			expect(reversal.stornoOfId).to.equal(original.id);
+			expect(reversal.documentTitle).to.equal('Gutschrift');
+			expect(reversal.notes).to.contain('Falsch ausgestellt');
+			expect(reversal.lines).to.have.lengthOf(original.lines.length);
+			// a second Storno must not create another credit note
+			expect(() => db.reverseInvoice(original.id)).to.throw(/issued/i);
+			expect(db.countByStatus().cancelled).to.equal(1);
+			// the reversal itself is reversible, and the new note links to it
+			const issuedReversal = db.issueDraft(reversal.id);
+			const second = db.reverseInvoice(issuedReversal.id);
+			expect(second.original.id).to.equal(issuedReversal.id);
+			expect(second.original.stornoOfId).to.equal(original.id);
+			expect(second.reversal.stornoOfId).to.equal(issuedReversal.id);
+			expect(second.reversal.documentTitle).to.equal('Gutschrift');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('keeps skonto on the draft and clears it again', () => {
+		const db = openMemoryDb();
+		try {
+			const created = db.createDraft(draft({ skontoPercent: 2, skontoDueDate: '2026-10-05' }));
+			expect(created.skontoPercent).to.equal(2);
+			expect(created.skontoDueDate).to.equal('2026-10-05');
+			const cleared = db.updateDraft(created.id, { skontoPercent: 0, skontoDueDate: '' });
+			expect(cleared.skontoPercent).to.equal(0);
+			expect(cleared.skontoDueDate).to.equal(null);
 		} finally {
 			db.close();
 		}

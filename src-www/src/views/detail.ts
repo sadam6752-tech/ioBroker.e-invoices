@@ -17,7 +17,8 @@ function deliveryDe(value: string): string {
 export async function detail(root: HTMLElement, id: string): Promise<void> {
 	root.innerHTML = `<div class="card">Lade…</div>`;
 	try {
-		const inv = await api.get(id);
+		const loaded = await api.get(id);
+		let inv = loaded;
 		const lines = Array.isArray(inv.lines) ? inv.lines : [];
 		const rows = lines.map(l => {
 			const discount = Math.min(Math.max(Number(l.discountPercent) || 0, 0), 100);
@@ -65,6 +66,8 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			<div class="card"><div class="row">
 				${inv.status === 'draft' ? `<a class="btn" href="#/edit/${esc(inv.id)}">Bearbeiten</a>` : ''}
 				${inv.status === 'draft' ? `<button id="d-issue">Ausstellen</button><span class="muted">Danach nicht mehr änderbar.</span>` : ''}
+				${inv.status === 'issued' ? `<label class="pay"><input type="checkbox" id="d-paid" ${inv.paid ? 'checked' : ''} /><span>bezahlt${inv.paid && inv.paidAt ? ` (${esc(inv.paidAt.slice(0, 10))})` : ''}</span></label>` : ''}
+				${inv.status === 'issued' ? `<button class="secondary" id="d-storno">Storno</button>` : ''}
 				<button class="secondary" id="d-validate">Validieren</button>
 				${inv.pdfPath ? `<button class="secondary" data-view="pdf">PDF ansehen</button>` : ''}
 				${inv.pdfPath ? `<button class="secondary" data-dl="pdf">PDF ↓</button>` : ''}
@@ -102,6 +105,40 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 					v.formatErrors.length + v.businessErrors.length === 0
 						? `<p style="color:var(--ok)">Gültig: keine Fehler.</p>`
 						: `<ul>${[...v.formatErrors, ...v.businessErrors].map(e => `<li class="error">${esc(e)}</li>`).join('')}</ul>`;
+			} catch (e) {
+				out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
+			}
+		});
+		root.querySelector('#d-paid')?.addEventListener('change', async event => {
+			const box = event.target as HTMLInputElement;
+			const want = box.checked;
+			box.disabled = true;
+			try {
+				inv = await api.setPaid(inv.id, want);
+				out.innerHTML = `<p style="color:var(--ok)">${want ? 'Als bezahlt markiert.' : 'Zahlung zurückgenommen.'}</p>`;
+			} catch (e) {
+				box.checked = !want;
+				out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
+			} finally {
+				box.disabled = false;
+			}
+		});
+		root.querySelector('#d-storno')?.addEventListener('click', async () => {
+			const reason = window.prompt('Grund für den Storno (erscheint auf der Gutschrift):', 'Falsch ausgestellt');
+			if (reason === null) {
+				return;
+			}
+			if (
+				!window.confirm(
+					'Die Rechnung wird auf storniert gesetzt und als Gutschrift neu angelegt. Das Original bleibt unverändert erhalten. Fortfahren?',
+				)
+			) {
+				return;
+			}
+			try {
+				const { reversal } = await api.storno(inv.id, reason.trim() || undefined);
+				location.hash = `#/edit/${reversal.id}`;
+				location.reload();
 			} catch (e) {
 				out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
 			}

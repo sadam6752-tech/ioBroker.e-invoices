@@ -7,7 +7,7 @@
  * (stored next to PDF/XML); the list export is generated on demand.
  */
 import ExcelJS from 'exceljs';
-import { calcTotals, formatDeliveryDateDe, lineNetAmount, lineNetUnitPrice } from './invoice-model';
+import { calcSkonto, calcTotals, formatDeliveryDateDe, lineNetAmount, lineNetUnitPrice } from './invoice-model';
 import type { StoredInvoice } from './db';
 
 /** Copy notice printed on every Excel sheet (German). */
@@ -93,6 +93,21 @@ export async function renderInvoiceWorkbook(invoice: StoredInvoice): Promise<Buf
 	sheet.getCell(`A${row + 1}`).value = `Liefer-/Leistungsdatum: ${formatDeliveryDateDe(invoice.deliveryDate)}`;
 	if (invoice.dueDate) {
 		sheet.getCell(`A${row + 2}`).value = `Fällig am: ${invoice.dueDate}`;
+		row += 1;
+	}
+	if (invoice.paid) {
+		sheet.getCell(`A${row + 2}`).value = `Ausgeglichen am: ${(invoice.paidAt ?? '').slice(0, 10)}`;
+		row += 1;
+	} else if (invoice.skontoPercent > 0) {
+		const skonto = calcSkonto(
+			totals.grossTotal,
+			invoice.skontoPercent,
+			invoice.skontoDueDate ?? undefined,
+			invoice.dueDate ?? undefined,
+		);
+		sheet.getCell(`A${row + 2}`).value =
+			`Skonto ${skonto.percent} % bis ${formatDeliveryDateDe(skonto.dueDate ?? '')}: ` +
+			`${skonto.amount.toFixed(2)} EUR Rabatt, Zahlbetrag ${skonto.payableNow.toFixed(2)} EUR`;
 		row += 1;
 	}
 	row += 2;

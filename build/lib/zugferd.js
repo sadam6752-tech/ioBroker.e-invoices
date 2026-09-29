@@ -92,7 +92,7 @@ function mapDocumentTypeCode(documentTitle) {
   return import_factur_x.DocumentTypeCode.COMMERCIAL_INVOICE;
 }
 function toFacturXInput(invoice) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
   if (!invoice.number) {
     throw new Error("Invoice has no number yet \u2014 issue it before generating XML");
   }
@@ -104,14 +104,30 @@ function toFacturXInput(invoice) {
   if ((_b = invoice.seller.taxNumber) == null ? void 0 : _b.trim()) {
     sellerTax.push({ id: invoice.seller.taxNumber.trim(), schemeId: "FC" });
   }
+  const skonto = (0, import_invoice_model.calcSkonto)(
+    totals.grossTotal,
+    invoice.skontoPercent,
+    (_c = invoice.skontoDueDate) != null ? _c : void 0,
+    (_d = invoice.dueDate) != null ? _d : void 0
+  );
+  const notes = [];
+  if ((_e = invoice.notes) == null ? void 0 : _e.trim()) {
+    notes.push({ content: invoice.notes.trim() });
+  }
+  if (skonto.percent > 0 && !invoice.paid) {
+    notes.push({
+      subjectCode: "AAK",
+      content: `${skonto.percent} % Skonto bei Zahlung bis ${(0, import_invoice_model.formatDeliveryDateDe)((_f = skonto.dueDate) != null ? _f : "")} = ${skonto.amount.toFixed(2)} EUR; Zahlbetrag dann ${skonto.payableNow.toFixed(2)} EUR.`
+    });
+  }
   return {
     document: {
       id: invoice.number,
       issueDate: invoice.issueDate,
       typeCode: mapDocumentTypeCode(invoice.documentTitle),
-      dueDate: (_c = invoice.dueDate) != null ? _c : void 0,
-      buyerReference: ((_d = invoice.buyer.customerNumber) == null ? void 0 : _d.trim()) || void 0,
-      notes: ((_e = invoice.notes) == null ? void 0 : _e.trim()) ? [{ content: invoice.notes.trim() }] : void 0
+      dueDate: (_g = invoice.dueDate) != null ? _g : void 0,
+      buyerReference: ((_h = invoice.buyer.customerNumber) == null ? void 0 : _h.trim()) || void 0,
+      notes: notes.length > 0 ? notes : void 0
     },
     seller: {
       name: invoice.seller.name,
@@ -122,10 +138,10 @@ function toFacturXInput(invoice) {
         country: invoice.seller.country || "DE"
       },
       taxRegistrations: sellerTax.length > 0 ? sellerTax : void 0,
-      electronicAddress: ((_f = invoice.seller.email) == null ? void 0 : _f.trim()) ? { value: invoice.seller.email.trim(), schemeID: "EM" } : void 0,
-      contact: ((_g = invoice.seller.email) == null ? void 0 : _g.trim()) || ((_h = invoice.seller.phone) == null ? void 0 : _h.trim()) ? {
-        email: ((_i = invoice.seller.email) == null ? void 0 : _i.trim()) || void 0,
-        phone: ((_j = invoice.seller.phone) == null ? void 0 : _j.trim()) || void 0
+      electronicAddress: ((_i = invoice.seller.email) == null ? void 0 : _i.trim()) ? { value: invoice.seller.email.trim(), schemeID: "EM" } : void 0,
+      contact: ((_j = invoice.seller.email) == null ? void 0 : _j.trim()) || ((_k = invoice.seller.phone) == null ? void 0 : _k.trim()) ? {
+        email: ((_l = invoice.seller.email) == null ? void 0 : _l.trim()) || void 0,
+        phone: ((_m = invoice.seller.phone) == null ? void 0 : _m.trim()) || void 0
       } : void 0
     },
     buyer: {
@@ -136,10 +152,10 @@ function toFacturXInput(invoice) {
         postalCode: invoice.buyer.zip,
         country: invoice.buyer.country || "DE"
       },
-      electronicAddress: ((_k = invoice.buyer.email) == null ? void 0 : _k.trim()) ? { value: invoice.buyer.email.trim(), schemeID: "EM" } : void 0,
-      contact: ((_l = invoice.buyer.email) == null ? void 0 : _l.trim()) || ((_m = invoice.buyer.phone) == null ? void 0 : _m.trim()) ? {
-        email: ((_n = invoice.buyer.email) == null ? void 0 : _n.trim()) || void 0,
-        phone: ((_o = invoice.buyer.phone) == null ? void 0 : _o.trim()) || void 0
+      electronicAddress: ((_n = invoice.buyer.email) == null ? void 0 : _n.trim()) ? { value: invoice.buyer.email.trim(), schemeID: "EM" } : void 0,
+      contact: ((_o = invoice.buyer.email) == null ? void 0 : _o.trim()) || ((_p = invoice.buyer.phone) == null ? void 0 : _p.trim()) ? {
+        email: ((_q = invoice.buyer.email) == null ? void 0 : _q.trim()) || void 0,
+        phone: ((_r = invoice.buyer.phone) == null ? void 0 : _r.trim()) || void 0
       } : void 0
     },
     lines: invoice.lines.map((line, index) => {
@@ -165,7 +181,12 @@ function toFacturXInput(invoice) {
       taxBasisTotal: totals.netTotal,
       taxTotal: totals.taxTotal,
       grandTotal: totals.grossTotal,
-      duePayableAmount: totals.grossTotal,
+      // BT-9 may only deviate from the grand total through a prepayment
+      // (BR-CO-16). A cash discount is conditional, not a prepayment, so
+      // it travels as a note and BT-9 stays at the gross total. A paid
+      // invoice is fully prepaid instead.
+      prepaidAmount: invoice.paid ? totals.grossTotal : void 0,
+      duePayableAmount: invoice.paid ? 0 : totals.grossTotal,
       currency: "EUR"
     },
     vatBreakdown: totals.breakdown.map((entry) => {
@@ -193,16 +214,16 @@ function toFacturXInput(invoice) {
     }),
     payment: {
       meansCode: "58",
-      iban: ((_p = invoice.seller.iban) == null ? void 0 : _p.trim()) || void 0,
-      bic: ((_q = invoice.seller.bic) == null ? void 0 : _q.trim()) || void 0,
+      iban: ((_s = invoice.seller.iban) == null ? void 0 : _s.trim()) || void 0,
+      bic: ((_t = invoice.seller.bic) == null ? void 0 : _t.trim()) || void 0,
       paymentReference: invoice.number,
-      dueDate: (_r = invoice.dueDate) != null ? _r : void 0,
-      termsDescription: (_s = invoice.paymentTerms) != null ? _s : void 0
+      dueDate: (_u = invoice.dueDate) != null ? _u : void 0,
+      termsDescription: (_v = invoice.paymentTerms) != null ? _v : void 0
     },
     delivery: {
       // validated at issue time; for a period only BT-72 goes through the
       // library, BT-74 is added by applyDeliveryPeriodEnd()
-      date: (_t = (0, import_invoice_model.parseDeliveryPeriod)(invoice.deliveryDate)) == null ? void 0 : _t.start
+      date: (_w = (0, import_invoice_model.parseDeliveryPeriod)(invoice.deliveryDate)) == null ? void 0 : _w.start
     }
   };
 }

@@ -437,6 +437,60 @@ describe('zugferd => delivery period', function () {
 	});
 });
 
+describe('zugferd => skonto and payment state', function () {
+	this.timeout(60000);
+
+	it('states the cash discount as note AAK and keeps BT-9 at the gross total', async () => {
+		const { db, invoice } = issueInMemoryDb(draft({ skontoPercent: 2, dueDate: '2026-10-12' }));
+		try {
+			const { xml } = await generateInvoiceXml(invoice);
+			// BR-CO-16: a conditional discount is not a prepayment, so the
+			// amount due stays the gross total and the terms go into a note
+			expect(xml).to.contain(
+				`<ram:DuePayableAmount>${invoice.totals.grossTotal.toFixed(2)}</ram:DuePayableAmount>`,
+			);
+			expect(xml).to.contain('AAK');
+			expect(xml).to.contain('2 % Skonto');
+			const check = await validateArtifacts(invoice, xml);
+			expect(check.formatErrors).to.deep.equal([]);
+			expect(check.businessErrors).to.deep.equal([]);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('sets BT-9 to zero with a prepayment once the invoice is paid', async () => {
+		const { db, invoice } = issueInMemoryDb(draft({ skontoPercent: 2, dueDate: '2026-10-12' }));
+		try {
+			const paid = db.setPaid(invoice.id, true, '2026-10-01');
+			const { xml } = await generateInvoiceXml(paid);
+			expect(xml).to.contain('<ram:DuePayableAmount>0.00</ram:DuePayableAmount>');
+			expect(xml).to.contain(
+				`<ram:TotalPrepaidAmount>${invoice.totals.grossTotal.toFixed(2)}</ram:TotalPrepaidAmount>`,
+			);
+			// a settled invoice no longer advertises the discount
+			expect(xml).to.not.contain('2 % Skonto');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('emits a credit note with type 381 for a Storno', async () => {
+		const { db, invoice } = issueInMemoryDb(draft());
+		try {
+			const { reversal } = db.reverseInvoice(invoice.id, 'Falsch ausgestellt');
+			const issued = db.issueDraft(reversal.id);
+			const { xml } = await generateInvoiceXml(issued);
+			expect(xml).to.contain('<ram:TypeCode>381</ram:TypeCode>');
+			expect(xml).to.contain('Storno zu Rechnung');
+			const check = await validateArtifacts(issued, xml);
+			expect(check.formatErrors).to.deep.equal([]);
+		} finally {
+			db.close();
+		}
+	});
+});
+
 describe('validation => tampered xml', function () {
 	this.timeout(60000);
 

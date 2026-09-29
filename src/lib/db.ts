@@ -15,6 +15,7 @@ import {
 	calcTotals,
 	formatInvoiceNumber,
 	normalizeEmployeeCode,
+	todayIso,
 	validateInvoiceForIssue,
 	type InvoiceDraftInput,
 	type InvoiceStatus,
@@ -64,6 +65,16 @@ export interface StoredInvoice {
 	pdfPath: string | null;
 	/** Mount path of the Excel copy, may be null. */
 	xlsxPath: string | null;
+	/** True once the invoice has been marked as paid (Skonto must be considered). */
+	paid: boolean;
+	/** ISO date/time of the payment, null while unpaid. */
+	paidAt: string | null;
+	/** Id of the invoice this one reverses (Storno), null otherwise. */
+	stornoOfId: string | null;
+	/** Cash discount in percent, 0 when none. */
+	skontoPercent: number;
+	/** Last day for the cash discount, null when none. */
+	skontoDueDate: string | null;
 	/** Creation timestamp. */
 	createdAt: string;
 	/** Last update timestamp. */
@@ -128,6 +139,11 @@ interface InvoiceRow {
 	xml: string | null;
 	pdf_path: string | null;
 	xlsx_path: string | null;
+	paid: number;
+	paid_at: string | null;
+	storno_of_id: string | null;
+	skonto_percent: number;
+	skonto_due_date: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -153,6 +169,11 @@ function mapRow(row: InvoiceRow): StoredInvoice {
 		xml: row.xml,
 		pdfPath: row.pdf_path,
 		xlsxPath: row.xlsx_path,
+		paid: row.paid === 1,
+		paidAt: row.paid_at,
+		stornoOfId: row.storno_of_id,
+		skontoPercent: row.skonto_percent ?? 0,
+		skontoDueDate: row.skonto_due_date,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -573,8 +594,8 @@ export class InvoiceDatabase {
 		this.db
 			.prepare(
 				`INSERT INTO invoices
-				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, template_id, document_title, notes, payment_terms, employee_code, created_at, updated_at)
-				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', NULL, ?, ?, ?, ?, ?, ?)`,
+				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, template_id, document_title, notes, payment_terms, employee_code, skonto_percent, skonto_due_date, created_at, updated_at)
+				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.run(
 				id,
@@ -589,6 +610,8 @@ export class InvoiceDatabase {
 				input.notes ?? null,
 				input.paymentTerms ?? null,
 				input.employeeCode?.trim() ? normalizeEmployeeCode(input.employeeCode) : null,
+				Number(input.skontoPercent) || 0,
+				input.skontoDueDate?.trim() || null,
 				stamp,
 				stamp,
 			);
@@ -684,12 +707,15 @@ export class InvoiceDatabase {
 			paymentTerms: pick(patch.paymentTerms, current.paymentTerms),
 			documentTitle: patch.documentTitle ?? current.documentTitle,
 			notes: pick(patch.notes, current.notes),
+			skontoPercent: patch.skontoPercent ?? current.skontoPercent,
+			skontoDueDate: pick(patch.skontoDueDate, current.skontoDueDate),
 		};
 		const totals = calcTotals(merged.lines.length > 0 ? merged.lines : []);
 		this.db
 			.prepare(
 				`UPDATE invoices SET issue_date = ?, delivery_date = ?, due_date = ?, seller_json = ?, buyer_json = ?,
-				lines_json = ?, totals_json = ?, document_title = ?, notes = ?, payment_terms = ?, employee_code = ?, updated_at = ? WHERE id = ?`,
+				lines_json = ?, totals_json = ?, document_title = ?, notes = ?, payment_terms = ?, employee_code = ?,
+				skonto_percent = ?, skonto_due_date = ?, updated_at = ? WHERE id = ?`,
 			)
 			.run(
 				merged.issueDate,
@@ -703,6 +729,8 @@ export class InvoiceDatabase {
 				merged.notes ?? null,
 				merged.paymentTerms ?? null,
 				merged.employeeCode?.trim() ? normalizeEmployeeCode(merged.employeeCode) : null,
+				Number(merged.skontoPercent) || 0,
+				merged.skontoDueDate?.trim() || null,
 				nowIso(),
 				id,
 			);
@@ -797,6 +825,89 @@ export class InvoiceDatabase {
 			throw new Error('Artifact update failed');
 		}
 		return updated;
+	}
+
+	/**
+	 * Marks an issued invoice as paid or unpaid. Payment state is bookkeeping
+	 * only — it never changes the frozen XML artifact (GoBD).
+	 *
+	 * @param id - Invoice UUID.
+	 * @param paid - New payment state.
+	 * @param paidAt - ISO date of the payment, defaults to now.
+	 */
+	public setPaid(id: string, paid: boolean, paidAt?: string): StoredInvoice {
+		const current = this.getInvoice(id);
+		if (!current) {
+			throw new Error(`Invoice not found: ${id}`);
+		}
+		if (current.status === 'draft') {
+			throw new Error('Only issued invoices can be marked as paid.');
+		}
+		this.db
+			.prepare(`UPDATE invoices SET paid = ?, paid_at = ?, updated_at = ? WHERE id = ?`)
+			.run(paid ? 1 : 0, paid ? paidAt?.trim() || nowIso() : null, nowIso(), id);
+		const updated = this.getInvoice(id);
+		if (!updated) {
+			throw new Error('Payment update failed');
+		}
+		return updated;
+	}
+
+	/**
+	 * Reverses an issued invoice the GoBD way: a real credit note (Gutschrift)
+	 * with its own number is created as a draft, the original is marked
+	 * cancelled and both are linked. The original is never deleted or edited.
+	 *
+	 * @param id - Issed invoice UUID to reverse.
+	 * @param reason - Reason printed on the credit note.
+	 * @returns The linked credit-note draft and the cancelled original.
+	 */
+	public reverseInvoice(id: string, reason?: string): { reversal: StoredInvoice; original: StoredInvoice } {
+		const original = this.getInvoice(id);
+		if (!original) {
+			throw new Error(`Invoice not found: ${id}`);
+		}
+		if (original.status !== 'issued') {
+			throw new Error('Only issued invoices can be reversed (Storno).');
+		}
+		const existing = this.listInvoices({ status: 'draft' }).find(draft => draft.stornoOfId === id);
+		if (existing) {
+			throw new Error(`A Storno draft for ${original.number} already exists (${existing.id}).`);
+		}
+		const reversal = this.createDraft({
+			seller: original.seller,
+			buyer: original.buyer,
+			lines: original.lines,
+			issueDate: todayIso(),
+			deliveryDate: original.deliveryDate,
+			dueDate: original.dueDate ?? undefined,
+			currency: 'EUR',
+			employeeCode: original.employeeCode ?? undefined,
+			paymentTerms: original.paymentTerms ?? undefined,
+			skontoPercent: original.skontoPercent,
+			skontoDueDate: original.skontoDueDate ?? undefined,
+			documentTitle: 'Gutschrift',
+			notes: `Storno zu Rechnung ${original.number}${reason?.trim() ? ` – ${reason.trim()}` : ''}`,
+		});
+		const run = this.db.transaction((): { reversal: StoredInvoice; original: StoredInvoice } => {
+			this.db
+				.prepare(`UPDATE invoices SET status = 'cancelled', updated_at = ? WHERE id = ? AND status = 'issued'`)
+				.run(nowIso(), id);
+			this.db
+				.prepare(`UPDATE invoices SET storno_of_id = ?, updated_at = ? WHERE id = ?`)
+				.run(id, nowIso(), reversal.id);
+			const cancelled = this.getInvoice(id);
+			if (!cancelled || cancelled.status !== 'cancelled') {
+				throw new Error('Storno transaction failed');
+			}
+			// re-read: the link is only written inside the transaction
+			const linked = this.getInvoice(reversal.id);
+			if (!linked || linked.stornoOfId !== id) {
+				throw new Error('Storno link failed');
+			}
+			return { reversal: linked, original: cancelled };
+		});
+		return run();
 	}
 
 	/**
@@ -1165,9 +1276,10 @@ export class InvoiceDatabase {
 				this.db
 					.prepare(
 						`INSERT INTO invoices
-						(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json,
-						 profile, status, template_id, document_title, notes, payment_terms, employee_code, xml, pdf_path, xlsx_path, created_at, updated_at)
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json,
+					 profile, status, template_id, document_title, notes, payment_terms, employee_code, xml, pdf_path, xlsx_path,
+					 paid, paid_at, storno_of_id, skonto_percent, skonto_due_date, created_at, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					)
 					.run(
 						invoice.id,
@@ -1189,6 +1301,11 @@ export class InvoiceDatabase {
 						invoice.xml,
 						invoice.pdfPath,
 						invoice.xlsxPath,
+						invoice.paid ? 1 : 0,
+						invoice.paidAt ?? null,
+						invoice.stornoOfId ?? null,
+						Number(invoice.skontoPercent) || 0,
+						invoice.skontoDueDate ?? null,
 						invoice.createdAt,
 						invoice.updatedAt,
 					);

@@ -46,7 +46,7 @@ var import_templates = require("./templates");
 var import_validation = require("./validation");
 var import_zugferd = require("./zugferd");
 function previewInvoice(draft) {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f;
   const stamp = (/* @__PURE__ */ new Date()).toISOString();
   return {
     id: "preview",
@@ -65,6 +65,11 @@ function previewInvoice(draft) {
     notes: (_c = draft.notes) != null ? _c : null,
     paymentTerms: (_d = draft.paymentTerms) != null ? _d : null,
     employeeCode: (_e = draft.employeeCode) != null ? _e : null,
+    skontoPercent: Number(draft.skontoPercent) || 0,
+    skontoDueDate: (_f = draft.skontoDueDate) != null ? _f : null,
+    paid: false,
+    paidAt: null,
+    stornoOfId: null,
     xml: null,
     pdfPath: null,
     xlsxPath: null,
@@ -261,6 +266,44 @@ function createApiServer(deps) {
         return;
       }
       res.json(invoice);
+    })
+  );
+  app.post(
+    "/api/invoices/:id/paid",
+    route((req, res) => {
+      var _a;
+      const body = (_a = req.body) != null ? _a : {};
+      if (typeof body.paid !== "boolean") {
+        res.status(400).json({ error: "Body needs { paid: true|false }" });
+        return;
+      }
+      if (body.paidAt !== void 0 && typeof body.paidAt !== "string") {
+        res.status(400).json({ error: "paidAt must be an ISO date" });
+        return;
+      }
+      try {
+        res.json(db.setPaid(routeParam(req, "id"), body.paid, body.paidAt));
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.post(
+    "/api/invoices/:id/storno",
+    route((req, res) => {
+      var _a;
+      const body = (_a = req.body) != null ? _a : {};
+      if (body.reason !== void 0 && typeof body.reason !== "string") {
+        res.status(400).json({ error: "reason must be a string" });
+        return;
+      }
+      try {
+        const result = db.reverseInvoice(routeParam(req, "id"), body.reason);
+        log.info(`Storno created for ${result.original.number}: draft ${result.reversal.id}`);
+        res.status(201).json(result);
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
     })
   );
   app.patch(

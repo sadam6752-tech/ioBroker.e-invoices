@@ -162,6 +162,37 @@ describe('api => invoices', function () {
 		expect(response.body.error).to.be.a('string');
 	});
 
+	it('marks invoices paid and creates a Storno credit note', async () => {
+		const created = await request(app)
+			.post('/api/invoices')
+			.send({
+				seller: { name: 'S', street: 'a', zip: '1', city: 'b', country: 'DE', vatId: 'DE1' },
+				buyer: { name: 'B', street: 'c', zip: '2', city: 'd', country: 'DE', customerNumber: 'K-1' },
+				lines: [{ description: 'A', quantity: 1, unit: 'Stk', unitPriceNet: 10, vatRate: 19 }],
+			})
+			.expect(201);
+		const issued = await request(app).post(`/api/invoices/${created.body.id}/issue`).send({}).expect(200);
+
+		await request(app).post(`/api/invoices/${created.body.id}/paid`).send({ paid: 'yes' }).expect(400);
+		const paid = await request(app)
+			.post(`/api/invoices/${created.body.id}/paid`)
+			.send({ paid: true, paidAt: '2026-10-01' })
+			.expect(200);
+		expect(paid.body.paid).to.equal(true);
+		expect(paid.body.paidAt).to.equal('2026-10-01');
+
+		const storno = await request(app)
+			.post(`/api/invoices/${created.body.id}/storno`)
+			.send({ reason: 'Falsch ausgestellt' })
+			.expect(201);
+		expect(storno.body.original.status).to.equal('cancelled');
+		expect(storno.body.reversal.stornoOfId).to.equal(created.body.id);
+		expect(storno.body.reversal.documentTitle).to.equal('Gutschrift');
+		// the original keeps its number and is not deleted
+		expect(storno.body.original.number).to.equal(issued.body.number);
+		await request(app).post(`/api/invoices/${created.body.id}/storno`).send({}).expect(400);
+	});
+
 	it('falls back to the default page size for unparsable limit/offset', async () => {
 		const response = await request(app).get('/api/invoices?limit=abc&offset=abc').expect(200);
 		expect(response.body).to.be.an('array');

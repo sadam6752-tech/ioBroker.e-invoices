@@ -21,6 +21,7 @@ __export(invoice_model_exports, {
   ALLOWED_VAT_RATES: () => ALLOWED_VAT_RATES,
   EXEMPTION_CATEGORIES: () => EXEMPTION_CATEGORIES,
   blankDraft: () => blankDraft,
+  calcSkonto: () => calcSkonto,
   calcTotals: () => calcTotals,
   formatDeliveryDateDe: () => formatDeliveryDateDe,
   formatInvoiceNumber: () => formatInvoiceNumber,
@@ -122,6 +123,19 @@ function formatDeliveryDateDe(value) {
   const de = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
   return period.end ? `${de(period.start)} \u2013 ${de(period.end)}` : de(period.start);
 }
+function calcSkonto(grossTotal, skontoPercent, skontoDueDate, dueDate) {
+  const percent = Number(skontoPercent) || 0;
+  if (!(percent > 0)) {
+    return { percent: 0, amount: 0, payableNow: grossTotal, dueDate: (skontoDueDate == null ? void 0 : skontoDueDate.trim()) || dueDate || null };
+  }
+  const amount = roundCents(grossTotal * percent / 100);
+  return {
+    percent,
+    amount,
+    payableNow: roundCents(grossTotal - amount),
+    dueDate: (skontoDueDate == null ? void 0 : skontoDueDate.trim()) || dueDate || null
+  };
+}
 function todayIso(date = /* @__PURE__ */ new Date()) {
   return date.toISOString().slice(0, 10);
 }
@@ -141,6 +155,7 @@ function isBlank(value) {
   return value === void 0 || value.trim().length === 0;
 }
 function validateInvoiceForIssue(input) {
+  var _a;
   const errors = [];
   const { seller, buyer, lines } = input;
   if (isBlank(seller.name) || isBlank(seller.street) || isBlank(seller.zip) || isBlank(seller.city)) {
@@ -164,6 +179,21 @@ function validateInvoiceForIssue(input) {
     errors.push(
       "Delivery/service date must be a real calendar date (YYYY-MM-DD) or a period (YYYY-MM-DD..YYYY-MM-DD)."
     );
+  }
+  if (input.skontoPercent !== void 0) {
+    const skonto = Number(input.skontoPercent);
+    if (!(skonto >= 0) || skonto > 100) {
+      errors.push("Skonto must be between 0 and 100 percent.");
+    } else if (skonto > 0) {
+      const deadline = ((_a = input.skontoDueDate) == null ? void 0 : _a.trim()) || input.dueDate;
+      if (!deadline || !isIsoDate(deadline)) {
+        errors.push("Skonto needs a discount deadline (Skonto bis, ISO YYYY-MM-DD).");
+      } else if (isIsoDate(input.issueDate) && deadline < input.issueDate) {
+        errors.push("Skonto deadline must not be before the issue date.");
+      } else if (input.dueDate && isIsoDate(input.dueDate) && deadline > input.dueDate) {
+        errors.push("Skonto deadline must not be later than the due date.");
+      }
+    }
   }
   if (lines.length === 0) {
     errors.push("At least one line item is required.");
@@ -211,6 +241,7 @@ function validateInvoiceForIssue(input) {
   ALLOWED_VAT_RATES,
   EXEMPTION_CATEGORIES,
   blankDraft,
+  calcSkonto,
   calcTotals,
   formatDeliveryDateDe,
   formatInvoiceNumber,

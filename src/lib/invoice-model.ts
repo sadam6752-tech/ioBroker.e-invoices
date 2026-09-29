@@ -124,6 +124,10 @@ export interface InvoiceDraftInput {
 	employeeCode?: string;
 	/** Payment terms text, e.g. Skonto (optional). */
 	paymentTerms?: string;
+	/** Cash discount in percent, 0-100 (optional, EN 16931 BT-147). */
+	skontoPercent?: number;
+	/** Last day for the cash discount, ISO (optional, default: due date). */
+	skontoDueDate?: string;
 	/** Document type label: Rechnung | Gutschrift | Abschlagsrechnung ... */
 	documentTitle?: string;
 	/** Notes / exemption hints rendered into PDF + XML. */
@@ -306,6 +310,34 @@ export function formatDeliveryDateDe(value: string): string {
 }
 
 /**
+ * Cash discount (Skonto) arithmetic. The discount is taken from the gross
+ * total and reduces the amount due when paid within the discount period.
+ *
+ * @param grossTotal - Gross total of the invoice.
+ * @param skontoPercent - Discount in percent.
+ * @param skontoDueDate - Last day for the discount (ISO or empty).
+ * @param dueDate - Regular due date (ISO or empty).
+ */
+export function calcSkonto(
+	grossTotal: number,
+	skontoPercent?: number,
+	skontoDueDate?: string,
+	dueDate?: string,
+): { percent: number; amount: number; payableNow: number; dueDate: string | null } {
+	const percent = Number(skontoPercent) || 0;
+	if (!(percent > 0)) {
+		return { percent: 0, amount: 0, payableNow: grossTotal, dueDate: skontoDueDate?.trim() || dueDate || null };
+	}
+	const amount = roundCents((grossTotal * percent) / 100);
+	return {
+		percent,
+		amount,
+		payableNow: roundCents(grossTotal - amount),
+		dueDate: skontoDueDate?.trim() || dueDate || null,
+	};
+}
+
+/**
  * Current date as ISO `YYYY-MM-DD` (UTC).
  *
  * @param date - Reference point, defaults to now.
@@ -373,6 +405,22 @@ export function validateInvoiceForIssue(input: InvoiceDraftInput): string[] {
 		errors.push(
 			'Delivery/service date must be a real calendar date (YYYY-MM-DD) or a period (YYYY-MM-DD..YYYY-MM-DD).',
 		);
+	}
+	if (input.skontoPercent !== undefined) {
+		const skonto = Number(input.skontoPercent);
+		if (!(skonto >= 0) || skonto > 100) {
+			errors.push('Skonto must be between 0 and 100 percent.');
+		} else if (skonto > 0) {
+			// the discount deadline may fall back to the regular due date
+			const deadline = input.skontoDueDate?.trim() || input.dueDate;
+			if (!deadline || !isIsoDate(deadline)) {
+				errors.push('Skonto needs a discount deadline (Skonto bis, ISO YYYY-MM-DD).');
+			} else if (isIsoDate(input.issueDate) && deadline < input.issueDate) {
+				errors.push('Skonto deadline must not be before the issue date.');
+			} else if (input.dueDate && isIsoDate(input.dueDate) && deadline > input.dueDate) {
+				errors.push('Skonto deadline must not be later than the due date.');
+			}
+		}
 	}
 	if (lines.length === 0) {
 		errors.push('At least one line item is required.');

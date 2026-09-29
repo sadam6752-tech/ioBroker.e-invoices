@@ -146,6 +146,18 @@ const MIGRATIONS = [
 				updated_at TEXT NOT NULL
 			)`
     ]
+  },
+  {
+    version: 6,
+    name: "payment-state-skonto-and-storno",
+    sql: [
+      `ALTER TABLE invoices ADD COLUMN paid INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE invoices ADD COLUMN paid_at TEXT`,
+      `ALTER TABLE invoices ADD COLUMN storno_of_id TEXT`,
+      `ALTER TABLE invoices ADD COLUMN skonto_percent REAL NOT NULL DEFAULT 0`,
+      `ALTER TABLE invoices ADD COLUMN skonto_due_date TEXT`,
+      `CREATE INDEX IF NOT EXISTS idx_invoices_paid ON invoices(paid)`
+    ]
   }
 ];
 const LATEST_SCHEMA_VERSION = MIGRATIONS.reduce((max, item) => Math.max(max, item.version), 0);

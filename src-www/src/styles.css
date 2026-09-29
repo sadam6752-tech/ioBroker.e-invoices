@@ -213,6 +213,33 @@ label.req {
 label.req input {
 	border-color: var(--brand);
 }
+label.pay {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 13px;
+	color: var(--muted);
+	white-space: nowrap;
+	cursor: pointer;
+}
+label.pay input {
+	width: 16px;
+	height: 16px;
+	accent-color: var(--brand);
+	cursor: pointer;
+}
+label.pay:has(input:checked) {
+	color: var(--ok);
+	font-weight: 600;
+}
+.pay-box {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	border: 1px dashed #d1d5db;
+	border-radius: 4px;
+	flex: 0 0 auto;
+}
 .card.line {
 	padding: 12px;
 }

@@ -27,6 +27,7 @@ var import_pdf = require("./pdf");
 var import_templates = require("./templates");
 var import_zugferd = require("./zugferd");
 async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
+  var _a, _b;
   const current = db.getInvoice(invoiceId);
   if (!current) {
     throw new Error(`Invoice not found: ${invoiceId}`);
@@ -38,7 +39,9 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
   log.info(`Invoice issued: ${issued.number} (${issued.id})`);
   const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
   const { xml } = await (0, import_zugferd.generateInvoiceXml)(issued);
-  const sight = await (0, import_pdf.renderInvoicePdf)(issued, template, logo);
+  const sight = await (0, import_pdf.renderInvoicePdf)(issued, template, logo, {
+    stornoOfNumber: issued.stornoOfId ? (_b = (_a = db.getInvoice(issued.stornoOfId)) == null ? void 0 : _a.number) != null ? _b : null : null
+  });
   const hybrid = await (0, import_zugferd.embedHybridPdf)(sight, xml, issued.profile, `${issued.documentTitle} ${issued.number}`);
   const xlsx = await (0, import_excel.renderInvoiceWorkbook)(issued);
   const base = `invoices/${issued.issueDate.slice(0, 4)}/${issued.number}`;

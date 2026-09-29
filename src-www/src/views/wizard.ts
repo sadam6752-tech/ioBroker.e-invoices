@@ -52,6 +52,10 @@ interface WizardState {
 	employee: string;
 	documentTitle: string;
 	notes: string;
+	/** Cash discount in percent, 0 = none. */
+	skontoPercent: number;
+	/** Last day for the cash discount. */
+	skontoDueDate: string;
 	draftId: string | null;
 	selectedCompany: string | null;
 	selectedCustomer: string | null;
@@ -77,6 +81,8 @@ function freshState(): WizardState {
 		employee: loadEmployee(),
 		documentTitle: 'Rechnung',
 		notes: '',
+		skontoPercent: 0,
+		skontoDueDate: '',
 		draftId: null,
 		selectedCompany: null,
 		selectedCustomer: null,
@@ -178,6 +184,8 @@ export function wizard(root: HTMLElement, editId?: string): void {
 					employee: inv.employeeCode ?? loadEmployee(),
 					documentTitle: inv.documentTitle,
 					notes: inv.notes ?? '',
+					skontoPercent: inv.skontoPercent ?? 0,
+					skontoDueDate: inv.skontoDueDate ?? '',
 					draftId: inv.id,
 				};
 				bootLists();
@@ -302,6 +310,11 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		if (root.querySelector('#w-title')) s.documentTitle = get('w-title') || s.documentTitle;
 		const notesEl = root.querySelector<HTMLTextAreaElement>('#w-notes');
 		if (notesEl) s.notes = notesEl.value;
+		if (root.querySelector('#w-skonto')) {
+			const raw = Number(get('w-skonto'));
+			s.skontoPercent = Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 100) : 0;
+		}
+		if (root.querySelector('#w-skonto-due')) s.skontoDueDate = get('w-skonto-due');
 		persist();
 	}
 
@@ -396,6 +409,14 @@ export function wizard(root: HTMLElement, editId?: string): void {
 					<p class="muted">Nur „von" angeben, wenn die Leistung an einem Tag erbracht wurde. Mit „bis" wird der Zeitraum als BT-74/BT-75 in die Rechnung geschrieben.</p>
 				</fieldset>
 				<label>Mitarbeiter-Kürzel (für Nr. JJJJ-KK-LLL)<input id="w-employee" maxlength="8" placeholder="z.B. 01" value="${esc(s.employee)}" /></label>
+				<fieldset class="period">
+					<legend>Skonto (Rabatt bei früher Zahlung)</legend>
+					<div class="grid2">
+						<label>Skonto %<input id="w-skonto" type="number" min="0" max="100" step="0.01" value="${esc(s.skontoPercent)}" /></label>
+						<label>Skonto bis<input id="w-skonto-due" type="date" value="${esc(s.skontoDueDate)}" /></label>
+					</div>
+					<p class="muted">Bei 0 % kein Skonto. Ohne eigenes Datum gilt das Fälligkeitsdatum. Der Skonto mindert den Zahlbetrag (BT-9) und steht als Bedingung mit Subject-Code AAK im XML.</p>
+				</fieldset>
 				<label>Notizen<textarea id="w-notes">${esc(s.notes)}</textarea></label>
 			</div>`;
 		}
@@ -416,6 +437,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			const netTotal = round2(breakdown.reduce((a, b) => a + b.net, 0));
 			const taxTotal = round2(breakdown.reduce((a, b) => a + b.tax, 0));
 			const grossTotal = round2(netTotal + taxTotal);
+			const skontoAmount = round2((grossTotal * (Number(s.skontoPercent) || 0)) / 100);
 			const hasDiscount = lines.some(l => l.discount > 0);
 			body = `<div class="card"><h3>Prüfen &amp; Ausstellen</h3>
 				<p><strong>${esc(s.documentTitle)}</strong> · ${esc(s.seller.name || '—')} → ${esc(s.buyer.name || '—')} · ${lines.length} Positionen</p>
@@ -442,6 +464,12 @@ export function wizard(root: HTMLElement, editId?: string): void {
 						<tr><td class="lbl">Netto</td><td class="r">${eur(netTotal)}</td></tr>
 						${breakdown.map(b => `<tr class="sub"><td class="lbl">USt ${esc(b.rate)} % auf ${eur(b.net)}</td><td class="r">${eur(b.tax)}</td></tr>`).join('')}
 						<tr class="sum total"><td class="lbl">Gesamtbetrag</td><td class="r">${eur(grossTotal)}</td></tr>
+						${
+							s.skontoPercent > 0
+								? `<tr class="sub"><td class="lbl">${esc(s.skontoPercent)} % Skonto bis ${esc(s.skontoDueDate || s.dueDate || '—')}</td><td class="r">−${eur(skontoAmount)}</td></tr>
+							<tr class="sum total"><td class="lbl">Zahlbetrag bei Skonto</td><td class="r">${eur(grossTotal - skontoAmount)}</td></tr>`
+								: ''
+						}
 					</tbody>
 				</table>
 				<p class="muted">Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.</p>
@@ -557,10 +585,12 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				deliveryDate: s.deliveryDate,
 				dueDate: s.dueDate || undefined,
 				currency: 'EUR',
-				employeeCode: s.employee.trim() || undefined,
-				documentTitle: s.documentTitle,
-				notes: s.notes || undefined,
-			};
+			employeeCode: s.employee.trim() || undefined,
+			documentTitle: s.documentTitle,
+			notes: s.notes || undefined,
+			skontoPercent: s.skontoPercent || undefined,
+			skontoDueDate: s.skontoDueDate || undefined,
+		};
 			try {
 				if (s.employee.trim()) {
 					try {
@@ -632,6 +662,11 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
 		const title = get('w-title');
 		if (title) s.documentTitle = title;
+		if (root.querySelector('#w-skonto')) {
+			const raw = Number(get('w-skonto'));
+			s.skontoPercent = Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 100) : 0;
+		}
+		if (root.querySelector('#w-skonto-due')) s.skontoDueDate = get('w-skonto-due');
 		s.notes = root.querySelector<HTMLTextAreaElement>('#w-notes')?.value ?? s.notes;
 		persist();
 	}

@@ -76,6 +76,11 @@ export function previewInvoice(draft: InvoiceDraftInput): StoredInvoice {
 		notes: draft.notes ?? null,
 		paymentTerms: draft.paymentTerms ?? null,
 		employeeCode: draft.employeeCode ?? null,
+		skontoPercent: Number(draft.skontoPercent) || 0,
+		skontoDueDate: draft.skontoDueDate ?? null,
+		paid: false,
+		paidAt: null,
+		stornoOfId: null,
 		xml: null,
 		pdfPath: null,
 		xlsxPath: null,
@@ -317,6 +322,44 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				return;
 			}
 			res.json(invoice);
+		}),
+	);
+
+	app.post(
+		'/api/invoices/:id/paid',
+		route((req, res) => {
+			const body = (req.body ?? {}) as { paid?: unknown; paidAt?: unknown };
+			if (typeof body.paid !== 'boolean') {
+				res.status(400).json({ error: 'Body needs { paid: true|false }' });
+				return;
+			}
+			if (body.paidAt !== undefined && typeof body.paidAt !== 'string') {
+				res.status(400).json({ error: 'paidAt must be an ISO date' });
+				return;
+			}
+			try {
+				res.json(db.setPaid(routeParam(req, 'id'), body.paid, body.paidAt));
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.post(
+		'/api/invoices/:id/storno',
+		route((req, res) => {
+			const body = (req.body ?? {}) as { reason?: unknown };
+			if (body.reason !== undefined && typeof body.reason !== 'string') {
+				res.status(400).json({ error: 'reason must be a string' });
+				return;
+			}
+			try {
+				const result = db.reverseInvoice(routeParam(req, 'id'), body.reason);
+				log.info(`Storno created for ${result.original.number}: draft ${result.reversal.id}`);
+				res.status(201).json(result);
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
 		}),
 	);
 

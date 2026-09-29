@@ -58,6 +58,7 @@ function partyBlock(sheet, startRow, title, lines) {
   return startRow + 1 + lines.length;
 }
 async function renderInvoiceWorkbook(invoice) {
+  var _a, _b, _c, _d;
   if (!invoice.number) {
     throw new Error("Invoice has no number yet \u2014 issue it before exporting");
   }
@@ -96,6 +97,19 @@ async function renderInvoiceWorkbook(invoice) {
   sheet.getCell(`A${row + 1}`).value = `Liefer-/Leistungsdatum: ${(0, import_invoice_model.formatDeliveryDateDe)(invoice.deliveryDate)}`;
   if (invoice.dueDate) {
     sheet.getCell(`A${row + 2}`).value = `F\xE4llig am: ${invoice.dueDate}`;
+    row += 1;
+  }
+  if (invoice.paid) {
+    sheet.getCell(`A${row + 2}`).value = `Ausgeglichen am: ${((_a = invoice.paidAt) != null ? _a : "").slice(0, 10)}`;
+    row += 1;
+  } else if (invoice.skontoPercent > 0) {
+    const skonto = (0, import_invoice_model.calcSkonto)(
+      totals.grossTotal,
+      invoice.skontoPercent,
+      (_b = invoice.skontoDueDate) != null ? _b : void 0,
+      (_c = invoice.dueDate) != null ? _c : void 0
+    );
+    sheet.getCell(`A${row + 2}`).value = `Skonto ${skonto.percent} % bis ${(0, import_invoice_model.formatDeliveryDateDe)((_d = skonto.dueDate) != null ? _d : "")}: ${skonto.amount.toFixed(2)} EUR Rabatt, Zahlbetrag ${skonto.payableNow.toFixed(2)} EUR`;
     row += 1;
   }
   row += 2;

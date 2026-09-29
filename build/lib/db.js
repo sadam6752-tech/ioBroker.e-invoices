@@ -49,7 +49,7 @@ function parseJson(value, label) {
   }
 }
 function mapRow(row) {
-  var _a, _b;
+  var _a, _b, _c;
   return {
     id: row.id,
     number: row.number,
@@ -70,6 +70,11 @@ function mapRow(row) {
     xml: row.xml,
     pdfPath: row.pdf_path,
     xlsxPath: row.xlsx_path,
+    paid: row.paid === 1,
+    paidAt: row.paid_at,
+    stornoOfId: row.storno_of_id,
+    skontoPercent: (_c = row.skonto_percent) != null ? _c : 0,
+    skontoDueDate: row.skonto_due_date,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -205,14 +210,14 @@ class InvoiceDatabase {
    * @param input - Draft content.
    */
   createDraft(input) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     const id = (0, import_node_crypto.randomUUID)();
     const stamp = nowIso();
     const totals = (0, import_invoice_model.calcTotals)(input.lines.length > 0 ? input.lines : []);
     this.db.prepare(
       `INSERT INTO invoices
-				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, template_id, document_title, notes, payment_terms, employee_code, created_at, updated_at)
-				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', NULL, ?, ?, ?, ?, ?, ?)`
+				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, template_id, document_title, notes, payment_terms, employee_code, skonto_percent, skonto_due_date, created_at, updated_at)
+				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', NULL, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       id,
       input.issueDate,
@@ -226,6 +231,8 @@ class InvoiceDatabase {
       (_c = input.notes) != null ? _c : null,
       (_d = input.paymentTerms) != null ? _d : null,
       ((_e = input.employeeCode) == null ? void 0 : _e.trim()) ? (0, import_invoice_model.normalizeEmployeeCode)(input.employeeCode) : null,
+      Number(input.skontoPercent) || 0,
+      ((_f = input.skontoDueDate) == null ? void 0 : _f.trim()) || null,
       stamp,
       stamp
     );
@@ -291,7 +298,7 @@ class InvoiceDatabase {
    * @param patch - Partial draft content.
    */
   updateDraft(id, patch) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
     const current = this.getInvoice(id);
     if (!current) {
       throw new Error(`Invoice not found: ${id}`);
@@ -314,24 +321,29 @@ class InvoiceDatabase {
       employeeCode: pick(patch.employeeCode, current.employeeCode),
       paymentTerms: pick(patch.paymentTerms, current.paymentTerms),
       documentTitle: (_f = patch.documentTitle) != null ? _f : current.documentTitle,
-      notes: pick(patch.notes, current.notes)
+      notes: pick(patch.notes, current.notes),
+      skontoPercent: (_g = patch.skontoPercent) != null ? _g : current.skontoPercent,
+      skontoDueDate: pick(patch.skontoDueDate, current.skontoDueDate)
     };
     const totals = (0, import_invoice_model.calcTotals)(merged.lines.length > 0 ? merged.lines : []);
     this.db.prepare(
       `UPDATE invoices SET issue_date = ?, delivery_date = ?, due_date = ?, seller_json = ?, buyer_json = ?,
-				lines_json = ?, totals_json = ?, document_title = ?, notes = ?, payment_terms = ?, employee_code = ?, updated_at = ? WHERE id = ?`
+				lines_json = ?, totals_json = ?, document_title = ?, notes = ?, payment_terms = ?, employee_code = ?,
+				skonto_percent = ?, skonto_due_date = ?, updated_at = ? WHERE id = ?`
     ).run(
       merged.issueDate,
       merged.deliveryDate,
-      (_g = merged.dueDate) != null ? _g : null,
+      (_h = merged.dueDate) != null ? _h : null,
       JSON.stringify(merged.seller),
       JSON.stringify(merged.buyer),
       JSON.stringify(merged.lines),
       JSON.stringify(totals),
-      (_h = merged.documentTitle) != null ? _h : "Rechnung",
-      (_i = merged.notes) != null ? _i : null,
-      (_j = merged.paymentTerms) != null ? _j : null,
-      ((_k = merged.employeeCode) == null ? void 0 : _k.trim()) ? (0, import_invoice_model.normalizeEmployeeCode)(merged.employeeCode) : null,
+      (_i = merged.documentTitle) != null ? _i : "Rechnung",
+      (_j = merged.notes) != null ? _j : null,
+      (_k = merged.paymentTerms) != null ? _k : null,
+      ((_l = merged.employeeCode) == null ? void 0 : _l.trim()) ? (0, import_invoice_model.normalizeEmployeeCode)(merged.employeeCode) : null,
+      Number(merged.skontoPercent) || 0,
+      ((_m = merged.skontoDueDate) == null ? void 0 : _m.trim()) || null,
       nowIso(),
       id
     );
@@ -421,6 +433,81 @@ class InvoiceDatabase {
       throw new Error("Artifact update failed");
     }
     return updated;
+  }
+  /**
+   * Marks an issued invoice as paid or unpaid. Payment state is bookkeeping
+   * only — it never changes the frozen XML artifact (GoBD).
+   *
+   * @param id - Invoice UUID.
+   * @param paid - New payment state.
+   * @param paidAt - ISO date of the payment, defaults to now.
+   */
+  setPaid(id, paid, paidAt) {
+    const current = this.getInvoice(id);
+    if (!current) {
+      throw new Error(`Invoice not found: ${id}`);
+    }
+    if (current.status === "draft") {
+      throw new Error("Only issued invoices can be marked as paid.");
+    }
+    this.db.prepare(`UPDATE invoices SET paid = ?, paid_at = ?, updated_at = ? WHERE id = ?`).run(paid ? 1 : 0, paid ? (paidAt == null ? void 0 : paidAt.trim()) || nowIso() : null, nowIso(), id);
+    const updated = this.getInvoice(id);
+    if (!updated) {
+      throw new Error("Payment update failed");
+    }
+    return updated;
+  }
+  /**
+   * Reverses an issued invoice the GoBD way: a real credit note (Gutschrift)
+   * with its own number is created as a draft, the original is marked
+   * cancelled and both are linked. The original is never deleted or edited.
+   *
+   * @param id - Issed invoice UUID to reverse.
+   * @param reason - Reason printed on the credit note.
+   * @returns The linked credit-note draft and the cancelled original.
+   */
+  reverseInvoice(id, reason) {
+    var _a, _b, _c, _d;
+    const original = this.getInvoice(id);
+    if (!original) {
+      throw new Error(`Invoice not found: ${id}`);
+    }
+    if (original.status !== "issued") {
+      throw new Error("Only issued invoices can be reversed (Storno).");
+    }
+    const existing = this.listInvoices({ status: "draft" }).find((draft) => draft.stornoOfId === id);
+    if (existing) {
+      throw new Error(`A Storno draft for ${original.number} already exists (${existing.id}).`);
+    }
+    const reversal = this.createDraft({
+      seller: original.seller,
+      buyer: original.buyer,
+      lines: original.lines,
+      issueDate: (0, import_invoice_model.todayIso)(),
+      deliveryDate: original.deliveryDate,
+      dueDate: (_a = original.dueDate) != null ? _a : void 0,
+      currency: "EUR",
+      employeeCode: (_b = original.employeeCode) != null ? _b : void 0,
+      paymentTerms: (_c = original.paymentTerms) != null ? _c : void 0,
+      skontoPercent: original.skontoPercent,
+      skontoDueDate: (_d = original.skontoDueDate) != null ? _d : void 0,
+      documentTitle: "Gutschrift",
+      notes: `Storno zu Rechnung ${original.number}${(reason == null ? void 0 : reason.trim()) ? ` \u2013 ${reason.trim()}` : ""}`
+    });
+    const run = this.db.transaction(() => {
+      this.db.prepare(`UPDATE invoices SET status = 'cancelled', updated_at = ? WHERE id = ? AND status = 'issued'`).run(nowIso(), id);
+      this.db.prepare(`UPDATE invoices SET storno_of_id = ?, updated_at = ? WHERE id = ?`).run(id, nowIso(), reversal.id);
+      const cancelled = this.getInvoice(id);
+      if (!cancelled || cancelled.status !== "cancelled") {
+        throw new Error("Storno transaction failed");
+      }
+      const linked = this.getInvoice(reversal.id);
+      if (!linked || linked.stornoOfId !== id) {
+        throw new Error("Storno link failed");
+      }
+      return { reversal: linked, original: cancelled };
+    });
+    return run();
   }
   /**
    * Cancels an issued invoice (placeholder for Storno; credit notes in P2).
@@ -689,7 +776,7 @@ class InvoiceDatabase {
     }
     const has = (key) => Array.isArray(dump[key]);
     const run = this.db.transaction(() => {
-      var _a, _b, _c, _d, _e, _f, _g, _h;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
       this.db.prepare(`DELETE FROM attachments`).run();
       this.db.prepare(`DELETE FROM invoices`).run();
       this.db.prepare(`DELETE FROM counters`).run();
@@ -724,9 +811,10 @@ class InvoiceDatabase {
       for (const invoice of dump.invoices) {
         this.db.prepare(
           `INSERT INTO invoices
-						(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json,
-						 profile, status, template_id, document_title, notes, payment_terms, employee_code, xml, pdf_path, xlsx_path, created_at, updated_at)
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json,
+					 profile, status, template_id, document_title, notes, payment_terms, employee_code, xml, pdf_path, xlsx_path,
+					 paid, paid_at, storno_of_id, skonto_percent, skonto_due_date, created_at, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).run(
           invoice.id,
           invoice.number,
@@ -747,11 +835,16 @@ class InvoiceDatabase {
           invoice.xml,
           invoice.pdfPath,
           invoice.xlsxPath,
+          invoice.paid ? 1 : 0,
+          (_e = invoice.paidAt) != null ? _e : null,
+          (_f = invoice.stornoOfId) != null ? _f : null,
+          Number(invoice.skontoPercent) || 0,
+          (_g = invoice.skontoDueDate) != null ? _g : null,
           invoice.createdAt,
           invoice.updatedAt
         );
       }
-      for (const company of (_e = dump.companies) != null ? _e : []) {
+      for (const company of (_h = dump.companies) != null ? _h : []) {
         this.db.prepare(
           `INSERT INTO company_profiles (id, name, profile_json, is_default, created_at, updated_at)
 						VALUES (?, ?, ?, ?, ?, ?)`
@@ -764,7 +857,7 @@ class InvoiceDatabase {
           company.updatedAt
         );
       }
-      for (const customer of (_f = dump.customers) != null ? _f : []) {
+      for (const customer of (_i = dump.customers) != null ? _i : []) {
         this.db.prepare(
           `INSERT INTO customers (id, name, profile_json, created_at, updated_at)
 						VALUES (?, ?, ?, ?, ?)`
@@ -776,7 +869,7 @@ class InvoiceDatabase {
           customer.updatedAt
         );
       }
-      for (const product of (_g = dump.products) != null ? _g : []) {
+      for (const product of (_j = dump.products) != null ? _j : []) {
         this.db.prepare(
           `INSERT INTO products (id, sku, name, details, unit, unit_price_net, vat_rate, created_at, updated_at)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -792,7 +885,7 @@ class InvoiceDatabase {
           product.updatedAt
         );
       }
-      for (const attachment of (_h = dump.attachments) != null ? _h : []) {
+      for (const attachment of (_k = dump.attachments) != null ? _k : []) {
         this.db.prepare(
           `INSERT INTO attachments (invoice_id, filename, mime, size, data, created_at)
 						VALUES (?, ?, ?, ?, ?, ?)`

@@ -4,6 +4,7 @@
 import { expect } from 'chai';
 import {
 	blankDraft,
+	calcSkonto,
 	calcTotals,
 	formatInvoiceNumber,
 	formatDeliveryDateDe,
@@ -134,6 +135,40 @@ describe('invoice-model => calcTotals', () => {
 		const free = validDraft();
 		free.deliveryDate = '03.10.2026';
 		expect(validateInvoiceForIssue(free).join(' ')).to.contain('Delivery/service date');
+	});
+
+	it('calculates the cash discount from the gross total', () => {
+		const none = calcSkonto(647.36, 0, undefined, '2026-10-12');
+		expect(none.amount).to.equal(0);
+		expect(none.payableNow).to.equal(647.36);
+
+		const two = calcSkonto(647.36, 2, undefined, '2026-10-12');
+		expect(two.percent).to.equal(2);
+		expect(two.amount).to.equal(12.95);
+		expect(two.payableNow).to.equal(634.41);
+		expect(two.dueDate).to.equal('2026-10-12');
+
+		const own = calcSkonto(647.36, 2, '2026-10-01', '2026-10-12');
+		expect(own.dueDate).to.equal('2026-10-01');
+	});
+
+	it('validates the skonto deadline', () => {
+		const base = validDraft();
+		base.issueDate = '2026-09-28';
+		base.dueDate = '2026-10-12';
+		expect(validateInvoiceForIssue({ ...base, skontoPercent: 2 })).to.deep.equal([]);
+		expect(validateInvoiceForIssue({ ...base, skontoPercent: 2, skontoDueDate: '2026-10-12' })).to.deep.equal([]);
+		expect(
+			validateInvoiceForIssue({ ...base, skontoPercent: 2, skontoDueDate: '2026-09-01' }).join(' '),
+		).to.contain('not be before the issue date');
+		expect(
+			validateInvoiceForIssue({ ...base, skontoPercent: 2, skontoDueDate: '2026-11-01' }).join(' '),
+		).to.contain('not be later than the due date');
+		expect(validateInvoiceForIssue({ ...base, skontoPercent: 2, dueDate: '' }).join(' ')).to.contain('deadline');
+		expect(validateInvoiceForIssue({ ...base, skontoPercent: 120 }).join(' ')).to.contain('between 0 and 100');
+		expect(validateInvoiceForIssue({ ...base, skontoPercent: Number.NaN }).join(' ')).to.contain(
+			'between 0 and 100',
+		);
 	});
 
 	it('rejects a delivery period instead of truncating it silently', () => {

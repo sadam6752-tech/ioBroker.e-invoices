@@ -1,5 +1,10 @@
 import { api, downloadUrl, esc, eur, type Invoice } from '../api';
 
+/** Cash discount amount for an invoice, in EUR. */
+function skontoOf(i: Invoice): number {
+	return Math.round((i.totals.grossTotal * (Number(i.skontoPercent) || 0)) / 100 * 100) / 100;
+}
+
 function badge(status: Invoice['status']): string {
 	return `<span class="badge ${status}">${status}</span>`;
 }
@@ -33,6 +38,43 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 		errEl.innerHTML = `<div class="card error">${esc((e as Error).message)}</div>`;
 	}
 
+	async function togglePaid(box: HTMLInputElement): Promise<void> {
+		const id = box.dataset.paid ?? '';
+		const want = box.checked;
+		box.disabled = true;
+		try {
+			await api.setPaid(id, want);
+			errEl.innerHTML = `<div class="card muted">${want ? 'Als bezahlt markiert.' : 'Zahlung zurückgenommen.'}</div>`;
+			await load();
+		} catch (e) {
+			box.checked = !want;
+			fail(e);
+		} finally {
+			box.disabled = false;
+		}
+	}
+
+	async function runStorno(id: string): Promise<void> {
+		const reason = window.prompt('Grund für den Storno (erscheint auf der Gutschrift):', 'Falsch ausgestellt');
+		if (reason === null) {
+			return;
+		}
+		if (
+			!window.confirm(
+				'Die Rechnung wird auf storniert gesetzt und als Gutschrift neu angelegt. Das Original bleibt unverändert erhalten. Fortfahren?',
+			)
+		) {
+			return;
+		}
+		try {
+			const { reversal } = await api.storno(id, reason.trim() || undefined);
+			location.hash = `#/edit/${reversal.id}`;
+			location.reload();
+		} catch (e) {
+			fail(e);
+		}
+	}
+
 	async function load(): Promise<void> {
 		// guard against out-of-order responses overwriting a newer result
 		const seq = ++loadSeq;
@@ -48,16 +90,35 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 				items
 					.map(
 						i => `<div class="card"><div class="row">
+					${
+						i.status === 'draft'
+							? '<span class="pay-box" title="Entwurf kann nicht als bezahlt markiert werden"></span>'
+							: `<label class="pay" title="${i.paid ? `Ausgeglichen am ${esc((i.paidAt ?? '').slice(0, 10))}` : 'Als bezahlt markieren'}">
+								<input type="checkbox" data-paid="${esc(i.id)}" ${i.paid ? 'checked' : ''} /><span>bezahlt</span></label>`
+					}
 					<strong>${esc(i.number ?? '(Entwurf)')}</strong>${badge(i.status)}
 					<span>${esc(i.buyer.name || '—')}</span>
 					<span>${eur(i.totals.grossTotal)}</span>
+					${i.skontoPercent > 0 && !i.paid ? `<span class="muted">${eur(i.totals.grossTotal - skontoOf(i))} bei ${esc(i.skontoPercent)} % Skonto</span>` : ''}
+					${i.stornoOfId ? '<span class="badge cancelled">Storno</span>' : ''}
 					<a href="#/invoices/${esc(i.id)}">Ansehen</a>
 					${i.status === 'draft' ? `<a href="#/edit/${esc(i.id)}">Bearbeiten</a>` : ''}
+					${i.status === 'issued' ? `<button class="secondary" data-storno="${esc(i.id)}">Storno</button>` : ''}
 					${i.pdfPath ? `<button class="secondary" data-dl="pdf:${esc(i.id)}:${esc(i.number ?? 'rechnung')}">PDF ↓</button>` : ''}
 					${i.xml ? `<button class="secondary" data-dl="xml:${esc(i.id)}:${esc(i.number ?? 'rechnung')}">XML ↓</button>` : ''}
 				</div></div>`,
 					)
 					.join('') || `<div class="card muted">Keine Rechnungen gefunden.</div>`;
+			listEl.querySelectorAll<HTMLInputElement>('[data-paid]').forEach(box =>
+				box.addEventListener('change', () => {
+					void togglePaid(box);
+				}),
+			);
+			listEl.querySelectorAll('[data-storno]').forEach(btn =>
+				btn.addEventListener('click', () => {
+					void runStorno((btn as HTMLElement).dataset.storno ?? '');
+				}),
+			);
 			listEl.querySelectorAll('[data-dl]').forEach(btn =>
 				btn.addEventListener('click', async () => {
 					const [kind, id, name] = ((btn as HTMLElement).dataset.dl ?? '').split(':');

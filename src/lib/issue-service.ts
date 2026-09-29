@@ -73,7 +73,9 @@ export async function issueInvoiceWithArtifacts(
 
 	const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
 	const { xml } = await generateInvoiceXml(issued);
-	const sight = await renderInvoicePdf(issued, template, logo);
+	const sight = await renderInvoicePdf(issued, template, logo, {
+		stornoOfNumber: issued.stornoOfId ? (db.getInvoice(issued.stornoOfId)?.number ?? null) : null,
+	});
 	const hybrid = await embedHybridPdf(sight, xml, issued.profile, `${issued.documentTitle} ${issued.number}`);
 	const xlsx = await renderInvoiceWorkbook(issued);
 	const base = `invoices/${issued.issueDate.slice(0, 4)}/${issued.number}`;

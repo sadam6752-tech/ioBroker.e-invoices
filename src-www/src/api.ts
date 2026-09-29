@@ -60,6 +60,11 @@ export interface Invoice {
 	xml: string | null;
 	pdfPath: string | null;
 	xlsxPath: string | null;
+	paid: boolean;
+	paidAt: string | null;
+	stornoOfId: string | null;
+	skontoPercent: number;
+	skontoDueDate: string | null;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -76,6 +81,8 @@ export interface DraftInput {
 	documentTitle?: string;
 	notes?: string;
 	paymentTerms?: string;
+	skontoPercent?: number;
+	skontoDueDate?: string;
 }
 
 export interface CompanyProfile {
@@ -206,6 +213,16 @@ export const api = {
 	update: (id: string, patch: Partial<DraftInput>) =>
 		request<Invoice>(`/api/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
 	issue: (id: string) => request<Invoice>(`/api/invoices/${id}/issue`, { method: 'POST' }),
+	setPaid: (id: string, paid: boolean, paidAt?: string) =>
+		request<Invoice>(`/api/invoices/${id}/paid`, {
+			method: 'POST',
+			body: JSON.stringify({ paid, paidAt }),
+		}),
+	storno: (id: string, reason?: string) =>
+		request<{ reversal: Invoice; original: Invoice }>(`/api/invoices/${id}/storno`, {
+			method: 'POST',
+			body: JSON.stringify({ reason }),
+		}),
 	validate: (id: string) => request<ValidationOutcome>(`/api/invoices/${id}/validate`, { method: 'POST' }),
 	pdfUrl: (id: string) => `/api/invoices/${id}.pdf`,
 	xmlUrl: (id: string) => `/api/invoices/${id}.xml`,

@@ -63,20 +63,27 @@ function imageHeightForWidth(data, widthPt) {
   return widthPt;
 }
 const LOGO_MAX_HEIGHT_PT = 220;
-async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEMPLATE, logo) {
-  var _a, _b, _c, _d;
+async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEMPLATE, logo, context = {}) {
+  var _a, _b, _c, _d, _e, _f, _g;
   if (!invoice.number) {
-    throw new Error("Invoice has no number yet \u2014 issue it before rendering");
+    throw new Error("Invoice has no number yet - issue it before rendering");
   }
   const invoiceNumber = invoice.number;
+  const originalNumber = (_a = context.stornoOfNumber) != null ? _a : null;
   const totals = (0, import_invoice_model.calcTotals)(invoice.lines);
+  const skonto = (0, import_invoice_model.calcSkonto)(
+    totals.grossTotal,
+    invoice.skontoPercent,
+    (_b = invoice.skontoDueDate) != null ? _b : void 0,
+    (_c = invoice.dueDate) != null ? _c : void 0
+  );
   const colors = template.colors;
-  const intro = (_a = template.introText) != null ? _a : import_templates.DEFAULT_TEMPLATE.introText;
-  const closing = (_b = template.closingText) != null ? _b : import_templates.DEFAULT_TEMPLATE.closingText;
-  const signature = ((_c = template.signatureName) == null ? void 0 : _c.trim()) || invoice.seller.name;
-  const showTagline = (_d = template.showTagline) != null ? _d : true;
+  const intro = (_d = template.introText) != null ? _d : import_templates.DEFAULT_TEMPLATE.introText;
+  const closing = (_e = template.closingText) != null ? _e : import_templates.DEFAULT_TEMPLATE.closingText;
+  const signature = ((_f = template.signatureName) == null ? void 0 : _f.trim()) || invoice.seller.name;
+  const showTagline = (_g = template.showTagline) != null ? _g : true;
   return new Promise((resolve, reject) => {
-    var _a2, _b2, _c2, _d2, _e, _f, _g;
+    var _a2, _b2, _c2, _d2, _e2, _f2, _g2, _h, _i;
     const doc = new import_pdfkit.default({
       size: "A4",
       margins: { top: 50, bottom: 36, left: 50, right: 50 },
@@ -155,6 +162,18 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.text(`${invoice.documentTitle} Nr. ${invoice.number}`, left, cursor, { width: pageWidth });
       doc.fillColor(colors.text).fontSize(10).font("Helvetica");
       cursor += 24;
+    }
+    if (invoice.stornoOfId) {
+      const original = originalNumber;
+      doc.fillColor(colors.muted).fontSize(9);
+      doc.text(
+        original ? `Stornorechnung \u2014 storniert Rechnung ${original}.` : "Stornorechnung \u2014 storniert die oben genannte Rechnung.",
+        left,
+        cursor,
+        { width: pageWidth }
+      );
+      doc.fillColor(colors.text).fontSize(10);
+      cursor += 14;
     }
     if (intro.trim()) {
       doc.text(intro.trim(), left, cursor, { width: pageWidth });
@@ -279,6 +298,29 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.text(`Steuerbefreiung: ${exempt.exemptionReason}`, left, rowY, { width: pageWidth });
       rowY += 14;
     }
+    if (invoice.paid) {
+      ensureSpace(16);
+      doc.fillColor(colors.muted).fontSize(9);
+      doc.text(
+        `Ausgeglichen am ${formatDeDate(((_a2 = invoice.paidAt) != null ? _a2 : "").slice(0, 10)) || "\u2014"}${skonto.percent > 0 ? " (Skonto ber\xFCcksichtigt)" : ""}.`,
+        left,
+        rowY,
+        { width: pageWidth }
+      );
+      doc.fillColor(colors.text).fontSize(10);
+      rowY += 14;
+    } else if (skonto.percent > 0) {
+      ensureSpace(30);
+      doc.fillColor(colors.muted).fontSize(9);
+      doc.text(
+        `Bei Zahlung bis ${formatDeDate((_b2 = skonto.dueDate) != null ? _b2 : "")} ${formatEurDe(skonto.payableNow)} je Rechnung (${skonto.percent} % Skonto = ${formatEurDe(skonto.amount)}).`,
+        left,
+        rowY,
+        { width: pageWidth }
+      );
+      doc.fillColor(colors.text).fontSize(10);
+      rowY += 14;
+    }
     if (template.blocks.payment && invoice.seller.iban) {
       ensureSpace(16);
       doc.text(
@@ -294,7 +336,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.text(`Zahlungsbedingungen: ${invoice.paymentTerms}`, left, rowY, { width: pageWidth });
       rowY += 14;
     }
-    if (template.blocks.notes && ((_a2 = invoice.notes) == null ? void 0 : _a2.trim())) {
+    if (template.blocks.notes && ((_c2 = invoice.notes) == null ? void 0 : _c2.trim())) {
       ensureSpace(40);
       doc.text(`Hinweis: ${invoice.notes.trim()}`, left, rowY, { width: pageWidth });
       rowY += 14;
@@ -312,7 +354,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     doc.font("Helvetica-Bold").text(signature, left, rowY, { width: pageWidth });
     doc.font("Helvetica");
     rowY += 20;
-    if ((_b2 = template.showFooterBoxes) != null ? _b2 : true) {
+    if ((_d2 = template.showFooterBoxes) != null ? _d2 : true) {
       const rawBoxes = invoice.seller.footerBoxes;
       const customBoxes = Array.isArray(rawBoxes) && rawBoxes.length === 4 && rawBoxes.some((box) => typeof box === "string" && box.trim() !== "") ? rawBoxes.filter((box) => typeof box === "string") : null;
       const boxes = customBoxes ? customBoxes.map(
@@ -320,13 +362,13 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       ) : [
         [invoice.seller.name, invoice.seller.street, `${invoice.seller.zip} ${invoice.seller.city}`],
         [
-          (_c2 = invoice.seller.phone) != null ? _c2 : "",
-          (_d2 = invoice.seller.website) != null ? _d2 : "",
-          template.showEmail ? (_e = invoice.seller.email) != null ? _e : "" : ""
+          (_e2 = invoice.seller.phone) != null ? _e2 : "",
+          (_f2 = invoice.seller.website) != null ? _f2 : "",
+          template.showEmail ? (_g2 = invoice.seller.email) != null ? _g2 : "" : ""
         ],
         [
-          (_f = invoice.seller.bankName) != null ? _f : "",
-          (_g = invoice.seller.iban) != null ? _g : "",
+          (_h = invoice.seller.bankName) != null ? _h : "",
+          (_i = invoice.seller.iban) != null ? _i : "",
           invoice.seller.bic ? `BIC: ${invoice.seller.bic}` : ""
         ],
         [

@@ -22,7 +22,9 @@ import {
 	type FacturXInvoiceInput,
 } from '@stackforge-eu/factur-x';
 import {
+	calcSkonto,
 	calcTotals,
+	formatDeliveryDateDe,
 	lineNetUnitPrice,
 	parseDeliveryPeriod,
 	roundCents,
@@ -145,6 +147,28 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 		sellerTax.push({ id: invoice.seller.taxNumber.trim(), schemeId: 'FC' });
 	}
 
+	// BT-147/148 (cash discount) have no field in the library and no place in
+	// the shipped ZUGFeRD XSD, so the terms travel as a document note with the
+	// official subject code AAK (discount terms) — legible and XSD-valid.
+	const skonto = calcSkonto(
+		totals.grossTotal,
+		invoice.skontoPercent,
+		invoice.skontoDueDate ?? undefined,
+		invoice.dueDate ?? undefined,
+	);
+	const notes: { content: string; subjectCode?: string }[] = [];
+	if (invoice.notes?.trim()) {
+		notes.push({ content: invoice.notes.trim() });
+	}
+	if (skonto.percent > 0 && !invoice.paid) {
+		notes.push({
+			subjectCode: 'AAK',
+			content:
+				`${skonto.percent} % Skonto bei Zahlung bis ${formatDeliveryDateDe(skonto.dueDate ?? '')} = ` +
+				`${skonto.amount.toFixed(2)} EUR; Zahlbetrag dann ${skonto.payableNow.toFixed(2)} EUR.`,
+		});
+	}
+
 	return {
 		document: {
 			id: invoice.number,
@@ -152,7 +176,7 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 			typeCode: mapDocumentTypeCode(invoice.documentTitle),
 			dueDate: invoice.dueDate ?? undefined,
 			buyerReference: invoice.buyer.customerNumber?.trim() || undefined,
-			notes: invoice.notes?.trim() ? [{ content: invoice.notes.trim() }] : undefined,
+			notes: notes.length > 0 ? notes : undefined,
 		},
 		seller: {
 			name: invoice.seller.name,
@@ -215,7 +239,12 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 			taxBasisTotal: totals.netTotal,
 			taxTotal: totals.taxTotal,
 			grandTotal: totals.grossTotal,
-			duePayableAmount: totals.grossTotal,
+			// BT-9 may only deviate from the grand total through a prepayment
+			// (BR-CO-16). A cash discount is conditional, not a prepayment, so
+			// it travels as a note and BT-9 stays at the gross total. A paid
+			// invoice is fully prepaid instead.
+			prepaidAmount: invoice.paid ? totals.grossTotal : undefined,
+			duePayableAmount: invoice.paid ? 0 : totals.grossTotal,
 			currency: 'EUR',
 		},
 		vatBreakdown: totals.breakdown.map(entry => {
