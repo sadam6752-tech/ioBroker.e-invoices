@@ -148,6 +148,49 @@ async function pageCount(pdf: Buffer): Promise<number> {
 }
 
 /**
+ * Reports the fill color in effect for every text run. pdfkit only emits
+ * "scn" when the color actually changes, so the color must be tracked as
+ * state across the whole content stream instead of read per BT..ET block.
+ *
+ * @param pdf - Rendered PDF bytes.
+ */
+function coloredRuns(pdf: Buffer): { y: number; text: string; color: string }[] {
+	const raw = pdf.toString('latin1');
+	const runs: { y: number; text: string; color: string }[] = [];
+	for (const match of raw.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+		let text: string;
+		try {
+			text = inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1');
+		} catch {
+			continue;
+		}
+		let color = '#000000';
+		const re = /([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+scn|1 0 0 1 ([\d.-]+) ([\d.-]+) Tm([\s\S]{0,400}?)ET/g;
+		for (const m of text.matchAll(re)) {
+			if (m[1] !== undefined) {
+				color = `#${[1, 2, 3]
+					.map(i =>
+						Math.round(Number(m[i]) * 255)
+							.toString(16)
+							.padStart(2, '0'),
+					)
+					.join('')}`;
+				continue;
+			}
+			const fragments: string[] = [];
+			for (const hex of m[6].matchAll(/<([0-9a-fA-F]+)>/g)) {
+				fragments.push(Buffer.from(hex[1], 'hex').toString('latin1'));
+			}
+			const decoded = fragments.join('').trim();
+			if (decoded) {
+				runs.push({ y: Number(m[5]), text: decoded, color });
+			}
+		}
+	}
+	return runs;
+}
+
+/**
  * Collects the fill colors of a pdfkit PDF as hex strings. pdfkit writes
  * non-stroking colors as "r g b scn" after "DeviceRGB cs", not as "rg".
  * Used to assert which accent color actually ended up on the page.
@@ -392,6 +435,27 @@ describe('pdf => custom footer boxes', () => {
 			expect(text).to.contain('BoxEins');
 			expect(text).to.contain('BoxVier');
 			expect(await pageCount(pdf)).to.equal(1);
+
+			// pdfkit keeps the last fillColor, so the box text used to inherit
+			// HEADER_GRAY from the "Gesamt" band of the totals table and was
+			// nearly invisible on white. It must be the text color in every
+			// combination of the accent switches.
+			for (const accent of [true, false]) {
+				for (const header of [true, false]) {
+					const rendered = await renderInvoicePdf(issued, {
+						...DEFAULT_TEMPLATE,
+						usePrimaryColor: accent,
+						tableHeaderAccent: header,
+					});
+					const boxRuns = coloredRuns(rendered).filter(r => /Box (Eins|Zwei|Vier)/.test(r.text));
+					expect(boxRuns.length, `usePrimaryColor=${accent} tableHeaderAccent=${header}`).to.be.greaterThan(
+						0,
+					);
+					for (const run of boxRuns) {
+						expect(run.color).to.equal(DEFAULT_TEMPLATE.colors.text);
+					}
+				}
+			}
 		} finally {
 			db.close();
 		}
@@ -438,6 +502,45 @@ describe('pdf => custom footer boxes', () => {
 			// requested layout: no "Mit freundlichen Grüßen" line below the name
 			expect(text).to.not.contain('Mitfreundlichen');
 			expect(text).to.contain('Zahlungsbedingungen');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('never leaves white text on white paper, whatever the accent switches are', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const issued = db.issueDraft(db.createDraft(draft()).id);
+			// White labels are only legal inside the two accent bands, which are
+			// exactly the header row and the "Gesamt" line of the totals table.
+			const whiteAllowed = [
+				'Pos.',
+				'Art.Nr.',
+				'Bezeichnung',
+				'Menge',
+				'Einheit',
+				'E-Preis',
+				'Gesamt',
+				'Gesamtbetrag brutto',
+			];
+			for (const usePrimaryColor of [true, false]) {
+				for (const tableHeaderAccent of [true, false]) {
+					for (const titleAccent of [true, false]) {
+						const pdf = await renderInvoicePdf(issued, {
+							...DEFAULT_TEMPLATE,
+							usePrimaryColor,
+							tableHeaderAccent,
+							titleAccent,
+						});
+						const label = `usePrimaryColor=${usePrimaryColor} tableHeaderAccent=${tableHeaderAccent} titleAccent=${titleAccent}`;
+						const whiteText = coloredRuns(pdf)
+							.filter(r => r.color === '#ffffff' && !whiteAllowed.some(w => r.text.includes(w)))
+							.map(r => r.text);
+						expect(whiteText, label).to.deep.equal([]);
+					}
+				}
+			}
 		} finally {
 			db.close();
 		}

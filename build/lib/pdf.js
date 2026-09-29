@@ -247,7 +247,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
           newPage();
           headerRow();
         }
-        doc.fontSize(10);
+        doc.fillColor(colors.text).fontSize(10);
         doc.text(String(index + 1), colX.pos, rowY);
         doc.text(((_c3 = line.sku) == null ? void 0 : _c3.trim()) || "\u2013", colX.sku, rowY, { width: colX.name - colX.sku - 4 });
         doc.font("Helvetica-Bold").text(line.description, colX.name, rowY, { width: 172 });
@@ -287,6 +287,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       if (rowY > 700) {
         newPage();
       }
+      doc.fillColor(colors.text);
       doc.text("Zwischensumme netto", colX.price - 60, rowY, { width: 130, align: "right" });
       doc.text(formatEurDe(totals.netTotal), colX.total, rowY, { width: totalW, align: "right" });
       rowY += 14;
@@ -298,7 +299,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.save();
       doc.rect(colX.price - 64, rowY - 3, right + 2 - (colX.price - 64), 18).fill(HEADER_GRAY);
       doc.restore();
-      doc.font("Helvetica-Bold");
+      doc.fillColor(colors.text).font("Helvetica-Bold");
       doc.text("Gesamtbetrag brutto", colX.price - 60, rowY, { width: 130, align: "right" });
       doc.text(formatEurDe(totals.grossTotal), colX.total, rowY, { width: totalW, align: "right" });
       doc.font("Helvetica");
@@ -337,6 +338,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       rowY += 14;
     }
     rowY += 14;
+    doc.fillColor(colors.text).font("Helvetica").fontSize(10);
     if (template.blocks.payment && invoice.seller.iban) {
       ensureSpace(16);
       doc.text(
@@ -413,6 +415,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
         const value = Array.isArray(rawAlign) ? rawAlign[i] : void 0;
         return value === "center" || value === "right" ? value : "left";
       });
+      doc.fillColor(colors.text);
       boxes.forEach((lines, index) => {
         var _a3;
         const align = (_a3 = aligns[index]) != null ? _a3 : "left";

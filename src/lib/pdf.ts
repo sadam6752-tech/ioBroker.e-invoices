@@ -315,7 +315,9 @@ export async function renderInvoicePdf(
 					newPage();
 					headerRow();
 				}
-				doc.fontSize(10);
+				// The header label is white on the accent band. The position rows
+				// sit on white paper, so they must go back to the text color.
+				doc.fillColor(colors.text).fontSize(10);
 				doc.text(String(index + 1), colX.pos, rowY);
 				doc.text(line.sku?.trim() || '–', colX.sku, rowY, { width: colX.name - colX.sku - 4 });
 				doc.font('Helvetica-Bold').text(line.description, colX.name, rowY, { width: 172 });
@@ -359,6 +361,8 @@ export async function renderInvoicePdf(
 			if (rowY > 700) {
 				newPage();
 			}
+			// same reason as the position rows: never inherit the header white
+			doc.fillColor(colors.text);
 			doc.text('Zwischensumme netto', colX.price - 60, rowY, { width: 130, align: 'right' });
 			doc.text(formatEurDe(totals.netTotal), colX.total, rowY, { width: totalW, align: 'right' });
 			rowY += 14;
@@ -370,7 +374,8 @@ export async function renderInvoicePdf(
 			doc.save();
 			doc.rect(colX.price - 64, rowY - 3, right + 2 - (colX.price - 64), 18).fill(HEADER_GRAY);
 			doc.restore();
-			doc.font('Helvetica-Bold');
+			// .fill(HEADER_GRAY) also switches the fill color, so restore the text color
+			doc.fillColor(colors.text).font('Helvetica-Bold');
 			doc.text('Gesamtbetrag brutto', colX.price - 60, rowY, { width: 130, align: 'right' });
 			doc.text(formatEurDe(totals.grossTotal), colX.total, rowY, { width: totalW, align: 'right' });
 			doc.font('Helvetica');
@@ -413,6 +418,8 @@ export async function renderInvoicePdf(
 
 		// Payment + notes. One blank line separates the block from the totals.
 		rowY += 14;
+		// all of the following sits on white paper: never inherit the header white
+		doc.fillColor(colors.text).font('Helvetica').fontSize(10);
 		if (template.blocks.payment && invoice.seller.iban) {
 			ensureSpace(16);
 			doc.text(
@@ -508,6 +515,11 @@ export async function renderInvoicePdf(
 				const value = Array.isArray(rawAlign) ? (rawAlign[i] as unknown) : undefined;
 				return value === 'center' || value === 'right' ? value : 'left';
 			});
+			// pdfkit keeps the last fillColor. Without this the box text inherited
+			// HEADER_GRAY from the "Gesamt" band of the totals table, which is
+			// nearly invisible on white. Toggling usePrimaryColor happened to
+			// reset it, so the boxes only vanished with the accent color enabled.
+			doc.fillColor(colors.text);
 			boxes.forEach((lines, index) => {
 				const align = aligns[index] ?? 'left';
 				// last column reaches exactly to the right edge (rule end)
