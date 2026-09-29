@@ -53,6 +53,29 @@ export function formatDeDate(iso: string): string {
 	return `${match[3]}.${match[2]}.${match[1]}`;
 }
 
+/**
+ * Estimates the display height of a logo for a given width from the PNG
+ * header (JPEG and others fall back to square). Keeps tall logos from
+ * colliding with the content below.
+ *
+ * @param data - Raw image bytes.
+ * @param widthPt - Display width in pt.
+ */
+export function imageHeightForWidth(data: Buffer, widthPt: number): number {
+	try {
+		if (data.length > 24 && data.readUInt32BE(0) === 0x89504e47) {
+			const width = data.readUInt32BE(16);
+			const height = data.readUInt32BE(20);
+			if (width > 0 && height > 0) {
+				return Math.min(widthPt * (height / width), 220);
+			}
+		}
+	} catch {
+		// fall through to the square fallback
+	}
+	return Math.min(widthPt, 220);
+}
+
 /** Logo image bytes for the header (PNG/JPEG). */
 export interface TemplateLogoImage {
 	/** Raw image bytes. */
@@ -105,64 +128,37 @@ export async function renderInvoicePdf(
 		let pageCount = 1;
 		doc.fillColor(colors.text);
 
-		// Logo (optional, right by default)
+		// Logo (optional) — company data lives in the footer boxes, so the
+		// header only carries the logo; content flows below tall logos.
+		let logoBottom = 0;
 		if (logo && template.logo) {
-			const widthPt = Math.min(200, Math.max(28, ((template.logo.widthMm * 72) / 25.4) * 0.6));
+			const widthPt = Math.min(300, Math.max(28, ((template.logo.widthMm * 72) / 25.4) * 0.6));
+			const heightPt = imageHeightForWidth(logo.data, widthPt);
+			const lx =
+				template.logo.position === 'left'
+					? left
+					: template.logo.position === 'center'
+						? left + (pageWidth - widthPt) / 2
+						: left + pageWidth - widthPt;
 			try {
-				if (template.logo.position === 'left') {
-					doc.image(logo.data, left, 36, { width: widthPt });
-				} else if (template.logo.position === 'center') {
-					doc.image(logo.data, left + (pageWidth - widthPt) / 2, 34, { width: widthPt });
-				} else {
-					doc.image(logo.data, right - widthPt, 36, { width: widthPt });
-				}
+				doc.image(logo.data, lx, 36, { width: widthPt });
+				logoBottom = 36 + heightPt;
 			} catch {
 				// broken logo must never break the invoice
 			}
 		}
 
-		// Company header: left identity, right bank/tax block
-		const headerTop = 40;
-		doc.fillColor(colors.primary).fontSize(15).font('Helvetica-Bold');
-		doc.text(invoice.seller.name, left, headerTop, { width: 280 });
-		doc.fillColor(colors.text).fontSize(9).font('Helvetica');
-		const headLeft = [
-			invoice.seller.street,
-			`${invoice.seller.zip} ${invoice.seller.city}`,
-			invoice.seller.phone ? `Tel. ${invoice.seller.phone}` : '',
-			invoice.seller.website ?? '',
-			template.showEmail && invoice.seller.email ? invoice.seller.email : '',
-		].filter(line => line !== '');
-		let hy = headerTop + 20;
-		for (const line of headLeft) {
-			doc.text(line, left, hy, { width: 280 });
-			hy += 11;
-		}
-		const headRight = [
-			invoice.seller.iban ? `IBAN ${invoice.seller.iban}` : '',
-			invoice.seller.bic ? `BIC ${invoice.seller.bic}` : '',
-			invoice.seller.vatId ? `USt-IdNr.: ${invoice.seller.vatId}` : '',
-			invoice.seller.taxNumber ? `Steuernr.: ${invoice.seller.taxNumber}` : '',
-			...(template.headerExtra ? template.headerExtra.split('\n').slice(0, 3) : []),
-		].filter(line => line !== '');
-		let hry = headerTop;
-		doc.fontSize(9);
-		for (const line of headRight) {
-			doc.text(line, left + 300, hry, { width: pageWidth - 300, align: 'right' });
-			hry += 11;
-		}
-
-		let cursor = Math.max(hy, hry) + 8;
+		let cursor = logoBottom > 0 ? logoBottom + 10 : 50;
 		if (showTagline) {
-			doc.fillColor(colors.muted).fontSize(8);
+			doc.fillColor(colors.muted).fontSize(7);
 			doc.text(
 				`${invoice.seller.name} – ${invoice.seller.street} – ${invoice.seller.zip} ${invoice.seller.city}`,
 				left,
 				cursor,
-				{ width: pageWidth, align: 'center' },
+				{ width: pageWidth, align: 'left' },
 			);
 			doc.fillColor(colors.text).fontSize(10);
-			cursor += 14;
+			cursor += 12;
 		}
 
 		// Recipient (left) + invoice meta (right)
@@ -191,8 +187,8 @@ export async function renderInvoicePdf(
 		];
 		let my = cursor + 4;
 		for (const [label, value] of meta) {
-			doc.font('Helvetica-Bold').text(label, left + 300, my, { width: 90 });
-			doc.font('Helvetica').text(value, left + 395, my, { width: pageWidth - 395 });
+			doc.font('Helvetica-Bold').text(label, left + 300, my, { width: 100 });
+			doc.font('Helvetica').text(value, left + 300, my, { width: pageWidth - 300, align: 'right' });
 			my += 14;
 		}
 

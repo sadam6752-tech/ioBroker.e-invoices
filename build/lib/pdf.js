@@ -31,6 +31,7 @@ __export(pdf_exports, {
   formatDeDate: () => formatDeDate,
   formatEur: () => formatEur,
   formatEurDe: () => formatEurDe,
+  imageHeightForWidth: () => imageHeightForWidth,
   renderInvoicePdf: () => renderInvoicePdf
 });
 module.exports = __toCommonJS(pdf_exports);
@@ -53,6 +54,19 @@ function formatDeDate(iso) {
   }
   return `${match[3]}.${match[2]}.${match[1]}`;
 }
+function imageHeightForWidth(data, widthPt) {
+  try {
+    if (data.length > 24 && data.readUInt32BE(0) === 2303741511) {
+      const width = data.readUInt32BE(16);
+      const height = data.readUInt32BE(20);
+      if (width > 0 && height > 0) {
+        return Math.min(widthPt * (height / width), 220);
+      }
+    }
+  } catch {
+  }
+  return Math.min(widthPt, 220);
+}
 async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEMPLATE, logo) {
   var _a, _b, _c, _d;
   if (!invoice.number) {
@@ -66,7 +80,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
   const signature = ((_c = template.signatureName) == null ? void 0 : _c.trim()) || invoice.seller.name;
   const showTagline = (_d = template.showTagline) != null ? _d : true;
   return new Promise((resolve, reject) => {
-    var _a2, _b2, _c2, _d2, _e, _f, _g, _h;
+    var _a2, _b2, _c2, _d2, _e, _f, _g;
     const doc = new import_pdfkit.default({
       size: "A4",
       margins: { top: 50, bottom: 36, left: 50, right: 50 },
@@ -87,59 +101,28 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     const right = left + pageWidth;
     let pageCount = 1;
     doc.fillColor(colors.text);
+    let logoBottom = 0;
     if (logo && template.logo) {
-      const widthPt = Math.min(200, Math.max(28, template.logo.widthMm * 72 / 25.4 * 0.6));
+      const widthPt = Math.min(300, Math.max(28, template.logo.widthMm * 72 / 25.4 * 0.6));
+      const heightPt = imageHeightForWidth(logo.data, widthPt);
+      const lx = template.logo.position === "left" ? left : template.logo.position === "center" ? left + (pageWidth - widthPt) / 2 : left + pageWidth - widthPt;
       try {
-        if (template.logo.position === "left") {
-          doc.image(logo.data, left, 36, { width: widthPt });
-        } else if (template.logo.position === "center") {
-          doc.image(logo.data, left + (pageWidth - widthPt) / 2, 34, { width: widthPt });
-        } else {
-          doc.image(logo.data, right - widthPt, 36, { width: widthPt });
-        }
+        doc.image(logo.data, lx, 36, { width: widthPt });
+        logoBottom = 36 + heightPt;
       } catch {
       }
     }
-    const headerTop = 40;
-    doc.fillColor(colors.primary).fontSize(15).font("Helvetica-Bold");
-    doc.text(invoice.seller.name, left, headerTop, { width: 280 });
-    doc.fillColor(colors.text).fontSize(9).font("Helvetica");
-    const headLeft = [
-      invoice.seller.street,
-      `${invoice.seller.zip} ${invoice.seller.city}`,
-      invoice.seller.phone ? `Tel. ${invoice.seller.phone}` : "",
-      (_a2 = invoice.seller.website) != null ? _a2 : "",
-      template.showEmail && invoice.seller.email ? invoice.seller.email : ""
-    ].filter((line) => line !== "");
-    let hy = headerTop + 20;
-    for (const line of headLeft) {
-      doc.text(line, left, hy, { width: 280 });
-      hy += 11;
-    }
-    const headRight = [
-      invoice.seller.iban ? `IBAN ${invoice.seller.iban}` : "",
-      invoice.seller.bic ? `BIC ${invoice.seller.bic}` : "",
-      invoice.seller.vatId ? `USt-IdNr.: ${invoice.seller.vatId}` : "",
-      invoice.seller.taxNumber ? `Steuernr.: ${invoice.seller.taxNumber}` : "",
-      ...template.headerExtra ? template.headerExtra.split("\n").slice(0, 3) : []
-    ].filter((line) => line !== "");
-    let hry = headerTop;
-    doc.fontSize(9);
-    for (const line of headRight) {
-      doc.text(line, left + 300, hry, { width: pageWidth - 300, align: "right" });
-      hry += 11;
-    }
-    let cursor = Math.max(hy, hry) + 8;
+    let cursor = logoBottom > 0 ? logoBottom + 10 : 50;
     if (showTagline) {
-      doc.fillColor(colors.muted).fontSize(8);
+      doc.fillColor(colors.muted).fontSize(7);
       doc.text(
         `${invoice.seller.name} \u2013 ${invoice.seller.street} \u2013 ${invoice.seller.zip} ${invoice.seller.city}`,
         left,
         cursor,
-        { width: pageWidth, align: "center" }
+        { width: pageWidth, align: "left" }
       );
       doc.fillColor(colors.text).fontSize(10);
-      cursor += 14;
+      cursor += 12;
     }
     const buyerLines = [
       invoice.buyer.name,
@@ -164,8 +147,8 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     ];
     let my = cursor + 4;
     for (const [label, value] of meta) {
-      doc.font("Helvetica-Bold").text(label, left + 300, my, { width: 90 });
-      doc.font("Helvetica").text(value, left + 395, my, { width: pageWidth - 395 });
+      doc.font("Helvetica-Bold").text(label, left + 300, my, { width: 100 });
+      doc.font("Helvetica").text(value, left + 300, my, { width: pageWidth - 300, align: "right" });
       my += 14;
     }
     cursor = Math.max(by, my) + 14;
@@ -313,7 +296,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.text(`Zahlungsbedingungen: ${invoice.paymentTerms}`, left, rowY, { width: pageWidth });
       rowY += 14;
     }
-    if (template.blocks.notes && ((_b2 = invoice.notes) == null ? void 0 : _b2.trim())) {
+    if (template.blocks.notes && ((_a2 = invoice.notes) == null ? void 0 : _a2.trim())) {
       ensureSpace(40);
       doc.text(`Hinweis: ${invoice.notes.trim()}`, left, rowY, { width: pageWidth });
       rowY += 14;
@@ -331,7 +314,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     doc.font("Helvetica-Bold").text(signature, left, rowY, { width: pageWidth });
     doc.font("Helvetica");
     rowY += 20;
-    if ((_c2 = template.showFooterBoxes) != null ? _c2 : true) {
+    if ((_b2 = template.showFooterBoxes) != null ? _b2 : true) {
       const rawBoxes = invoice.seller.footerBoxes;
       const customBoxes = Array.isArray(rawBoxes) && rawBoxes.length === 4 && rawBoxes.some((box) => typeof box === "string" && box.trim() !== "") ? rawBoxes.filter((box) => typeof box === "string") : null;
       const boxes = customBoxes ? customBoxes.map(
@@ -339,13 +322,13 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       ) : [
         [invoice.seller.name, invoice.seller.street, `${invoice.seller.zip} ${invoice.seller.city}`],
         [
-          (_d2 = invoice.seller.phone) != null ? _d2 : "",
-          (_e = invoice.seller.website) != null ? _e : "",
-          template.showEmail ? (_f = invoice.seller.email) != null ? _f : "" : ""
+          (_c2 = invoice.seller.phone) != null ? _c2 : "",
+          (_d2 = invoice.seller.website) != null ? _d2 : "",
+          template.showEmail ? (_e = invoice.seller.email) != null ? _e : "" : ""
         ],
         [
-          (_g = invoice.seller.bankName) != null ? _g : "",
-          (_h = invoice.seller.iban) != null ? _h : "",
+          (_f = invoice.seller.bankName) != null ? _f : "",
+          (_g = invoice.seller.iban) != null ? _g : "",
           invoice.seller.bic ? `BIC: ${invoice.seller.bic}` : ""
         ],
         [
@@ -416,6 +399,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
   formatDeDate,
   formatEur,
   formatEurDe,
+  imageHeightForWidth,
   renderInvoicePdf
 });
 //# sourceMappingURL=pdf.js.map

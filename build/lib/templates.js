@@ -125,8 +125,8 @@ function validateTemplate(template) {
     if (logo.position !== "left" && logo.position !== "right" && logo.position !== "center") {
       errors.push("Logo-Position muss left/right/center sein");
     }
-    if (typeof logo.widthMm !== "number" || logo.widthMm < 10 || logo.widthMm > 80) {
-      errors.push("Logo-Breite muss 10\u201380 mm sein");
+    if (typeof logo.widthMm !== "number" || logo.widthMm < 10 || logo.widthMm > 500) {
+      errors.push("Logo-Breite muss 10\u2013500 mm sein");
     }
   }
   return errors;

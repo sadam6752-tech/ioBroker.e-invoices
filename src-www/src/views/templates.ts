@@ -90,7 +90,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 			<label>Logo-Position<select id="t-lpos">
 				${['right', 'left', 'center'].map(p => `<option ${d.logo?.position === p ? 'selected' : ''}>${p}</option>`).join('')}
 			</select></label>
-			<label>Logo-Breite (mm)<input id="t-lw" type="number" min="10" max="80" value="${d.logo?.widthMm ?? 30}" /></label>
+			<label>Logo-Breite (mm)<input id="t-lw" type="number" min="10" max="500" value="${d.logo?.widthMm ?? 30}" /></label>
 		</div>
 		<label>Logo (PNG/JPEG, max. 2 MB)<input id="t-logo" type="file" accept="image/png,image/jpeg" /></label>
 		${d.logo ? `<p class="muted">Aktuell: ${esc(d.logo.path)}</p>` : ''}`;
