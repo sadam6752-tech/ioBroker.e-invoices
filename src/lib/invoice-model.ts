@@ -170,11 +170,13 @@ export function normalizeEmployeeCode(code?: string): string {
 
 /**
  * Calculates net/tax/gross totals grouped by VAT rate.
+ * Tax per rate is rounded from the rate basis (BR-CO-17), never summed
+ * from rounded line taxes (that drifts by cents on fractional amounts).
  *
  * @param lines - Invoice line items.
  */
 export function calcTotals(lines: InvoiceLine[]): InvoiceTotals {
-	const byRate = new Map<number, { net: number; tax: number }>();
+	const netByRate = new Map<number, number>();
 	for (const line of lines) {
 		if (!ALLOWED_VAT_RATES.includes(line.vatRate)) {
 			throw new Error(`Unsupported VAT rate: ${line.vatRate}`);
@@ -190,20 +192,14 @@ export function calcTotals(lines: InvoiceLine[]): InvoiceTotals {
 			throw new Error(`Discount must be 0-100: ${line.description}`);
 		}
 		const net = roundCents(line.quantity * line.unitPriceNet * (1 - discount / 100));
-		const tax = roundCents((net * line.vatRate) / 100);
-		const entry = byRate.get(line.vatRate) ?? { net: 0, tax: 0 };
-		entry.net = roundCents(entry.net + net);
-		entry.tax = roundCents(entry.tax + tax);
-		byRate.set(line.vatRate, entry);
+		netByRate.set(line.vatRate, roundCents((netByRate.get(line.vatRate) ?? 0) + net));
 	}
-	const breakdown: TaxBreakdown[] = [...byRate.entries()]
+	const breakdown: TaxBreakdown[] = [...netByRate.entries()]
 		.sort(([a], [b]) => a - b)
-		.map(([vatRate, sums]) => ({
-			vatRate,
-			net: sums.net,
-			tax: sums.tax,
-			gross: roundCents(sums.net + sums.tax),
-		}));
+		.map(([vatRate, net]) => {
+			const tax = roundCents((net * vatRate) / 100);
+			return { vatRate, net, tax, gross: roundCents(net + tax) };
+		});
 	const netTotal = roundCents(breakdown.reduce((sum, item) => sum + item.net, 0));
 	const taxTotal = roundCents(breakdown.reduce((sum, item) => sum + item.tax, 0));
 	return { netTotal, taxTotal, grossTotal: roundCents(netTotal + taxTotal), breakdown };

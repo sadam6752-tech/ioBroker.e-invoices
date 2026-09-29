@@ -90,6 +90,17 @@ describe('invoice-model => calcTotals', () => {
 			calcTotals([{ description: 'A', quantity: 1, unit: 'Stk', unitPriceNet: 10, vatRate: 16 }]),
 		).to.throw();
 	});
+
+	it('rounds tax from the rate basis (BR-CO-17), not from line sums', () => {
+		const totals = calcTotals([
+			{ description: 'A', quantity: 1, unit: 'Stk', unitPriceNet: 33.335, vatRate: 19 },
+			{ description: 'B', quantity: 1, unit: 'Stk', unitPriceNet: 33.335, vatRate: 19 },
+			{ description: 'C', quantity: 1, unit: 'Stk', unitPriceNet: 33.335, vatRate: 19 },
+		]);
+		expect(totals.netTotal).to.equal(100.02);
+		expect(totals.taxTotal).to.equal(19);
+		expect(totals.breakdown[0].tax).to.equal(Math.round((100.02 * 19) / 100));
+	});
 });
 
 describe('invoice-model => blankDraft', () => {

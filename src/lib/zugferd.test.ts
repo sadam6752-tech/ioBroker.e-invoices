@@ -334,6 +334,30 @@ describe('pdf => custom footer boxes', () => {
 	});
 });
 
+describe('zugferd => fractional amounts', function () {
+	this.timeout(60000);
+
+	it('passes BR-CO-17 on cent fractions', async () => {
+		const { db, invoice } = issueInMemoryDb(
+			draft({
+				lines: [
+					{ description: 'A', quantity: 1, unit: 'Stk', unitPriceNet: 33.335, vatRate: 19 },
+					{ description: 'B', quantity: 1, unit: 'Stk', unitPriceNet: 33.335, vatRate: 19 },
+					{ description: 'C', quantity: 1, unit: 'Stk', unitPriceNet: 33.335, vatRate: 19 },
+				],
+			}),
+		);
+		try {
+			const { xml } = await generateInvoiceXml(invoice);
+			expect(xml).to.contain('CrossIndustryInvoice');
+			const check = await validateArtifacts(invoice, xml);
+			expect(check.formatErrors).to.deep.equal([]);
+			expect(check.businessErrors).to.deep.equal([]);
+		} finally {
+			db.close();
+		}
+	});
+});
 describe('validation => tampered xml', function () {
 	this.timeout(60000);
 

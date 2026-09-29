@@ -52,7 +52,7 @@ function normalizeEmployeeCode(code) {
 }
 function calcTotals(lines) {
   var _a, _b;
-  const byRate = /* @__PURE__ */ new Map();
+  const netByRate = /* @__PURE__ */ new Map();
   for (const line of lines) {
     if (!ALLOWED_VAT_RATES.includes(line.vatRate)) {
       throw new Error(`Unsupported VAT rate: ${line.vatRate}`);
@@ -68,18 +68,12 @@ function calcTotals(lines) {
       throw new Error(`Discount must be 0-100: ${line.description}`);
     }
     const net = roundCents(line.quantity * line.unitPriceNet * (1 - discount / 100));
-    const tax = roundCents(net * line.vatRate / 100);
-    const entry = (_b = byRate.get(line.vatRate)) != null ? _b : { net: 0, tax: 0 };
-    entry.net = roundCents(entry.net + net);
-    entry.tax = roundCents(entry.tax + tax);
-    byRate.set(line.vatRate, entry);
+    netByRate.set(line.vatRate, roundCents(((_b = netByRate.get(line.vatRate)) != null ? _b : 0) + net));
   }
-  const breakdown = [...byRate.entries()].sort(([a], [b]) => a - b).map(([vatRate, sums]) => ({
-    vatRate,
-    net: sums.net,
-    tax: sums.tax,
-    gross: roundCents(sums.net + sums.tax)
-  }));
+  const breakdown = [...netByRate.entries()].sort(([a], [b]) => a - b).map(([vatRate, net]) => {
+    const tax = roundCents(net * vatRate / 100);
+    return { vatRate, net, tax, gross: roundCents(net + tax) };
+  });
   const netTotal = roundCents(breakdown.reduce((sum, item) => sum + item.net, 0));
   const taxTotal = roundCents(breakdown.reduce((sum, item) => sum + item.tax, 0));
   return { netTotal, taxTotal, grossTotal: roundCents(netTotal + taxTotal), breakdown };
