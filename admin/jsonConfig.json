@@ -54,6 +54,19 @@
 					"lg": 4,
 					"xl": 4
 				},
+				"reminderCheckHours": {
+					"type": "number",
+					"label": "Dunning check interval in hours",
+					"help": "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.",
+					"min": 0,
+					"max": 168,
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 6,
+					"lg": 4,
+					"xl": 4
+				},
 				"authToken": {
 					"type": "password",
 					"label": "API token (optional)",

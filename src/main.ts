@@ -13,7 +13,7 @@ import { attachStatic, createApiServer } from './lib/api-server';
 import { createBackup, restoreBackup } from './lib/backup';
 import { InvoiceDatabase } from './lib/db';
 import { blankDraft, DEFAULT_NUMBER_FORMAT, normalizeNumberFormat } from './lib/invoice-model';
-import { issueInvoiceWithArtifacts } from './lib/issue-service';
+import { collectReminderCandidates, issueInvoiceWithArtifacts } from './lib/issue-service';
 
 const MOUNT_POINT = 'storage';
 const STATUS_FILE = 'status.json';
@@ -29,6 +29,8 @@ class EInvoices extends utils.Adapter {
 	private server: Server | null = null;
 	/** Pending automatic backup, cancelled on unload. */
 	private backupTimer: NodeJS.Timeout | undefined;
+	/** Pending automatic dunning check, cancelled on unload. */
+	private reminderTimer: NodeJS.Timeout | undefined;
 
 	public constructor(options: Partial<utils.AdapterOptions> = {}) {
 		super({
@@ -62,10 +64,12 @@ class EInvoices extends utils.Adapter {
 			await this.ensureMountPoint();
 			await this.publishStatusFile();
 			await this.refreshStats();
+			await this.refreshOverdue();
 
 			this.subscribeStates('control.*');
 			this.startApiServer();
 			this.startBackupTimer();
+			this.startReminderTimer();
 			await this.setState('info.connection', true, true);
 			this.log.info('e-invoices started: drafts, issue flow and status file are ready.');
 		} catch (error) {
@@ -187,6 +191,34 @@ class EInvoices extends utils.Adapter {
 			{
 				id: 'info.lastBackup',
 				common: { name: 'Last backup filename', type: 'string', role: 'text', read: true, write: false },
+				native: {},
+			},
+			{
+				id: 'info.overdueCount',
+				common: {
+					name: 'Overdue unpaid invoices',
+					type: 'number',
+					role: 'value',
+					read: true,
+					write: false,
+					def: 0,
+				},
+				native: {},
+			},
+			{
+				id: 'info.overdueList',
+				common: {
+					name: 'Overdue invoices as JSON (number, customer, days, level)',
+					type: 'string',
+					role: 'text',
+					read: true,
+					write: false,
+				},
+				native: {},
+			},
+			{
+				id: 'info.lastReminderCheck',
+				common: { name: 'Last dunning check', type: 'string', role: 'text', read: true, write: false },
 				native: {},
 			},
 			{
@@ -483,6 +515,75 @@ class EInvoices extends utils.Adapter {
 	}
 
 	/**
+	 * Starts the dunning check as a setTimeout chain, mirroring the backup.
+	 *
+	 * The adapter never mails anybody: it only recomputes which issued
+	 * invoices are overdue and publishes them as `info.overdue*`. Reminding
+	 * the customer stays a deliberate act of the user, which is also what the
+	 * legal assessment of a dunning process expects.
+	 */
+	private startReminderTimer(): void {
+		this.stopReminderTimer();
+		const hours = Number(this.config.reminderCheckHours);
+		if (!Number.isFinite(hours) || hours <= 0) {
+			return;
+		}
+		const delay = Math.min(Math.max(Math.round(hours * 3_600_000), 60_000), 7 * 24 * 3_600_000);
+		const schedule = (): void => {
+			this.reminderTimer = setTimeout(() => {
+				void this.refreshOverdue()
+					.catch((error: Error) => this.log.error(`Dunning check failed: ${error.message}`))
+					.finally(schedule);
+			}, delay);
+			// must not hold the event loop on stop
+			this.reminderTimer.unref?.();
+		};
+		this.log.info(`Dunning check every ${Math.round(delay / 3_600_000)} h.`);
+		schedule();
+	}
+
+	/** Cancels a pending dunning check. */
+	private stopReminderTimer(): void {
+		if (this.reminderTimer) {
+			clearTimeout(this.reminderTimer);
+			this.reminderTimer = undefined;
+		}
+	}
+
+	/**
+	 * Recomputes the overdue list and publishes it to the info.* states, so a
+	 * dashboard can show it without opening the PWA.
+	 */
+	private async refreshOverdue(): Promise<void> {
+		// The timer is cancelled on unload, but an in-flight check must not
+		// touch a database that is already closed.
+		if (!this.db) {
+			return;
+		}
+		const candidates = collectReminderCandidates(this.db);
+		await this.setState('info.overdueCount', candidates.length, true);
+		await this.setState(
+			'info.overdueList',
+			JSON.stringify(
+				candidates.map(c => ({
+					number: c.invoice.number,
+					customer: c.invoice.buyer.name,
+					days: c.overdueDays,
+					level: c.level,
+					skonto: c.skontoActive,
+				})),
+			),
+			true,
+		);
+		await this.setState('info.lastReminderCheck', new Date().toISOString(), true);
+		if (candidates.length > 0) {
+			this.log.info(
+				`${candidates.length} issued invoice(s) overdue, oldest ${candidates[0].overdueDays} days. Open the PWA to remind.`,
+			);
+		}
+	}
+
+	/**
 	 * Mountpoint file writer (bound for the issue flow and API).
 	 *
 	 * @param relPath - Path below the storage mountpoint.
@@ -566,6 +667,7 @@ class EInvoices extends utils.Adapter {
 	private onUnload(callback: () => void): void {
 		try {
 			this.stopBackupTimer();
+			this.stopReminderTimer();
 			try {
 				this.server?.close();
 			} catch (error) {

@@ -41,6 +41,8 @@ class EInvoices extends utils.Adapter {
   server = null;
   /** Pending automatic backup, cancelled on unload. */
   backupTimer;
+  /** Pending automatic dunning check, cancelled on unload. */
+  reminderTimer;
   constructor(options = {}) {
     super({
       ...options,
@@ -69,9 +71,11 @@ class EInvoices extends utils.Adapter {
       await this.ensureMountPoint();
       await this.publishStatusFile();
       await this.refreshStats();
+      await this.refreshOverdue();
       this.subscribeStates("control.*");
       this.startApiServer();
       this.startBackupTimer();
+      this.startReminderTimer();
       await this.setState("info.connection", true, true);
       this.log.info("e-invoices started: drafts, issue flow and status file are ready.");
     } catch (error) {
@@ -190,6 +194,34 @@ class EInvoices extends utils.Adapter {
       {
         id: "info.lastBackup",
         common: { name: "Last backup filename", type: "string", role: "text", read: true, write: false },
+        native: {}
+      },
+      {
+        id: "info.overdueCount",
+        common: {
+          name: "Overdue unpaid invoices",
+          type: "number",
+          role: "value",
+          read: true,
+          write: false,
+          def: 0
+        },
+        native: {}
+      },
+      {
+        id: "info.overdueList",
+        common: {
+          name: "Overdue invoices as JSON (number, customer, days, level)",
+          type: "string",
+          role: "text",
+          read: true,
+          write: false
+        },
+        native: {}
+      },
+      {
+        id: "info.lastReminderCheck",
+        common: { name: "Last dunning check", type: "string", role: "text", read: true, write: false },
         native: {}
       },
       {
@@ -468,6 +500,68 @@ class EInvoices extends utils.Adapter {
     }
   }
   /**
+   * Starts the dunning check as a setTimeout chain, mirroring the backup.
+   *
+   * The adapter never mails anybody: it only recomputes which issued
+   * invoices are overdue and publishes them as `info.overdue*`. Reminding
+   * the customer stays a deliberate act of the user, which is also what the
+   * legal assessment of a dunning process expects.
+   */
+  startReminderTimer() {
+    this.stopReminderTimer();
+    const hours = Number(this.config.reminderCheckHours);
+    if (!Number.isFinite(hours) || hours <= 0) {
+      return;
+    }
+    const delay = Math.min(Math.max(Math.round(hours * 36e5), 6e4), 7 * 24 * 36e5);
+    const schedule = () => {
+      var _a, _b;
+      this.reminderTimer = setTimeout(() => {
+        void this.refreshOverdue().catch((error) => this.log.error(`Dunning check failed: ${error.message}`)).finally(schedule);
+      }, delay);
+      (_b = (_a = this.reminderTimer).unref) == null ? void 0 : _b.call(_a);
+    };
+    this.log.info(`Dunning check every ${Math.round(delay / 36e5)} h.`);
+    schedule();
+  }
+  /** Cancels a pending dunning check. */
+  stopReminderTimer() {
+    if (this.reminderTimer) {
+      clearTimeout(this.reminderTimer);
+      this.reminderTimer = void 0;
+    }
+  }
+  /**
+   * Recomputes the overdue list and publishes it to the info.* states, so a
+   * dashboard can show it without opening the PWA.
+   */
+  async refreshOverdue() {
+    if (!this.db) {
+      return;
+    }
+    const candidates = (0, import_issue_service.collectReminderCandidates)(this.db);
+    await this.setState("info.overdueCount", candidates.length, true);
+    await this.setState(
+      "info.overdueList",
+      JSON.stringify(
+        candidates.map((c) => ({
+          number: c.invoice.number,
+          customer: c.invoice.buyer.name,
+          days: c.overdueDays,
+          level: c.level,
+          skonto: c.skontoActive
+        }))
+      ),
+      true
+    );
+    await this.setState("info.lastReminderCheck", (/* @__PURE__ */ new Date()).toISOString(), true);
+    if (candidates.length > 0) {
+      this.log.info(
+        `${candidates.length} issued invoice(s) overdue, oldest ${candidates[0].overdueDays} days. Open the PWA to remind.`
+      );
+    }
+  }
+  /**
    * Mountpoint file writer (bound for the issue flow and API).
    *
    * @param relPath - Path below the storage mountpoint.
@@ -546,6 +640,7 @@ class EInvoices extends utils.Adapter {
     var _a, _b;
     try {
       this.stopBackupTimer();
+      this.stopReminderTimer();
       try {
         (_a = this.server) == null ? void 0 : _a.close();
       } catch (error) {
