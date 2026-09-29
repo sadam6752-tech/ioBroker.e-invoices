@@ -148,6 +148,40 @@ async function pageCount(pdf: Buffer): Promise<number> {
 }
 
 /**
+ * Collects the fill colors of a pdfkit PDF as hex strings. pdfkit writes
+ * non-stroking colors as "r g b scn" after "DeviceRGB cs", not as "rg".
+ * Used to assert which accent color actually ended up on the page.
+ *
+ * @param pdf - Rendered PDF bytes.
+ */
+function fillColors(pdf: Buffer): string[] {
+	const raw = pdf.toString('latin1');
+	const content: string[] = [];
+	for (const match of raw.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+		try {
+			content.push(inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1'));
+		} catch {
+			// kein flate-Stream
+		}
+	}
+	const found = new Set<string>();
+	for (const stream of content) {
+		for (const match of stream.matchAll(/([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+scn\b/g)) {
+			const hex = [1, 2, 3]
+				.map(i =>
+					Math.round(Number(match[i]) * 255)
+						.toString(16)
+						.padStart(2, '0'),
+				)
+				.join('')
+				.toLowerCase();
+			found.add(`#${hex}`);
+		}
+	}
+	return [...found];
+}
+
+/**
  * Issues a draft in an isolated in-memory database (no files, no locks).
  *
  * @param input - Draft content to issue.
@@ -404,6 +438,37 @@ describe('pdf => custom footer boxes', () => {
 			// requested layout: no "Mit freundlichen Grüßen" line below the name
 			expect(text).to.not.contain('Mitfreundlichen');
 			expect(text).to.contain('Zahlungsbedingungen');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('applies the three accent color switches independently', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const boxes: [string, string, string, string] = ['Box Eins', 'Box Zwei', 'Box Drei', 'Box Vier'];
+			const issued = db.issueDraft(db.createDraft(draft({ seller: { ...seller, footerBoxes: [...boxes] } })).id);
+			const primary = DEFAULT_TEMPLATE.colors.primary;
+			const gray = '#d9d9d9';
+			const render = (over: Partial<LayoutTemplate>): Promise<string[]> =>
+				renderInvoicePdf(issued, { ...DEFAULT_TEMPLATE, ...over }).then(fillColors);
+
+			// default: accent on for title and table header, whole header accented
+			const all = await render({ usePrimaryColor: true, titleAccent: true, tableHeaderAccent: true });
+			expect(all).to.include(primary);
+
+			// usePrimaryColor off: the accent must disappear from the page entirely
+			const monochrome = await render({ usePrimaryColor: false });
+			expect(monochrome).to.not.include(primary);
+
+			// primary on but title off: the color still has to be used elsewhere
+			const noTitle = await render({ usePrimaryColor: true, titleAccent: false, tableHeaderAccent: true });
+			expect(noTitle).to.include(primary);
+
+			// table header not accented keeps the neutral gray fill
+			const noHeader = await render({ usePrimaryColor: true, titleAccent: false, tableHeaderAccent: false });
+			expect(noHeader).to.include(gray);
 		} finally {
 			db.close();
 		}

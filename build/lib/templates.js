@@ -27,6 +27,9 @@ const DEFAULT_TEMPLATE = {
   version: 1,
   name: "Standard",
   colors: { primary: "#1a56db", text: "#111827", muted: "#555555" },
+  usePrimaryColor: true,
+  titleAccent: true,
+  tableHeaderAccent: false,
   showEmail: true,
   showCustomerNumber: true,
   showPaymentTerms: true,
@@ -78,8 +81,10 @@ function validateTemplate(template) {
   if (t.showFooterBoxes !== void 0 && typeof t.showFooterBoxes !== "boolean") {
     errors.push("showFooterBoxes muss true/false sein");
   }
-  if (t.showTagline !== void 0 && typeof t.showTagline !== "boolean") {
-    errors.push("showTagline muss true/false sein");
+  for (const key of ["usePrimaryColor", "titleAccent", "tableHeaderAccent"]) {
+    if (t[key] !== void 0 && typeof t[key] !== "boolean") {
+      errors.push(`${key} muss true/false sein`);
+    }
   }
   if (typeof t.footerText !== "string" || t.footerText.length > 500) {
     errors.push("Fu\xDFzeile muss Text mit max. 500 Zeichen sein");

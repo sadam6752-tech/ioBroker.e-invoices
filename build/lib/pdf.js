@@ -65,7 +65,7 @@ function imageHeightForWidth(data, widthPt) {
 const LOGO_MAX_HEIGHT_PT = 220;
 const LOGO_CONTINUATION_HEIGHT_PT = 80;
 async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEMPLATE, logo, context = {}) {
-  var _a, _b, _c, _d, _e, _f, _g;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   if (!invoice.number) {
     throw new Error("Invoice has no number yet - issue it before rendering");
   }
@@ -79,12 +79,16 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     (_c = invoice.dueDate) != null ? _c : void 0
   );
   const colors = template.colors;
-  const intro = (_d = template.introText) != null ? _d : import_templates.DEFAULT_TEMPLATE.introText;
-  const closing = (_e = template.closingText) != null ? _e : import_templates.DEFAULT_TEMPLATE.closingText;
-  const signature = ((_f = template.signatureName) == null ? void 0 : _f.trim()) || "";
-  const showTagline = (_g = template.showTagline) != null ? _g : true;
+  const usePrimary = (_d = template.usePrimaryColor) != null ? _d : import_templates.DEFAULT_TEMPLATE.usePrimaryColor;
+  const accentFill = usePrimary ? colors.primary : HEADER_GRAY;
+  const titleAccent = usePrimary && ((_e = template.titleAccent) != null ? _e : import_templates.DEFAULT_TEMPLATE.titleAccent);
+  const headerAccent = usePrimary && ((_f = template.tableHeaderAccent) != null ? _f : import_templates.DEFAULT_TEMPLATE.tableHeaderAccent);
+  const intro = (_g = template.introText) != null ? _g : import_templates.DEFAULT_TEMPLATE.introText;
+  const closing = (_h = template.closingText) != null ? _h : import_templates.DEFAULT_TEMPLATE.closingText;
+  const signature = ((_i = template.signatureName) == null ? void 0 : _i.trim()) || "";
+  const showTagline = (_j = template.showTagline) != null ? _j : true;
   return new Promise((resolve, reject) => {
-    var _a2, _b2, _c2, _d2, _e2, _f2, _g2, _h, _i;
+    var _a2, _b2, _c2, _d2, _e2, _f2, _g2, _h2, _i2;
     const doc = new import_pdfkit.default({
       size: "A4",
       margins: { top: 50, bottom: 36, left: 50, right: 50 },
@@ -163,7 +167,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     }
     cursor = Math.max(by, my) + 14;
     if (template.blocks.title) {
-      doc.fillColor(colors.primary).fontSize(17).font("Helvetica-Bold");
+      doc.fillColor(titleAccent ? colors.primary : colors.text).fontSize(17).font("Helvetica-Bold");
       doc.text(`${invoice.documentTitle} Nr. ${invoice.number}`, left, cursor, { width: pageWidth });
       doc.fillColor(colors.text).fontSize(10).font("Helvetica");
       cursor += 24;
@@ -211,15 +215,19 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     const headerRow = () => {
       const height = 17;
       doc.save();
-      doc.rect(left - 2, rowY - 3, colX.qty - 2 - (left - 2), height).fill(colors.primary);
-      doc.rect(colX.qty - 2, rowY - 3, right + 2 - (colX.qty - 2), height).fill(HEADER_GRAY);
+      if (headerAccent) {
+        doc.rect(left - 2, rowY - 3, right + 2 - (left - 2), height).fill(colors.primary);
+      } else {
+        doc.rect(left - 2, rowY - 3, colX.qty - 2 - (left - 2), height).fill(accentFill);
+        doc.rect(colX.qty - 2, rowY - 3, right + 2 - (colX.qty - 2), height).fill(HEADER_GRAY);
+      }
       doc.restore();
       doc.font("Helvetica-Bold").fontSize(9);
-      doc.fillColor("#FFFFFF");
+      doc.fillColor(headerAccent ? "#FFFFFF" : usePrimary ? "#FFFFFF" : colors.text);
       doc.text("Pos.", colX.pos, rowY);
       doc.text("Art.Nr.", colX.sku, rowY);
       doc.text("Bezeichnung", colX.name, rowY);
-      doc.fillColor(colors.text);
+      doc.fillColor(headerAccent || usePrimary ? "#FFFFFF" : colors.text);
       doc.text("Menge", colX.qty, rowY);
       doc.text("Einheit", colX.unit, rowY);
       doc.text("E-Preis", colX.price, rowY);
@@ -375,8 +383,8 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
           template.showEmail ? (_g2 = invoice.seller.email) != null ? _g2 : "" : ""
         ],
         [
-          (_h = invoice.seller.bankName) != null ? _h : "",
-          (_i = invoice.seller.iban) != null ? _i : "",
+          (_h2 = invoice.seller.bankName) != null ? _h2 : "",
+          (_i2 = invoice.seller.iban) != null ? _i2 : "",
           invoice.seller.bic ? `BIC: ${invoice.seller.bic}` : ""
         ],
         [

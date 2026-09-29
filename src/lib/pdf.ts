@@ -111,6 +111,12 @@ export async function renderInvoicePdf(
 		invoice.dueDate ?? undefined,
 	);
 	const colors = template.colors;
+	// Akzentfarben-Schalter: ohne usePrimaryColor bleibt das Dokument monochrom,
+	// die Flächen fallen auf ein neutrales Grau zurück und der Titel auf Textfarbe.
+	const usePrimary = template.usePrimaryColor ?? DEFAULT_TEMPLATE.usePrimaryColor;
+	const accentFill = usePrimary ? colors.primary : HEADER_GRAY;
+	const titleAccent = usePrimary && (template.titleAccent ?? DEFAULT_TEMPLATE.titleAccent);
+	const headerAccent = usePrimary && (template.tableHeaderAccent ?? DEFAULT_TEMPLATE.tableHeaderAccent);
 	const intro = template.introText ?? DEFAULT_TEMPLATE.introText;
 	const closing = template.closingText ?? DEFAULT_TEMPLATE.closingText;
 	// Kein Rückfall auf den Firmennamen: die Namenszeile erscheint nur, wenn im
@@ -219,7 +225,9 @@ export async function renderInvoicePdf(
 
 		// Title + intro
 		if (template.blocks.title) {
-			doc.fillColor(colors.primary).fontSize(17).font('Helvetica-Bold');
+			doc.fillColor(titleAccent ? colors.primary : colors.text)
+				.fontSize(17)
+				.font('Helvetica-Bold');
 			doc.text(`${invoice.documentTitle} Nr. ${invoice.number}`, left, cursor, { width: pageWidth });
 			doc.fillColor(colors.text).fontSize(10).font('Helvetica');
 			cursor += 24;
@@ -274,15 +282,21 @@ export async function renderInvoicePdf(
 		const headerRow = (): void => {
 			const height = 17;
 			doc.save();
-			doc.rect(left - 2, rowY - 3, colX.qty - 2 - (left - 2), height).fill(colors.primary);
-			doc.rect(colX.qty - 2, rowY - 3, right + 2 - (colX.qty - 2), height).fill(HEADER_GRAY);
+			if (headerAccent) {
+				// whole row in the accent color, so every label stays readable in white
+				doc.rect(left - 2, rowY - 3, right + 2 - (left - 2), height).fill(colors.primary);
+			} else {
+				doc.rect(left - 2, rowY - 3, colX.qty - 2 - (left - 2), height).fill(accentFill);
+				doc.rect(colX.qty - 2, rowY - 3, right + 2 - (colX.qty - 2), height).fill(HEADER_GRAY);
+			}
 			doc.restore();
 			doc.font('Helvetica-Bold').fontSize(9);
-			doc.fillColor('#FFFFFF');
+			// white only reads on a saturated fill; a light gray needs dark text
+			doc.fillColor(headerAccent ? '#FFFFFF' : usePrimary ? '#FFFFFF' : colors.text);
 			doc.text('Pos.', colX.pos, rowY);
 			doc.text('Art.Nr.', colX.sku, rowY);
 			doc.text('Bezeichnung', colX.name, rowY);
-			doc.fillColor(colors.text);
+			doc.fillColor(headerAccent || usePrimary ? '#FFFFFF' : colors.text);
 			doc.text('Menge', colX.qty, rowY);
 			doc.text('Einheit', colX.unit, rowY);
 			doc.text('E-Preis', colX.price, rowY);

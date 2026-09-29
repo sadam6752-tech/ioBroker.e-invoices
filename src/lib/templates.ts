@@ -56,6 +56,12 @@ export interface LayoutTemplate {
 	logo?: TemplateLogo;
 	/** Hex colors. */
 	colors: { primary: string; text: string; muted: string };
+	/** Use the primary accent color at all. When false everything stays monochrome. */
+	usePrimaryColor: boolean;
+	/** Draw the "Rechnung Nr. …" title in the accent color. */
+	titleAccent: boolean;
+	/** Fill the whole positions table header (Pos. … Gesamt) with the accent color. */
+	tableHeaderAccent: boolean;
 	/** Show seller e-mail in the header. */
 	showEmail: boolean;
 	/** Show buyer customer number (BT-10). */
@@ -89,6 +95,9 @@ export const DEFAULT_TEMPLATE: LayoutTemplate = {
 	version: 1,
 	name: 'Standard',
 	colors: { primary: '#1a56db', text: '#111827', muted: '#555555' },
+	usePrimaryColor: true,
+	titleAccent: true,
+	tableHeaderAccent: false,
 	showEmail: true,
 	showCustomerNumber: true,
 	showPaymentTerms: true,
@@ -154,8 +163,10 @@ export function validateTemplate(template: unknown): string[] {
 	if (t.showFooterBoxes !== undefined && typeof t.showFooterBoxes !== 'boolean') {
 		errors.push('showFooterBoxes muss true/false sein');
 	}
-	if (t.showTagline !== undefined && typeof t.showTagline !== 'boolean') {
-		errors.push('showTagline muss true/false sein');
+	for (const key of ['usePrimaryColor', 'titleAccent', 'tableHeaderAccent'] as const) {
+		if (t[key] !== undefined && typeof t[key] !== 'boolean') {
+			errors.push(`${key} muss true/false sein`);
+		}
 	}
 	if (typeof t.footerText !== 'string' || t.footerText.length > 500) {
 		errors.push('Fußzeile muss Text mit max. 500 Zeichen sein');

@@ -8,6 +8,9 @@ interface Template {
 		name: string;
 		companyId?: string;
 		colors: { primary: string; text: string; muted: string };
+		usePrimaryColor?: boolean;
+		titleAccent?: boolean;
+		tableHeaderAccent?: boolean;
 		showEmail: boolean;
 		showCustomerNumber: boolean;
 		showPaymentTerms: boolean;
@@ -77,6 +80,15 @@ export async function templates(root: HTMLElement): Promise<void> {
 			<label>Primärfarbe<input id="t-c1" type="color" value="${esc(d.colors.primary)}" /></label>
 			<label>Textfarbe<input id="t-c2" type="color" value="${esc(d.colors.text)}" /></label>
 		</div>
+		<label class="pay" title="Aus: das Dokument bleibt schwarz/weiß, die Primärfarbe wird nirgends verwendet">
+			<input type="checkbox" data-f="usePrimaryColor" ${d.usePrimaryColor !== false ? 'checked' : ''} /><span>Primärfarbe verwenden</span>
+		</label>
+		<label class="pay" title="Ohne Haken: der Titel wird in der Textfarbe gesetzt">
+			<input type="checkbox" data-f="titleAccent" ${d.titleAccent !== false ? 'checked' : ''} /><span>Rechnungstitel in Akzentfarbe</span>
+		</label>
+		<label class="pay" title="Ohne Haken: nur die linke Hälfte der Kopfzeile ist eingefärbt, die rechte bleibt grau">
+			<input type="checkbox" data-f="tableHeaderAccent" ${d.tableHeaderAccent === true ? 'checked' : ''} /><span>Tabellenkopf komplett in Akzentfarbe</span>
+		</label>
 		${LOCKED.map(k => check(k, `Block ${k}`, true)).join('')}
 		${FREE.map(k => check(k, `Block ${k}`, false)).join('')}
 		<label><input type="checkbox" data-f="showEmail" ${d.showEmail ? 'checked' : ''} style="width:auto" /> E-Mail im Kopf</label>
@@ -110,9 +122,10 @@ export async function templates(root: HTMLElement): Promise<void> {
 		root.innerHTML = `
 		<div class="card"><div class="row"><strong>Layout-Vorlagen</strong>
 			<button id="t-new">+ Neu</button></div>
-			${items
-				.map(
-					t => `<div class="row" style="margin-top:8px">
+			${
+				items
+					.map(
+						t => `<div class="row" style="margin-top:8px">
 				<strong>${esc(t.name)}</strong><span class="muted">v${t.version}</span>
 				${t.isDefault ? `<span class="badge issued">Standard</span>` : ''}
 				<button class="secondary" data-edit="${t.id}">Bearbeiten</button>
@@ -120,13 +133,18 @@ export async function templates(root: HTMLElement): Promise<void> {
 				${t.isDefault ? '' : `<button class="secondary" data-def="${t.id}">Standard</button>`}
 				${t.isDefault ? '' : `<button class="danger" data-del="${t.id}">Löschen</button>`}
 			</div>`,
-				)
-				.join('') || '<p class="muted">Noch keine Vorlagen.</p>'}
+					)
+					.join('') || '<p class="muted">Noch keine Vorlagen.</p>'
+			}
 		</div>
-		${editing ? `<div class="card"><h3>${esc(editing.id === 'neu' ? 'Neue Vorlage' : editing.name)}</h3>${formHtml(editing)}
+		${
+			editing
+				? `<div class="card"><h3>${esc(editing.id === 'neu' ? 'Neue Vorlage' : editing.name)}</h3>${formHtml(editing)}
 			${error ? `<p class="error">${esc(error)}</p>` : ''}
 			<div class="row"><button id="t-save">Speichern</button><button class="secondary" id="t-preview">Vorschau (Entwurf)</button><button class="secondary" id="t-cancel">Abbrechen</button></div>
-		</div>` : ''}`;
+		</div>`
+				: ''
+		}`;
 
 		root.querySelector('#t-new')?.addEventListener('click', async () => {
 			try {
@@ -181,7 +199,9 @@ export async function templates(root: HTMLElement): Promise<void> {
 		root.querySelectorAll('[data-def]').forEach(b =>
 			b.addEventListener('click', async () => {
 				try {
-					const res = await apiFetch(`/api/templates/${(b as HTMLElement).dataset.def}/default`, { method: 'POST' });
+					const res = await apiFetch(`/api/templates/${(b as HTMLElement).dataset.def}/default`, {
+						method: 'POST',
+					});
 					if (!res.ok) throw new Error('Umschalten fehlgeschlagen');
 					editing = null;
 					await reload();
@@ -240,8 +260,25 @@ export async function templates(root: HTMLElement): Promise<void> {
 		for (const k of FREE) {
 			def.blocks[k] = root.querySelector<HTMLInputElement>(`[data-f="blocks.${k}"]`)?.checked ?? def.blocks[k];
 		}
-		for (const k of ['showEmail', 'showCustomerNumber', 'showPaymentTerms', 'showArchiveHint', 'showPageNumbers', 'showTagline', 'showFooterBoxes'] as const) {
-			(def as unknown as Record<string, boolean>)[k] = root.querySelector<HTMLInputElement>(`[data-f="${k}"]`)?.checked ?? false;
+		for (const k of [
+			'showEmail',
+			'showCustomerNumber',
+			'showPaymentTerms',
+			'showArchiveHint',
+			'showPageNumbers',
+			'showTagline',
+			'showFooterBoxes',
+		] as const) {
+			(def as unknown as Record<string, boolean>)[k] =
+				root.querySelector<HTMLInputElement>(`[data-f="${k}"]`)?.checked ?? false;
+		}
+		// Accent switches: missing element must not silently disable them, the
+		// renderer treats undefined as "use the default (on)".
+		for (const k of ['usePrimaryColor', 'titleAccent', 'tableHeaderAccent'] as const) {
+			const box = root.querySelector<HTMLInputElement>(`[data-f="${k}"]`);
+			if (box) {
+				(def as unknown as Record<string, boolean>)[k] = box.checked;
+			}
 		}
 		def.footerText = root.querySelector<HTMLTextAreaElement>('#t-footer')?.value ?? '';
 		const formCompany = root.querySelector<HTMLSelectElement>('#t-company')?.value ?? '';
@@ -250,12 +287,17 @@ export async function templates(root: HTMLElement): Promise<void> {
 		} else {
 			delete (def as unknown as Record<string, unknown>).companyId;
 		}
-		(def as unknown as Record<string, string>).introText = root.querySelector<HTMLTextAreaElement>('#t-intro')?.value ?? '';
-		(def as unknown as Record<string, string>).closingText = root.querySelector<HTMLTextAreaElement>('#t-closing')?.value ?? '';
-		(def as unknown as Record<string, string>).signatureName = root.querySelector<HTMLInputElement>('#t-sign')?.value ?? '';
-		(def as unknown as Record<string, string>).headerExtra = root.querySelector<HTMLInputElement>('#t-hextra')?.value ?? '';
+		(def as unknown as Record<string, string>).introText =
+			root.querySelector<HTMLTextAreaElement>('#t-intro')?.value ?? '';
+		(def as unknown as Record<string, string>).closingText =
+			root.querySelector<HTMLTextAreaElement>('#t-closing')?.value ?? '';
+		(def as unknown as Record<string, string>).signatureName =
+			root.querySelector<HTMLInputElement>('#t-sign')?.value ?? '';
+		(def as unknown as Record<string, string>).headerExtra =
+			root.querySelector<HTMLInputElement>('#t-hextra')?.value ?? '';
 		if (def.logo) {
-			def.logo.position = (root.querySelector<HTMLSelectElement>('#t-lpos')?.value ?? 'right') as 'left' | 'right' | 'center';
+			def.logo.position = (root.querySelector<HTMLSelectElement>('#t-lpos')?.value ?? 'right') as
+				'left' | 'right' | 'center';
 			def.logo.widthMm = Number(root.querySelector<HTMLInputElement>('#t-lw')?.value ?? 30);
 			def.logo.allPages = root.querySelector<HTMLInputElement>('#t-lall')?.checked === true;
 		}
@@ -274,7 +316,11 @@ export async function templates(root: HTMLElement): Promise<void> {
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ name: def.name, definition: def }),
 				});
-				if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Speichern fehlgeschlagen');
+				if (!res.ok)
+					throw new Error(
+						((await res.json().catch(() => ({}))) as { error?: string }).error ??
+							'Speichern fehlgeschlagen',
+					);
 				id = ((await res.json()) as Template).id;
 			} else {
 				const res = await apiFetch(`/api/templates/${id}`, {
@@ -282,7 +328,11 @@ export async function templates(root: HTMLElement): Promise<void> {
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ name: def.name, definition: def }),
 				});
-				if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Speichern fehlgeschlagen');
+				if (!res.ok)
+					throw new Error(
+						((await res.json().catch(() => ({}))) as { error?: string }).error ??
+							'Speichern fehlgeschlagen',
+					);
 			}
 			const file = root.querySelector<HTMLInputElement>('#t-logo')?.files?.[0];
 			if (file) {
@@ -297,7 +347,11 @@ export async function templates(root: HTMLElement): Promise<void> {
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ filename: file.name, mime: file.type, dataBase64 }),
 				});
-				if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Logo-Upload fehlgeschlagen');
+				if (!res.ok)
+					throw new Error(
+						((await res.json().catch(() => ({}))) as { error?: string }).error ??
+							'Logo-Upload fehlgeschlagen',
+					);
 			}
 			editing = null;
 			error = '';

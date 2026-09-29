@@ -53,7 +53,23 @@ describe('templates => validateTemplate', () => {
 		delete (legacy as unknown as Record<string, unknown>).closingText;
 		delete (legacy as unknown as Record<string, unknown>).signatureName;
 		delete (legacy as unknown as Record<string, unknown>).headerExtra;
+		delete (legacy as unknown as Record<string, unknown>).usePrimaryColor;
+		delete (legacy as unknown as Record<string, unknown>).titleAccent;
+		delete (legacy as unknown as Record<string, unknown>).tableHeaderAccent;
 		expect(validateTemplate(legacy)).to.deep.equal([]);
+	});
+
+	it('validates the accent color switches', () => {
+		for (const key of ['usePrimaryColor', 'titleAccent', 'tableHeaderAccent'] as const) {
+			const bad = valid();
+			(bad as unknown as Record<string, unknown>)[key] = 'yes';
+			expect(validateTemplate(bad).join(' ')).to.contain(key);
+		}
+		const good = valid();
+		(good as unknown as Record<string, unknown>).usePrimaryColor = false;
+		(good as unknown as Record<string, unknown>).titleAccent = false;
+		(good as unknown as Record<string, unknown>).tableHeaderAccent = true;
+		expect(validateTemplate(good)).to.deep.equal([]);
 	});
 });
 
