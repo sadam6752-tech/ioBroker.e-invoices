@@ -36,6 +36,7 @@ __export(pdf_exports, {
 });
 module.exports = __toCommonJS(pdf_exports);
 var import_pdfkit = __toESM(require("pdfkit"));
+var import_fonts = require("./fonts");
 var import_invoice_model = require("./invoice-model");
 var import_templates = require("./templates");
 function formatEur(value) {
@@ -104,6 +105,11 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     doc.on("data", (chunk) => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", (error) => reject(error));
+    if (!(0, import_fonts.registerFonts)(doc)) {
+      console.warn(
+        "[e-invoices] Liberation Sans not found, fell back to Helvetica. The PDF renders correctly but is not PDF/A-3b conformant. Check that assets/fonts ships with the adapter."
+      );
+    }
     const pageWidth = doc.page.width - 100;
     const left = 50;
     const right = left + pageWidth;
@@ -147,11 +153,11 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     ].filter((line) => line !== "");
     let by = cursor + 4;
     for (const line of buyerLines) {
-      doc.fontSize(10).font(by === cursor + 4 ? "Helvetica-Bold" : "Helvetica");
+      doc.fontSize(10).font(by === cursor + 4 ? import_fonts.FONT_BOLD : import_fonts.FONT_REGULAR);
       doc.text(line, left, by, { width: 270 });
       by += 13;
     }
-    doc.font("Helvetica").fontSize(10);
+    doc.font(import_fonts.FONT_REGULAR).fontSize(10);
     const meta = [
       ["Rechnungsnr.:", invoiceNumber],
       ["Rechnungsdatum:", formatDeDate(invoice.issueDate)],
@@ -161,15 +167,15 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     ];
     let my = cursor + 4;
     for (const [label, value] of meta) {
-      doc.font("Helvetica-Bold").text(label, left + 300, my, { width: 100 });
-      doc.font("Helvetica").text(value, left + 300, my, { width: pageWidth - 300, align: "right" });
+      doc.font(import_fonts.FONT_BOLD).text(label, left + 300, my, { width: 100 });
+      doc.font(import_fonts.FONT_REGULAR).text(value, left + 300, my, { width: pageWidth - 300, align: "right" });
       my += 14;
     }
     cursor = Math.max(by, my) + 14;
     if (template.blocks.title) {
-      doc.fillColor(titleAccent ? colors.primary : colors.text).fontSize(17).font("Helvetica-Bold");
+      doc.fillColor(titleAccent ? colors.primary : colors.text).fontSize(17).font(import_fonts.FONT_BOLD);
       doc.text(`${invoice.documentTitle} Nr. ${invoice.number}`, left, cursor, { width: pageWidth });
-      doc.fillColor(colors.text).fontSize(10).font("Helvetica");
+      doc.fillColor(colors.text).fontSize(10).font(import_fonts.FONT_REGULAR);
       cursor += 24;
     }
     if (invoice.stornoOfId) {
@@ -222,7 +228,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
         doc.rect(colX.qty - 2, rowY - 3, right + 2 - (colX.qty - 2), height).fill(HEADER_GRAY);
       }
       doc.restore();
-      doc.font("Helvetica-Bold").fontSize(9);
+      doc.font(import_fonts.FONT_BOLD).fontSize(9);
       doc.fillColor(headerAccent ? "#FFFFFF" : usePrimary ? "#FFFFFF" : colors.text);
       doc.text("Pos.", colX.pos, rowY);
       doc.text("Art.Nr.", colX.sku, rowY);
@@ -232,7 +238,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.text("Einheit", colX.unit, rowY);
       doc.text("E-Preis", colX.price, rowY);
       doc.text("Gesamt", colX.total, rowY, { width: totalW, align: "right" });
-      doc.font("Helvetica").fontSize(10);
+      doc.font(import_fonts.FONT_REGULAR).fontSize(10);
       rowY += 19;
     };
     if (template.blocks.positions) {
@@ -250,8 +256,8 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
         doc.fillColor(colors.text).fontSize(10);
         doc.text(String(index + 1), colX.pos, rowY);
         doc.text(((_c3 = line.sku) == null ? void 0 : _c3.trim()) || "\u2013", colX.sku, rowY, { width: colX.name - colX.sku - 4 });
-        doc.font("Helvetica-Bold").text(line.description, colX.name, rowY, { width: 172 });
-        doc.font("Helvetica");
+        doc.font(import_fonts.FONT_BOLD).text(line.description, colX.name, rowY, { width: 172 });
+        doc.font(import_fonts.FONT_REGULAR);
         doc.text(`${line.quantity}`, colX.qty, rowY);
         doc.text(line.unit, colX.unit, rowY, { width: 40 });
         doc.text(formatEurDe(netUnit), colX.price, rowY, { width: 66 });
@@ -299,10 +305,10 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.save();
       doc.rect(colX.price - 64, rowY - 3, right + 2 - (colX.price - 64), 18).fill(HEADER_GRAY);
       doc.restore();
-      doc.fillColor(colors.text).font("Helvetica-Bold");
+      doc.fillColor(colors.text).font(import_fonts.FONT_BOLD);
       doc.text("Gesamtbetrag brutto", colX.price - 60, rowY, { width: 130, align: "right" });
       doc.text(formatEurDe(totals.grossTotal), colX.total, rowY, { width: totalW, align: "right" });
-      doc.font("Helvetica");
+      doc.font(import_fonts.FONT_REGULAR);
       rowY += 24;
     }
     const exempt = invoice.lines.find((line) => {
@@ -338,7 +344,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       rowY += 14;
     }
     rowY += 14;
-    doc.fillColor(colors.text).font("Helvetica").fontSize(10);
+    doc.fillColor(colors.text).font(import_fonts.FONT_REGULAR).fontSize(10);
     if (template.blocks.payment && invoice.seller.iban) {
       ensureSpace(16);
       doc.text(
@@ -368,8 +374,8 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       rowY += 10;
     }
     if (signature) {
-      doc.font("Helvetica-Bold").text(signature, left, rowY, { width: pageWidth });
-      doc.font("Helvetica");
+      doc.font(import_fonts.FONT_BOLD).text(signature, left, rowY, { width: pageWidth });
+      doc.font(import_fonts.FONT_REGULAR);
       rowY += 20;
     }
     if ((_d2 = template.showFooterBoxes) != null ? _d2 : true) {

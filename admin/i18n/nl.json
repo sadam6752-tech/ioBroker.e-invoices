@@ -1,4 +1,4 @@
-﻿{
+{
     "0 = off, otherwise an automatic backup into the storage mount":  "0 = uit; anders automatische back-up in de opslagmount",
     "127.0.0.1 = only this machine, 0.0.0.0 = all interfaces":  "127.0.0.1 = alleen deze machine, 0.0.0.0 = alle interfaces",
     "API port":  "API-poort",

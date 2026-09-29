@@ -32,6 +32,7 @@ import {
 	type ExemptionCategory,
 } from './invoice-model';
 import type { StoredInvoice } from './db';
+import { loadIccProfile } from './fonts';
 
 /** Profiles this adapter can generate in v1. */
 export type SupportedProfile = 'BASIC' | 'EN16931';
@@ -377,6 +378,8 @@ export async function embedHybridPdf(
 		validateBeforeEmbed: false,
 		validateXsd: false,
 		addPdfA3Metadata: true,
+		// without an output intent the file is not PDF/A-3b conformant
+		rgbIccProfile: loadIccProfile(),
 		unembeddedFonts: 'warn',
 		meta: { title, creator: 'ioBroker.e-invoices' },
 	});

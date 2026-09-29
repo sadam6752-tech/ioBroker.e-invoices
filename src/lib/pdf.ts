@@ -9,6 +9,7 @@
  * exemption reasons are always rendered (Pflicht).
  */
 import PDFDocument from 'pdfkit';
+import { FONT_BOLD, FONT_REGULAR, registerFonts } from './fonts';
 import { calcSkonto, calcTotals, formatDeliveryDateDe, lineNetAmount, lineNetUnitPrice } from './invoice-model';
 import { ARCHIVE_HINT, DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
 import type { StoredInvoice } from './db';
@@ -140,6 +141,15 @@ export async function renderInvoicePdf(
 		doc.on('data', (chunk: Buffer) => chunks.push(chunk));
 		doc.on('end', () => resolve(Buffer.concat(chunks)));
 		doc.on('error', (error: Error) => reject(error));
+		// Liberation Sans instead of the base-14 fonts, so the hybrid PDF can be
+		// archived long term (PDF/A-3b). Falls back to Helvetica when the
+		// bundled files are missing, which renders the same but is not conformant.
+		if (!registerFonts(doc)) {
+			console.warn(
+				'[e-invoices] Liberation Sans not found, fell back to Helvetica. The PDF renders correctly ' +
+					'but is not PDF/A-3b conformant. Check that assets/fonts ships with the adapter.',
+			);
+		}
 
 		const pageWidth = doc.page.width - 100;
 		const left = 50;
@@ -200,11 +210,11 @@ export async function renderInvoicePdf(
 		].filter(line => line !== '');
 		let by = cursor + 4;
 		for (const line of buyerLines) {
-			doc.fontSize(10).font(by === cursor + 4 ? 'Helvetica-Bold' : 'Helvetica');
+			doc.fontSize(10).font(by === cursor + 4 ? FONT_BOLD : FONT_REGULAR);
 			doc.text(line, left, by, { width: 270 });
 			by += 13;
 		}
-		doc.font('Helvetica').fontSize(10);
+		doc.font(FONT_REGULAR).fontSize(10);
 		const meta: [string, string][] = [
 			['Rechnungsnr.:', invoiceNumber],
 			['Rechnungsdatum:', formatDeDate(invoice.issueDate)],
@@ -216,8 +226,8 @@ export async function renderInvoicePdf(
 		];
 		let my = cursor + 4;
 		for (const [label, value] of meta) {
-			doc.font('Helvetica-Bold').text(label, left + 300, my, { width: 100 });
-			doc.font('Helvetica').text(value, left + 300, my, { width: pageWidth - 300, align: 'right' });
+			doc.font(FONT_BOLD).text(label, left + 300, my, { width: 100 });
+			doc.font(FONT_REGULAR).text(value, left + 300, my, { width: pageWidth - 300, align: 'right' });
 			my += 14;
 		}
 
@@ -227,9 +237,9 @@ export async function renderInvoicePdf(
 		if (template.blocks.title) {
 			doc.fillColor(titleAccent ? colors.primary : colors.text)
 				.fontSize(17)
-				.font('Helvetica-Bold');
+				.font(FONT_BOLD);
 			doc.text(`${invoice.documentTitle} Nr. ${invoice.number}`, left, cursor, { width: pageWidth });
-			doc.fillColor(colors.text).fontSize(10).font('Helvetica');
+			doc.fillColor(colors.text).fontSize(10).font(FONT_REGULAR);
 			cursor += 24;
 		}
 		// a Storno must state which invoice it reverses (GoBD/§ 14 UStG)
@@ -290,7 +300,7 @@ export async function renderInvoicePdf(
 				doc.rect(colX.qty - 2, rowY - 3, right + 2 - (colX.qty - 2), height).fill(HEADER_GRAY);
 			}
 			doc.restore();
-			doc.font('Helvetica-Bold').fontSize(9);
+			doc.font(FONT_BOLD).fontSize(9);
 			// white only reads on a saturated fill; a light gray needs dark text
 			doc.fillColor(headerAccent ? '#FFFFFF' : usePrimary ? '#FFFFFF' : colors.text);
 			doc.text('Pos.', colX.pos, rowY);
@@ -301,7 +311,7 @@ export async function renderInvoicePdf(
 			doc.text('Einheit', colX.unit, rowY);
 			doc.text('E-Preis', colX.price, rowY);
 			doc.text('Gesamt', colX.total, rowY, { width: totalW, align: 'right' });
-			doc.font('Helvetica').fontSize(10);
+			doc.font(FONT_REGULAR).fontSize(10);
 			rowY += 19;
 		};
 		if (template.blocks.positions) {
@@ -320,8 +330,8 @@ export async function renderInvoicePdf(
 				doc.fillColor(colors.text).fontSize(10);
 				doc.text(String(index + 1), colX.pos, rowY);
 				doc.text(line.sku?.trim() || '–', colX.sku, rowY, { width: colX.name - colX.sku - 4 });
-				doc.font('Helvetica-Bold').text(line.description, colX.name, rowY, { width: 172 });
-				doc.font('Helvetica');
+				doc.font(FONT_BOLD).text(line.description, colX.name, rowY, { width: 172 });
+				doc.font(FONT_REGULAR);
 				doc.text(`${line.quantity}`, colX.qty, rowY);
 				doc.text(line.unit, colX.unit, rowY, { width: 40 });
 				doc.text(formatEurDe(netUnit), colX.price, rowY, { width: 66 });
@@ -375,10 +385,10 @@ export async function renderInvoicePdf(
 			doc.rect(colX.price - 64, rowY - 3, right + 2 - (colX.price - 64), 18).fill(HEADER_GRAY);
 			doc.restore();
 			// .fill(HEADER_GRAY) also switches the fill color, so restore the text color
-			doc.fillColor(colors.text).font('Helvetica-Bold');
+			doc.fillColor(colors.text).font(FONT_BOLD);
 			doc.text('Gesamtbetrag brutto', colX.price - 60, rowY, { width: 130, align: 'right' });
 			doc.text(formatEurDe(totals.grossTotal), colX.total, rowY, { width: totalW, align: 'right' });
-			doc.font('Helvetica');
+			doc.font(FONT_REGULAR);
 			rowY += 24;
 		}
 
@@ -419,7 +429,7 @@ export async function renderInvoicePdf(
 		// Payment + notes. One blank line separates the block from the totals.
 		rowY += 14;
 		// all of the following sits on white paper: never inherit the header white
-		doc.fillColor(colors.text).font('Helvetica').fontSize(10);
+		doc.fillColor(colors.text).font(FONT_REGULAR).fontSize(10);
 		if (template.blocks.payment && invoice.seller.iban) {
 			ensureSpace(16);
 			doc.text(
@@ -452,8 +462,8 @@ export async function renderInvoicePdf(
 			rowY += 10;
 		}
 		if (signature) {
-			doc.font('Helvetica-Bold').text(signature, left, rowY, { width: pageWidth });
-			doc.font('Helvetica');
+			doc.font(FONT_BOLD).text(signature, left, rowY, { width: pageWidth });
+			doc.font(FONT_REGULAR);
 			rowY += 20;
 		}
 

@@ -30,6 +30,7 @@ __export(zugferd_exports, {
 module.exports = __toCommonJS(zugferd_exports);
 var import_factur_x = require("@stackforge-eu/factur-x");
 var import_invoice_model = require("./invoice-model");
+var import_fonts = require("./fonts");
 function resolveProfile(profile) {
   if (profile === "BASIC") {
     return import_factur_x.Profile.BASIC;
@@ -269,6 +270,8 @@ async function embedHybridPdf(pdfBytes, xml, profileName, title) {
     validateBeforeEmbed: false,
     validateXsd: false,
     addPdfA3Metadata: true,
+    // without an output intent the file is not PDF/A-3b conformant
+    rgbIccProfile: (0, import_fonts.loadIccProfile)(),
     unembeddedFonts: "warn",
     meta: { title, creator: "ioBroker.e-invoices" }
   });

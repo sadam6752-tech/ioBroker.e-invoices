@@ -1,4 +1,4 @@
-﻿{
+{
     "0 = off, otherwise an automatic backup into the storage mount":  "0 = å…³é—­ï¼›å¦åˆ™æŒ‰é—´éš”è‡ªåŠ¨å¤‡ä»½åˆ°å­˜å‚¨æŒ‚è½½",
     "127.0.0.1 = only this machine, 0.0.0.0 = all interfaces":  "127.0.0.1 = ä»…æœ¬æœºï¼Œ0.0.0.0 = æ‰€æœ‰ç½‘ç»œæŽ¥å£",
     "API port":  "API ç«¯å£",

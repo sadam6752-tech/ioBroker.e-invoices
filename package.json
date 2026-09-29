@@ -65,6 +65,7 @@
     "admin{,/!(src)/**}/*.{html,css,png,svg,jpg,js}",
     "build/",
     "www/",
+    "assets/",
     "io-package.json",
     "LICENSE"
   ],

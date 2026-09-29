@@ -115,25 +115,214 @@ function crc32(buf: Buffer): number {
 	return (crc ^ 0xffffffff) >>> 0;
 }
 
+/**
+ * Reads the CMap stream of one indirect PDF object.
+ *
+ * @param pdf - Rendered PDF bytes.
+ * @param objNum - Object number as written in the file.
+ * @returns The inflated stream, or an empty string.
+ */
+function readCMap(pdf: Buffer, objNum: string): string {
+	const raw = pdf.toString('latin1');
+	const start = raw.indexOf(`${objNum} 0 obj`);
+	if (start < 0) {
+		return '';
+	}
+	const marker = raw.indexOf('stream\n', start);
+	if (marker < 0) {
+		return '';
+	}
+	const from = marker + 'stream\n'.length;
+	const to = raw.indexOf('\nendstream', from);
+	if (to < 0) {
+		return '';
+	}
+	try {
+		return inflateSync(Buffer.from(raw.slice(from, to), 'latin1')).toString('latin1');
+	} catch {
+		return '';
+	}
+}
+
+/**
+ * Decodes a big-endian UTF-16BE hex string, as used in a CMap.
+ *
+ * @param hex - Hex digits.
+ * @returns The characters it encodes.
+ */
+function utf16be(hex: string): string {
+	const bytes = Buffer.from(hex, 'hex');
+	const units: number[] = [];
+	for (let i = 0; i + 1 < bytes.length; i += 2) {
+		units.push((bytes[i] << 8) | bytes[i + 1]);
+	}
+	return String.fromCharCode(...units);
+}
+
+/**
+ * Parses a CMap into a glyph-index to character table.
+ *
+ * @param cmap - The CMap text.
+ * @returns The mapping it declares.
+ */
+function parseCMap(cmap: string): Map<number, string> {
+	const map = new Map<number, string>();
+	if (!cmap) {
+		return map;
+	}
+	// bfchar: <src> <dst>
+	for (const m of cmap.matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/g)) {
+		map.set(parseInt(m[1], 16), utf16be(m[2]));
+	}
+	// bfrange: <lo> <hi> <dstStart>, or <lo> <hi> [<d1> <d2> ...]
+	for (const block of cmap.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
+		for (const row of block[1].matchAll(
+			/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*(?:<([0-9a-fA-F]+)>|\[([^\]]*)\])/g,
+		)) {
+			const lo = parseInt(row[1], 16);
+			const hi = parseInt(row[2], 16);
+			if (row[3] !== undefined) {
+				// a continuous range: the destination advances with the code
+				const prefix = row[3].slice(0, -4);
+				const base = parseInt(row[3].slice(-4), 16);
+				for (let code = lo; code <= hi && code - lo < 65536; code++) {
+					map.set(code, utf16be(prefix + (base + (code - lo)).toString(16).padStart(4, '0')));
+				}
+			} else if (row[4] !== undefined) {
+				const items = [...row[4].matchAll(/<([0-9a-fA-F]+)>/g)].map(i => i[1]);
+				items.forEach((dst, index) => map.set(lo + index, utf16be(dst)));
+			}
+		}
+	}
+	return map;
+}
+
+/**
+ * Maps each page font resource (`/F1`, `/F2`, ...) to its own glyph table.
+ *
+ * Every embedded subset renumbers its glyphs, so regular and bold cannot
+ * share one table — mixing them produced garbage like "hre RrdAnde" where
+ * "Ihre Rechnung" should be.
+ *
+ * pdfkit writes a Type0 font whose resource points at the descendant font,
+ * and the `/ToUnicode` entry lives on the parent. So the lookup follows
+ * `/DescendantFonts` first and only then reads the CMap reference.
+ *
+ * @param pdf - Rendered PDF bytes.
+ * @returns Glyph tables per font resource name.
+ */
+function readFontMaps(pdf: Buffer): Map<string, Map<number, string>> {
+	const raw = pdf.toString('latin1');
+	const cmaps = new Map<string, Map<number, string>>();
+	for (const m of raw.matchAll(/\/ToUnicode\s+(\d+)\s+0\s+R/g)) {
+		cmaps.set(m[1], parseCMap(readCMap(pdf, m[1])));
+	}
+	/**
+	 * Returns the dictionary of an indirect object.
+	 *
+	 * The same object number can appear twice: once as a `/FontDescriptor`
+	 * (referenced by a descendant font) and once as the real font. Only the
+	 * latter has the `/Type /Font` subtype and the `/ToUnicode` entry, so the
+	 * search skips definitions that are not a font.
+	 *
+	 * @param objNum - Object number as written in the file.
+	 * @returns The object dictionary, or an empty string.
+	 */
+	const bodyOf = (objNum: string): string => {
+		let from = 0;
+		for (let attempt = 0; attempt < 8; attempt++) {
+			const start = raw.indexOf(`${objNum} 0 obj`, from);
+			if (start < 0) {
+				return '';
+			}
+			const window = raw.slice(start, start + 600);
+			if (/\/Type\s*\/Font\b/.test(window) && /\/ToUnicode\s+\d+\s+0\s+R/.test(window)) {
+				return window;
+			}
+			from = start + 1;
+		}
+		return '';
+	};
+	const byResource = new Map<string, Map<number, string>>();
+	for (const m of raw.matchAll(/\/(F\d+)\s+(\d+)\s+0\s+R/g)) {
+		const toUnicode = bodyOf(m[2]).match(/\/ToUnicode\s+(\d+)\s+0\s+R/);
+		const table = toUnicode ? cmaps.get(toUnicode[1]) : undefined;
+		if (table && table.size) {
+			byResource.set(m[1], table);
+		}
+	}
+	return byResource;
+}
+
+/**
+ * Decodes a hex run of 16-bit glyph indices with the given table.
+ *
+ * @param hex - Hex digits from a text operator.
+ * @param table - Glyph table of the active font, if known.
+ * @returns The decoded characters.
+ */
+function decodeGlyphs(hex: string, table: Map<number, string> | undefined): string {
+	if (!table || hex.length % 4 !== 0) {
+		return Buffer.from(hex, 'hex').toString('latin1');
+	}
+	let out = '';
+	for (let i = 0; i + 4 <= hex.length; i += 4) {
+		// an unknown index stays visible rather than vanishing silently
+		out += table.get(parseInt(hex.slice(i, i + 4), 16)) ?? '�';
+	}
+	return out;
+}
+
+/**
+ * Extracts the searchable text of a PDF.
+ *
+ * With an embedded font the text operators hold subset glyph indices, so the
+ * active font is tracked via `Tf` and each run is decoded with that font's
+ * `/ToUnicode` CMap. The base-14 fonts store character codes, which decode
+ * directly.
+ *
+ * @param pdf - Rendered PDF bytes.
+ * @returns The text, glyph runs separated by spaces.
+ */
 function pdfText(pdf: Buffer): string {
 	const raw = pdf.toString('latin1');
 	const parts = [raw];
 	const fragments: string[] = [];
+	const embedded = /\/BaseFont\s*\/[A-Z]{6}\+/.test(raw);
+	const fontMaps = embedded ? readFontMaps(pdf) : new Map<string, Map<number, string>>();
+	let active: string | null = null;
 	for (const match of raw.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+		let text: string;
 		try {
-			const text = inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1');
-			parts.push(
-				text.replace(/<([0-9a-fA-F]+)>/g, (_found, hex: string) => {
-					const decoded = Buffer.from(hex, 'hex').toString('latin1');
-					fragments.push(decoded);
-					return decoded;
-				}),
-			);
+			text = inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1');
 		} catch {
 			// not a flate stream (e.g. embedded files)
+			continue;
 		}
+		// walk the stream in order so `Tf` switches are seen before the runs
+		for (const token of text.matchAll(/\/(F\d+)\s+[\d.]+\s+Tf|<([0-9a-fA-F]+)>|\[([^\]]*)\]\s*TJ/g)) {
+			if (token[1]) {
+				active = token[1];
+			} else if (token[2] !== undefined) {
+				fragments.push(
+					embedded
+						? decodeGlyphs(token[2], active ? fontMaps.get(active) : undefined)
+						: Buffer.from(token[2], 'hex').toString('latin1'),
+				);
+			} else if (token[3] !== undefined) {
+				for (const h of token[3].matchAll(/<([0-9a-fA-F]+)>/g)) {
+					fragments.push(
+						embedded
+							? decodeGlyphs(h[1], active ? fontMaps.get(active) : undefined)
+							: Buffer.from(h[1], 'hex').toString('latin1'),
+					);
+				}
+			}
+		}
+		parts.push(text);
 	}
-	parts.push(fragments.join(''));
+	// glyph runs are split by kerning numbers, so a space keeps words readable
+	parts.push(fragments.join(' '));
 	return parts.join('\n');
 }
 
@@ -156,6 +345,7 @@ async function pageCount(pdf: Buffer): Promise<number> {
  */
 function coloredRuns(pdf: Buffer): { y: number; text: string; color: string }[] {
 	const raw = pdf.toString('latin1');
+	const fontMaps = readFontMaps(pdf);
 	const runs: { y: number; text: string; color: string }[] = [];
 	for (const match of raw.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
 		let text: string;
@@ -165,8 +355,15 @@ function coloredRuns(pdf: Buffer): { y: number; text: string; color: string }[] 
 			continue;
 		}
 		let color = '#000000';
-		const re = /([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+scn|1 0 0 1 ([\d.-]+) ([\d.-]+) Tm([\s\S]{0,400}?)ET/g;
+		// the font selection is state too: each run decodes with its own subset
+		let active: string | undefined;
+		const re =
+			/([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+scn|1 0 0 1 ([\d.-]+) ([\d.-]+) Tm([\s\S]{0,400}?)ET|\/(F\d+)\s+[\d.]+\s+Tf/g;
 		for (const m of text.matchAll(re)) {
+			if (m[7] !== undefined) {
+				active = m[7];
+				continue;
+			}
 			if (m[1] !== undefined) {
 				color = `#${[1, 2, 3]
 					.map(i =>
@@ -178,8 +375,13 @@ function coloredRuns(pdf: Buffer): { y: number; text: string; color: string }[] 
 				continue;
 			}
 			const fragments: string[] = [];
+			// pdfkit emits the font selection after Tm, inside the same BT..ET block
+			const fontInBlock = m[6].match(/\/(F\d+)\s+[\d.]+\s+Tf/);
+			if (fontInBlock) {
+				active = fontInBlock[1];
+			}
 			for (const hex of m[6].matchAll(/<([0-9a-fA-F]+)>/g)) {
-				fragments.push(Buffer.from(hex[1], 'hex').toString('latin1'));
+				fragments.push(decodeGlyphs(hex[1], active ? fontMaps.get(active) : undefined));
 			}
 			const decoded = fragments.join('').trim();
 			if (decoded) {
