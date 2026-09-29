@@ -332,14 +332,51 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			</div>`;
 		}
 		if (s.step === 3) {
-			const net = s.lines.reduce((a, l) => a + l.quantity * l.unitPriceNet * (1 - (l.discountPercent ?? 0) / 100), 0);
-			const tax = s.lines.reduce(
-				(a, l) => a + (l.quantity * l.unitPriceNet * (1 - (l.discountPercent ?? 0) / 100) * l.vatRate) / 100,
-				0,
-			);
-			body = `<div class="card"><h3>Prüfen & Ausstellen</h3>
-				<p><strong>${esc(s.documentTitle)}</strong> · ${esc(s.seller.name || '—')} → ${esc(s.buyer.name || '—')} · ${s.lines.length} Positionen</p>
-				<p><strong>ca. ${eur(Math.round((net + tax) * 100) / 100)}</strong> <span class="muted">(exakte Summen + Validierung serverseitig)</span></p>
+			const lines = s.lines
+				.map(l => {
+					const discount = Math.min(Math.max(l.discountPercent ?? 0, 0), 100);
+					const net = Math.round(l.quantity * l.unitPriceNet * (1 - discount / 100) * 100) / 100;
+					return { ...l, discount, net };
+				})
+				.filter(l => l.description || l.net > 0);
+			const byRate = new Map<number, number>();
+			for (const l of lines) byRate.set(l.vatRate, Math.round(((byRate.get(l.vatRate) ?? 0) + l.net) * 100) / 100);
+			const breakdown = [...byRate.entries()]
+				.sort(([a], [b]) => a - b)
+				.map(([rate, net]) => ({ rate, net, tax: Math.round((net * rate) / 100) }));
+			const netTotal = Math.round(breakdown.reduce((a, b) => a + b.net, 0) * 100) / 100;
+			const taxTotal = Math.round(breakdown.reduce((a, b) => a + b.tax, 0) * 100) / 100;
+			const grossTotal = Math.round((netTotal + taxTotal) * 100) / 100;
+			const hasDiscount = lines.some(l => l.discount > 0);
+			body = `<div class="card"><h3>Prüfen &amp; Ausstellen</h3>
+				<p><strong>${esc(s.documentTitle)}</strong> · ${esc(s.seller.name || '—')} → ${esc(s.buyer.name || '—')} · ${lines.length} Positionen</p>
+				<table class="ovw">
+					<thead><tr>
+						<th>Bezeichnung</th><th class="r">Menge</th><th class="r">Preis netto</th>
+						${hasDiscount ? '<th class="r">Rabatt</th><th class="r">Rabatt €</th>' : ''}
+						<th class="r">USt</th><th class="r">Netto</th>
+					</tr></thead>
+					<tbody>${lines
+						.map(
+							l => `<tr>
+							<td>${esc(l.description) || '<span class="muted">–</span>'}</td>
+							<td class="r">${esc(l.quantity)} ${esc(l.unit)}</td>
+							<td class="r">${eur(l.unitPriceNet)}</td>
+							${hasDiscount ? `<td class="r">${l.discount > 0 ? `${esc(l.discount)} %` : '–'}</td><td class="r">${l.discount > 0 ? eur(Math.round(l.net - l.quantity * l.unitPriceNet * 100) / 100) : '–'}</td>` : ''}
+							<td class="r">${esc(l.vatRate)} %</td><td class="r"><strong>${eur(l.net)}</strong></td>
+						</tr>`,
+						)
+						.join('')}</tbody>
+				</table>
+				<table class="ovw sums">
+					<tbody>
+						${breakdown.map(b => `<tr><td class="r">Netto ${esc(b.rate)} %</td><td class="r">${eur(b.net)}</td><td class="r">${eur(b.tax)}</td></tr>`).join('')}
+						<tr class="sum"><td class="r">Summe netto</td><td class="r">${eur(netTotal)}</td><td class="r muted">enthaltene USt</td></tr>
+						<tr class="sum"><td class="r">Summe USt</td><td class="r">${eur(taxTotal)}</td><td class="r muted"></td></tr>
+						<tr class="sum total"><td class="r">Gesamtbetrag</td><td class="r">${eur(grossTotal)}</td><td class="r muted">EUR</td></tr>
+					</tbody>
+				</table>
+				<p class="muted">Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.</p>
 				<p class="muted">Ausstellen vergibt endgültig die Rechnungsnummer — danach ist keine Änderung mehr möglich (GoBD).</p>
 			</div>`;
 		}
