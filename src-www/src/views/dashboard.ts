@@ -41,8 +41,8 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 			<button class="btn secondary" id="f-issue-all" title="Alle sichtbaren Entwürfe ausstellen" hidden>Ausstellen (0)</button>
 		</div></div>
 		<div id="reminders"></div>
-		<div id="list"></div>
-		<div id="list-err"></div>`;
+		<div id="list-err"></div>
+		<div id="list"></div>`;
 
 	const statusEl = root.querySelector<HTMLSelectElement>('#f-status')!;
 	const qEl = root.querySelector<HTMLInputElement>('#f-q')!;

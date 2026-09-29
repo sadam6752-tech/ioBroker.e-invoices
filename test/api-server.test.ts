@@ -144,6 +144,20 @@ describe('api => invoices', function () {
 		await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
 	});
 
+	it('serves the accounting exports instead of looking them up as an invoice', async () => {
+		// Express matches /api/invoices/:id against dotted names too, so the
+		// export routes must be registered first. Both used to answer 404
+		// with "Invoice not found".
+		const csv = await request(app).get('/api/invoices/export.csv').expect(200);
+		expect(csv.headers['content-type']).to.contain('text/csv');
+		expect(csv.headers['content-disposition']).to.contain('rechnungen.csv');
+		expect(csv.text).to.contain('Rechnungsnummer');
+
+		const datev = await request(app).get('/api/invoices/export.datev').expect(200);
+		expect(datev.headers['content-disposition']).to.contain('rechnungen.datev');
+		expect(datev.text).to.contain('EXTF');
+	});
+
 	it('marks every API response as non-cacheable', async () => {
 		// A stored PDF keeps the layout of the moment it was rendered. Serving it
 		// from a cache hid corrected renderings, so no answer may be reused.

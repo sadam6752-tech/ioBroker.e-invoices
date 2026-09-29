@@ -310,6 +310,23 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	);
 
 	// Sammel-Export BEFORE /:id — Express :id also matches dots (export.xlsx).
+	// Sammel-Exporte BEFORE /:id — Express :id also matches dots, so
+	// /api/invoices/export.csv would otherwise be looked up as the invoice
+	// "export.csv" and answer 404.
+	app.get('/api/invoices/export.csv', (req, res) => {
+		res.type('text/csv; charset=utf-8');
+		res.set('Content-Disposition', 'attachment; filename="rechnungen.csv"');
+		res.send(renderInvoiceListCsv(filteredInvoices(db, req.query)));
+	});
+
+	app.get('/api/invoices/export.datev', (req, res) => {
+		const company = db.getDefaultCompanyProfile()?.profile;
+		const head = renderDatevHead(company?.name ?? 'Firma', company?.taxNumber ?? '');
+		res.type('text/plain; charset=iso-8859-1');
+		res.set('Content-Disposition', 'attachment; filename="rechnungen.datev"');
+		res.send(`${head}\n${renderDatevRows(filteredInvoices(db, req.query))}`);
+	});
+
 	app.get('/api/invoices/export.xlsx', (req, res) => {
 		const invoices = filteredInvoices(db, req.query);
 		const stamp = new Date().toISOString().slice(0, 10);
@@ -591,28 +608,6 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			} catch (error) {
 				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
 			}
-		}),
-	);
-
-	app.get(
-		'/api/invoices/export.csv',
-		route((req, res) => {
-			const invoices = filteredInvoices(db, req.query);
-			res.type('text/csv; charset=utf-8');
-			res.set('Content-Disposition', 'attachment; filename="rechnungen.csv"');
-			res.send(renderInvoiceListCsv(invoices));
-		}),
-	);
-
-	app.get(
-		'/api/invoices/export.datev',
-		route((req, res) => {
-			const invoices = filteredInvoices(db, req.query);
-			const company = db.getDefaultCompanyProfile()?.profile;
-			const head = renderDatevHead(company?.name ?? 'Firma', company?.taxNumber ?? '');
-			res.type('text/plain; charset=iso-8859-1');
-			res.set('Content-Disposition', 'attachment; filename="rechnungen.datev"');
-			res.send(`${head}\n${renderDatevRows(invoices)}`);
 		}),
 	);
 

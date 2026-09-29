@@ -224,6 +224,20 @@ function createApiServer(deps) {
       }
     })
   );
+  app.get("/api/invoices/export.csv", (req, res) => {
+    res.type("text/csv; charset=utf-8");
+    res.set("Content-Disposition", 'attachment; filename="rechnungen.csv"');
+    res.send((0, import_csv.renderInvoiceListCsv)(filteredInvoices(db, req.query)));
+  });
+  app.get("/api/invoices/export.datev", (req, res) => {
+    var _a2, _b2, _c2;
+    const company = (_a2 = db.getDefaultCompanyProfile()) == null ? void 0 : _a2.profile;
+    const head = (0, import_csv.renderDatevHead)((_b2 = company == null ? void 0 : company.name) != null ? _b2 : "Firma", (_c2 = company == null ? void 0 : company.taxNumber) != null ? _c2 : "");
+    res.type("text/plain; charset=iso-8859-1");
+    res.set("Content-Disposition", 'attachment; filename="rechnungen.datev"');
+    res.send(`${head}
+${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query))}`);
+  });
   app.get("/api/invoices/export.xlsx", (req, res) => {
     const invoices = filteredInvoices(db, req.query);
     const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
@@ -489,28 +503,6 @@ function createApiServer(deps) {
       } catch (error) {
         res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
       }
-    })
-  );
-  app.get(
-    "/api/invoices/export.csv",
-    route((req, res) => {
-      const invoices = filteredInvoices(db, req.query);
-      res.type("text/csv; charset=utf-8");
-      res.set("Content-Disposition", 'attachment; filename="rechnungen.csv"');
-      res.send((0, import_csv.renderInvoiceListCsv)(invoices));
-    })
-  );
-  app.get(
-    "/api/invoices/export.datev",
-    route((req, res) => {
-      var _a2, _b2, _c2;
-      const invoices = filteredInvoices(db, req.query);
-      const company = (_a2 = db.getDefaultCompanyProfile()) == null ? void 0 : _a2.profile;
-      const head = (0, import_csv.renderDatevHead)((_b2 = company == null ? void 0 : company.name) != null ? _b2 : "Firma", (_c2 = company == null ? void 0 : company.taxNumber) != null ? _c2 : "");
-      res.type("text/plain; charset=iso-8859-1");
-      res.set("Content-Disposition", 'attachment; filename="rechnungen.datev"');
-      res.send(`${head}
-${(0, import_csv.renderDatevRows)(invoices)}`);
     })
   );
   app.post(
