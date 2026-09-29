@@ -12,15 +12,28 @@ const emptyLine = (): InvoiceLine => ({
 /** Invoicing defaults from the instance config (see admin/jsonConfig.json). */
 let settings = { defaultVatRate: 19, defaultPaymentTerms: '' };
 
-/** Payment terms offered in the wizard; the first one is the legal default. */
+/**
+ * Payment terms offered in the wizard. `days` is the offset from the issue
+ * date, so picking a text also maintains the due date.
+ */
 const PAYMENT_TERMS_PRESETS = [
-	'Der Rechnungsbetrag ist sofort ohne Abzug fällig.',
-	'Bitte überweisen Sie den o.g. Betrag innerhalb von 14 Tagen auf unser Konto.',
-	'Zahlbar innerhalb von 30 Tagen nach Rechnungsdatum ohne Abzug.',
+	{ text: 'Der Rechnungsbetrag ist sofort ohne Abzug fällig.', days: 0 },
+	{ text: 'Bitte überweisen Sie den o.g. Betrag innerhalb von 14 Tagen auf unser Konto.', days: 14 },
+	{ text: 'Zahlbar innerhalb von 30 Tagen nach Rechnungsdatum ohne Abzug.', days: 30 },
 ] as const;
 
 /** Marker for "the user typed their own text". */
 const OWN_TERMS = '__own__';
+
+/** Adds days to an ISO date, returning the input unchanged when it is invalid. */
+function addDays(iso: string, days: number): string {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+		return iso;
+	}
+	const date = new Date(`${iso}T00:00:00Z`);
+	date.setUTCDate(date.getUTCDate() + days);
+	return date.toISOString().slice(0, 10);
+}
 
 /** True when the text is not one of the presets (so the own field shows). */
 function isCustomTerms(value?: string | null): boolean {
@@ -29,7 +42,29 @@ function isCustomTerms(value?: string | null): boolean {
 
 /** True when the text is one of the three presets. */
 function isPreset(value?: string | null): boolean {
-	return !!value && PAYMENT_TERMS_PRESETS.includes(value as (typeof PAYMENT_TERMS_PRESETS)[number]);
+	return !!value && PAYMENT_TERMS_PRESETS.some(p => p.text === value);
+}
+
+/** The day offset of a preset text, or null for free text. */
+function presetDays(value?: string | null): number | null {
+	return PAYMENT_TERMS_PRESETS.find(p => p.text === value)?.days ?? null;
+}
+
+/**
+ * Keeps a due date that was derived from a payment-terms preset in step with
+ * the issue date. A manually entered date is never touched.
+ *
+ * @param state - Wizard state, mutated in place.
+ */
+function syncAutoDueDate(state: WizardState): void {
+	if (!state.dueAuto) {
+		return;
+	}
+	const days = presetDays(state.paymentTerms);
+	if (days === null) {
+		return;
+	}
+	state.dueDate = addDays(state.issueDate, days);
 }
 
 /** Rounds to cents without the float trap of a bare Math.round (544 × 19 % = 103,36 → 103). */
@@ -89,6 +124,8 @@ interface WizardState {
 	paymentTerms: string;
 	/** True when the payment terms are free text instead of a preset. */
 	termsCustom: boolean;
+	/** True while the due date is derived from the selected payment terms. */
+	dueAuto: boolean;
 	draftId: string | null;
 	selectedCompany: string | null;
 	selectedCustomer: string | null;
@@ -115,7 +152,9 @@ function freshState(): WizardState {
 		documentTitle: 'Rechnung',
 		notes: '',
 		paymentTerms: settings.defaultPaymentTerms,
-		termsCustom: isCustomTerms(settings.defaultPaymentTerms),		skontoPercent: 0,
+		termsCustom: isCustomTerms(settings.defaultPaymentTerms),
+		dueAuto: false,
+		skontoPercent: 0,
 		skontoDueDate: '',
 		draftId: null,
 		selectedCompany: null,
@@ -349,6 +388,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		s.issueDate = get('w-issue') || s.issueDate;
 		readDelivery();
 		if (root.querySelector('#w-due')) s.dueDate = get('w-due');
+		syncAutoDueDate(s);
 		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
 		if (root.querySelector('#w-title')) s.documentTitle = get('w-title') || s.documentTitle;
 		const notesEl = root.querySelector<HTMLTextAreaElement>('#w-notes');
@@ -449,7 +489,9 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				<p><button class="secondary" id="w-add">+ Position</button></p>
 				<div class="grid2">
 					<label>Ausstellungsdatum<input id="w-issue" type="date" value="${esc(s.issueDate)}" /></label>
-					<label>Fällig am<input id="w-due" type="date" value="${esc(s.dueDate)}" /></label>
+					<label>Fällig am<input id="w-due" type="date" value="${esc(s.dueDate)}" />${
+					s.dueAuto ? ' <span class="muted">(aus Zahlungsbedingung)</span>' : ''
+				}</label>
 				</div>
 				<fieldset class="period">
 					<legend>Leistungszeitraum</legend>
@@ -472,10 +514,11 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				<label>Zahlungsbedingungen<select id="w-terms-select">
 					<option value="" ${s.paymentTerms === '' ? 'selected' : ''}>keine</option>
 					${PAYMENT_TERMS_PRESETS.map(
-						t => `<option value="${esc(t)}" ${!s.termsCustom && s.paymentTerms === t ? 'selected' : ''}>${esc(t)}</option>`,
+						p => `<option value="${esc(p.text)}" ${!s.termsCustom && s.paymentTerms === p.text ? 'selected' : ''}>${esc(p.text)}</option>`,
 					).join('')}
 					<option value="${OWN_TERMS}" ${s.termsCustom ? 'selected' : ''}>eigener Text …</option>
 				</select></label>
+				<p class="muted">Ein Preset pflegt das Fälligkeitsdatum automatisch (0 / 14 / 30 Tage nach Rechnungsdatum). Eigenes Datum im Feld „Fällig am" überschreibt das.</p>
 				${
 					s.termsCustom
 						? `<label>eigener Zahlungstext<textarea id="w-terms" rows="3" placeholder="z. B. Zahlbar innerhalb 14 Tagen ohne Abzug">${esc(s.paymentTerms)}</textarea></label>`
@@ -561,10 +604,27 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				if (isPreset(s.paymentTerms)) {
 					s.paymentTerms = '';
 				}
+				// free text: the user states the term themselves, so the date
+				// must not jump silently
+				s.dueAuto = false;
 			} else {
 				s.termsCustom = false;
 				s.paymentTerms = value;
+				const days = presetDays(value);
+				if (days !== null) {
+					// a preset always carries its payment window
+					s.dueAuto = true;
+					s.dueDate = addDays(s.issueDate, days);
+				} else {
+					s.dueAuto = false;
+				}
 			}
+			render();
+		});
+		// a manually entered date always wins over the derived one
+		root.querySelector('#w-due')?.addEventListener('change', () => {
+			collect();
+			s.dueAuto = false;
 			render();
 		});
 		root.querySelector('#w-company')?.addEventListener('change', () => {
@@ -739,6 +799,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		if (issue) s.issueDate = issue;
 		if (delivery) s.deliveryDate = deliveryTo && deliveryTo !== delivery ? `${delivery}..${deliveryTo}` : delivery;
 		if (root.querySelector('#w-due')) s.dueDate = get('w-due');
+		syncAutoDueDate(s);
 		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
 		const title = get('w-title');
 		if (title) s.documentTitle = title;
