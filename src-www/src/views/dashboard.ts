@@ -54,27 +54,6 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 		}
 	}
 
-	async function runStorno(id: string): Promise<void> {
-		const reason = window.prompt('Grund für den Storno (erscheint auf der Gutschrift):', 'Falsch ausgestellt');
-		if (reason === null) {
-			return;
-		}
-		if (
-			!window.confirm(
-				'Die Rechnung wird auf storniert gesetzt und als Gutschrift neu angelegt. Das Original bleibt unverändert erhalten. Fortfahren?',
-			)
-		) {
-			return;
-		}
-		try {
-			const { reversal } = await api.storno(id, reason.trim() || undefined);
-			location.hash = `#/edit/${reversal.id}`;
-			location.reload();
-		} catch (e) {
-			fail(e);
-		}
-	}
-
 	async function load(): Promise<void> {
 		// guard against out-of-order responses overwriting a newer result
 		const seq = ++loadSeq;
@@ -103,31 +82,12 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 					${i.stornoOfId ? '<span class="badge cancelled">Storno</span>' : ''}
 					<a href="#/invoices/${esc(i.id)}">Ansehen</a>
 					${i.status === 'draft' ? `<a href="#/edit/${esc(i.id)}">Bearbeiten</a>` : ''}
-					${i.status === 'issued' ? `<button class="secondary" data-storno="${esc(i.id)}">Storno</button>` : ''}
-					${i.pdfPath ? `<button class="secondary" data-dl="pdf:${esc(i.id)}:${esc(i.number ?? 'rechnung')}">PDF ↓</button>` : ''}
-					${i.xml ? `<button class="secondary" data-dl="xml:${esc(i.id)}:${esc(i.number ?? 'rechnung')}">XML ↓</button>` : ''}
 				</div></div>`,
 					)
 					.join('') || `<div class="card muted">Keine Rechnungen gefunden.</div>`;
 			listEl.querySelectorAll<HTMLInputElement>('[data-paid]').forEach(box =>
 				box.addEventListener('change', () => {
 					void togglePaid(box);
-				}),
-			);
-			listEl.querySelectorAll('[data-storno]').forEach(btn =>
-				btn.addEventListener('click', () => {
-					void runStorno((btn as HTMLElement).dataset.storno ?? '');
-				}),
-			);
-			listEl.querySelectorAll('[data-dl]').forEach(btn =>
-				btn.addEventListener('click', async () => {
-					const [kind, id, name] = ((btn as HTMLElement).dataset.dl ?? '').split(':');
-				 const url = kind === 'pdf' ? api.pdfUrl(id) : api.xmlUrl(id);
-					try {
-						await downloadUrl(url, `${name}.${kind}`);
-					} catch (e) {
-						fail(e);
-					}
 				}),
 			);
 		} catch (e) {
