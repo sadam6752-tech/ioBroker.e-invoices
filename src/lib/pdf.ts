@@ -385,7 +385,8 @@ export async function renderInvoicePdf(
 			rowY += 14;
 		}
 
-		// Payment + notes
+		// Payment + notes. One blank line separates the block from the totals.
+		rowY += 14;
 		if (template.blocks.payment && invoice.seller.iban) {
 			ensureSpace(16);
 			doc.text(
@@ -407,8 +408,9 @@ export async function renderInvoicePdf(
 			rowY += 14;
 		}
 
-		// Closing + signature
-		ensureSpace(90);
+		// Signature: no "Mit freundlichen Grüßen" line, the invoice ends with the
+		// name. An optional closing text above is kept.
+		ensureSpace(60);
 		if (closing.trim()) {
 			rowY += 6;
 			doc.text(closing.trim(), left, rowY, { width: pageWidth });
@@ -416,8 +418,6 @@ export async function renderInvoicePdf(
 		} else {
 			rowY += 10;
 		}
-		doc.text('Mit freundlichen Grüßen', left, rowY, { width: pageWidth });
-		rowY += 26;
 		doc.font('Helvetica-Bold').text(signature, left, rowY, { width: pageWidth });
 		doc.font('Helvetica');
 		rowY += 20;

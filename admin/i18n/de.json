@@ -21,7 +21,7 @@
   "IBAN": "IBAN",
   "Invoice number format": "Format der Rechnungsnummer",
   "Invoicing defaults": "Rechnungs-Voreinstellungen",
-  "prefilled for new invoices, e.g. payable within 14 days without deduction": "wird für neue Rechnungen vorausgefüllt, z. B. zahlbar innerhalb 14 Tagen ohne Abzug",
+  "prefilled for new invoices; the wizard offers these as a list plus free text": "wird für neue Rechnungen vorausgefüllt; der Wizard bietet die Auswahl zusätzlich als Liste mit Freitextfeld an",
   "Server": "Server",
   "Storage mount name": "Name des Ablage-Mounts",
   "Tax number (Steuernr.)": "Steuernummer",

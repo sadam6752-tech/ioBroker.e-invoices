@@ -12,6 +12,21 @@ const emptyLine = (): InvoiceLine => ({
 /** Invoicing defaults from the instance config (see admin/jsonConfig.json). */
 let settings = { defaultVatRate: 19, defaultPaymentTerms: '' };
 
+/** Payment terms offered in the wizard; the first one is the legal default. */
+const PAYMENT_TERMS_PRESETS = [
+	'Der Rechnungsbetrag ist sofort ohne Abzug fällig.',
+	'Bitte überweisen Sie den o.g. Betrag innerhalb von 14 Tagen auf unser Konto.',
+	'Zahlbar innerhalb von 30 Tagen nach Rechnungsdatum ohne Abzug.',
+] as const;
+
+/** Marker for "the user typed their own text". */
+const OWN_TERMS = '__own__';
+
+/** True when the text is not one of the presets (so the own field shows). */
+function isCustomTerms(value?: string | null): boolean {
+	return !!value && !PAYMENT_TERMS_PRESETS.includes(value as (typeof PAYMENT_TERMS_PRESETS)[number]);
+}
+
 /** Rounds to cents without the float trap of a bare Math.round (544 × 19 % = 103,36 → 103). */
 function round2(value: number): number {
 	return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -67,6 +82,8 @@ interface WizardState {
 	skontoDueDate: string;
 	/** Payment terms text (default from the instance config). */
 	paymentTerms: string;
+	/** True when the payment terms are free text instead of a preset. */
+	termsCustom: boolean;
 	draftId: string | null;
 	selectedCompany: string | null;
 	selectedCustomer: string | null;
@@ -92,7 +109,8 @@ function freshState(): WizardState {
 		employee: loadEmployee(),
 		documentTitle: 'Rechnung',
 		notes: '',
-		paymentTerms: settings.defaultPaymentTerms,		skontoPercent: 0,
+		paymentTerms: settings.defaultPaymentTerms,
+		termsCustom: isCustomTerms(settings.defaultPaymentTerms),		skontoPercent: 0,
 		skontoDueDate: '',
 		draftId: null,
 		selectedCompany: null,
@@ -203,6 +221,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 					documentTitle: inv.documentTitle,
 					notes: inv.notes ?? '',
 					paymentTerms: inv.paymentTerms ?? settings.defaultPaymentTerms,
+					termsCustom: isCustomTerms(inv.paymentTerms),
 					skontoPercent: inv.skontoPercent ?? 0,
 					skontoDueDate: inv.skontoDueDate ?? '',
 					draftId: inv.id,
@@ -331,6 +350,20 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		if (notesEl) s.notes = notesEl.value;
 		const termsEl = root.querySelector<HTMLTextAreaElement>('#w-terms');
 		if (termsEl) s.paymentTerms = termsEl.value;
+		root.querySelector('#w-terms-select')?.addEventListener('change', event => {
+			const value = (event.target as HTMLSelectElement).value;
+			if (value === OWN_TERMS) {
+				s.termsCustom = true;
+				// start with an empty field unless the text already is free text
+				if (PAYMENT_TERMS_PRESETS.includes(s.paymentTerms as (typeof PAYMENT_TERMS_PRESETS)[number])) {
+					s.paymentTerms = '';
+				}
+			} else {
+				s.termsCustom = false;
+				s.paymentTerms = value;
+			}
+			render();
+		});
 		if (root.querySelector('#w-skonto')) {
 			const raw = Number(get('w-skonto'));
 			s.skontoPercent = Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 100) : 0;
@@ -445,7 +478,18 @@ export function wizard(root: HTMLElement, editId?: string): void {
 					<p class="muted">Bei 0 % kein Skonto. Ohne eigenes Datum gilt das Fälligkeitsdatum. Der Skonto mindert den Zahlbetrag (BT-9) und steht als Bedingung mit Subject-Code AAK im XML.</p>
 				</fieldset>
 				<label>Notizen<textarea id="w-notes">${esc(s.notes)}</textarea></label>
-				<label>Zahlungsbedingungen<textarea id="w-terms" placeholder="z. B. Zahlbar innerhalb 14 Tagen ohne Abzug">${esc(s.paymentTerms)}</textarea></label>
+				<label>Zahlungsbedingungen<select id="w-terms-select">
+					<option value="" ${s.paymentTerms === '' ? 'selected' : ''}>keine</option>
+					${PAYMENT_TERMS_PRESETS.map(
+						t => `<option value="${esc(t)}" ${!s.termsCustom && s.paymentTerms === t ? 'selected' : ''}>${esc(t)}</option>`,
+					).join('')}
+					<option value="${OWN_TERMS}" ${s.termsCustom ? 'selected' : ''}>eigener Text …</option>
+				</select></label>
+				${
+					s.termsCustom
+						? `<label>eigener Zahlungstext<textarea id="w-terms" rows="3" placeholder="z. B. Zahlbar innerhalb 14 Tagen ohne Abzug">${esc(s.paymentTerms)}</textarea></label>`
+						: ''
+				}
 			</div>`;
 		}
 		if (s.step === 3) {

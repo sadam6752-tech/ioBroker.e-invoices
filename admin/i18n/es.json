@@ -21,7 +21,7 @@
   "IBAN": "IBAN",
   "Invoice number format": "Formato del número de factura",
   "Invoicing defaults": "Valores por defecto de facturación",
-  "prefilled for new invoices, e.g. payable within 14 days without deduction": "se rellena para facturas nuevas, p. ej. pagadero en 14 días sin deducciones",
+  "prefilled for new invoices; the wizard offers these as a list plus free text": "se rellena para facturas nuevas; el asistente ofrece además una lista con campo de texto libre",
   "Server": "Servidor",
   "Storage mount name": "Nombre del punto de almacenamiento",
   "Tax number (Steuernr.)": "Número de identificación fiscal",

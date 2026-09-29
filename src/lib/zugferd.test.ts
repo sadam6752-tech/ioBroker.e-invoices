@@ -312,6 +312,26 @@ describe('pdf => custom footer boxes', () => {
 		}
 	});
 
+	it('ends with the name, without a greeting line', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const created = db.createDraft(
+				draft({
+					paymentTerms: 'Zahlbar innerhalb von 14 Tagen ohne Abzug.',
+					seller: { ...seller, iban: 'DE23105000011475563', bic: 'NOLADE21ROS' },
+				}),
+			);
+			const issued = db.issueDraft(created.id);
+			const text = pdfText(await renderInvoicePdf(issued)).replace(/\s+/g, '');
+			// requested layout: no "Mit freundlichen Grüßen" line below the name
+			expect(text).to.not.contain('Mitfreundlichen');
+			expect(text).to.contain('Zahlungsbedingungen');
+		} finally {
+			db.close();
+		}
+	});
+
 	it('keeps short invoices on one page and long ones sane', async () => {
 		const db = new InvoiceDatabase(':memory:');
 		db.migrate();

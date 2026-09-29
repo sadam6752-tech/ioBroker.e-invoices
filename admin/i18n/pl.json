@@ -21,7 +21,7 @@
   "IBAN": "IBAN",
   "Invoice number format": "Format numeru faktury",
   "Invoicing defaults": "Domyślne ustawienia fakturowania",
-  "prefilled for new invoices, e.g. payable within 14 days without deduction": "wypełniane dla nowych faktur, np. płatne w ciągu 14 dni bez potrąceń",
+  "prefilled for new invoices; the wizard offers these as a list plus free text": "wypełniane dla nowych faktur; kreator oferuje dodatkowo listę oraz pole własnego tekstu",
   "Server": "Serwer",
   "Storage mount name": "Nazwa montowania pamięci",
   "Tax number (Steuernr.)": "Numer podatkowy",

@@ -115,8 +115,7 @@
 		"website": "",
 		"numberFormat": "{YYYY}-{EMPLOYEE}-{SEQ}",
 		"defaultVatRate": 19,
-		"defaultPaymentTerms": ""
-	},
+		"defaultPaymentTerms": ""	},
 	"encryptedNative": ["authToken"],
 	"protectedNative": ["authToken"],
 	"objects": [],

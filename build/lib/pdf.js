@@ -321,6 +321,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.fillColor(colors.text).fontSize(10);
       rowY += 14;
     }
+    rowY += 14;
     if (template.blocks.payment && invoice.seller.iban) {
       ensureSpace(16);
       doc.text(
@@ -341,7 +342,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.text(`Hinweis: ${invoice.notes.trim()}`, left, rowY, { width: pageWidth });
       rowY += 14;
     }
-    ensureSpace(90);
+    ensureSpace(60);
     if (closing.trim()) {
       rowY += 6;
       doc.text(closing.trim(), left, rowY, { width: pageWidth });
@@ -349,8 +350,6 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     } else {
       rowY += 10;
     }
-    doc.text("Mit freundlichen Gr\xFC\xDFen", left, rowY, { width: pageWidth });
-    rowY += 26;
     doc.font("Helvetica-Bold").text(signature, left, rowY, { width: pageWidth });
     doc.font("Helvetica");
     rowY += 20;

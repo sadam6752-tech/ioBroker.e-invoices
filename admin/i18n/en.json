@@ -21,7 +21,7 @@
   "IBAN": "IBAN",
   "Invoice number format": "Invoice number format",
   "Invoicing defaults": "Invoicing defaults",
-  "prefilled for new invoices, e.g. payable within 14 days without deduction": "prefilled for new invoices, e.g. payable within 14 days without deduction",
+  "prefilled for new invoices; the wizard offers these as a list plus free text": "prefilled for new invoices; the wizard offers these as a list plus free text",
   "Server": "Server",
   "Storage mount name": "Storage mount name",
   "Tax number (Steuernr.)": "Tax number (Steuernr.)",

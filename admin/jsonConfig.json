@@ -229,9 +229,16 @@
 					"xl": 3
 				},
 				"defaultPaymentTerms": {
-					"type": "text",
+					"type": "select",
 					"label": "Default payment terms",
-					"help": "prefilled for new invoices, e.g. payable within 14 days without deduction",
+					"help": "prefilled for new invoices; the wizard offers these as a list plus free text",
+					"options": [
+						{ "label": "none", "value": "" },
+						{ "label": "Der Rechnungsbetrag ist sofort ohne Abzug fällig.", "value": "Der Rechnungsbetrag ist sofort ohne Abzug fällig." },
+						{ "label": "Bitte überweisen Sie den o.g. Betrag innerhalb von 14 Tagen auf unser Konto.", "value": "Bitte überweisen Sie den o.g. Betrag innerhalb von 14 Tagen auf unser Konto." },
+						{ "label": "Zahlbar innerhalb von 30 Tagen nach Rechnungsdatum ohne Abzug.", "value": "Zahlbar innerhalb von 30 Tagen nach Rechnungsdatum ohne Abzug." }
+					],
+					"default": "",
 					"newLine": true,
 					"xs": 12,
 					"sm": 12,

@@ -21,7 +21,7 @@
   "IBAN": "IBAN",
   "Invoice number format": "Factuurnummerformaat",
   "Invoicing defaults": "Standaardwaarden facturatie",
-  "prefilled for new invoices, e.g. payable within 14 days without deduction": "ingevuld bij nieuwe facturen, bv. betaalbaar binnen 14 dagen zonder aftrek",
+  "prefilled for new invoices; the wizard offers these as a list plus free text": "ingevuld bij nieuwe facturen; de wizard biedt deze ook als lijst met vrij tekstveld",
   "Server": "Server",
   "Storage mount name": "Naam van opslagmount",
   "Tax number (Steuernr.)": "Fiscaal nummer",

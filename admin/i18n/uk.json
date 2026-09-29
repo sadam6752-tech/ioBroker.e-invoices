@@ -21,7 +21,7 @@
   "IBAN": "IBAN",
   "Invoice number format": "Формат номера рахунку",
   "Invoicing defaults": "Типові значення для виставлення рахунків",
-  "prefilled for new invoices, e.g. payable within 14 days without deduction": "підставляється для нових рахунків, наприклад: оплата протягом 14 днів без знижки",
+  "prefilled for new invoices; the wizard offers these as a list plus free text": "підставляється для нових рахунків; майстер додатково пропонує список і поле власного тексту",
   "Server": "Сервер",
   "Storage mount name": "Назва точки зберігання",
   "Tax number (Steuernr.)": "Податковий номер",

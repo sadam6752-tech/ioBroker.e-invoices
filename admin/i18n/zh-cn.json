@@ -21,7 +21,7 @@
   "IBAN": "IBAN",
   "Invoice number format": "发票编号格式",
   "Invoicing defaults": "开票默认值",
-	"prefilled for new invoices, e.g. payable within 14 days without deduction": "为新发票预填，例如“14 天内付款，不扣除折扣”",
+  "prefilled for new invoices; the wizard offers these as a list plus free text": "为新发票预填；向导另提供下拉列表和自由文本输入框",
   "Server": "服务器",
   "Storage mount name": "存储挂载名称",
   "Tax number (Steuernr.)": "纳税人识别号",
