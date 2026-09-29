@@ -335,8 +335,9 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			const lines = s.lines
 				.map(l => {
 					const discount = Math.min(Math.max(l.discountPercent ?? 0, 0), 100);
-					const net = Math.round(l.quantity * l.unitPriceNet * (1 - discount / 100) * 100) / 100;
-					return { ...l, discount, net };
+					const gross = Math.round(l.quantity * l.unitPriceNet * 100) / 100;
+					const net = Math.round(gross * (1 - discount / 100) * 100) / 100;
+					return { ...l, discount, gross, net };
 				})
 				.filter(l => l.description || l.net > 0);
 			const byRate = new Map<number, number>();
@@ -362,7 +363,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 							<td>${esc(l.description) || '<span class="muted">–</span>'}</td>
 							<td class="r">${esc(l.quantity)} ${esc(l.unit)}</td>
 							<td class="r">${eur(l.unitPriceNet)}</td>
-							${hasDiscount ? `<td class="r">${l.discount > 0 ? `${esc(l.discount)} %` : '–'}</td><td class="r">${l.discount > 0 ? eur(Math.round(l.net - l.quantity * l.unitPriceNet * 100) / 100) : '–'}</td>` : ''}
+							${hasDiscount ? `<td class="r">${l.discount > 0 ? `${esc(l.discount)} %` : '–'}</td><td class="r">${l.discount > 0 ? eur(Math.round((l.gross - l.net) * 100) / 100) : '–'}</td>` : ''}
 							<td class="r">${esc(l.vatRate)} %</td><td class="r"><strong>${eur(l.net)}</strong></td>
 						</tr>`,
 						)
@@ -370,10 +371,9 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				</table>
 				<table class="ovw sums">
 					<tbody>
-						${breakdown.map(b => `<tr><td class="r">Netto ${esc(b.rate)} %</td><td class="r">${eur(b.net)}</td><td class="r">${eur(b.tax)}</td></tr>`).join('')}
-						<tr class="sum"><td class="r">Summe netto</td><td class="r">${eur(netTotal)}</td><td class="r muted">enthaltene USt</td></tr>
-						<tr class="sum"><td class="r">Summe USt</td><td class="r">${eur(taxTotal)}</td><td class="r muted"></td></tr>
-						<tr class="sum total"><td class="r">Gesamtbetrag</td><td class="r">${eur(grossTotal)}</td><td class="r muted">EUR</td></tr>
+						<tr><td class="lbl">Netto</td><td class="r">${eur(netTotal)} EUR</td></tr>
+						${breakdown.map(b => `<tr class="sub"><td class="lbl">USt ${esc(b.rate)} % auf ${eur(b.net)} EUR</td><td class="r">${eur(b.tax)} EUR</td></tr>`).join('')}
+						<tr class="sum total"><td class="lbl">Gesamtbetrag</td><td class="r">${eur(grossTotal)} EUR</td></tr>
 					</tbody>
 				</table>
 				<p class="muted">Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.</p>
