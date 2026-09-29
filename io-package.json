@@ -2,6 +2,27 @@
 	"common": {
 		"name": "e-invoices",
 		"version": "0.0.1",
+		"localLinks": {
+			"_default": {
+				"link": "%protocol%://%bind%:%port%",
+				"name": {
+					"en": "Open the invoicing PWA",
+					"de": "Rechnungs-PWA öffnen",
+					"ru": "Открыть PWA для счетов",
+					"pt": "Abrir a PWA de faturação",
+					"nl": "Facturatie-PWA openen",
+					"fr": "Ouvrir la PWA de facturation",
+					"it": "Apri la PWA di fatturazione",
+					"es": "Abrir la PWA de facturación",
+					"pl": "Otwórz PWA do fakturowania",
+					"uk": "Відкрити PWA для рахунків",
+					"zh-cn": "打开开票 PWA"
+				},
+				"icon": "e-invoices.svg",
+				"color": "blue",
+				"order": 5
+			}
+		},
 		"news": {
 			"0.0.1": {
 				"en": "initial release",
