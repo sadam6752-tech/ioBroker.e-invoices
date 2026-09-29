@@ -771,6 +771,19 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	});
 
 	app.post(
+		'/api/customers/number-assign',
+		route((_req, res) => {
+			try {
+				const updated = db.assignMissingCustomerNumbers();
+				log.info(`Assigned customer numbers to ${updated.length} customers`);
+				res.json({ updated: updated.length, customers: updated });
+			} catch (error) {
+				res.status(400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.post(
 		'/api/customers',
 		route((req, res) => {
 			const body = (req.body ?? {}) as { name?: unknown; profile?: unknown };

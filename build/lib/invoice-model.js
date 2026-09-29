@@ -23,6 +23,7 @@ __export(invoice_model_exports, {
   blankDraft: () => blankDraft,
   calcSkonto: () => calcSkonto,
   calcTotals: () => calcTotals,
+  formatCustomerNumber: () => formatCustomerNumber,
   formatDeliveryDateDe: () => formatDeliveryDateDe,
   formatInvoiceNumber: () => formatInvoiceNumber,
   isIsoDate: () => isIsoDate,
@@ -136,6 +137,12 @@ function calcSkonto(grossTotal, skontoPercent, skontoDueDate, dueDate) {
     dueDate: (skontoDueDate == null ? void 0 : skontoDueDate.trim()) || dueDate || null
   };
 }
+function formatCustomerNumber(seq) {
+  if (!Number.isInteger(seq) || seq < 1) {
+    throw new Error(`Invalid customer number sequence: ${seq}`);
+  }
+  return `K-${String(seq).padStart(5, "0")}`;
+}
 function todayIso(date = /* @__PURE__ */ new Date()) {
   return date.toISOString().slice(0, 10);
 }
@@ -243,6 +250,7 @@ function validateInvoiceForIssue(input) {
   blankDraft,
   calcSkonto,
   calcTotals,
+  formatCustomerNumber,
   formatDeliveryDateDe,
   formatInvoiceNumber,
   isIsoDate,

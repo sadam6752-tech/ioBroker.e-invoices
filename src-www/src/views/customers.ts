@@ -30,17 +30,21 @@ export async function customers(root: HTMLElement): Promise<void> {
 		<div class="grid2">${field(p, 'zip', 'PLZ')}${field(p, 'city', 'Ort')}</div>
 		<div class="grid2">${field(p, 'country', 'Land')}${field(p, 'email', 'E-Mail')}</div>
 		<div class="grid2">${field(p, 'phone', 'Telefon')}${field(p, 'contactName', 'Ansprechpartner')}</div>
-		<label>Kundennr. (BT-10)<input data-f="customerNumber" value="${esc(p.customerNumber)}" /></label>`;
+		<label>Kundennr. (BT-10)<input data-f="customerNumber" value="${esc(p.customerNumber)}" placeholder="wird beim Speichern automatisch vergeben" /></label>`;
 	}
 
 	function render(): void {
+		const missing = items.filter(c => !c.profile.customerNumber?.trim()).length;
 		root.innerHTML = `
 		<div class="card"><div class="row"><strong>Kunden</strong>
-			<button id="k-new">+ Neu</button></div>
+			<button id="k-new">+ Neu</button>
+			${missing > 0 ? `<button class="secondary" id="k-number">${missing} ohne Nummer: automatisch vergeben</button>` : ''}
+		</div>
 			${items
 				.map(
 					c => `<div class="row" style="margin-top:8px">
 				<strong>${esc(c.name)}</strong>
+				${c.profile.customerNumber?.trim() ? `<span class="badge">${esc(c.profile.customerNumber)}</span>` : '<span class="badge cancelled">keine Nummer</span>'}
 				<span class="muted">${esc(c.profile.city || '')}</span>
 				<button class="secondary" data-edit="${c.id}">Bearbeiten</button>
 				<button class="danger" data-del="${c.id}">Löschen</button>
@@ -53,6 +57,19 @@ export async function customers(root: HTMLElement): Promise<void> {
 			${message ? `<p class="${isError ? 'error' : ''}">${esc(message)}</p>` : ''}
 			<div class="row"><button id="k-save">Speichern</button><button class="secondary" id="k-cancel">Abbrechen</button></div>
 		</div>` : ''}`;
+
+		root.querySelector('#k-number')?.addEventListener('click', async () => {
+			try {
+				const result = await api.customers.assignNumbers();
+				message = `${result} Kundennummer(n) vergeben.`;
+				isError = false;
+				await reload();
+			} catch (e) {
+				message = (e as Error).message;
+				isError = true;
+				render();
+			}
+		});
 
 		root.querySelector('#k-new')?.addEventListener('click', () => {
 			editing = null;

@@ -13,6 +13,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import {
 	calcTotals,
+	formatCustomerNumber,
 	formatInvoiceNumber,
 	normalizeEmployeeCode,
 	todayIso,
@@ -1565,14 +1566,72 @@ export class InvoiceDatabase {
 		}
 		const id = randomUUID();
 		const stamp = nowIso();
+		// BT-10 is mandatory in the German profile; a customer created here
+		// gets one automatically unless the user brought their own scheme
+		const withNumber: Party = {
+			...profile,
+			customerNumber: profile.customerNumber?.trim() || this.nextCustomerNumber(),
+		};
 		this.db
 			.prepare(`INSERT INTO customers (id, name, profile_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`)
-			.run(id, name.trim(), JSON.stringify(profile), stamp, stamp);
+			.run(id, name.trim(), JSON.stringify(withNumber), stamp, stamp);
 		const created = this.getCustomer(id);
 		if (!created) {
 			throw new Error('Customer was not stored');
 		}
 		return created;
+	}
+
+	/**
+	 * Reserves the next automatic customer number. Kept in sync with the
+	 * numbers already in use, so a restore or a hand-edited number cannot
+	 * cause a collision.
+	 *
+	 * @returns The new number.
+	 */
+	public nextCustomerNumber(): string {
+		const used = new Set(
+			this.listCustomers()
+				.map(customer => customer.profile.customerNumber?.trim())
+				.filter((value): value is string => !!value),
+		);
+		const row = this.db.prepare(`SELECT last_seq FROM customer_counters WHERE name = 'default'`).get() as
+			{ last_seq: number } | undefined;
+		let seq = row?.last_seq ?? 0;
+		let candidate = formatCustomerNumber(seq + 1);
+		// skip anything a user already assigned by hand
+		while (used.has(candidate)) {
+			seq += 1;
+			candidate = formatCustomerNumber(seq + 1);
+		}
+		this.db
+			.prepare(
+				`INSERT INTO customer_counters (name, last_seq) VALUES ('default', ?)
+				 ON CONFLICT(name) DO UPDATE SET last_seq = excluded.last_seq`,
+			)
+			.run(seq + 1);
+		return candidate;
+	}
+
+	/**
+	 * Assigns numbers to customers that predate the automatic numbering
+	 * (existing records, restored backups). Numbers already present are kept.
+	 *
+	 * @returns The customers that received a new number.
+	 */
+	public assignMissingCustomerNumbers(): StoredCustomer[] {
+		const changed: StoredCustomer[] = [];
+		for (const customer of this.listCustomers()) {
+			if (customer.profile.customerNumber?.trim()) {
+				continue;
+			}
+			const updated = this.updateCustomer(customer.id, {
+				name: customer.name,
+				profile: { ...customer.profile, customerNumber: this.nextCustomerNumber() },
+			});
+			changed.push(updated);
+		}
+		return changed;
 	}
 
 	/**

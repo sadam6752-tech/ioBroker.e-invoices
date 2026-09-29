@@ -157,6 +157,16 @@ export const MIGRATIONS: Migration[] = [
 			`CREATE INDEX IF NOT EXISTS idx_invoices_paid ON invoices(paid)`,
 		],
 	},
+	{
+		version: 7,
+		name: 'customer-number-counter',
+		sql: [
+			`CREATE TABLE IF NOT EXISTS customer_counters (
+				name TEXT NOT NULL PRIMARY KEY,
+				last_seq INTEGER NOT NULL DEFAULT 0
+			)`,
+		],
+	},
 ];
 
 /** Highest schema version defined. */

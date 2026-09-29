@@ -49,7 +49,7 @@ describe('db => migrations', () => {
 	it('migrates a fresh database to the latest version', () => {
 		const db = openMemoryDb();
 		try {
-			expect(db.currentVersion()).to.equal(6);
+			expect(db.currentVersion()).to.equal(7);
 			const columns = db.tableColumns('invoices');
 			expect(columns).to.contain('payment_terms');
 			expect(columns).to.contain('employee_code');
@@ -63,7 +63,7 @@ describe('db => migrations', () => {
 		const db = openMemoryDb();
 		try {
 			db.migrate();
-			expect(db.currentVersion()).to.equal(6);
+			expect(db.currentVersion()).to.equal(7);
 		} finally {
 			db.close();
 		}
@@ -273,6 +273,43 @@ describe('db => company profiles', () => {
 
 describe('db => customers', () => {
 	const customer = { ...seller, name: 'Kunde AG', customerNumber: 'K-7' };
+
+	it('assigns a customer number automatically and never twice', () => {
+		const db = openMemoryDb();
+		try {
+			const a = db.createCustomer('Alpha', { ...seller, name: 'Alpha' });
+			const b = db.createCustomer('Beta', { ...buyer, name: 'Beta', customerNumber: '' });
+			expect(a.profile.customerNumber).to.equal('K-00001');
+			expect(b.profile.customerNumber).to.equal('K-00002');
+			// a hand-set number wins and must not be handed out again
+			const own = db.createCustomer('Gamma', { ...buyer, name: 'Gamma', customerNumber: 'KD-4711' });
+			expect(own.profile.customerNumber).to.equal('KD-4711');
+			const d = db.createCustomer('Delta', { ...buyer, name: 'Delta', customerNumber: '' });
+			expect(d.profile.customerNumber).to.not.equal('KD-4711');
+			expect(d.profile.customerNumber).to.equal('K-00003');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('numbers only customers that do not have one yet', () => {
+		const db = openMemoryDb();
+		try {
+			db.createCustomer('Alpha', { ...seller, name: 'Alpha', customerNumber: 'KD-1' });
+			// simulate a record from before the automatic numbering existed
+			const legacy = db.createCustomer('Legacy', { ...seller, name: 'Legacy', customerNumber: 'KD-2' });
+			db.updateCustomer(legacy.id, { name: legacy.name, profile: { ...legacy.profile, customerNumber: '' } });
+			const changed = db.assignMissingCustomerNumbers();
+			expect(changed).to.have.lengthOf(1);
+			expect(changed[0].name).to.equal('Legacy');
+			expect(changed[0].profile.customerNumber).to.equal('K-00001');
+			expect(db.listCustomers().find(c => c.name === 'Alpha')?.profile.customerNumber).to.equal('KD-1');
+			// idempotent
+			expect(db.assignMissingCustomerNumbers()).to.have.lengthOf(0);
+		} finally {
+			db.close();
+		}
+	});
 
 	it('creates, updates, lists and deletes customers', () => {
 		const db = openMemoryDb();

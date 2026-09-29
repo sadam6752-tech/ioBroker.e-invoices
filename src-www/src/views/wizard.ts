@@ -344,8 +344,14 @@ export function wizard(root: HTMLElement, editId?: string): void {
 					customers.length > 0
 						? `<label>Aus Kunden wählen<select id="w-customer">
 							<option value="">– manuell eingeben –</option>
-							${customers.map(c => `<option value="${esc(c.id)}" ${s.selectedCustomer === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
-						</select></label>`
+							${customers
+								.map(
+									c =>
+										`<option value="${esc(c.id)}" ${s.selectedCustomer === c.id ? 'selected' : ''}>${esc(c.name)}${c.profile.customerNumber?.trim() ? '' : ' (ohne Kundennr.)'}</option>`,
+								)
+								.join('')}
+						</select></label>
+						<p class="muted">Fehlt die Kundennummer (BT-10), trage sie unten ein — ohne sie ist die Rechnung nicht ausstellbar.</p>`
 						: `<p class="muted">Tipp: Unter <a href="#/customers">Kunden</a> einmal anlegen, dann hier auswählbar.</p>`
 				}
 				${partyFields('buyer', s.buyer, false)}</div>`;

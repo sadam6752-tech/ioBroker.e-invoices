@@ -338,6 +338,20 @@ export function calcSkonto(
 }
 
 /**
+ * Formats an automatically assigned customer number (BT-10).
+ * BT-10 is a seller-assigned key with no prescribed format; only the public
+ * sector Leitweg-ID has a mandatory layout, which this adapter does not use.
+ *
+ * @param seq - Sequence number.
+ */
+export function formatCustomerNumber(seq: number): string {
+	if (!Number.isInteger(seq) || seq < 1) {
+		throw new Error(`Invalid customer number sequence: ${seq}`);
+	}
+	return `K-${String(seq).padStart(5, '0')}`;
+}
+
+/**
  * Current date as ISO `YYYY-MM-DD` (UTC).
  *
  * @param date - Reference point, defaults to now.

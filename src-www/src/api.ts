@@ -242,6 +242,7 @@ export const api = {
 		update: (id: string, patch: { name?: string; profile?: Party }) =>
 			request<CompanyProfile>(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
 		remove: (id: string) => request<{ ok: boolean }>(`/api/customers/${id}`, { method: 'DELETE' }),
+		assignNumbers: () => request<{ updated: number }>('/api/customers/number-assign', { method: 'POST' }),
 	},
 	products: {
 		list: () => request<Product[]>('/api/products'),
