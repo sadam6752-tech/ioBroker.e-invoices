@@ -393,11 +393,13 @@ export async function renderInvoicePdf(
 					].map(lines => lines.filter(line => line.trim() !== ''));
 			const maxLines = Math.max(1, ...boxes.map(lines => lines.length));
 			const need = 8 + maxLines * 10 + 6;
-			const bottom = doc.page.height - 50;
-			let footTop = Math.max(rowY + 6, bottom - need);
-			if (footTop + need > bottom + 2) {
+			// foot zone ~13 mm above the edge: visibly lower, still printable,
+			// page numbers (centered, at height-30) keep their room below
+			const footBottom = doc.page.height - 36;
+			let footTop = Math.max(rowY + 6, footBottom - need);
+			if (footTop + need > footBottom + 2) {
 				newPage();
-				footTop = doc.page.height - 50 - need;
+				footTop = doc.page.height - 36 - need;
 			}
 			doc.save();
 			doc.moveTo(left, footTop).lineTo(right, footTop).strokeColor(colors.muted).lineWidth(0.5).stroke();
