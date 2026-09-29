@@ -60,13 +60,14 @@ function imageHeightForWidth(data, widthPt) {
       const width = data.readUInt32BE(16);
       const height = data.readUInt32BE(20);
       if (width > 0 && height > 0) {
-        return Math.min(widthPt * (height / width), 220);
+        return widthPt * (height / width);
       }
     }
   } catch {
   }
-  return Math.min(widthPt, 220);
+  return widthPt;
 }
+const LOGO_MAX_HEIGHT_PT = 220;
 async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEMPLATE, logo) {
   var _a, _b, _c, _d;
   if (!invoice.number) {
@@ -104,11 +105,13 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     let logoBottom = 0;
     if (logo && template.logo) {
       const widthPt = Math.min(300, Math.max(28, template.logo.widthMm * 72 / 25.4 * 0.6));
-      const heightPt = imageHeightForWidth(logo.data, widthPt);
-      const lx = template.logo.position === "left" ? left : template.logo.position === "center" ? left + (pageWidth - widthPt) / 2 : left + pageWidth - widthPt;
+      const naturalHeight = imageHeightForWidth(logo.data, widthPt);
+      const drawHeight = Math.min(naturalHeight, LOGO_MAX_HEIGHT_PT);
+      const drawWidth = naturalHeight > LOGO_MAX_HEIGHT_PT ? widthPt * LOGO_MAX_HEIGHT_PT / naturalHeight : widthPt;
+      const lx = template.logo.position === "left" ? left : template.logo.position === "center" ? left + (pageWidth - drawWidth) / 2 : left + pageWidth - drawWidth;
       try {
-        doc.image(logo.data, lx, 36, { width: widthPt });
-        logoBottom = 36 + heightPt;
+        doc.image(logo.data, lx, 36, { width: drawWidth, height: drawHeight });
+        logoBottom = 36 + drawHeight;
       } catch {
       }
     }
@@ -207,9 +210,9 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       headerRow();
       invoice.lines.forEach((line, index) => {
         var _a3, _b3, _c3, _d3;
+        const amount = (0, import_invoice_model.lineNetAmount)(line);
+        const netUnit = (0, import_invoice_model.lineNetUnitPrice)(line);
         const discount = (_a3 = line.discountPercent) != null ? _a3 : 0;
-        const netUnit = Math.round(line.unitPriceNet * (1 - discount / 100) * 100) / 100;
-        const amount = Math.round(line.quantity * netUnit * 100) / 100;
         const needs = ((_b3 = line.details) == null ? void 0 : _b3.trim()) ? 26 : 14;
         if (rowY + needs > 730) {
           newPage();

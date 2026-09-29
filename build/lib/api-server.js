@@ -90,6 +90,30 @@ function storedToDraft(invoice) {
 function isMissingError(error) {
   return /not found/i.test(error.message);
 }
+function isContainedRelPath(relPath) {
+  if (relPath.includes("\\") || relPath.startsWith("/") || /^[A-Za-z]:/.test(relPath)) {
+    return false;
+  }
+  return !relPath.split("/").some((segment) => segment === ".." || segment === "");
+}
+function findShapeError(body, rules) {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return "Body must be a JSON object";
+  }
+  for (const [field, kind] of Object.entries(rules)) {
+    const value = body[field];
+    if (value === void 0) {
+      continue;
+    }
+    if (kind === "array" && !Array.isArray(value)) {
+      return `Field ${field} must be an array`;
+    }
+    if (kind === "object" && (typeof value !== "object" || value === null || Array.isArray(value))) {
+      return `Field ${field} must be an object`;
+    }
+  }
+  return void 0;
+}
 function routeParam(req, name) {
   var _a;
   const value = req.params[name];
@@ -142,7 +166,11 @@ function createApiServer(deps) {
     route((req, res) => {
       var _a;
       const input = (_a = req.body) != null ? _a : {};
-      if (typeof input !== "object" || !input.seller || !input.buyer || !Array.isArray(input.lines)) {
+      if (!input.seller || !input.buyer || !Array.isArray(input.lines)) {
+        res.status(400).json({ error: "Body needs seller, buyer and lines[]" });
+        return;
+      }
+      if (findShapeError(input, { seller: "object", buyer: "object", lines: "array" })) {
         res.status(400).json({ error: "Body needs seller, buyer and lines[]" });
         return;
       }
@@ -239,8 +267,14 @@ function createApiServer(deps) {
     "/api/invoices/:id",
     route((req, res) => {
       var _a;
+      const patch = (_a = req.body) != null ? _a : {};
+      const bad = findShapeError(patch, { seller: "object", buyer: "object", lines: "array" });
+      if (bad) {
+        res.status(400).json({ error: bad });
+        return;
+      }
       try {
-        res.json(db.updateDraft(routeParam(req, "id"), (_a = req.body) != null ? _a : {}));
+        res.json(db.updateDraft(routeParam(req, "id"), patch));
       } catch (error) {
         res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
       }
@@ -350,7 +384,7 @@ function createApiServer(deps) {
         paymentTerms: "Zahlbar innerhalb von 14 Tagen ohne Abzug."
       });
       let logo;
-      if ((_c = definition.logo) == null ? void 0 : _c.path) {
+      if (((_c = definition.logo) == null ? void 0 : _c.path) && isContainedRelPath(definition.logo.path)) {
         try {
           logo = { data: await storage.read(definition.logo.path) };
         } catch {
@@ -550,7 +584,7 @@ function createApiServer(deps) {
     route((req, res) => {
       var _a;
       const body = (_a = req.body) != null ? _a : {};
-      if (typeof body.name !== "string" || typeof body.profile !== "object" || !body.profile) {
+      if (typeof body.name !== "string" || typeof body.profile !== "object" || !body.profile || Array.isArray(body.profile)) {
         res.status(400).json({ error: "Body needs name and profile" });
         return;
       }
@@ -615,7 +649,7 @@ function createApiServer(deps) {
     route((req, res) => {
       var _a;
       const body = (_a = req.body) != null ? _a : {};
-      if (typeof body.name !== "string" || typeof body.profile !== "object" || !body.profile) {
+      if (typeof body.name !== "string" || typeof body.profile !== "object" || !body.profile || Array.isArray(body.profile)) {
         res.status(400).json({ error: "Body needs name and profile" });
         return;
       }
@@ -711,8 +745,12 @@ function createApiServer(deps) {
     res.status(404).json({ error: "Unknown API route" });
   });
   app.use((error, _req, res, _next) => {
-    log.error(`API error: ${error.message}`);
-    res.status(500).json({ error: "Internal server error" });
+    var _a, _b, _c, _d;
+    const err = error;
+    const status = (_b = (_a = err == null ? void 0 : err.status) != null ? _a : err == null ? void 0 : err.statusCode) != null ? _b : 500;
+    const message = status < 500 ? String((_c = err == null ? void 0 : err.message) != null ? _c : "Request failed") : "Internal server error";
+    log.error(`API error (${status}): ${String((_d = err == null ? void 0 : err.message) != null ? _d : error)}`);
+    res.status(status).json({ error: message });
   });
   return app;
 }

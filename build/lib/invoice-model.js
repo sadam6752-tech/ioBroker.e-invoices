@@ -23,6 +23,8 @@ __export(invoice_model_exports, {
   calcTotals: () => calcTotals,
   formatInvoiceNumber: () => formatInvoiceNumber,
   isIsoDate: () => isIsoDate,
+  lineNetAmount: () => lineNetAmount,
+  lineNetUnitPrice: () => lineNetUnitPrice,
   normalizeEmployeeCode: () => normalizeEmployeeCode,
   roundCents: () => roundCents,
   todayIso: () => todayIso,
@@ -48,7 +50,18 @@ function normalizeEmployeeCode(code) {
   if (!/^[A-Z0-9]{1,8}$/.test(normalized)) {
     throw new Error(`Invalid employee code (1-8 letters/digits): ${code}`);
   }
-  return normalized;
+  return /^\d+$/.test(normalized) ? normalized.padStart(2, "0") : normalized;
+}
+function lineNetAmount(line) {
+  var _a;
+  const discount = (_a = line.discountPercent) != null ? _a : 0;
+  return roundCents(line.quantity * line.unitPriceNet * (1 - discount / 100));
+}
+function lineNetUnitPrice(line) {
+  if (!(line.quantity > 0)) {
+    return 0;
+  }
+  return lineNetAmount(line) / line.quantity;
 }
 function calcTotals(lines) {
   var _a, _b;
@@ -64,10 +77,10 @@ function calcTotals(lines) {
       throw new Error(`Unit price must be >= 0: ${line.description}`);
     }
     const discount = (_a = line.discountPercent) != null ? _a : 0;
-    if (discount < 0 || discount > 100) {
+    if (!(discount >= 0) || discount > 100) {
       throw new Error(`Discount must be 0-100: ${line.description}`);
     }
-    const net = roundCents(line.quantity * line.unitPriceNet * (1 - discount / 100));
+    const net = lineNetAmount(line);
     netByRate.set(line.vatRate, roundCents(((_b = netByRate.get(line.vatRate)) != null ? _b : 0) + net));
   }
   const breakdown = [...netByRate.entries()].sort(([a], [b]) => a - b).map(([vatRate, net]) => {
@@ -162,6 +175,8 @@ function validateInvoiceForIssue(input) {
   calcTotals,
   formatInvoiceNumber,
   isIsoDate,
+  lineNetAmount,
+  lineNetUnitPrice,
   normalizeEmployeeCode,
   roundCents,
   todayIso,

@@ -42,28 +42,37 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
   const hybrid = await (0, import_zugferd.embedHybridPdf)(sight, xml, issued.profile, `${issued.documentTitle} ${issued.number}`);
   const xlsx = await (0, import_excel.renderInvoiceWorkbook)(issued);
   const base = `invoices/${issued.issueDate.slice(0, 4)}/${issued.number}`;
+  const written = /* @__PURE__ */ new Set();
   try {
     await storage.write(`${base}.xml`, xml);
+    written.add(`${base}.xml`);
     log.info(`XML stored: ${base}.xml`);
   } catch (error) {
     log.error(`Cannot write XML file ${base}.xml: ${error.message}`);
   }
   try {
     await storage.write(`${base}.pdf`, Buffer.from(hybrid));
+    written.add(`${base}.pdf`);
     log.info(`Hybrid PDF stored: ${base}.pdf`);
   } catch (error) {
     log.error(`Cannot write PDF file ${base}.pdf: ${error.message}`);
   }
   try {
     await storage.write(`${base}.xlsx`, xlsx);
+    written.add(`${base}.xlsx`);
     log.info(`Excel copy stored: ${base}.xlsx`);
   } catch (error) {
     log.error(`Cannot write Excel file ${base}.xlsx: ${error.message}`);
   }
+  if (written.size === 0) {
+    throw new Error(
+      `Invoice ${issued.number} was numbered but no artifact could be stored (${base}.*) \u2014 check the adapter write permissions`
+    );
+  }
   const withArtifacts = db.attachIssueArtifacts(issued.id, {
     xml,
-    pdfPath: `${base}.pdf`,
-    xlsxPath: `${base}.xlsx`,
+    pdfPath: written.has(`${base}.pdf`) ? `${base}.pdf` : null,
+    xlsxPath: written.has(`${base}.xlsx`) ? `${base}.xlsx` : void 0,
     templateId
   });
   return { invoice: withArtifacts, pdfPath: `${base}.pdf`, xmlPath: `${base}.xml` };

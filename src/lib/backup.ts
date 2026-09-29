@@ -47,6 +47,8 @@ export interface BackupManifest {
 	counts: { invoices: number; templates: number; attachments: number; customers: number; files: number };
 	/** Files with hashes. */
 	files: BackupManifestFile[];
+	/** SHA-256 hex of dump.json, the payload that actually replaces the database. */
+	dumpSha256?: string;
 }
 
 /** Created backup (ZIP bytes + metadata). */
@@ -95,6 +97,26 @@ export interface BackupStorage {
 
 function sha256Hex(data: Buffer | string): string {
 	return createHash('sha256').update(data).digest('hex');
+}
+
+/**
+ * Rejects backup entry paths that would escape the storage root
+ * (zip slip: `../`, absolute paths, Windows drive letters, backslashes).
+ *
+ * @param relPath - Path taken from the backup manifest.
+ */
+function assertSafeEntryPath(relPath: unknown): asserts relPath is string {
+	if (typeof relPath !== 'string' || relPath.trim() === '') {
+		throw new Error('Backup manifest contains an invalid file path');
+	}
+	if (relPath.includes('\\') || relPath.startsWith('/') || /^[A-Za-z]:/.test(relPath)) {
+		throw new Error(`Backup manifest contains an unsafe file path: ${relPath}`);
+	}
+	for (const segment of relPath.split('/')) {
+		if (segment === '..' || segment === '' || segment === '.') {
+			throw new Error(`Backup manifest contains an unsafe file path: ${relPath}`);
+		}
+	}
 }
 
 function stampName(date = new Date()): string {
@@ -183,7 +205,8 @@ export async function createBackup(
 			log.error(`Backup skips unreadable file ${path}: ${(error as Error).message}`);
 		}
 	}
-	zip.file('dump.json', JSON.stringify(dumpJson, null, 2));
+	const dumpJsonText = JSON.stringify(dumpJson, null, 2);
+	zip.file('dump.json', dumpJsonText);
 	const manifest: BackupManifest = {
 		app: BACKUP_APP_ID,
 		formatVersion: BACKUP_FORMAT_VERSION,
@@ -198,6 +221,7 @@ export async function createBackup(
 			files: files.length,
 		},
 		files,
+		dumpSha256: sha256Hex(dumpJsonText),
 	};
 	zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 	const data = Buffer.from(await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }));
@@ -239,6 +263,7 @@ export async function restoreBackup(
 		throw new Error(`Backup needs schema v${manifest.schemaVersion}, adapter knows v${LATEST_SCHEMA_VERSION}`);
 	}
 	for (const file of manifest.files ?? []) {
+		assertSafeEntryPath(file.path);
 		const entry = zip.file(`files/${file.path}`);
 		if (!entry) {
 			throw new Error(`Backup misses file: files/${file.path}`);
@@ -249,9 +274,16 @@ export async function restoreBackup(
 		}
 	}
 
-	const dumpJson = JSON.parse(await dumpFile.async('string')) as Omit<DatabaseDump, 'attachments'> & {
-		attachments: DumpJsonAttachment[];
-	};
+	const dumpJsonText = await dumpFile.async('string');
+	if (manifest.dumpSha256 && sha256Hex(dumpJsonText) !== manifest.dumpSha256) {
+		throw new Error('Checksum mismatch: dump.json');
+	}
+	let dumpJson: Omit<DatabaseDump, 'attachments'> & { attachments: DumpJsonAttachment[] };
+	try {
+		dumpJson = JSON.parse(dumpJsonText) as typeof dumpJson;
+	} catch {
+		throw new Error('Backup ZIP is corrupt: dump.json is not readable JSON');
+	}
 	const dump: DatabaseDump = {
 		formatVersion: 1,
 		exportedAt: String(dumpJson.exportedAt ?? new Date().toISOString()),
@@ -283,10 +315,14 @@ export async function restoreBackup(
 	for (const file of manifest.files ?? []) {
 		const entry = zip.file(`files/${file.path}`);
 		if (!entry) {
+			fileErrors.push(`${file.path}: missing in ZIP`);
 			continue;
 		}
 		try {
 			const data = Buffer.from(await entry.async('nodebuffer'));
+			if (sha256Hex(data) !== file.sha256 || data.length !== file.size) {
+				throw new Error('checksum mismatch on second read');
+			}
 			await storage.write(file.path, data);
 			filesWritten.push(file.path);
 		} catch (error) {

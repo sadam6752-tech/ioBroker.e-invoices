@@ -129,6 +129,43 @@ describe('api => invoices', function () {
 	it('answers 404 for unknown api routes', async () => {
 		await request(app).get('/api/nope').expect(404);
 	});
+
+	it('rejects a PATCH that would corrupt the invoice', async () => {
+		const created = await request(app)
+			.post('/api/invoices')
+			.send({
+				seller: { name: 'S', street: 'a', zip: '1', city: 'b', country: 'DE' },
+				buyer: { name: 'B', street: 'c', zip: '2', city: 'd', country: 'DE' },
+				lines: [{ description: 'A', quantity: 1, unit: 'Stk', unitPriceNet: 10, vatRate: 19 }],
+			})
+			.expect(201);
+		const id = created.body.id as string;
+
+		await request(app).patch(`/api/invoices/${id}`).send({ lines: {} }).expect(400);
+		await request(app)
+			.patch(`/api/invoices/${id}`)
+			.send({ seller: [1, 2] })
+			.expect(400);
+
+		const after = await request(app).get(`/api/invoices/${id}`).expect(200);
+		expect(Array.isArray(after.body.lines)).to.equal(true);
+		expect(after.body.totals.grossTotal).to.equal(11.9);
+		await request(app).post(`/api/invoices/${id}/validate`).send({}).expect(200);
+	});
+
+	it('reports a malformed json body as 400, not 500', async () => {
+		const response = await request(app)
+			.post('/api/invoices')
+			.set('Content-Type', 'application/json')
+			.send('{ not json')
+			.expect(400);
+		expect(response.body.error).to.be.a('string');
+	});
+
+	it('falls back to the default page size for unparsable limit/offset', async () => {
+		const response = await request(app).get('/api/invoices?limit=abc&offset=abc').expect(200);
+		expect(response.body).to.be.an('array');
+	});
 });
 
 describe('api => company profiles', () => {

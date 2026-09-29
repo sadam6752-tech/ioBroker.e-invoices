@@ -155,11 +155,16 @@ describe('db => drafts and issue flow', () => {
 		}
 	});
 
-	it('rejects invalid employee codes at issue', () => {
+	it('rejects invalid employee codes and pads numeric ones', () => {
 		const db = openMemoryDb();
 		try {
-			const bad = db.createDraft(draft({ employeeCode: 'a/b' }));
-			expect(() => db.issueDraft(bad.id)).to.throw(/employee/i);
+			expect(() => db.createDraft(draft({ employeeCode: 'a/b' }))).to.throw(/employee/i);
+			// `1` and `01` must be the same person, not two parallel counters
+			const unpadded = db.createDraft(draft({ employeeCode: '1' }));
+			expect(unpadded.employeeCode).to.equal('01');
+			expect(db.issueDraft(unpadded.id).number).to.equal('2026-01-001');
+			const padded = db.createDraft(draft({ employeeCode: '01' }));
+			expect(db.issueDraft(padded.id).number).to.equal('2026-01-002');
 		} finally {
 			db.close();
 		}

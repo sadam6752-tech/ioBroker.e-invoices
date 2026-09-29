@@ -9,7 +9,7 @@
  * exemption reasons are always rendered (Pflicht).
  */
 import PDFDocument from 'pdfkit';
-import { calcTotals } from './invoice-model';
+import { calcTotals, lineNetAmount, lineNetUnitPrice } from './invoice-model';
 import { ARCHIVE_HINT, DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
 import type { StoredInvoice } from './db';
 
@@ -67,14 +67,17 @@ export function imageHeightForWidth(data: Buffer, widthPt: number): number {
 			const width = data.readUInt32BE(16);
 			const height = data.readUInt32BE(20);
 			if (width > 0 && height > 0) {
-				return Math.min(widthPt * (height / width), 220);
+				return widthPt * (height / width);
 			}
 		}
 	} catch {
 		// fall through to the square fallback
 	}
-	return Math.min(widthPt, 220);
+	return widthPt;
 }
+
+/** Longest logo height in pt before the image is scaled down to fit. */
+const LOGO_MAX_HEIGHT_PT = 220;
 
 /** Logo image bytes for the header (PNG/JPEG). */
 export interface TemplateLogoImage {
@@ -133,16 +136,21 @@ export async function renderInvoicePdf(
 		let logoBottom = 0;
 		if (logo && template.logo) {
 			const widthPt = Math.min(300, Math.max(28, ((template.logo.widthMm * 72) / 25.4) * 0.6));
-			const heightPt = imageHeightForWidth(logo.data, widthPt);
+			// the cap must also be applied to the drawn size, otherwise a tall
+			// image runs off the page and over the whole layout
+			const naturalHeight = imageHeightForWidth(logo.data, widthPt);
+			const drawHeight = Math.min(naturalHeight, LOGO_MAX_HEIGHT_PT);
+			const drawWidth =
+				naturalHeight > LOGO_MAX_HEIGHT_PT ? (widthPt * LOGO_MAX_HEIGHT_PT) / naturalHeight : widthPt;
 			const lx =
 				template.logo.position === 'left'
 					? left
 					: template.logo.position === 'center'
-						? left + (pageWidth - widthPt) / 2
-						: left + pageWidth - widthPt;
+						? left + (pageWidth - drawWidth) / 2
+						: left + pageWidth - drawWidth;
 			try {
-				doc.image(logo.data, lx, 36, { width: widthPt });
-				logoBottom = 36 + heightPt;
+				doc.image(logo.data, lx, 36, { width: drawWidth, height: drawHeight });
+				logoBottom = 36 + drawHeight;
 			} catch {
 				// broken logo must never break the invoice
 			}
@@ -253,9 +261,9 @@ export async function renderInvoicePdf(
 		if (template.blocks.positions) {
 			headerRow();
 			invoice.lines.forEach((line, index) => {
+				const amount = lineNetAmount(line);
+				const netUnit = lineNetUnitPrice(line);
 				const discount = line.discountPercent ?? 0;
-				const netUnit = Math.round(line.unitPriceNet * (1 - discount / 100) * 100) / 100;
-				const amount = Math.round(line.quantity * netUnit * 100) / 100;
 				const needs = line.details?.trim() ? 26 : 14;
 				if (rowY + needs > 730) {
 					newPage();

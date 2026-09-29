@@ -358,6 +358,33 @@ describe('zugferd => fractional amounts', function () {
 		}
 	});
 });
+describe('zugferd => fractional line amounts', function () {
+	this.timeout(60000);
+
+	it('keeps line nets and the tax basis in sync (BR-CO-10)', async () => {
+		const { db, invoice } = issueInMemoryDb(
+			draft({
+				lines: [
+					{ description: 'A', quantity: 3, unit: 'Stk', unitPriceNet: 0.335, vatRate: 19 },
+					{ description: 'B', quantity: 2, unit: 'Stk', unitPriceNet: 10.005, vatRate: 7 },
+				],
+			}),
+		);
+		try {
+			const { xml } = await generateInvoiceXml(invoice);
+			const basis = Number(xml.match(/<ram:TaxBasisTotalAmount>([^<]*)</)?.[1]);
+			const lineTotals = [...xml.matchAll(/<ram:LineTotalAmount>([^<]*)</g)].map(m => Number(m[1]));
+			// the last LineTotalAmount is the header sum, the ones before it are the lines
+			const sumLineNets = lineTotals.slice(0, -1).reduce((a, b) => a + b, 0);
+			expect(lineTotals).to.have.lengthOf(3);
+			expect(Math.round(sumLineNets * 100) / 100).to.equal(basis);
+			expect(lineTotals[lineTotals.length - 1]).to.equal(basis);
+		} finally {
+			db.close();
+		}
+	});
+});
+
 describe('validation => tampered xml', function () {
 	this.timeout(60000);
 

@@ -36,6 +36,9 @@ module.exports = __toCommonJS(excel_exports);
 var import_exceljs = __toESM(require("exceljs"));
 var import_invoice_model = require("./invoice-model");
 const EXCEL_COPY_NOTICE = "KOPIE \u2013 kein Steuerdokument. Ma\xDFgeblich ist das eingebettete XML der ZUGFeRD-Rechnung.";
+function safeCellText(value) {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
 function headRow(sheet, row, values) {
   const r = sheet.getRow(row);
   values.forEach((value, index) => {
@@ -50,7 +53,7 @@ function partyBlock(sheet, startRow, title, lines) {
   sheet.getCell(`A${startRow}`).value = title;
   sheet.getCell(`A${startRow}`).font = { bold: true };
   lines.forEach((line, index) => {
-    sheet.getCell(`A${startRow + 1 + index}`).value = line;
+    sheet.getCell(`A${startRow + 1 + index}`).value = safeCellText(line);
   });
   return startRow + 1 + lines.length;
 }
@@ -64,7 +67,7 @@ async function renderInvoiceWorkbook(invoice) {
   book.created = /* @__PURE__ */ new Date();
   const sheet = book.addWorksheet("Rechnung");
   sheet.columns = [{ width: 38 }, { width: 22 }, { width: 22 }, { width: 22 }, { width: 22 }];
-  sheet.getCell("A1").value = `${invoice.documentTitle} ${invoice.number}`;
+  sheet.getCell("A1").value = safeCellText(`${invoice.documentTitle} ${invoice.number}`);
   sheet.getCell("A1").font = { bold: true, size: 16 };
   sheet.getCell("A2").value = EXCEL_COPY_NOTICE;
   sheet.getCell("A2").font = { italic: true, color: { argb: "FFB91C1C" } };
@@ -98,13 +101,11 @@ async function renderInvoiceWorkbook(invoice) {
   row += 2;
   headRow(sheet, row, ["Beschreibung", "Menge", "Einzel (netto)", "USt-Satz", "Betrag (netto)"]);
   invoice.lines.forEach((line, index) => {
-    var _a;
-    const discount = (_a = line.discountPercent) != null ? _a : 0;
-    const netUnit = Math.round(line.unitPriceNet * (1 - discount / 100) * 100) / 100;
-    const amount = Math.round(line.quantity * netUnit * 100) / 100;
+    const amount = (0, import_invoice_model.lineNetAmount)(line);
+    const netUnit = (0, import_invoice_model.lineNetUnitPrice)(line);
     const r = sheet.getRow(row + 1 + index);
-    r.getCell(1).value = line.description;
-    r.getCell(2).value = `${line.quantity} ${line.unit}`;
+    r.getCell(1).value = safeCellText(line.description);
+    r.getCell(2).value = safeCellText(`${line.quantity} ${line.unit}`);
     r.getCell(3).value = netUnit;
     r.getCell(3).numFmt = '#,##0.00 "EUR"';
     r.getCell(4).value = line.vatRate / 100;
@@ -155,16 +156,16 @@ async function renderInvoiceListWorkbook(invoices, title) {
   invoices.forEach((invoice, index) => {
     var _a;
     const r = sheet.getRow(5 + index);
-    r.getCell(1).value = (_a = invoice.number) != null ? _a : "(Entwurf)";
+    r.getCell(1).value = safeCellText((_a = invoice.number) != null ? _a : "(Entwurf)");
     r.getCell(2).value = invoice.issueDate;
-    r.getCell(3).value = invoice.buyer.name;
+    r.getCell(3).value = safeCellText(invoice.buyer.name);
     r.getCell(4).value = invoice.totals.netTotal;
     r.getCell(4).numFmt = '#,##0.00 "EUR"';
     r.getCell(5).value = invoice.totals.taxTotal;
     r.getCell(5).numFmt = '#,##0.00 "EUR"';
     r.getCell(6).value = invoice.totals.grossTotal;
     r.getCell(6).numFmt = '#,##0.00 "EUR"';
-    r.getCell(7).value = invoice.status;
+    r.getCell(7).value = safeCellText(invoice.status);
     r.commit();
   });
   const buffer = await book.xlsx.writeBuffer();

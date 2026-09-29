@@ -19,8 +19,8 @@ const MOUNT_POINT = 'storage';
 const STATUS_FILE = 'status.json';
 /** Fallback PWA/API port when the instance config has none (admin UI in P6+). */
 const DEFAULT_API_PORT = 8093;
-/** Fallback bind address. */
-const DEFAULT_API_BIND = '0.0.0.0';
+/** Fallback bind address (loopback: the API is unauthenticated by default). */
+const DEFAULT_API_BIND = '127.0.0.1';
 
 class EInvoices extends utils.Adapter {
 	private db: InvoiceDatabase | null = null;
@@ -397,6 +397,14 @@ class EInvoices extends utils.Adapter {
 			});
 			this.server.listen(port, bind, () => {
 				this.log.info(`API+PWA listening on ${bind}:${port}`);
+				if (!this.config.authToken) {
+					this.log.warn(
+						`No API token set — every client that can reach ${bind}:${port} may read, issue and RESTORE invoices. Set authToken in the instance config or bind to 127.0.0.1.`,
+					);
+				}
+				if (bind !== '127.0.0.1' && bind !== 'localhost' && !this.config.authToken) {
+					this.log.warn(`Unauthenticated API is bound to ${bind} (reachable from the network).`);
+				}
 			});
 		} catch (error) {
 			this.log.error(`Cannot start API server: ${(error as Error).message}`);

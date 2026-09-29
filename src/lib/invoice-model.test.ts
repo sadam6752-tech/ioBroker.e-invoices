@@ -6,6 +6,8 @@ import {
 	blankDraft,
 	calcTotals,
 	formatInvoiceNumber,
+	lineNetAmount,
+	lineNetUnitPrice,
 	normalizeEmployeeCode,
 	todayIso,
 	validateInvoiceForIssue,
@@ -83,6 +85,30 @@ describe('invoice-model => calcTotals', () => {
 		expect(totals.taxTotal).to.equal(25.3);
 		expect(totals.grossTotal).to.equal(215.3);
 		expect(totals.breakdown).to.have.lengthOf(2);
+	});
+
+	it('rounds each line exactly once so line nets match the tax basis (BR-CO-10)', () => {
+		const line = { description: 'A', quantity: 3, unit: 'Stk', unitPriceNet: 0.335, vatRate: 19 };
+		expect(lineNetAmount(line)).to.equal(1.01);
+		expect(lineNetUnitPrice(line) * line.quantity).to.be.closeTo(1.01, 0.0001);
+		const totals = calcTotals([line]);
+		expect(totals.netTotal).to.equal(lineNetAmount(line));
+		expect(totals.taxTotal).to.equal(0.19);
+	});
+
+	it('rejects a NaN discount instead of freezing null totals', () => {
+		expect(() =>
+			calcTotals([
+				{
+					description: 'A',
+					quantity: 1,
+					unit: 'Stk',
+					unitPriceNet: 100,
+					vatRate: 19,
+					discountPercent: Number.NaN,
+				},
+			]),
+		).to.throw(/Discount/);
 	});
 
 	it('rejects unsupported VAT rates', () => {

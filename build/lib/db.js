@@ -225,7 +225,7 @@ class InvoiceDatabase {
       (_b = input.documentTitle) != null ? _b : "Rechnung",
       (_c = input.notes) != null ? _c : null,
       (_d = input.paymentTerms) != null ? _d : null,
-      ((_e = input.employeeCode) == null ? void 0 : _e.trim()) ? input.employeeCode.trim().toUpperCase() : null,
+      ((_e = input.employeeCode) == null ? void 0 : _e.trim()) ? (0, import_invoice_model.normalizeEmployeeCode)(input.employeeCode) : null,
       stamp,
       stamp
     );
@@ -250,7 +250,6 @@ class InvoiceDatabase {
    * @param filter - Status/year/search/pagination filter.
    */
   listInvoices(filter = {}) {
-    var _a, _b;
     const where = [];
     const params = [];
     if (filter.status) {
@@ -266,11 +265,23 @@ class InvoiceDatabase {
       const like = `%${filter.query}%`;
       params.push(like, like, like);
     }
-    const limit = Math.min(Math.max((_a = filter.limit) != null ? _a : 50, 1), 500);
-    const offset = Math.max((_b = filter.offset) != null ? _b : 0, 0);
+    const rawLimit = Number(filter.limit);
+    const rawOffset = Number(filter.offset);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 500) : 50;
+    const offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
     const rows = this.db.prepare(
       `SELECT * FROM invoices ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
     ).all(...params, limit, offset);
+    return rows.map(mapRow);
+  }
+  /**
+   * All invoices, newest first, without the list page limit.
+   * Used by the backup so a restore can never silently drop records.
+   *
+   * @returns - Every stored invoice.
+   */
+  allInvoices() {
+    const rows = this.db.prepare(`SELECT * FROM invoices ORDER BY created_at DESC, id DESC`).all();
     return rows.map(mapRow);
   }
   /**
@@ -316,7 +327,7 @@ class InvoiceDatabase {
       (_p = merged.documentTitle) != null ? _p : "Rechnung",
       (_q = merged.notes) != null ? _q : null,
       (_r = merged.paymentTerms) != null ? _r : null,
-      ((_s = merged.employeeCode) == null ? void 0 : _s.trim()) ? merged.employeeCode.trim().toUpperCase() : null,
+      ((_s = merged.employeeCode) == null ? void 0 : _s.trim()) ? (0, import_invoice_model.normalizeEmployeeCode)(merged.employeeCode) : null,
       nowIso(),
       id
     );
@@ -513,16 +524,19 @@ class InvoiceDatabase {
    * @param patch - Partial update.
    */
   updateTemplate(id, patch) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     const current = this.getTemplate(id);
     if (!current) {
       throw new Error(`Template not found: ${id}`);
     }
     const nextName = ((_a = patch.name) == null ? void 0 : _a.trim()) || current.name;
+    const patchDef = (_b = patch.definition) != null ? _b : {};
     const next = {
       ...current.definition,
-      ...(_b = patch.definition) != null ? _b : {},
-      name: ((_d = (_c = patch.definition) == null ? void 0 : _c.name) == null ? void 0 : _d.trim()) || nextName
+      ...patchDef,
+      blocks: { ...current.definition.blocks, ...(_c = patchDef.blocks) != null ? _c : {} },
+      colors: { ...current.definition.colors, ...(_d = patchDef.colors) != null ? _d : {} },
+      name: ((_e = patchDef.name) == null ? void 0 : _e.trim()) || nextName
     };
     const errors = (0, import_templates.validateTemplate)(next);
     if (errors.length > 0) {
@@ -635,7 +649,7 @@ class InvoiceDatabase {
       formatVersion: 1,
       exportedAt: nowIso(),
       schemaVersion: this.currentVersion(),
-      invoices: this.listInvoices({ limit: 500 }),
+      invoices: this.allInvoices(),
       counters,
       templates: this.listTemplates(),
       companies: this.listCompanyProfiles(),
@@ -655,6 +669,8 @@ class InvoiceDatabase {
   /**
    * Replaces the full database content (restore path, transactional).
    * Validates the shape first so bad dumps fail before touching data.
+   * A collection missing from the dump is kept as-is instead of being
+   * wiped, so a partial/older backup can never destroy records silently.
    *
    * @param dump - Database content from a backup.
    */
@@ -667,15 +683,22 @@ class InvoiceDatabase {
         throw new Error(`Corrupt invoice in dump: ${String(invoice.id)}`);
       }
     }
+    const has = (key) => Array.isArray(dump[key]);
     const run = this.db.transaction(() => {
       var _a, _b, _c, _d, _e, _f, _g, _h;
       this.db.prepare(`DELETE FROM attachments`).run();
       this.db.prepare(`DELETE FROM invoices`).run();
       this.db.prepare(`DELETE FROM counters`).run();
       this.db.prepare(`DELETE FROM templates`).run();
-      this.db.prepare(`DELETE FROM company_profiles`).run();
-      this.db.prepare(`DELETE FROM customers`).run();
-      this.db.prepare(`DELETE FROM products`).run();
+      if (has("companies")) {
+        this.db.prepare(`DELETE FROM company_profiles`).run();
+      }
+      if (has("customers")) {
+        this.db.prepare(`DELETE FROM customers`).run();
+      }
+      if (has("products")) {
+        this.db.prepare(`DELETE FROM products`).run();
+      }
       for (const counter of (_a = dump.counters) != null ? _a : []) {
         const employee = (0, import_invoice_model.normalizeEmployeeCode)((_b = counter.employee) != null ? _b : "00");
         this.db.prepare(`INSERT INTO counters (year, employee, last_seq) VALUES (?, ?, ?)`).run(counter.year, employee, counter.last_seq);

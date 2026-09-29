@@ -21,7 +21,7 @@ import {
 	validateXsd,
 	type FacturXInvoiceInput,
 } from '@stackforge-eu/factur-x';
-import { calcTotals } from './invoice-model';
+import { calcTotals, lineNetUnitPrice, roundCents } from './invoice-model';
 import type { StoredInvoice } from './db';
 
 /** Profiles this adapter can generate in v1. */
@@ -152,7 +152,7 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 		},
 		lines: invoice.lines.map((line, index) => {
 			const discount = line.discountPercent ?? 0;
-			const netUnit = Math.round(line.unitPriceNet * (1 - discount / 100) * 100) / 100;
+			const netUnit = lineNetUnitPrice(line);
 			return {
 				id: String(index + 1),
 				name: line.description,
@@ -162,7 +162,7 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 				unitCode: mapUnitCode(line.unit || 'Stk'),
 				unitPrice: netUnit,
 				grossUnitPrice: discount > 0 ? line.unitPriceNet : undefined,
-				priceDiscount: discount > 0 ? Math.round((line.unitPriceNet - netUnit) * 100) / 100 : undefined,
+				priceDiscount: discount > 0 ? roundCents(line.unitPriceNet - netUnit) : undefined,
 				vatCategoryCode: mapVatCategory(line.vatRate),
 				vatRatePercent: line.vatRate,
 			};

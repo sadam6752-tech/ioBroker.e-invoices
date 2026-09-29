@@ -128,6 +128,8 @@ export function wizard(root: HTMLElement, editId?: string): void {
 	let companies: CompanyProfile[] = [];
 	let customers: CompanyProfile[] = [];
 	let catalog: Product[] = [];
+	/** Guards save/issue against double clicks creating two invoices. */
+	let busy = false;
 	if (editId) {
 		root.innerHTML = `<div class="card">Lade Entwurf…</div>`;
 		void api
@@ -166,10 +168,12 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		</div>`;
 		root.querySelector('#w-resume')?.addEventListener('click', () => {
 			s = saved;
+			bootLists();
 			render();
 		});
 		root.querySelector('#w-discard')?.addEventListener('click', () => {
 			localStorage.removeItem(STORAGE_KEY);
+			bootLists();
 			render();
 		});
 		return;
@@ -219,13 +223,16 @@ export function wizard(root: HTMLElement, editId?: string): void {
 
 	function persist(): void {
 		try {
+			// An edit session must never touch the "new" resume slot: its state
+			// is not dirty by design and would delete a pending new draft.
+			if (isEdit) {
+				return;
+			}
 			if (!s.dirty) {
 				localStorage.removeItem(STORAGE_KEY);
 				return;
 			}
-			// edit sessions never leak their draft id into the "new" resume slot
-			const stored = isEdit ? { ...s, draftId: null } : s;
-			localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...stored, error: '', savedAt: new Date().toISOString() }));
+			localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...s, error: '', savedAt: new Date().toISOString() }));
 		} catch {
 			// storage full/blocked — wizard still works, just without resume
 		}
@@ -241,7 +248,12 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			const line = s.lines[Number(idx)];
 			if (!line) return;
 			if (field === 'quantity' || field === 'unitPriceNet' || field === 'vatRate' || field === 'discountPercent') {
-				(line as unknown as Record<string, number>)[field] = Number(el.value);
+				// NaN/empty must not reach the API, and the discount is clamped here
+				// so the preview and the stored value are the same number
+				const numeric = Number(el.value);
+				const value = Number.isFinite(numeric) ? numeric : 0;
+				(line as unknown as Record<string, number>)[field] =
+					field === 'discountPercent' ? Math.min(Math.max(value, 0), 100) : value;
 			} else {
 				(line as unknown as Record<string, string>)[field] = el.value;
 			}
@@ -310,17 +322,18 @@ export function wizard(root: HTMLElement, editId?: string): void {
 					</div>
 					<label>Detailzeile<textarea data-l="${i}.details" rows="1">${esc(l.details)}</textarea></label>
 					<div class="grid2">
-						<label>Menge<input data-l="${i}.quantity" type="number" min="0" step="any" value="${l.quantity}" /></label>
+						<label>Menge<input data-l="${i}.quantity" type="number" min="0" step="any" value="${esc(l.quantity)}" /></label>
 						<label>Einheit<input data-l="${i}.unit" value="${esc(l.unit)}" /></label>
 					</div>
 					<div class="grid2">
-						<label>Preis netto<input data-l="${i}.unitPriceNet" type="number" min="0" step="0.01" value="${l.unitPriceNet}" /></label>
-						<label>Rabatt %<input data-l="${i}.discountPercent" type="number" min="0" max="100" step="0.1" value="${l.discountPercent ?? 0}" /></label>
+						<label>Preis netto<input data-l="${i}.unitPriceNet" type="number" min="0" step="0.01" value="${esc(l.unitPriceNet)}" /></label>
+						<label>Rabatt %<input data-l="${i}.discountPercent" type="number" min="0" max="100" step="0.1" value="${esc(l.discountPercent ?? 0)}" /></label>
 					</div>
 					<div class="grid2">
 						<label>USt %<select data-l="${i}.vatRate">
-							${[19, 7, 0].map(r => `<option ${r === l.vatRate ? 'selected' : ''}>${r}</option>`).join('')}
+							${[19, 7, 0].map(r => `<option ${r === Number(l.vatRate) ? 'selected' : ''}>${r}</option>`).join('')}
 						</select></label>
+						${Number(l.vatRate) === 0 ? `<label>Steuerbefreiung<textarea data-l="${i}.exemptionReason" rows="1" placeholder="z. B. Reverse Charge §13b UStG">${esc(l.exemptionReason)}</textarea></label>` : ''}
 					</div>
 					<button class="secondary" data-del="${i}">Position entfernen</button>
 				</div>`,
@@ -337,16 +350,19 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			</div>`;
 		}
 		if (s.step === 3) {
+			// Mirrors calcTotals() on the server: one rounding per line, from
+			// quantity × price × discount, tax derived from the rate basis.
 			const lines = s.lines
 				.map(l => {
-					const discount = Math.min(Math.max(l.discountPercent ?? 0, 0), 100);
-					const gross = round2(l.quantity * l.unitPriceNet);
-					const net = round2(gross * (1 - discount / 100));
-					return { ...l, discount, gross, net };
+					const quantity = Number(l.quantity) || 0;
+					const price = Number(l.unitPriceNet) || 0;
+					const discount = Math.min(Math.max(Number(l.discountPercent) || 0, 0), 100);
+					const gross = round2(quantity * price);
+					return { ...l, discount, gross, net: round2(quantity * price * (1 - discount / 100)) };
 				})
-				.filter(l => l.description || l.net > 0);
+				.filter(l => l.description.trim() !== '' || l.gross > 0);
 			const byRate = new Map<number, number>();
-			for (const l of lines) byRate.set(l.vatRate, round2((byRate.get(l.vatRate) ?? 0) + l.net));
+			for (const l of lines) byRate.set(Number(l.vatRate) || 0, round2((byRate.get(Number(l.vatRate) || 0) ?? 0) + l.net));
 			const breakdown = [...byRate.entries()]
 				.sort(([a], [b]) => a - b)
 				.map(([rate, net]) => ({ rate, net, tax: round2((net * rate) / 100) }));
@@ -477,47 +493,57 @@ export function wizard(root: HTMLElement, editId?: string): void {
 	}
 
 	async function save(issue: boolean): Promise<void> {
-		collect();
-		s.error = '';
-		const input: DraftInput = {
-			seller: s.seller,
-			buyer: s.buyer,
-			lines: s.lines,
-			issueDate: s.issueDate,
-			deliveryDate: s.deliveryDate,
-			dueDate: s.dueDate || undefined,
-			currency: 'EUR',
-			employeeCode: s.employee.trim() || undefined,
-			documentTitle: s.documentTitle,
-			notes: s.notes || undefined,
-		};
+		// Without this a double click fires two POSTs before s.draftId is set
+		// and creates two invoices.
+		if (busy) {
+			return;
+		}
+		busy = true;
 		try {
-			if (s.employee.trim()) {
+			collect();
+			s.error = '';
+			const input: DraftInput = {
+				seller: s.seller,
+				buyer: s.buyer,
+				lines: s.lines,
+				issueDate: s.issueDate,
+				deliveryDate: s.deliveryDate,
+				dueDate: s.dueDate || undefined,
+				currency: 'EUR',
+				employeeCode: s.employee.trim() || undefined,
+				documentTitle: s.documentTitle,
+				notes: s.notes || undefined,
+			};
+			try {
+				if (s.employee.trim()) {
+					try {
+						localStorage.setItem(EMP_KEY, s.employee.trim());
+					} catch {
+						// ignore
+					}
+				}
+				let inv: Invoice;
+				if (s.draftId) {
+					inv = await api.update(s.draftId, input);
+				} else {
+					inv = await api.create(input);
+					s.draftId = inv.id;
+				}
+				if (issue) {
+					inv = await api.issue(inv.id);
+				}
 				try {
-					localStorage.setItem(EMP_KEY, s.employee.trim());
+					localStorage.removeItem(STORAGE_KEY);
 				} catch {
 					// ignore
 				}
+				location.hash = `#/invoices/${inv.id}`;
+			} catch (e) {
+				s.error = (e as Error).message;
+				render();
 			}
-			let inv: Invoice;
-			if (s.draftId) {
-				inv = await api.update(s.draftId, input);
-			} else {
-				inv = await api.create(input);
-				s.draftId = inv.id;
-			}
-			if (issue) {
-				inv = await api.issue(inv.id);
-			}
-			try {
-				localStorage.removeItem(STORAGE_KEY);
-			} catch {
-				// ignore
-			}
-			location.hash = `#/invoices/${inv.id}`;
-		} catch (e) {
-			s.error = (e as Error).message;
-			render();
+		} finally {
+			busy = false;
 		}
 	}
 

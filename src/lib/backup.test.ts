@@ -2,6 +2,8 @@
  * P5 tests: backup roundtrip and corrupt-backup handling.
  */
 import { expect } from 'chai';
+import JSZip from 'jszip';
+import { createHash } from 'node:crypto';
 import { createBackup, restoreBackup, type BackupStorage } from './backup';
 import { InvoiceDatabase } from './db';
 import { issueInvoiceWithArtifacts } from './issue-service';
@@ -113,6 +115,75 @@ describe('backup => corrupt input', () => {
 				},
 				(error: Error) => {
 					expect(error.message).to.match(/Checksum|misses|valid backup/i);
+				},
+			);
+			expect(dbB.listInvoices()).to.have.lengthOf(0);
+		} finally {
+			dbA.close();
+			dbB.close();
+		}
+	});
+
+	it('refuses a zip slip path in the manifest', async () => {
+		const dbA = new InvoiceDatabase(':memory:');
+		dbA.migrate();
+		const dbB = new InvoiceDatabase(':memory:');
+		dbB.migrate();
+		try {
+			const storeA = memoryStorage();
+			await seedIssued(dbA, storeA);
+			const backup = await createBackup(dbA, storeA, quiet, '0.0.0-test');
+
+			// rebuild the archive with a traversal path and a matching hash
+			const zip = await JSZip.loadAsync(backup.data);
+			const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
+			const payload = Buffer.from('pwned');
+			zip.file('files/../../escape.txt', payload);
+			manifest.files.push({
+				path: '../../escape.txt',
+				size: payload.length,
+				sha256: createHash('sha256').update(payload).digest('hex'),
+			});
+			zip.file('manifest.json', JSON.stringify(manifest));
+
+			const evil = await zip.generateAsync({ type: 'nodebuffer' });
+			await restoreBackup(dbB, memoryStorage(), evil, quiet).then(
+				() => {
+					throw new Error('should have thrown');
+				},
+				(error: Error) => {
+					expect(error.message).to.match(/unsafe file path/i);
+				},
+			);
+			expect(dbB.listInvoices()).to.have.lengthOf(0);
+		} finally {
+			dbA.close();
+			dbB.close();
+		}
+	});
+
+	it('rejects a tampered dump.json before touching the database', async () => {
+		const dbA = new InvoiceDatabase(':memory:');
+		dbA.migrate();
+		const dbB = new InvoiceDatabase(':memory:');
+		dbB.migrate();
+		try {
+			const storeA = memoryStorage();
+			await seedIssued(dbA, storeA);
+			const backup = await createBackup(dbA, storeA, quiet, '0.0.0-test');
+
+			const zip = await JSZip.loadAsync(backup.data);
+			const dump = JSON.parse(await zip.file('dump.json')!.async('string'));
+			dump.invoices = [];
+			zip.file('dump.json', JSON.stringify(dump));
+			const evil = await zip.generateAsync({ type: 'nodebuffer' });
+
+			await restoreBackup(dbB, memoryStorage(), evil, quiet).then(
+				() => {
+					throw new Error('should have thrown');
+				},
+				(error: Error) => {
+					expect(error.message).to.match(/Checksum mismatch: dump\.json/);
 				},
 			);
 			expect(dbB.listInvoices()).to.have.lengthOf(0);

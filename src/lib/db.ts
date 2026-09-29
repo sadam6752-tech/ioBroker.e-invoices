@@ -74,8 +74,8 @@ export interface StoredInvoice {
 export interface IssueArtifacts {
 	/** Structured EN 16931 XML string. */
 	xml: string;
-	/** Mount path of the hybrid PDF. */
-	pdfPath: string;
+	/** Mount path of the hybrid PDF (null when the write failed). */
+	pdfPath: string | null;
 	/** Mount path of the Excel copy (optional). */
 	xlsxPath?: string;
 	/** Layout template id (optional). */
@@ -588,7 +588,7 @@ export class InvoiceDatabase {
 				input.documentTitle ?? 'Rechnung',
 				input.notes ?? null,
 				input.paymentTerms ?? null,
-				input.employeeCode?.trim() ? input.employeeCode.trim().toUpperCase() : null,
+				input.employeeCode?.trim() ? normalizeEmployeeCode(input.employeeCode) : null,
 				stamp,
 				stamp,
 			);
@@ -630,13 +630,27 @@ export class InvoiceDatabase {
 			const like = `%${filter.query}%`;
 			params.push(like, like, like);
 		}
-		const limit = Math.min(Math.max(filter.limit ?? 50, 1), 500);
-		const offset = Math.max(filter.offset ?? 0, 0);
+		// NaN-safe: an unparsable ?limit=abc must not reach the driver as NaN.
+		const rawLimit = Number(filter.limit);
+		const rawOffset = Number(filter.offset);
+		const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 500) : 50;
+		const offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
 		const rows = this.db
 			.prepare(
 				`SELECT * FROM invoices ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
 			)
 			.all(...params, limit, offset) as InvoiceRow[];
+		return rows.map(mapRow);
+	}
+
+	/**
+	 * All invoices, newest first, without the list page limit.
+	 * Used by the backup so a restore can never silently drop records.
+	 *
+	 * @returns - Every stored invoice.
+	 */
+	public allInvoices(): StoredInvoice[] {
+		const rows = this.db.prepare(`SELECT * FROM invoices ORDER BY created_at DESC, id DESC`).all() as InvoiceRow[];
 		return rows.map(mapRow);
 	}
 
@@ -684,7 +698,7 @@ export class InvoiceDatabase {
 				merged.documentTitle ?? 'Rechnung',
 				merged.notes ?? null,
 				merged.paymentTerms ?? null,
-				merged.employeeCode?.trim() ? merged.employeeCode.trim().toUpperCase() : null,
+				merged.employeeCode?.trim() ? normalizeEmployeeCode(merged.employeeCode) : null,
 				nowIso(),
 				id,
 			);
@@ -907,10 +921,15 @@ export class InvoiceDatabase {
 			throw new Error(`Template not found: ${id}`);
 		}
 		const nextName = patch.name?.trim() || current.name;
-		const next = {
+		const patchDef: Partial<LayoutTemplate> = patch.definition ?? {};
+		// deep merge for the nested maps: a partial {blocks:{meta:false}} must not
+		// drop the other block flags (validateTemplate would then reject it)
+		const next: LayoutTemplate = {
 			...current.definition,
-			...(patch.definition ?? {}),
-			name: patch.definition?.name?.trim() || nextName,
+			...patchDef,
+			blocks: { ...current.definition.blocks, ...(patchDef.blocks ?? {}) },
+			colors: { ...current.definition.colors, ...(patchDef.colors ?? {}) },
+			name: patchDef.name?.trim() || nextName,
 		};
 		const errors = validateTemplate(next);
 		if (errors.length > 0) {
@@ -1066,7 +1085,7 @@ export class InvoiceDatabase {
 			formatVersion: 1,
 			exportedAt: nowIso(),
 			schemaVersion: this.currentVersion(),
-			invoices: this.listInvoices({ limit: 500 }),
+			invoices: this.allInvoices(),
 			counters,
 			templates: this.listTemplates(),
 			companies: this.listCompanyProfiles(),
@@ -1087,6 +1106,8 @@ export class InvoiceDatabase {
 	/**
 	 * Replaces the full database content (restore path, transactional).
 	 * Validates the shape first so bad dumps fail before touching data.
+	 * A collection missing from the dump is kept as-is instead of being
+	 * wiped, so a partial/older backup can never destroy records silently.
 	 *
 	 * @param dump - Database content from a backup.
 	 */
@@ -1099,14 +1120,21 @@ export class InvoiceDatabase {
 				throw new Error(`Corrupt invoice in dump: ${String((invoice as { id?: unknown }).id)}`);
 			}
 		}
+		const has = (key: keyof DatabaseDump): boolean => Array.isArray(dump[key]);
 		const run = this.db.transaction(() => {
 			this.db.prepare(`DELETE FROM attachments`).run();
 			this.db.prepare(`DELETE FROM invoices`).run();
 			this.db.prepare(`DELETE FROM counters`).run();
 			this.db.prepare(`DELETE FROM templates`).run();
-			this.db.prepare(`DELETE FROM company_profiles`).run();
-			this.db.prepare(`DELETE FROM customers`).run();
-			this.db.prepare(`DELETE FROM products`).run();
+			if (has('companies')) {
+				this.db.prepare(`DELETE FROM company_profiles`).run();
+			}
+			if (has('customers')) {
+				this.db.prepare(`DELETE FROM customers`).run();
+			}
+			if (has('products')) {
+				this.db.prepare(`DELETE FROM products`).run();
+			}
 			for (const counter of dump.counters ?? []) {
 				const employee = normalizeEmployeeCode((counter as { employee?: string }).employee ?? '00');
 				this.db

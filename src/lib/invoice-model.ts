@@ -156,7 +156,10 @@ export function formatInvoiceNumber(year: number, employee: string, seq: number,
 }
 
 /**
- * Normalizes an employee code (uppercase, fallback `00`).
+ * Normalizes an employee code (uppercase, fixed width `00`).
+ * Numeric codes are zero-padded to two digits so `1` and `01` cannot
+ * create two parallel counters for the same person (GoBD: one
+ * uninterrupted number series per employee).
  *
  * @param code - Raw code from the draft or UI.
  */
@@ -165,7 +168,34 @@ export function normalizeEmployeeCode(code?: string): string {
 	if (!/^[A-Z0-9]{1,8}$/.test(normalized)) {
 		throw new Error(`Invalid employee code (1-8 letters/digits): ${code}`);
 	}
-	return normalized;
+	return /^\d+$/.test(normalized) ? normalized.padStart(2, '0') : normalized;
+}
+
+/**
+ * Net amount of a single line (BT-146). Rounds exactly once, from
+ * quantity × price × discount — never by first rounding the unit price and
+ * then multiplying, which drifts by cents and breaks BR-CO-10.
+ *
+ * @param line - Invoice line item.
+ */
+export function lineNetAmount(line: InvoiceLine): number {
+	const discount = line.discountPercent ?? 0;
+	return roundCents(line.quantity * line.unitPriceNet * (1 - discount / 100));
+}
+
+/**
+ * Discounted net unit price for a line. Deliberately NOT rounded to cents:
+ * `quantity × netUnit` has to reproduce `lineNetAmount` exactly, which is
+ * impossible with a 2-decimal unit price for fractional quantities
+ * (3 × 0,335 € = 1,01 €; a 0,34 € unit price would yield 1,02 €).
+ *
+ * @param line - Invoice line item.
+ */
+export function lineNetUnitPrice(line: InvoiceLine): number {
+	if (!(line.quantity > 0)) {
+		return 0;
+	}
+	return lineNetAmount(line) / line.quantity;
 }
 
 /**
@@ -188,10 +218,10 @@ export function calcTotals(lines: InvoiceLine[]): InvoiceTotals {
 			throw new Error(`Unit price must be >= 0: ${line.description}`);
 		}
 		const discount = line.discountPercent ?? 0;
-		if (discount < 0 || discount > 100) {
+		if (!(discount >= 0) || discount > 100) {
 			throw new Error(`Discount must be 0-100: ${line.description}`);
 		}
-		const net = roundCents(line.quantity * line.unitPriceNet * (1 - discount / 100));
+		const net = lineNetAmount(line);
 		netByRate.set(line.vatRate, roundCents((netByRate.get(line.vatRate) ?? 0) + net));
 	}
 	const breakdown: TaxBreakdown[] = [...netByRate.entries()]

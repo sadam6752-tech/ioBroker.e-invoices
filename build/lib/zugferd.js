@@ -117,7 +117,7 @@ function toFacturXInput(invoice) {
     lines: invoice.lines.map((line, index) => {
       var _a2, _b2, _c2;
       const discount = (_a2 = line.discountPercent) != null ? _a2 : 0;
-      const netUnit = Math.round(line.unitPriceNet * (1 - discount / 100) * 100) / 100;
+      const netUnit = (0, import_invoice_model.lineNetUnitPrice)(line);
       return {
         id: String(index + 1),
         name: line.description,
@@ -127,7 +127,7 @@ function toFacturXInput(invoice) {
         unitCode: mapUnitCode(line.unit || "Stk"),
         unitPrice: netUnit,
         grossUnitPrice: discount > 0 ? line.unitPriceNet : void 0,
-        priceDiscount: discount > 0 ? Math.round((line.unitPriceNet - netUnit) * 100) / 100 : void 0,
+        priceDiscount: discount > 0 ? (0, import_invoice_model.roundCents)(line.unitPriceNet - netUnit) : void 0,
         vatCategoryCode: mapVatCategory(line.vatRate),
         vatRatePercent: line.vatRate
       };

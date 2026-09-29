@@ -10,14 +10,16 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 	root.innerHTML = `<div class="card">Lade…</div>`;
 	try {
 		const inv = await api.get(id);
-		const rows = inv.lines.map(l => {
-			const discount = Math.min(Math.max(l.discountPercent ?? 0, 0), 100);
-			const netUnit = l.unitPriceNet * (1 - discount / 100);
+		const lines = Array.isArray(inv.lines) ? inv.lines : [];
+		const rows = lines.map(l => {
+			const discount = Math.min(Math.max(Number(l.discountPercent) || 0, 0), 100);
+			const quantity = Number(l.quantity) || 0;
+			const price = Number(l.unitPriceNet) || 0;
 			return {
 				line: l,
 				discount,
-				gross: round2(l.quantity * l.unitPriceNet),
-				net: round2(l.quantity * netUnit),
+				gross: round2(quantity * price),
+				net: round2(quantity * price * (1 - discount / 100)),
 			};
 		});
 		const hasDiscount = rows.some(r => r.discount > 0);
@@ -41,10 +43,10 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 				.map(
 					(r, i) => `<tr>
 					<td>${i + 1}</td><td>${esc(r.line.description)}${r.line.sku ? ` (${esc(r.line.sku)})` : ''}</td>
-					<td class="r">${r.line.quantity} ${esc(r.line.unit)}</td>
-					<td class="r">${eur(r.line.unitPriceNet)}</td>
+					<td class="r">${esc(r.line.quantity)} ${esc(r.line.unit)}</td>
+					<td class="r">${eur(Number(r.line.unitPriceNet))}</td>
 					${hasDiscount ? `<td class="r">${r.discount > 0 ? `${esc(r.discount)} %` : '–'}</td><td class="r">${r.discount > 0 ? eur(round2(r.gross - r.net)) : '–'}</td>` : ''}
-					<td class="r">${r.line.vatRate} %</td><td class="r"><strong>${eur(r.net)}</strong></td>
+					<td class="r">${esc(r.line.vatRate)} %</td><td class="r"><strong>${eur(r.net)}</strong></td>
 				</tr>`,
 				)
 				.join('')}

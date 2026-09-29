@@ -109,6 +109,47 @@ function isMissingError(error: unknown): boolean {
 }
 
 /**
+ * True when a storage-relative path stays inside the mountpoint.
+ * Guards logo and artifact reads against `../` traversal from user input.
+ *
+ * @param relPath - Path taken from user input.
+ */
+function isContainedRelPath(relPath: string): boolean {
+	if (relPath.includes('\\') || relPath.startsWith('/') || /^[A-Za-z]:/.test(relPath)) {
+		return false;
+	}
+	return !relPath.split('/').some(segment => segment === '..' || segment === '');
+}
+
+/**
+ * Verifies that a request body field, when present, has the expected runtime
+ * shape. Without this a client can store `lines: {}` as an invoice and break
+ * every later read of that record.
+ *
+ * @param body - Parsed request body.
+ * @param rules - Field name to expected kind.
+ * @returns An error message, or undefined when everything matches.
+ */
+function findShapeError(body: Record<string, unknown>, rules: Record<string, 'object' | 'array'>): string | undefined {
+	if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+		return 'Body must be a JSON object';
+	}
+	for (const [field, kind] of Object.entries(rules)) {
+		const value = body[field];
+		if (value === undefined) {
+			continue;
+		}
+		if (kind === 'array' && !Array.isArray(value)) {
+			return `Field ${field} must be an array`;
+		}
+		if (kind === 'object' && (typeof value !== 'object' || value === null || Array.isArray(value))) {
+			return `Field ${field} must be an object`;
+		}
+	}
+	return undefined;
+}
+
+/**
  * Reads a single route param (Express 5 types it as string|string[]).
  *
  * @param req - Express request.
@@ -177,7 +218,11 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		'/api/invoices',
 		route((req, res) => {
 			const input = (req.body ?? {}) as Partial<InvoiceDraftInput>;
-			if (typeof input !== 'object' || !input.seller || !input.buyer || !Array.isArray(input.lines)) {
+			if (!input.seller || !input.buyer || !Array.isArray(input.lines)) {
+				res.status(400).json({ error: 'Body needs seller, buyer and lines[]' });
+				return;
+			}
+			if (findShapeError(input, { seller: 'object', buyer: 'object', lines: 'array' })) {
 				res.status(400).json({ error: 'Body needs seller, buyer and lines[]' });
 				return;
 			}
@@ -278,8 +323,16 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	app.patch(
 		'/api/invoices/:id',
 		route((req, res) => {
+			const patch = (req.body ?? {}) as Partial<InvoiceDraftInput>;
+			// Without this a body of {"lines":{}} zeroes the totals and stores a
+			// non-array, which then breaks every later read, validate and issue.
+			const bad = findShapeError(patch, { seller: 'object', buyer: 'object', lines: 'array' });
+			if (bad) {
+				res.status(400).json({ error: bad });
+				return;
+			}
 			try {
-				res.json(db.updateDraft(routeParam(req, 'id'), (req.body ?? {}) as Partial<InvoiceDraftInput>));
+				res.json(db.updateDraft(routeParam(req, 'id'), patch));
 			} catch (error) {
 				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
 			}
@@ -392,7 +445,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				paymentTerms: 'Zahlbar innerhalb von 14 Tagen ohne Abzug.',
 			});
 			let logo: { data: Buffer } | undefined;
-			if (definition.logo?.path) {
+			if (definition.logo?.path && isContainedRelPath(definition.logo.path)) {
 				try {
 					logo = { data: await storage.read(definition.logo.path) };
 				} catch {
@@ -604,7 +657,12 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		'/api/company-profiles',
 		route((req, res) => {
 			const body = (req.body ?? {}) as { name?: unknown; profile?: unknown };
-			if (typeof body.name !== 'string' || typeof body.profile !== 'object' || !body.profile) {
+			if (
+				typeof body.name !== 'string' ||
+				typeof body.profile !== 'object' ||
+				!body.profile ||
+				Array.isArray(body.profile)
+			) {
 				res.status(400).json({ error: 'Body needs name and profile' });
 				return;
 			}
@@ -673,7 +731,12 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		'/api/customers',
 		route((req, res) => {
 			const body = (req.body ?? {}) as { name?: unknown; profile?: unknown };
-			if (typeof body.name !== 'string' || typeof body.profile !== 'object' || !body.profile) {
+			if (
+				typeof body.name !== 'string' ||
+				typeof body.profile !== 'object' ||
+				!body.profile ||
+				Array.isArray(body.profile)
+			) {
 				res.status(400).json({ error: 'Body needs name and profile' });
 				return;
 			}
@@ -775,8 +838,12 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		res.status(404).json({ error: 'Unknown API route' });
 	});
 	app.use((error: unknown, _req: Request, res: Response, _next: unknown) => {
-		log.error(`API error: ${(error as Error).message}`);
-		res.status(500).json({ error: 'Internal server error' });
+		const err = error as { message?: string; status?: number; statusCode?: number };
+		// keep body-parser/client errors (400, 413) as they are, hide internals
+		const status = err?.status ?? err?.statusCode ?? 500;
+		const message = status < 500 ? String(err?.message ?? 'Request failed') : 'Internal server error';
+		log.error(`API error (${status}): ${String(err?.message ?? error)}`);
+		res.status(status).json({ error: message });
 	});
 
 	return app;
