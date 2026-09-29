@@ -19,7 +19,7 @@ function shell(route: string): void {
 	const links: [string, string][] = [
 		['#/', 'Rechnungen'],
 		['#/new', '+ Neu'],
-		['#/templates', 'Vorlagen'],
+		['#/templates', 'Druckvorlagen'],
 		['#/company', 'Firma'],
 		['#/customers', 'Kunden'],
 		['#/products', 'Positionen'],

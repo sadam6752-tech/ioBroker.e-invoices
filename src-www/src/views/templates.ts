@@ -120,8 +120,11 @@ export async function templates(root: HTMLElement): Promise<void> {
 
 	function render(): void {
 		root.innerHTML = `
-		<div class="card"><div class="row"><strong>Layout-Vorlagen</strong>
+		<div class="card"><div class="row"><strong>Druckvorlagen</strong>
 			<button id="t-new">+ Neu</button></div>
+			<p class="muted">Aussehen der PDF-Rechnung: Logo, Farben, Kopf- und Fußzeilen. Die inhaltlichen
+				Positionen legst du unter <a href="#/invoice-templates">Rechnungsvorlagen</a> oder
+				<a href="#/products">Positionen</a> fest.</p>
 			${
 				items
 					.map(
