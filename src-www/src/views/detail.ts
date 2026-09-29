@@ -5,6 +5,17 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 	root.innerHTML = `<div class="card">Lade…</div>`;
 	try {
 		const inv = await api.get(id);
+		const rows = inv.lines.map(l => {
+			const discount = Math.min(Math.max(l.discountPercent ?? 0, 0), 100);
+			const netUnit = l.unitPriceNet * (1 - discount / 100);
+			return {
+				line: l,
+				discount,
+				gross: Math.round(l.quantity * l.unitPriceNet * 100) / 100,
+				net: Math.round(l.quantity * netUnit * 100) / 100,
+			};
+		});
+		const hasDiscount = rows.some(r => r.discount > 0);
 		root.innerHTML = `
 			<div class="card"><div class="row">
 				<strong>${esc(inv.number ?? '(Entwurf)')}</strong>
@@ -16,12 +27,21 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 				<div><strong>Käufer</strong><br />${esc(inv.buyer.name)}<br />${esc(inv.buyer.street)}<br />${esc(inv.buyer.zip)} ${esc(inv.buyer.city)}</div>
 			</div>
 			<p>Ausgestellt: ${esc(inv.issueDate)} · Leistung: ${esc(inv.deliveryDate)}${inv.dueDate ? ` · Fällig: ${esc(inv.dueDate)}` : ''}</p>
-			<table class="lines"><tr><th>#</th><th>Beschreibung</th><th>Menge</th><th>USt</th><th>Netto</th></tr>
-			${inv.lines
-				.map((l, i) => {
-					const netUnit = l.unitPriceNet * (1 - (l.discountPercent ?? 0) / 100);
-					return `<tr><td>${i + 1}</td><td>${esc(l.description)}${l.sku ? ` (${esc(l.sku)})` : ''}</td><td>${l.quantity} ${esc(l.unit)}</td><td>${l.vatRate} %</td><td>${eur(Math.round(l.quantity * netUnit * 100) / 100)}</td></tr>`;
-				})
+			<table class="lines"><tr>
+				<th>#</th><th>Bezeichnung</th><th class="r">Menge</th><th class="r">Preis netto</th>
+				${hasDiscount ? '<th class="r">Rabatt</th><th class="r">Rabatt €</th>' : ''}
+				<th class="r">USt</th><th class="r">Netto</th>
+			</tr>
+			${rows
+				.map(
+					(r, i) => `<tr>
+					<td>${i + 1}</td><td>${esc(r.line.description)}${r.line.sku ? ` (${esc(r.line.sku)})` : ''}</td>
+					<td class="r">${r.line.quantity} ${esc(r.line.unit)}</td>
+					<td class="r">${eur(r.line.unitPriceNet)}</td>
+					${hasDiscount ? `<td class="r">${r.discount > 0 ? `${esc(r.discount)} %` : '–'}</td><td class="r">${r.discount > 0 ? eur(Math.round((r.gross - r.net) * 100) / 100) : '–'}</td>` : ''}
+					<td class="r">${r.line.vatRate} %</td><td class="r"><strong>${eur(r.net)}</strong></td>
+				</tr>`,
+				)
 				.join('')}
 			</table>
 			<p><strong>Gesamt: ${eur(inv.totals.grossTotal)}</strong> <span class="muted">(netto ${eur(inv.totals.netTotal)} + USt ${eur(inv.totals.taxTotal)})</span></p>
