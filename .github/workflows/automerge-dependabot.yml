@@ -12,6 +12,12 @@ jobs:
   auto-merge:
     if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
+    # The action needs both scopes explicitly: repositories created since 2023
+    # default to a read-only GITHUB_TOKEN, so without this block the merge is
+    # refused (it cannot be taken from the repository default).
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
