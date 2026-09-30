@@ -102,6 +102,25 @@ so it cannot share the compact process.
 - Only EUR, domestic B2B invoices and the BASIC/EN 16931 profiles are
   supported in this version.
 
+## Standards and references
+
+This adapter is built around an invoice *format*, not a device, so the
+reference "manufacturer" documentation is the specification it implements:
+
+- [Factur-X / ZUGFeRD](https://fnfe-mpe.org/factur-x/) — the Franco-German
+  hybrid invoice standard (readable PDF with the leading CII XML inside) and
+  the profiles used here (BASIC, EN 16931).
+- [KoSIT Validator](https://github.com/itplr-kosit/validator) — the open
+  validation engine for EN 16931 documents; its configuration for
+  XRechnung/EN 16931 is what the manual acceptance check described under
+  "Limitations" runs.
+- [@stackforge-eu/factur-x](https://www.npmjs.com/package/@stackforge-eu/factur-x) —
+  the library that generates the CII XML and embeds the hybrid PDF.
+
+The German rules behind the numbering and retention logic come from § 14 UStG
+and § 147 AO; the adapter implements them, it is not a substitute for tax
+advice.
+
 ## Provenance
 
 All adapter sources in `src/` and the PWA in `src-www/` are written for
