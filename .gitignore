@@ -16,3 +16,9 @@ Thumbs.db
 # i18n intermediate files
 admin/i18n/flat.txt
 admin/i18n/*/flat.txt
+
+# Playwright (tests/e2e): reports and traces of the browser tests
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/

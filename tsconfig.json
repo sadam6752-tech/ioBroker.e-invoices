@@ -37,6 +37,9 @@
 		"sourceMap": true,
 		"inlineSourceMap": false
 	},
-	"include": ["src/**/*.ts", "test/**/*.ts"],
-	"exclude": ["build/**", "node_modules/**", "widgets/**"]
+	"include": ["src/**/*.ts", "test/**/*.ts", "playwright.config.ts"],
+	// the browser tests of `test/e2e` are not part of the adapter programme (they
+	// run in the browser and need the DOM types); they have their own tsconfig in
+	// `test/e2e/tsconfig.json`, which `npm run check:e2e` uses
+	"exclude": ["build/**", "node_modules/**", "widgets/**", "test/e2e/**"]
 }

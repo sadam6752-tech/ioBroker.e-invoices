@@ -36,6 +36,10 @@ header.top a {
 	color: #fff;
 	text-decoration: none;
 	font-weight: 600;
+	/* a finger needs 24 × 24 px (WCAG 2.2, 2.5.8); the bare text line is only 21 px high,
+	   which `test/e2e/layout.spec.ts` measures on a phone viewport */
+	padding: 4px 6px;
+	border-radius: 6px;
 }
 header.top a.active {
 	text-decoration: underline;
