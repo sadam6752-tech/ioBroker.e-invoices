@@ -162,7 +162,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.0.4 (2026-09-30)
 * (alex) Reverse charge invoices now carry the buyer's tax identifiers (BT-48) in the CII XML,
   so they pass the EN 16931 rule `[BR-AE-02]` (R2).
 * (alex) The never published 0.0.2 is gone from `common.news` and the changelog — the adapter
