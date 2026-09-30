@@ -750,7 +750,6 @@ describe('api => security (R3)', () => {
 	});
 });
 
-
 describe('api => static PWA bundle', function () {
 	this.timeout(60000);
 	let dir: string;
