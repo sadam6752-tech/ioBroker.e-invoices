@@ -171,10 +171,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
   `/api/restore`) and ZIP-bomb guards for restores; the new "Security notes"
   section documents token handling, bind address and backup encryption.
 
-### 0.0.2 (2026-09-30)
-* (alex) first release published by the tag pipeline: GitHub Actions builds the
-  adapter and publishes it with npm provenance through Trusted Publishing
-  (OIDC). The code is identical to 0.0.1, only the version changed
+### 0.0.2 — skipped (2026-09-30)
+The tag was withdrawn before the release job could publish it: the first version
+that came out of the tag pipeline (npm provenance via Trusted Publishing) is
+0.0.3.
 
 ### 0.0.1
 * (alex) initial release

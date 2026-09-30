@@ -37,19 +37,6 @@
         "uk": "* Кожен запуск перевірки зберігає свій звіт поруч із артефактами\n  (`... валідація- <n>.json`) і детальний перегляд пов'язує звіти попередніх\n  працює, тому перевірка правдоподібності електронного рахунку відтворюється (R2).\n* Загартовування безпеки: ``шолом \"з політикою безпеки лише для вмісту,\n  порівняння токенів, безпечне для часу, обмеження швидкості (600/хв на `/api`, 10/хв увімкнено\n  `/api/restore`) та захисні бомби для реставрацій; нові «Примітки безпеки»\n  розділ документів обробка токенів, прив'язка адреси та шифрування резервних копій.",
         "zh-cn": "* 每次验证运行都会将其报告存储在工件旁边\n  (`... validation-<n>.json`) 和详细视图链接了之前的报告\n  运行，因此电子发票的可信性检查是可重复的 (R2)。\n* 安全强化：带有自有内容安全政策的 “头盔”，\n  定时安全代币比较、速率限制（`/api` 为 600/min，开启 10/min\n  `/api/restore`) 和用于恢复的 Zip-bomb 防护；新的 “安全注意事项”\n  部分记录了令牌处理、绑定地址和备份加密。"
       },
-      "0.0.2": {
-        "en": "* first release published by the tag pipeline: GitHub Actions builds the\n  adapter and publishes it with npm provenance through Trusted Publishing\n  (OIDC). The code is identical to 0.0.1, only the version changed",
-        "de": "* Erste Version mit dem Tag Pipeline: GitHub Actions baut den\n  Adapter und veröffentlicht ihn mit NPM-Herkunft über Trusted Publishing\n  (OIC). Der Code ist identisch mit 0.0.1, nur Version geändert",
-        "ru": "* первый релиз, опубликованный конвейером тегов: GitHub Actions создает\n  адаптер и публикует его с именем npm provenance через Trusted Publishing\n  (ИДИК). Код идентичен 0.0.1, изменена только версия",
-        "pt": "* primeira versão publicada pelo tag pipeline: o GitHub Actions cria o\n  adapta e o publica com origem npm por meio da Trusted Publishing\n  (DOC). O código é idêntico a 0.0.1, só a versão mudou",
-        "nl": "* eerste release gepubliceerd door de tag pipeline: GitHub Actions bouwt de\n  adapter en publiceert het met npm-herkomst via Trusted Publishing\n  (OÏC). De code is identiek aan 0.0.1, alleen de versie is gewijzigd",
-        "fr": "* première version publiée par le tag pipeline : GitHub Actions crée le\n  adapter et le publie avec npm provenance via Trusted Publishing\n  (OIC). Le code est identique à 0.0.1, seule la version a changé",
-        "it": "* prima release pubblicata dal tag pipeline: GitHub Actions crea\n  adattatore e lo pubblica con provenienza npm tramite Trusted Publishing\n  (OIC). Il codice è uguale a 0.0.1, solo la versione è cambiata",
-        "es": "* primera versión publicada por Tag Pipeline: GitHub Actions crea el\n  adaptador y lo publica con procedencia npm a través de Trusted Publishing\n  (IDC). El código es idéntico a 0.0.1, solo que la versión cambió",
-        "pl": "* pierwsze wydanie opublikowane przez potok tagów: GitHub Actions buduje\n  adaptuje i publikuje go z prowinancją npm za pośrednictwem Trusted Publishing\n  (OIDC). Kod jest identyczny z 0.0.1, zmieniła się tylko wersja",
-        "uk": "* перший випуск, опублікований конвеєром тегів: GitHub Actions будує\n  адаптер і публікує його з походженням npm через Trusted Publishing\n  (ОИДК). Код ідентичний 0.0.1, змінена тільки версія",
-        "zh-cn": "* 标签管道发布的第一个版本：GitHub Actions 构建了\n  适配器并通过 Trusted Publishing 以 npm 来源发布它\n  (OIDC)。代码与 0.0.1 相同，只是版本发生了变化"
-      },
       "0.0.1": {
         "en": "initial release",
         "de": "Erstveröffentlichung",
