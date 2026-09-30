@@ -5,8 +5,11 @@
  * supertest. main.ts mounts it on the adapter port and serves the PWA.
  * v1 has no auth (LAN trust); token auth follows with the admin config (P6).
  */
+import { createHash, timingSafeEqual } from 'node:crypto';
 import express, { type Express, type Request, type Response } from 'express';
 import { existsSync, statSync } from 'node:fs';
+import helmet from 'helmet';
+import { rateLimit, type RateLimitRequestHandler } from 'express-rate-limit';
 import type {
 	InvoiceDatabase,
 	NewProduct,
@@ -81,6 +84,11 @@ export interface ApiServerDeps {
 	version: string;
 	/** Bearer token; when empty, the API trusts the LAN (documented). */
 	authToken?: string;
+	/**
+	 * Requests per minute and client (R3). Defaults are production values,
+	 * tests inject small numbers to reach the limit quickly.
+	 */
+	limits?: { api?: number; restore?: number };
 	/** Invoicing defaults from the instance config (read by the PWA). */
 	settings?: {
 		defaultVatRate: number;
@@ -260,6 +268,20 @@ async function storeValidationReport(
 }
 
 /**
+ * Compares a provided secret with the configured token without leaking content
+ * or length through response timing: both sides are hashed to a fixed size and
+ * compared with `timingSafeEqual` (R3).
+ *
+ * @param provided - Value from the request.
+ * @param expected - Configured token including its scheme prefix.
+ */
+function secretEquals(provided: string, expected: string): boolean {
+	const a = createHash('sha256').update(provided, 'utf8').digest();
+	const b = createHash('sha256').update(expected, 'utf8').digest();
+	return timingSafeEqual(a, b);
+}
+
+/**
  * Creates the Express API app (no listen — main.ts owns the socket).
  *
  * @param deps - Database, storage, logger and version.
@@ -275,9 +297,55 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		storageMount: deps.settings?.storageMount?.trim() ?? '',
 		backupIntervalMinutes: Math.max(0, Math.round(Number(deps.settings?.backupIntervalMinutes) || 0)),
 	};
+	const limits = {
+		api: Math.max(1, Math.round(deps.limits?.api ?? 600)),
+		restore: Math.max(1, Math.round(deps.limits?.restore ?? 10)),
+	};
 	const app = express();
 	app.disable('x-powered-by');
+	// The adapter listens directly on its own port, so the socket address is the
+	// client address; X-Forwarded-* headers from a client must not be trusted.
+	app.set('trust proxy', false);
+	app.use(
+		helmet({
+			// The PWA is served from the same origin as the API: everything else
+			// (scripts, styles, connections, frames) stays blocked.
+			contentSecurityPolicy: {
+				directives: {
+					'default-src': ["'self'"],
+					'script-src': ["'self'"],
+					// the views set inline style attributes (badges, status colors)
+					'style-src': ["'self'", "'unsafe-inline'"],
+					'img-src': ["'self'", 'data:', 'blob:'],
+					'connect-src': ["'self'"],
+					'worker-src': ["'self'", 'blob:'],
+					'manifest-src': ["'self'"],
+					'object-src': ["'none'"],
+					'base-uri': ["'self'"],
+					'form-action': ["'self'"],
+					'frame-ancestors': ["'none'"],
+				},
+			},
+			crossOriginEmbedderPolicy: false,
+		}),
+	);
 	app.use(express.json({ limit: '25mb' }));
+	// Rate limits (R3): the API is reachable from the LAN, and a restore replaces
+	// the whole database — so restore gets a much smaller budget than the rest.
+	const limiter = (limit: number, scope: string): RateLimitRequestHandler =>
+		rateLimit({
+			windowMs: 60_000,
+			limit,
+			standardHeaders: 'draft-7',
+			legacyHeaders: false,
+			handler: (req, res) => {
+				// log hygiene: method and path only, never headers or bodies
+				log.warn?.(`Rate limit hit (${scope}): ${req.method} ${req.path}`);
+				res.status(429).json({ error: 'Too many requests' });
+			},
+		});
+	app.use('/api', limiter(limits.api, 'api'));
+	app.use('/api/restore', limiter(limits.restore, 'restore'));
 	// Invoice data and rendered artifacts must never be reused from a cache:
 	// a stored PDF keeps the layout it had when it was issued, and a cached
 	// preview would hide a corrected rendering until the cache expired.
@@ -293,7 +361,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				next();
 				return;
 			}
-			if (req.headers.authorization === `Bearer ${authToken}`) {
+			if (req.headers.authorization && secretEquals(req.headers.authorization, `Bearer ${authToken}`)) {
 				next();
 				return;
 			}

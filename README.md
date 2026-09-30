@@ -82,6 +82,34 @@ a stored report, XML/PDF/XLSX downloads, templates with logo upload and PDF
 preview, backups, restore). With an API token configured, every route except
 `/api/health` requires an `Authorization: Bearer <token>` header.
 
+## Security notes
+
+- **Token:** set `authToken` in the instance configuration. Every API route except
+  `/api/health` then requires `Authorization: Bearer <token>`; without a token the
+  API trusts every client that can reach the port.
+- **Bind address:** `bind` defaults to `127.0.0.1`, so only the host running the
+  adapter can reach the API. An unauthenticated bind to another interface is
+  logged as a warning on startup — use a token in that case.
+- **Rate limits:** 600 requests per minute and client on `/api`, but only 10 on
+  `/api/restore*`, which replaces the whole database. Exceeding a budget answers
+  `429 Too many requests` and logs method plus path (never the token).
+- **Browser hardening:** API and PWA answer with a self-only Content Security
+  Policy (`default-src 'self'`, `frame-ancestors 'none'`), `X-Content-Type-Options:
+  nosniff`, `Referrer-Policy: no-referrer` and without `X-Powered-By`.
+  `X-Forwarded-*` headers are not trusted (`trust proxy` disabled) — the adapter
+  is meant to be reached directly; put it behind a reverse proxy only with HTTPS
+  and a token.
+- **Restore limits:** a backup ZIP may be at most 512 MB and expand to at most
+  1 GB (`dump.json` at most 256 MB); a crafted archive is rejected before it is
+  unpacked. Entry paths, per-file checksums and the manifest are verified.
+- **Where the PWA keeps the token:** in the browser profile's `localStorage`, so a
+  reload does not ask again. It is only ever sent as an `Authorization` header to
+  the adapter (never in a URL), but a script running on the same origin could read
+  it — use a dedicated browser profile, and note that changing the token in the
+  instance config takes effect after the adapter restart.
+- **Backup files are not encrypted:** the ZIP contains the database, attachments
+  and XML/PDF artifacts in plain text. Keep it on an encrypted volume or share.
+
 ## Why compact mode is off (W5049)
 
 This adapter sets `common.compact` to `false` on purpose: it keeps its own
@@ -138,6 +166,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 * (alex) Every validation run stores its report next to the artifacts
   (`…validation-<n>.json`) and the detail view links the reports of earlier
   runs, so the plausibility check of an e-invoice is reproducible (R2).
+* (alex) Security hardening: `helmet` with a self-only content security policy,
+  timing-safe token comparison, rate limits (600/min on `/api`, 10/min on
+  `/api/restore`) and ZIP-bomb guards for restores; the new "Security notes"
+  section documents token handling, bind address and backup encryption.
 
 ### 0.0.2 (2026-09-30)
 * (alex) first release published by the tag pipeline: GitHub Actions builds the

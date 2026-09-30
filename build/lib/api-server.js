@@ -35,8 +35,11 @@ __export(api_server_exports, {
   storedToDraft: () => storedToDraft
 });
 module.exports = __toCommonJS(api_server_exports);
+var import_node_crypto = require("node:crypto");
 var import_express = __toESM(require("express"));
 var import_node_fs = require("node:fs");
+var import_helmet = __toESM(require("helmet"));
+var import_express_rate_limit = require("express-rate-limit");
 var import_invoice_model = require("./invoice-model");
 var import_issue_service = require("./issue-service");
 var import_backup = require("./backup");
@@ -172,8 +175,13 @@ async function storeValidationReport(db, storage, log, invoice, result) {
     return null;
   }
 }
+function secretEquals(provided, expected) {
+  const a = (0, import_node_crypto.createHash)("sha256").update(provided, "utf8").digest();
+  const b = (0, import_node_crypto.createHash)("sha256").update(expected, "utf8").digest();
+  return (0, import_node_crypto.timingSafeEqual)(a, b);
+}
 function createApiServer(deps) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
   const { db, storage, log, version, authToken } = deps;
   const settings = {
     defaultVatRate: import_invoice_model.ALLOWED_VAT_RATES.includes(Number((_a = deps.settings) == null ? void 0 : _a.defaultVatRate)) ? Number((_b = deps.settings) == null ? void 0 : _b.defaultVatRate) : 19,
@@ -182,9 +190,50 @@ function createApiServer(deps) {
     storageMount: (_j = (_i = (_h = deps.settings) == null ? void 0 : _h.storageMount) == null ? void 0 : _i.trim()) != null ? _j : "",
     backupIntervalMinutes: Math.max(0, Math.round(Number((_k = deps.settings) == null ? void 0 : _k.backupIntervalMinutes) || 0))
   };
+  const limits = {
+    api: Math.max(1, Math.round((_m = (_l = deps.limits) == null ? void 0 : _l.api) != null ? _m : 600)),
+    restore: Math.max(1, Math.round((_o = (_n = deps.limits) == null ? void 0 : _n.restore) != null ? _o : 10))
+  };
   const app = (0, import_express.default)();
   app.disable("x-powered-by");
+  app.set("trust proxy", false);
+  app.use(
+    (0, import_helmet.default)({
+      // The PWA is served from the same origin as the API: everything else
+      // (scripts, styles, connections, frames) stays blocked.
+      contentSecurityPolicy: {
+        directives: {
+          "default-src": ["'self'"],
+          "script-src": ["'self'"],
+          // the views set inline style attributes (badges, status colors)
+          "style-src": ["'self'", "'unsafe-inline'"],
+          "img-src": ["'self'", "data:", "blob:"],
+          "connect-src": ["'self'"],
+          "worker-src": ["'self'", "blob:"],
+          "manifest-src": ["'self'"],
+          "object-src": ["'none'"],
+          "base-uri": ["'self'"],
+          "form-action": ["'self'"],
+          "frame-ancestors": ["'none'"]
+        }
+      },
+      crossOriginEmbedderPolicy: false
+    })
+  );
   app.use(import_express.default.json({ limit: "25mb" }));
+  const limiter = (limit, scope) => (0, import_express_rate_limit.rateLimit)({
+    windowMs: 6e4,
+    limit,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    handler: (req, res) => {
+      var _a2;
+      (_a2 = log.warn) == null ? void 0 : _a2.call(log, `Rate limit hit (${scope}): ${req.method} ${req.path}`);
+      res.status(429).json({ error: "Too many requests" });
+    }
+  });
+  app.use("/api", limiter(limits.api, "api"));
+  app.use("/api/restore", limiter(limits.restore, "restore"));
   app.use("/api", (_req, res, next) => {
     res.set("Cache-Control", "no-store, no-cache, must-revalidate");
     res.set("Pragma", "no-cache");
@@ -196,7 +245,7 @@ function createApiServer(deps) {
         next();
         return;
       }
-      if (req.headers.authorization === `Bearer ${authToken}`) {
+      if (req.headers.authorization && secretEquals(req.headers.authorization, `Bearer ${authToken}`)) {
         next();
         return;
       }

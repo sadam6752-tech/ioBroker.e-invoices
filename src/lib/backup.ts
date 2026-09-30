@@ -119,6 +119,46 @@ function assertSafeEntryPath(relPath: unknown): asserts relPath is string {
 	}
 }
 
+/** Hard limits for restore input, so a crafted ZIP cannot exhaust memory (R3). */
+export interface BackupLimits {
+	/** Maximum size of the incoming ZIP in bytes. */
+	zipBytes: number;
+	/** Maximum sum of all uncompressed bytes in the ZIP. */
+	unpackedBytes: number;
+	/** Maximum number of entries in the ZIP. */
+	entries: number;
+	/** Maximum size of the single `dump.json` payload. */
+	dumpBytes: number;
+}
+
+/** Production limits: a 512 MB ZIP may expand to at most 1 GB. */
+export const DEFAULT_BACKUP_LIMITS: BackupLimits = {
+	zipBytes: 512 * 1024 * 1024,
+	unpackedBytes: 1024 * 1024 * 1024,
+	entries: 20000,
+	dumpBytes: 256 * 1024 * 1024,
+};
+
+/**
+ * Merges caller limits with the production defaults.
+ *
+ * @param limits - Optional overrides (used by tests).
+ */
+function resolveLimits(limits?: Partial<BackupLimits>): BackupLimits {
+	return { ...DEFAULT_BACKUP_LIMITS, ...(limits ?? {}) };
+}
+
+/**
+ * Uncompressed size as declared in the ZIP directory, when JSZip exposes it.
+ * Optional by design — the running total while extracting is the hard guard.
+ *
+ * @param entry - ZIP entry (or null when the name does not exist).
+ */
+function declaredSize(entry: JSZip.JSZipObject | null): number | undefined {
+	const data = (entry as unknown as { _data?: { uncompressedSize?: number } } | null)?._data;
+	return typeof data?.uncompressedSize === 'number' ? data.uncompressedSize : undefined;
+}
+
 function stampName(date = new Date()): string {
 	return date.toISOString().replace(/[:.]/g, '-').slice(0, 19);
 }
@@ -267,11 +307,16 @@ export interface RestorePreview {
  *
  * @param db - Open invoice database (read-only use).
  * @param zipData - Backup ZIP bytes.
+ * @param limits - Optional ZIP limits (defaults to the production caps).
  * @returns Counts and the diff against the current state.
  * @throws {Error} When the ZIP, manifest, checksums or schema are not usable.
  */
-export async function previewRestore(db: InvoiceDatabase, zipData: Buffer): Promise<RestorePreview> {
-	const { manifest, dump } = await readAndVerifyBackup(zipData);
+export async function previewRestore(
+	db: InvoiceDatabase,
+	zipData: Buffer,
+	limits?: Partial<BackupLimits>,
+): Promise<RestorePreview> {
+	const { manifest, dump } = await readAndVerifyBackup(zipData, limits);
 	const numbers = dump.invoices.map(i => i.number).filter((n): n is string => Boolean(n));
 	const currentNumbers = new Set(
 		db
@@ -302,17 +347,40 @@ export async function previewRestore(db: InvoiceDatabase, zipData: Buffer): Prom
  * can never be half applied.
  *
  * @param zipData - Backup ZIP bytes.
+ * @param limits - Optional ZIP limits (defaults to the production caps).
  * @returns The verified manifest, the parsed database dump and the verified files.
  * @throws {Error} When anything about the archive is unusable.
  */
 async function readAndVerifyBackup(
 	zipData: Buffer,
+	limits?: Partial<BackupLimits>,
 ): Promise<{ manifest: BackupManifest; dump: DatabaseDump; files: { path: string; data: Buffer }[] }> {
+	const caps = resolveLimits(limits);
+	if (zipData.length > caps.zipBytes) {
+		throw new Error(`Backup ZIP is too large (${zipData.length} bytes, limit ${caps.zipBytes})`);
+	}
 	let zip: JSZip;
 	try {
 		zip = await JSZip.loadAsync(zipData);
 	} catch {
 		throw new Error('File is no valid backup ZIP');
+	}
+	// ZIP bomb guard: entry count and declared sizes are checked before the
+	// first entry is decompressed.
+	const names = Object.keys(zip.files);
+	if (names.length > caps.entries) {
+		throw new Error(`Backup ZIP has too many entries (${names.length}, limit ${caps.entries})`);
+	}
+	let declared = 0;
+	for (const name of names) {
+		const size = declaredSize(zip.files[name]);
+		if (size === undefined) {
+			continue;
+		}
+		declared += size;
+		if (declared > caps.unpackedBytes) {
+			throw new Error(`Backup ZIP would expand to at least ${declared} bytes (limit ${caps.unpackedBytes})`);
+		}
 	}
 	const manifestFile = zip.file('manifest.json');
 	const dumpFile = zip.file('dump.json');
@@ -329,6 +397,7 @@ async function readAndVerifyBackup(
 	// Read the artifact files once: the restore writes exactly these buffers,
 	// so a second read can no longer fail after the database was replaced.
 	const files: { path: string; data: Buffer }[] = [];
+	let unpacked = 0;
 	for (const file of manifest.files ?? []) {
 		assertSafeEntryPath(file.path);
 		const entry = zip.file(`files/${file.path}`);
@@ -336,13 +405,24 @@ async function readAndVerifyBackup(
 			throw new Error(`Backup misses file: files/${file.path}`);
 		}
 		const data = Buffer.from(await entry.async('nodebuffer'));
+		unpacked += data.length;
+		if (unpacked > caps.unpackedBytes) {
+			throw new Error(`Backup expands to more than ${caps.unpackedBytes} bytes`);
+		}
 		if (sha256Hex(data) !== file.sha256 || data.length !== file.size) {
 			throw new Error(`Checksum mismatch: files/${file.path}`);
 		}
 		files.push({ path: file.path, data });
 	}
 
+	const declaredDump = declaredSize(dumpFile);
+	if (declaredDump !== undefined && declaredDump > caps.dumpBytes) {
+		throw new Error(`Backup dump.json is too large (${declaredDump} bytes, limit ${caps.dumpBytes})`);
+	}
 	const dumpJsonText = await dumpFile.async('string');
+	if (Buffer.byteLength(dumpJsonText, 'utf8') > caps.dumpBytes) {
+		throw new Error(`Backup dump.json is too large (limit ${caps.dumpBytes})`);
+	}
 	if (manifest.dumpSha256 && sha256Hex(dumpJsonText) !== manifest.dumpSha256) {
 		throw new Error('Checksum mismatch: dump.json');
 	}
@@ -383,14 +463,16 @@ async function readAndVerifyBackup(
  * @param storage - File backend for writing artifacts.
  * @param zipData - Backup ZIP bytes.
  * @param log - Logger.
+ * @param limits - Optional ZIP limits (defaults to the production caps).
  */
 export async function restoreBackup(
 	db: InvoiceDatabase,
 	storage: BackupStorage,
 	zipData: Buffer,
 	log: BackupLogger,
+	limits?: Partial<BackupLimits>,
 ): Promise<RestoreSummary> {
-	const { manifest, dump, files } = await readAndVerifyBackup(zipData);
+	const { manifest, dump, files } = await readAndVerifyBackup(zipData, limits);
 	db.importData(dump);
 	if (!db.getDefaultTemplate()) {
 		db.ensureDefaultTemplate();

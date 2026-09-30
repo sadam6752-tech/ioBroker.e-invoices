@@ -33,6 +33,8 @@ export interface IssueLogger {
 	info(message: string): void;
 	/** Error message. */
 	error(message: string): void;
+	/** Warning message; optional, because not every logger offers one. */
+	warn?(message: string): void;
 }
 
 /** Outcome of a full issue run. */

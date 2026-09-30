@@ -30,6 +30,7 @@ var backup_exports = {};
 __export(backup_exports, {
   BACKUP_APP_ID: () => BACKUP_APP_ID,
   BACKUP_FORMAT_VERSION: () => BACKUP_FORMAT_VERSION,
+  DEFAULT_BACKUP_LIMITS: () => DEFAULT_BACKUP_LIMITS,
   collectArtifactPaths: () => collectArtifactPaths,
   createBackup: () => createBackup,
   previewRestore: () => previewRestore,
@@ -56,6 +57,19 @@ function assertSafeEntryPath(relPath) {
       throw new Error(`Backup manifest contains an unsafe file path: ${relPath}`);
     }
   }
+}
+const DEFAULT_BACKUP_LIMITS = {
+  zipBytes: 512 * 1024 * 1024,
+  unpackedBytes: 1024 * 1024 * 1024,
+  entries: 2e4,
+  dumpBytes: 256 * 1024 * 1024
+};
+function resolveLimits(limits) {
+  return { ...DEFAULT_BACKUP_LIMITS, ...limits != null ? limits : {} };
+}
+function declaredSize(entry) {
+  const data = entry == null ? void 0 : entry._data;
+  return typeof (data == null ? void 0 : data.uncompressedSize) === "number" ? data.uncompressedSize : void 0;
 }
 function stampName(date = /* @__PURE__ */ new Date()) {
   return date.toISOString().replace(/[:.]/g, "-").slice(0, 19);
@@ -129,9 +143,9 @@ async function createBackup(db, storage, log, adapterVersion) {
   const filename = `backups/e-invoices-backup-${stampName()}.zip`;
   return { filename, size: data.length, sha256: sha256Hex(data), manifest, data };
 }
-async function previewRestore(db, zipData) {
+async function previewRestore(db, zipData, limits) {
   var _a;
-  const { manifest, dump } = await readAndVerifyBackup(zipData);
+  const { manifest, dump } = await readAndVerifyBackup(zipData, limits);
   const numbers = dump.invoices.map((i) => i.number).filter((n) => Boolean(n));
   const currentNumbers = new Set(
     db.allInvoices().map((i) => i.number).filter(Boolean)
@@ -151,13 +165,32 @@ async function previewRestore(db, zipData) {
     filesWritten: ((_a = manifest.files) != null ? _a : []).length
   };
 }
-async function readAndVerifyBackup(zipData) {
+async function readAndVerifyBackup(zipData, limits) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  const caps = resolveLimits(limits);
+  if (zipData.length > caps.zipBytes) {
+    throw new Error(`Backup ZIP is too large (${zipData.length} bytes, limit ${caps.zipBytes})`);
+  }
   let zip;
   try {
     zip = await import_jszip.default.loadAsync(zipData);
   } catch {
     throw new Error("File is no valid backup ZIP");
+  }
+  const names = Object.keys(zip.files);
+  if (names.length > caps.entries) {
+    throw new Error(`Backup ZIP has too many entries (${names.length}, limit ${caps.entries})`);
+  }
+  let declared = 0;
+  for (const name of names) {
+    const size = declaredSize(zip.files[name]);
+    if (size === void 0) {
+      continue;
+    }
+    declared += size;
+    if (declared > caps.unpackedBytes) {
+      throw new Error(`Backup ZIP would expand to at least ${declared} bytes (limit ${caps.unpackedBytes})`);
+    }
   }
   const manifestFile = zip.file("manifest.json");
   const dumpFile = zip.file("dump.json");
@@ -172,6 +205,7 @@ async function readAndVerifyBackup(zipData) {
     throw new Error(`Backup needs schema v${manifest.schemaVersion}, adapter knows v${import_migrations.LATEST_SCHEMA_VERSION}`);
   }
   const files = [];
+  let unpacked = 0;
   for (const file of (_a = manifest.files) != null ? _a : []) {
     assertSafeEntryPath(file.path);
     const entry = zip.file(`files/${file.path}`);
@@ -179,12 +213,23 @@ async function readAndVerifyBackup(zipData) {
       throw new Error(`Backup misses file: files/${file.path}`);
     }
     const data = Buffer.from(await entry.async("nodebuffer"));
+    unpacked += data.length;
+    if (unpacked > caps.unpackedBytes) {
+      throw new Error(`Backup expands to more than ${caps.unpackedBytes} bytes`);
+    }
     if (sha256Hex(data) !== file.sha256 || data.length !== file.size) {
       throw new Error(`Checksum mismatch: files/${file.path}`);
     }
     files.push({ path: file.path, data });
   }
+  const declaredDump = declaredSize(dumpFile);
+  if (declaredDump !== void 0 && declaredDump > caps.dumpBytes) {
+    throw new Error(`Backup dump.json is too large (${declaredDump} bytes, limit ${caps.dumpBytes})`);
+  }
   const dumpJsonText = await dumpFile.async("string");
+  if (Buffer.byteLength(dumpJsonText, "utf8") > caps.dumpBytes) {
+    throw new Error(`Backup dump.json is too large (limit ${caps.dumpBytes})`);
+  }
   if (manifest.dumpSha256 && sha256Hex(dumpJsonText) !== manifest.dumpSha256) {
     throw new Error("Checksum mismatch: dump.json");
   }
@@ -219,8 +264,8 @@ async function readAndVerifyBackup(zipData) {
   };
   return { manifest, dump, files };
 }
-async function restoreBackup(db, storage, zipData, log) {
-  const { manifest, dump, files } = await readAndVerifyBackup(zipData);
+async function restoreBackup(db, storage, zipData, log, limits) {
+  const { manifest, dump, files } = await readAndVerifyBackup(zipData, limits);
   db.importData(dump);
   if (!db.getDefaultTemplate()) {
     db.ensureDefaultTemplate();
@@ -244,6 +289,7 @@ async function restoreBackup(db, storage, zipData, log) {
 0 && (module.exports = {
   BACKUP_APP_ID,
   BACKUP_FORMAT_VERSION,
+  DEFAULT_BACKUP_LIMITS,
   collectArtifactPaths,
   createBackup,
   previewRestore,

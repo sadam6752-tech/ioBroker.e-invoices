@@ -4,7 +4,7 @@
 import { expect } from 'chai';
 import JSZip from 'jszip';
 import { createHash } from 'node:crypto';
-import { createBackup, restoreBackup, type BackupStorage } from './backup';
+import { createBackup, previewRestore, restoreBackup, type BackupStorage } from './backup';
 import { InvoiceDatabase } from './db';
 import { issueInvoiceWithArtifacts } from './issue-service';
 
@@ -226,6 +226,91 @@ describe('backup => corrupt input', () => {
 		} finally {
 			dbA.close();
 			dbB.close();
+		}
+	});
+});
+
+describe('backup => zip bomb guard (R3)', () => {
+	/**
+	 * Creates one real backup ZIP plus a fresh (empty) target database.
+	 */
+	async function fixture(): Promise<{ backup: Buffer; target: InvoiceDatabase }> {
+		const source = new InvoiceDatabase(':memory:');
+		source.migrate();
+		const target = new InvoiceDatabase(':memory:');
+		target.migrate();
+		try {
+			const store = memoryStorage();
+			await seedIssued(source, store);
+			const backup = await createBackup(source, store, quiet, '0.0.0-test');
+			return { backup: backup.data, target };
+		} finally {
+			source.close();
+		}
+	}
+
+	it('rejects an oversized ZIP before it is read', async () => {
+		const { backup, target } = await fixture();
+		try {
+			await previewRestore(target, backup, { zipBytes: 64 }).then(
+				() => {
+					throw new Error('should have thrown');
+				},
+				(error: Error) => {
+					expect(error.message).to.match(/too large/i);
+				},
+			);
+		} finally {
+			target.close();
+		}
+	});
+
+	it('rejects a ZIP with too many entries', async () => {
+		const { backup, target } = await fixture();
+		try {
+			await previewRestore(target, backup, { entries: 1 }).then(
+				() => {
+					throw new Error('should have thrown');
+				},
+				(error: Error) => {
+					expect(error.message).to.match(/too many entries/i);
+				},
+			);
+		} finally {
+			target.close();
+		}
+	});
+
+	it('rejects a ZIP that would expand beyond the limit', async () => {
+		const { backup, target } = await fixture();
+		try {
+			await previewRestore(target, backup, { unpackedBytes: 128 }).then(
+				() => {
+					throw new Error('should have thrown');
+				},
+				(error: Error) => {
+					expect(error.message).to.match(/would expand/i);
+				},
+			);
+		} finally {
+			target.close();
+		}
+	});
+
+	it('rejects a too large dump.json and leaves the database untouched', async () => {
+		const { backup, target } = await fixture();
+		try {
+			await previewRestore(target, backup, { dumpBytes: 128 }).then(
+				() => {
+					throw new Error('should have thrown');
+				},
+				(error: Error) => {
+					expect(error.message).to.match(/dump\.json is too large/i);
+				},
+			);
+			expect(target.listInvoices()).to.have.lengthOf(0);
+		} finally {
+			target.close();
 		}
 	});
 });

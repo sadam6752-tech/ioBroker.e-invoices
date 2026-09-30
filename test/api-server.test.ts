@@ -675,3 +675,62 @@ describe('api => templates', function () {
 		await request(app).get('/api/templates/nope').expect(404);
 	});
 });
+
+describe('api => security (R3)', () => {
+	let db: InvoiceDatabase;
+	const quiet = { info: (): void => undefined, error: (): void => undefined };
+	const stubStorage = {
+		write: (): Promise<void> => Promise.resolve(),
+		read: (): Promise<Buffer> => Promise.reject(new Error('empty')),
+	};
+
+	before(() => {
+		db = new InvoiceDatabase(':memory:');
+		db.migrate();
+	});
+
+	after(() => {
+		db.close();
+	});
+
+	it('sends a self-only CSP and the usual hardening headers', async () => {
+		const app = createApiServer({ db, storage: stubStorage, log: quiet, version: 'x' });
+		const res = await request(app).get('/api/health').expect(200);
+		const csp = String(res.headers['content-security-policy']);
+		expect(csp).to.contain("default-src 'self'");
+		expect(csp).to.contain("connect-src 'self'");
+		expect(csp).to.contain("object-src 'none'");
+		expect(csp).to.contain("frame-ancestors 'none'");
+		expect(res.headers['x-content-type-options']).to.equal('nosniff');
+		expect(res.headers['x-frame-options']).to.equal('SAMEORIGIN');
+		expect(res.headers['referrer-policy']).to.equal('no-referrer');
+		expect(res.headers['x-powered-by']).to.equal(undefined);
+	});
+
+	it('answers 429 once the per-minute budget is used up', async () => {
+		const app = createApiServer({
+			db,
+			storage: stubStorage,
+			log: quiet,
+			version: 'x',
+			limits: { api: 3 },
+		});
+		for (let i = 0; i < 3; i++) {
+			await request(app).get('/api/health').expect(200);
+		}
+		const blocked = await request(app).get('/api/health').expect(429);
+		expect(blocked.body.error).to.equal('Too many requests');
+	});
+
+	it('gives the restore route a much smaller budget', async () => {
+		const app = createApiServer({
+			db,
+			storage: stubStorage,
+			log: quiet,
+			version: 'x',
+			limits: { api: 50, restore: 1 },
+		});
+		await request(app).post('/api/restore/preview').send({ filename: 'nothing.zip' }).expect(404);
+		await request(app).post('/api/restore/preview').send({ filename: 'nothing.zip' }).expect(429);
+	});
+});
