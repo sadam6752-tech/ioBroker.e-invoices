@@ -1,0 +1,216 @@
+/**
+ * Creates the sample cases of the template preview data set over the real API and keeps
+ * the CII XML and the hybrid PDF of every one of them, so external validators (KoSIT,
+ * veraPDF) can be run over exactly those files.
+ *
+ * The script talks to a **running** server. The end-to-end server of `test/e2e` is the
+ * easy way to get one, because it can be pointed at a throwaway data directory:
+ *
+ *   $env:E2E_PORT = '8099'; $env:E2E_DATA = 'C:\tmp\e2e-data'
+ *   node test/e2e/server.mjs
+ *   node docs/validierung/musterfaelle.mjs
+ *
+ * Environment:
+ *   API_BASE   base URL of the server (default `http://127.0.0.1:8099`)
+ *   E2E_TOKEN  bearer token the server expects (default `e2e-token-2026`)
+ *
+ * Usage:
+ *   node docs/validierung/musterfaelle.mjs [target-directory]
+ */
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const base = process.env.API_BASE ?? 'http://127.0.0.1:8099';
+const token = process.env.E2E_TOKEN ?? 'e2e-token-2026';
+const target = process.argv[2] ?? join(here, 'musterfaelle');
+
+/** Parties every sample case shares. */
+const seller = {
+	name: 'Muster GmbH',
+	street: 'Beispielstr. 1',
+	zip: '10115',
+	city: 'Berlin',
+	country: 'DE',
+	vatId: 'DE123456789',
+	iban: 'DE02120300000000202051',
+};
+const buyer = {
+	name: 'Musterkunde KG',
+	street: 'Kundenweg 5',
+	zip: '80331',
+	city: 'München',
+	country: 'DE',
+	customerNumber: 'K-11',
+};
+
+/**
+ * One JSON call against the server.
+ *
+ * @param method - HTTP method
+ * @param path - path below the API base
+ * @param body - optional JSON body
+ */
+async function json(method, path, body) {
+	const response = await fetch(`${base}${path}`, {
+		method,
+		headers: {
+			authorization: `Bearer ${token}`,
+			...(body === undefined ? {} : { 'content-type': 'application/json' }),
+		},
+		body: body === undefined ? undefined : JSON.stringify(body),
+	});
+	if (!response.ok) {
+		throw new Error(`${method} ${path} -> ${response.status} ${await response.text()}`);
+	}
+	return response.json();
+}
+
+/**
+ * Downloads an artifact of an invoice.
+ *
+ * @param path - path below the API base
+ */
+async function bytes(path) {
+	const response = await fetch(`${base}${path}`, { headers: { authorization: `Bearer ${token}` } });
+	if (!response.ok) {
+		throw new Error(`GET ${path} -> ${response.status} ${await response.text()}`);
+	}
+	return Buffer.from(await response.arrayBuffer());
+}
+
+/**
+ * Creates a draft from the given body and issues it.
+ *
+ * @param body - draft fields on top of the fixed parties
+ */
+async function issue(body) {
+	const draft = await json('POST', '/api/invoices', { seller, buyer, ...body });
+	return json('POST', `/api/invoices/${draft.id}/issue`);
+}
+
+/**
+ * Stores XML and PDF of an issued invoice and checks the markers that make the case.
+ *
+ * @param slug - file name without extension
+ * @param invoice - invoice as the API reports it
+ * @param markers - strings the CII XML has to contain
+ */
+async function save(slug, invoice, markers) {
+	const xml = await bytes(`/api/invoices/${invoice.id}.xml`);
+	const pdf = await bytes(`/api/invoices/${invoice.id}.pdf`);
+	const text = xml.toString('utf8');
+	const missing = markers.filter(marker => !text.includes(marker));
+	if (missing.length) {
+		throw new Error(`${slug}: XML ohne ${missing.join(', ')}`);
+	}
+	await writeFile(join(target, `${slug}.xml`), xml);
+	await writeFile(join(target, `${slug}.pdf`), pdf);
+	const line = `${slug.padEnd(28)} ${String(invoice.number).padEnd(12)} brutto ${String(invoice.totals.grossTotal).padStart(9)} EUR   xml ${xml.length} B   pdf ${pdf.length} B`;
+	console.log(`  ${line}`);
+}
+
+/** The sample cases: draft body plus the markers that prove the case in the XML. */
+const cases = [
+	{
+		slug: 'vollrechnung-zwei-steuersaetze',
+		body: {
+			lines: [
+				{ description: 'Beratung', quantity: 2, unit: 'Std', unitPriceNet: 100, vatRate: 19 },
+				{
+					description: 'Fachbuch',
+					quantity: 1,
+					unit: 'Stk',
+					unitPriceNet: 50,
+					discountPercent: 10,
+					vatRate: 7,
+				},
+			],
+			issueDate: '2026-09-28',
+			deliveryDate: '2026-09-27',
+			documentTitle: 'Rechnung',
+		},
+		markers: [
+			'<ram:TypeCode>380</ram:TypeCode>',
+			'<ram:RateApplicablePercent>7</ram:RateApplicablePercent>',
+			'AllowanceCharge',
+		],
+	},
+	{
+		slug: 'kleinbetrag-rundung',
+		body: {
+			lines: [{ description: 'Kleinbetrag Posten', quantity: 1, unit: 'Stk', unitPriceNet: 0.1, vatRate: 19 }],
+			issueDate: '2026-09-28',
+			documentTitle: 'Rechnung',
+		},
+		markers: ['<ram:GrandTotalAmount>0.12</ram:GrandTotalAmount>'],
+	},
+	{
+		slug: 'gutschrift',
+		body: {
+			documentTitle: 'Gutschrift',
+			notes: 'Gutschrift wegen Minderlieferung.',
+			lines: [{ description: 'Gutschrift Beratung', quantity: 1, unit: 'Std', unitPriceNet: 100, vatRate: 19 }],
+			issueDate: '2026-09-28',
+			deliveryDate: '2026-09-27',
+		},
+		markers: ['<ram:TypeCode>381</ram:TypeCode>', 'Gutschrift wegen Minderlieferung'],
+	},
+	{
+		slug: 'reverse-charge-befreiung',
+		// BR-AE-02 wants the buyer's VAT identifier (BT-48) next to the seller's one as soon
+		// as a line carries the category "Reverse charge" — the first run of this case was
+		// rejected by the KoSIT validator for exactly that reason.
+		body: {
+			buyer: { ...buyer, vatId: 'DE987654321' },
+			lines: [
+				{
+					description: 'Montageleistung (Steuerschuldnerschaft des Leistungsempfängers)',
+					quantity: 1,
+					unit: 'Std',
+					unitPriceNet: 500,
+					vatRate: 0,
+					exemptionCategory: 'AE',
+					exemptionReason: 'Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)',
+				},
+			],
+			issueDate: '2026-09-28',
+			deliveryDate: '2026-09-27',
+			documentTitle: 'Rechnung',
+		},
+		markers: ['<ram:CategoryCode>AE</ram:CategoryCode>', '13b UStG', 'DE987654321'],
+	},
+];
+
+await mkdir(target, { recursive: true });
+let failed = 0;
+for (const item of cases) {
+	try {
+		await save(item.slug, await issue(item.body), item.markers);
+	} catch (error) {
+		failed++;
+		console.error(`  ${item.slug}: ${error.message}`);
+	}
+}
+
+// The storno case is a two step one: issue an invoice, then reverse it and issue the
+// reversal document — that reversal artifact is the one worth validating.
+try {
+	const original = await issue({
+		lines: [{ description: 'Beratung', quantity: 1, unit: 'Std', unitPriceNet: 250, vatRate: 19 }],
+		issueDate: '2026-09-28',
+		documentTitle: 'Rechnung',
+	});
+	const reversal = await json('POST', `/api/invoices/${original.id}/storno`, { reason: 'Musterfall Storno' });
+	const issued = await json('POST', `/api/invoices/${reversal.reversal.id}/issue`);
+	await save('storno-zur-originalrechnung', issued, ['<ram:TypeCode>381</ram:TypeCode>', String(original.number)]);
+} catch (error) {
+	failed++;
+	console.error(`  storno-zur-originalrechnung: ${error.message}`);
+}
+
+console.log(
+	failed ? `\n${failed} Musterfall/Musterfaelle fehlgeschlagen.` : `\nAlle Musterfaelle erzeugt in ${target}.`,
+);
+process.exit(failed ? 1 : 0);

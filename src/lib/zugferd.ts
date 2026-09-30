@@ -147,6 +147,18 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 		sellerTax.push({ id: invoice.seller.taxNumber.trim(), schemeId: 'FC' });
 	}
 
+	// BT-48 (buyer VAT identifier) and the buyer's tax number: EN 16931 wants them next
+	// to the seller's identifiers as soon as a line carries the reverse charge or an
+	// intra-community supply (BR-AE-02, BR-IC-11). Without them the KoSIT validator
+	// rejects the document, so the buyer party is filled the same way as the seller.
+	const buyerTax: { id: string; schemeId: 'VA' | 'FC' }[] = [];
+	if (invoice.buyer.vatId?.trim()) {
+		buyerTax.push({ id: invoice.buyer.vatId.trim(), schemeId: 'VA' });
+	}
+	if (invoice.buyer.taxNumber?.trim()) {
+		buyerTax.push({ id: invoice.buyer.taxNumber.trim(), schemeId: 'FC' });
+	}
+
 	// BT-147/148 (cash discount) have no field in the library and no place in
 	// the shipped ZUGFeRD XSD, so the terms travel as a document note with the
 	// official subject code AAK (discount terms) — legible and XSD-valid.
@@ -206,6 +218,7 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 				postalCode: invoice.buyer.zip,
 				country: invoice.buyer.country || 'DE',
 			},
+			taxRegistrations: buyerTax.length > 0 ? buyerTax : undefined,
 			electronicAddress: invoice.buyer.email?.trim()
 				? { value: invoice.buyer.email.trim(), schemeID: 'EM' }
 				: undefined,

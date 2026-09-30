@@ -1,0 +1,5 @@
+PASS C:\Users\alex\Documents\Opencode\projekte_3\ioBroker-invoices\ioBroker.e-invoices\docs\validierung\musterfaelle\gutschrift.pdf 3b
+PASS C:\Users\alex\Documents\Opencode\projekte_3\ioBroker-invoices\ioBroker.e-invoices\docs\validierung\musterfaelle\kleinbetrag-rundung.pdf 3b
+PASS C:\Users\alex\Documents\Opencode\projekte_3\ioBroker-invoices\ioBroker.e-invoices\docs\validierung\musterfaelle\reverse-charge-befreiung.pdf 3b
+PASS C:\Users\alex\Documents\Opencode\projekte_3\ioBroker-invoices\ioBroker.e-invoices\docs\validierung\musterfaelle\storno-zur-originalrechnung.pdf 3b
+PASS C:\Users\alex\Documents\Opencode\projekte_3\ioBroker-invoices\ioBroker.e-invoices\docs\validierung\musterfaelle\vollrechnung-zwei-steuersaetze.pdf 3b

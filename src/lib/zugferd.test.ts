@@ -564,6 +564,45 @@ describe('zugferd => exempt small invoice', function () {
 	});
 });
 
+describe('zugferd => reverse charge', function () {
+	this.timeout(60000);
+
+	it('writes the buyer VAT identifier BR-AE-02 asks for', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const created = db.createDraft(
+				draft({
+					buyer: { ...buyer, vatId: 'DE987654321' },
+					lines: [
+						{
+							description: 'Montageleistung (Steuerschuldnerschaft des Leistungsempfängers)',
+							quantity: 1,
+							unit: 'Std',
+							unitPriceNet: 500,
+							vatRate: 0,
+							exemptionCategory: 'AE',
+							exemptionReason: 'Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)',
+						},
+					],
+					documentTitle: 'Rechnung',
+				}),
+			);
+			const issued = db.issueDraft(created.id);
+			const { xml } = await generateInvoiceXml(issued);
+			// the buyer side now carries the identifier next to the seller side: the KoSIT
+			// validator rejected the case before, because BR-AE-02 asks for BT-48 (or BT-47)
+			expect(xml).to.contain('DE987654321');
+			expect(xml.split('<ram:CategoryCode>AE</ram:CategoryCode>').length - 1).to.be.greaterThan(0);
+			const check = await validateArtifacts(issued, xml);
+			expect(check.formatErrors).to.deep.equal([]);
+			expect(check.businessErrors).to.deep.equal([]);
+		} finally {
+			db.close();
+		}
+	});
+});
+
 describe('zugferd => sku, details and phone', function () {
 	this.timeout(60000);
 
