@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "0.0.6",
+    "version": "0.0.7",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "0.0.7": {
+        "en": "* Invoices can carry attachments now: upload delivery notes, proofs of work or order confirmations in the PWA. On issue they are embedded into the PDF/A-3 file and, for EN 16931, written into the XML as supporting documents (BG-24) — embedded, never linked. The type is taken from the file's magic bytes, issued invoices stay frozen (GoBD).",
+        "de": "* Rechnungen können jetzt Anlagen tragen: Lieferscheine, Nachweise oder Bestellbestätigungen in der PWA hochladen. Beim Ausstellen werden sie in die PDF/A-3-Datei eingebettet und (EN 16931) als Anlage (BG-24) in das XML geschrieben — eingebettet, nie verlinkt. Der Typ kommt aus den Magic Bytes, ausgestellte Rechnungen bleiben eingefroren (GoBD).",
+        "ru": "* Счета теперь могут содержать вложения: загрузите в PWA накладные, подтверждения работ или заказы. При выставлении они встраиваются в файл PDF/A-3 и (EN 16931) записываются в XML как вложения (BG-24) — встроенные, без ссылок. Тип определяется по магическим байтам, выставленные счета остаются неизменными (GoBD).",
+        "pt": "* As faturas podem agora conter anexos: carregue guias de entrega, comprovativos ou confirmações de encomenda na PWA. Ao emitir, são incorporados no ficheiro PDF/A-3 e (EN 16931) escritos no XML como anexos (BG-24) — incorporados, nunca ligados. O tipo vem dos magic bytes, faturas emitidas ficam congeladas (GoBD).",
+        "nl": "* Facturen kunnen nu bijlagen bevatten: upload leverbonnen, bewijzen of orderbevestigingen in de PWA. Bij het uitgeven worden ze in het PDF/A-3-bestand ingebed en (EN 16931) als bijlage (BG-24) in de XML geschreven — ingebed, nooit gelinkt. Het type komt uit de magic bytes, uitgegeven facturen blijven bevroren (GoBD).",
+        "fr": "* Les factures peuvent désormais comporter des pièces jointes : téléchargez bons de livraison, justificatifs ou confirmations de commande dans la PWA. Lors de l'émission, elles sont intégrées au fichier PDF/A-3 et (EN 16931) écrites dans le XML comme pièce jointe (BG-24) — intégrées, jamais liées. Le type vient des magic bytes, les factures émises restent figées (GoBD).",
+        "it": "* Le fatture possono ora contenere allegati: carica documenti di consegna, prove o conferme d'ordine nella PWA. All'emissione vengono incorporati nel file PDF/A-3 e (EN 16931) scritti nel XML come allegato (BG-24) — incorporati, mai collegati. Il tipo deriva dai magic bytes, le fatture emesse restano bloccate (GoBD).",
+        "es": "* Las facturas ahora pueden incluir adjuntos: suba albaranes, justificantes o confirmaciones de pedido en la PWA. Al emitir se incorporan al archivo PDF/A-3 y (EN 16931) se escriben en el XML como adjunto (BG-24) — incorporados, nunca enlazados. El tipo proviene de los magic bytes, las facturas emitidas quedan congeladas (GoBD).",
+        "pl": "* Faktury mogą teraz zawierać załączniki: prześlij w PWA dokumenty dostawy, dowody wykonania lub potwierdzenia zamówienia. Przy wystawianiu są osadzane w pliku PDF/A-3 i (EN 16931) zapisywane w XML jako załącznik (BG-24) — osadzone, nigdy linkowane. Typ wynika z magic bytes, wystawione faktury pozostają zablokowane (GoBD).",
+        "uk": "* Рахунки тепер можуть мати вкладення: завантажте в PWA накладні, підтвердження робіт або замовлення. Під час виставлення вони вбудовуються у файл PDF/A-3 і (EN 16931) записуються в XML як вкладення (BG-24) — вбудовані, без посилань. Тип визначається за magic bytes, виставлені рахунки залишаються незмінними (GoBD).",
+        "zh-cn": "* 发票现在可以携带附件：在 PWA 中上传送货单、工作证明或订单确认。开具时它们会被嵌入 PDF/A-3 文件，并按 EN 16931 作为附件 (BG-24) 写入 XML——始终嵌入，绝不链接。类型由 magic bytes 决定，已开具的发票保持冻结 (GoBD)。"
+      },
       "0.0.6": {
         "en": "* The start page no longer logs a `404` for `/favicon.ico`: the page\n  links its own icon and the adapter answers the browser's implicit request\n  with the PWA icon.",
         "de": "* Die Startseite loggt kein `404` mehr für `/favicon.ico`: die Seite\n  verlinkt sein Icon und der Adapter beantwortet die Browseranfrage\n  mit dem PWA-Icon.",

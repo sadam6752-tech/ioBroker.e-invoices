@@ -25,6 +25,8 @@ Features:
   (`YYYY-EE-NNN`, default format `{YYYY}-{EMPLOYEE}-{SEQ}`, e.g. `2026-01-012`)
 - ZUGFeRD profiles BASIC and EN 16931, offline XSD validation
 - Hybrid PDF plus standalone XML for every issued invoice
+- Attachments per invoice (delivery note, proof of work) — uploaded in the PWA,
+  embedded into the PDF/A-3 file and, for EN 16931, into the XML as BG-24
 - Excel copies (single invoice and filtered lists, marked as non-tax copies)
 - Layout templates with company logo, colors and footer (mandatory content
   is protected by a validator and cannot be hidden)
@@ -46,8 +48,31 @@ network.
 
 Open `http://<iobroker-host>:8093/` for the invoice dashboard, the
 multi-step wizard (seller → buyer → lines → review), invoice details with
-validation and downloads, layout templates with PDF preview, backups and a
-status page.
+validation, attachments and downloads, layout templates with PDF preview,
+backups and a status page.
+
+### Attachments (Anlagen)
+
+A draft can carry up to 10 files (PDF, PNG or JPEG, 5 MB each) — delivery
+notes, proofs of work, order confirmations. Upload them in the detail view or
+in the last wizard step ("Entwurf speichern" first: a file needs a stored
+record to belong to). The type is taken from the file's magic bytes, never
+from the name or the declared MIME type.
+
+On issue, the attachments become part of the e-invoice:
+
+- **PDF/A-3:** every file rides along as an associated file
+  (`Names → EmbeddedFiles` and the catalogue's `/AF`, `AFRelationship /Data`),
+  and the sight component lists them under "Anlagen" with type and size.
+- **EN 16931 XML:** each file is written as BG-24 "Additional supporting
+  documents" (`BT-122` reference, `BT-123` description, `BT-125` base64
+  payload) — embedded, not linked, and XSD-validated like the rest.
+  Factur-X's **BASIC** XSD has no `AdditionalReferencedDocument`, so a BASIC
+  invoice keeps its files in the PDF container alone (still embedded).
+- Issued invoices are frozen (GoBD): the Anlagen can be listed and downloaded,
+  but no longer added or deleted. An attachment makes the artifacts and the
+  backup noticeably bigger (a 5 MB file counts once in the PDF, once as base64
+  in the XML and once as base64 in the backup dump).
 
 ### States
 
@@ -78,10 +103,10 @@ files in the backup job.
 ### API
 
 Same-origin JSON API under `/api` (health, invoices CRUD, issue, validate with
-a stored report, XML/PDF/XLSX downloads, attachments of a draft, templates with
-logo upload and PDF preview, backups, restore). With an API token configured,
-every route except `/api/health` requires an `Authorization: Bearer <token>`
-header.
+a stored report, XML/PDF/XLSX downloads, attachments of a draft — list, upload
+as base64 JSON, download, delete —, templates with logo upload and PDF preview,
+backups, restore). With an API token configured, every route except
+`/api/health` requires an `Authorization: Bearer <token>` header.
 
 ## Security notes
 
@@ -112,9 +137,12 @@ header.
   PNG or JPEG. The type is decided by the file's magic bytes, not by its name or
   the declared MIME type, and the filename is cleaned before it can reach a
   `Content-Disposition` header. An issued invoice is frozen: its attachments can
-  be listed and downloaded, but no longer added or deleted (GoBD).
+  be listed and downloaded, but no longer added or deleted (GoBD) — they are
+  part of the stored PDF/XML by then.
 - **Backup files are not encrypted:** the ZIP contains the database, attachments
   and XML/PDF artifacts in plain text. Keep it on an encrypted volume or share.
+  Attachments ride in `dump.json` as base64, so a backup with Anlagen is roughly
+  a third larger than the raw files.
 
 ## Why compact mode is off (W5049)
 
@@ -170,19 +198,29 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+### 0.0.7 (2026-09-30)
 * (alex) The admin translations are proper UTF-8 again: all eleven
   `admin/i18n/*.json` files had once been written with the Windows code page
   1252, so the instance settings showed "StraÃŸe" instead of "Straße". The key
   of the company hint was mangled as well, which is why its German text was
   never used. A new test (`npm run test:i18n`) keeps both from happening again.
-* (alex) Drafts can carry attachments now (`GET/POST/DELETE
-  /api/invoices/:id/attachments` plus a download route per file). The rules live
-  in one place (`src/lib/attachments.ts`) and are enforced by the database, so
-  every caller obeys them: at most 10 files of 5 MB each, PDF/PNG/JPEG only, and
-  the type is taken from the file's magic bytes instead of its name or the
-  declared MIME type. Issued invoices stay frozen — their attachments can be
-  read, but no longer changed (GoBD). The PWA section and the embedding into the
-  hybrid PDF and the XML follow in the next R4 steps.
+* (alex) Invoices can carry attachments now ("Anlagen"): drafts accept up to 10
+  files of 5 MB each (PDF/PNG/JPEG) over `GET/POST/DELETE
+  /api/invoices/:id/attachments` plus a download route per file, and the PWA
+  has its own section for it (upload with progress, list with type and size,
+  download, delete) in the detail view and in the last wizard step. The rules
+  live in one place (`src/lib/attachments.ts`) and are enforced by the database,
+  so every caller obeys them: the type is taken from the file's magic bytes
+  instead of its name or the declared MIME type, and issued invoices stay frozen
+  (GoBD) — their files can be read, but no longer changed.
+* (alex) On issue the attachments become part of the e-invoice: the Stored PDF
+  carries them as PDF/A-3 associated files (`/AFRelationship /Data` in the
+  embedded-file name tree) and lists them under "Anlagen"; an EN 16931 invoice
+  writes each file as BG-24 "Additional supporting documents" with the payload
+  embedded base64 (Factur-X's BASIC schema has no such node, so a BASIC invoice
+  keeps its files in the PDF container). The validator stays at zero errors —
+  covered by new tests for the XML, the embedded files, the Anlagenverzeichnis
+  and the backup round-trip.
 
 ### 0.0.6 (2026-09-30)
 * (alex) The start page no longer logs a `404` for `/favicon.ico`: the page
