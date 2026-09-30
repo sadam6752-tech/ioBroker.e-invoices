@@ -26,3 +26,8 @@ jobs:
         uses: iobroker-bot-orga/action-automerge-dependabot@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          # The action reads `.github/auto-merge.yml` by default (that is where the
+          # rules live) and would merge with a merge commit otherwise — the repo
+          # history stays linear only with an explicit `squash`.
+          config-file-path: ".github/auto-merge.yml"
+          merge-method: "squash"

@@ -41,6 +41,8 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     strategy:
+      # a single flaky runner must not cancel the other jobs — all results are wanted
+      fail-fast: false
       matrix:
         node-version: [22.x, 24.x, 26.x]
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -53,6 +55,13 @@ jobs:
           # Uncomment the following line if your adapter cannot be installed using 'npm ci'
           # install-command: 'npm install'
           build: true
+          # The action only runs unit tests when it finds a script matching
+          # `unit-test-check-pattern` — the default is `test:unit`, which this
+          # adapter does not have, so without the two lines below the matrix would
+          # be green without running one of the 225 tests. The package tests belong
+          # here as well; the repo checker expects them in the test run.
+          unit-test-check-pattern: "test:ts"
+          unit-test-command: "npm run test:ts && npm run test:api && npm run test:pwa && npm run test:package"
 
 # Deploys the final package to npm — only on a pushed version tag (e.g. v0.0.1),
 # never on a branch push.
