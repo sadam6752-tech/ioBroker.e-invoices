@@ -21,7 +21,8 @@ back everything up as versioned ZIP files.
 
 Features:
 
-- Draft → issue flow with atomic invoice numbers (`YYYY-NNNN`)
+- Draft → issue flow with atomic invoice numbers per year and employee
+  (`YYYY-EE-NNN`, default format `{YYYY}-{EMPLOYEE}-{SEQ}`, e.g. `2026-01-012`)
 - ZUGFeRD profiles BASIC and EN 16931, offline XSD validation
 - Hybrid PDF plus standalone XML for every issued invoice
 - Excel copies (single invoice and filtered lists, marked as non-tax copies)
@@ -117,6 +118,8 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 
 ### **WORK IN PROGRESS**
 * (alex) initial release
+* (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
+  when the sRGB profile for PDF/A-3 is missing
 
 ### 0.0.1
 * (alex) initial release

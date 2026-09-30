@@ -262,6 +262,12 @@ function applyBillingPeriod(xml, period) {
 }
 async function embedHybridPdf(pdfBytes, xml, profileName, title) {
   const profile = resolveProfile(profileName);
+  const iccProfile = (0, import_fonts.loadIccProfile)();
+  if (!iccProfile) {
+    console.warn(
+      "[e-invoices] sRGB profile for /OutputIntents not found in the installed pdfkit \u2014 the hybrid PDF gets no output intent and is therefore not PDF/A-3b conformant. Reinstall dependencies so pdfkit ships data/sRGB_IEC61966_2_1.icc again."
+    );
+  }
   const result = await (0, import_factur_x.embedFacturX)({
     pdf: pdfBytes,
     xml,
@@ -270,8 +276,7 @@ async function embedHybridPdf(pdfBytes, xml, profileName, title) {
     validateBeforeEmbed: false,
     validateXsd: false,
     addPdfA3Metadata: true,
-    // without an output intent the file is not PDF/A-3b conformant
-    rgbIccProfile: (0, import_fonts.loadIccProfile)(),
+    rgbIccProfile: iccProfile,
     unembeddedFonts: "warn",
     meta: { title, creator: "ioBroker.e-invoices" }
   });

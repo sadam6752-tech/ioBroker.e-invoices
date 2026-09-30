@@ -130,6 +130,11 @@ let iccProfile: Buffer | null = null;
  * resolved from the installed module. That also keeps the adapter free of a
  * second third-party binary.
  *
+ * A missing profile deliberately does not throw here: this function only
+ * reports what it found, and `embedHybridPdf` turns `undefined` into a warning
+ * in the adapter log, so the operator notices the broken dependency instead of
+ * silently archiving a PDF without output intent.
+ *
  * @returns The profile bytes, or undefined when pdfkit does not ship it.
  */
 export function loadIccProfile(): Buffer | undefined {

@@ -104,8 +104,6 @@ export function mapVatCategory(vatRate: number, exemptionCategory?: ExemptionCat
 }
 
 /**
- * Maps a stored invoice to the Factur-X input object.
-/**
  * Maps the German document title to the UNTDID 1001 code list (BT-3).
  * Everything that is not explicitly a progress or correction invoice stays a
  * commercial invoice (380) — that is what the German EN 16931 profile expects.
@@ -130,6 +128,7 @@ export function mapDocumentTypeCode(documentTitle?: string): DocumentTypeCode {
 }
 
 /**
+ * Maps a stored invoice to the Factur-X input object.
  * Throws when mandatory generation data (number, parties, lines) is missing.
  *
  * @param invoice - Issued (or issuable) stored invoice.
@@ -354,9 +353,12 @@ export function applyBillingPeriod(xml: string, period: DeliveryPeriod | null): 
 
 /**
  * Embeds validated CII XML into a visual PDF, producing the hybrid file.
- * Note: pdfkit sight PDFs use standard fonts (not embedded), so the result
- * is a valid hybrid container but strictly not PDF/A-3b conformant until
- * font embedding lands (P4 hardening). The XML stays the leading part.
+ *
+ * The sight PDF is PDF/A-3b ready: `src/lib/fonts.ts` registers the embedded
+ * Liberation Sans faces on the pdfkit document and supplies the sRGB profile
+ * for `/OutputIntents`, so `embedFacturX` adds the PDF/A-3 metadata without
+ * falling back to non-conformant output. The embedded XML stays the leading
+ * part.
  *
  * @param pdfBytes - Visual PDF (e.g. from renderInvoicePdf).
  * @param xml - Validated CII XML string.
@@ -370,6 +372,18 @@ export async function embedHybridPdf(
 	title: string,
 ): Promise<Uint8Array> {
 	const profile = resolveProfile(profileName);
+	// PDF/A-3 requires an `/OutputIntents` entry (ISO 19005-3 § 6.2.4.3).
+	// Without the profile the library only writes its own log line, so the
+	// adapter reports it too: a non-conformant hybrid PDF must not be archived
+	// unnoticed.
+	const iccProfile = loadIccProfile();
+	if (!iccProfile) {
+		console.warn(
+			'[e-invoices] sRGB profile for /OutputIntents not found in the installed pdfkit — ' +
+				'the hybrid PDF gets no output intent and is therefore not PDF/A-3b conformant. ' +
+				'Reinstall dependencies so pdfkit ships data/sRGB_IEC61966_2_1.icc again.',
+		);
+	}
 	const result = await embedFacturX({
 		pdf: pdfBytes,
 		xml,
@@ -378,8 +392,7 @@ export async function embedHybridPdf(
 		validateBeforeEmbed: false,
 		validateXsd: false,
 		addPdfA3Metadata: true,
-		// without an output intent the file is not PDF/A-3b conformant
-		rgbIccProfile: loadIccProfile(),
+		rgbIccProfile: iccProfile,
 		unembeddedFonts: 'warn',
 		meta: { title, creator: 'ioBroker.e-invoices' },
 	});
