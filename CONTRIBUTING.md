@@ -5,7 +5,7 @@
 Clone the repository, then fetch dependencies for the adapter and the PWA:
 
 ```bash
-git clone https://github.com/alex/ioBroker.e-invoices.git
+git clone https://github.com/sadam6752-tech/ioBroker.e-invoices.git
 ```
 
 The adapter builds with `npm run build` (TypeScript plus the PWA bundle in

@@ -4,10 +4,11 @@
   "description": "Create ZUGFeRD e-invoices as PWA with PDF, Excel export and backup",
   "author": {
     "name": "alex",
-    "email": "alex@example.com"
+    "email": "sadam6752@gmail.com"
   },
   "contributors": [],
-  "homepage": "https://github.com/alex/ioBroker.e-invoices",
+  "authors": ["alex <sadam6752@gmail.com>"],
+    "homepage": "https://github.com/sadam6752-tech/ioBroker.e-invoices",
   "license": "MIT",
   "keywords": [
     "e-invoice",
@@ -21,7 +22,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/alex/ioBroker.e-invoices.git"
+    "url": "https://github.com/sadam6752-tech/ioBroker.e-invoices.git"
   },
   "engines": {
     "node": ">= 22"
@@ -90,7 +91,7 @@
     "dev-server": "dev-server"
   },
   "bugs": {
-    "url": "https://github.com/alex/ioBroker.e-invoices/issues"
+    "url": "https://github.com/sadam6752-tech/ioBroker.e-invoices/issues"
   },
   "readmeFilename": "README.md"
 }

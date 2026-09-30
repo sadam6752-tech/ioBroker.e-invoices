@@ -1,6 +1,7 @@
 {
 	"common": {
 		"name": "e-invoices",
+		"title": "E-Invoices",
 		"version": "0.0.1",
 		"localLinks": {
 			"_default": {
@@ -64,7 +65,7 @@
 			"uk": "Створюйте електронні рахунки-фактури ZUGFeRD як PWA з PDF, експортом у Excel і резервним копіюванням",
 			"zh-cn": "创建 ZUGFeRD 电子发票作为 PWA，支持 PDF、Excel 导出和备份"
 		},
-		"authors": ["alex <alex@example.com>"],
+		"authors": ["alex <sadam6752@gmail.com>"],
 		"keywords": ["e-invoice", "zugferd", "xrechnung", "pdf", "excel", "backup", "pwa", "ioBroker"],
 		"licenseInformation": {
 			"type": "free",
@@ -73,8 +74,8 @@
 		"platform": "Javascript/Node.js",
 		"icon": "e-invoices.png",
 		"enabled": true,
-		"extIcon": "https://raw.githubusercontent.com/alex/ioBroker.e-invoices/main/admin/e-invoices.png",
-		"readme": "https://github.com/alex/ioBroker.e-invoices/blob/main/README.md",
+		"extIcon": "https://raw.githubusercontent.com/sadam6752-tech/ioBroker.e-invoices/main/admin/e-invoices.png",
+		"readme": "https://github.com/sadam6752-tech/ioBroker.e-invoices/blob/main/README.md",
 		"loglevel": "info",
 		"tier": 3,
 		"mode": "daemon",

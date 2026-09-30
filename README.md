@@ -8,7 +8,7 @@
 
 [![NPM](https://nodei.co/npm/iobroker.e-invoices.png?downloads=true)](https://nodei.co/npm/iobroker.e-invoices/)
 
-**Tests:** ![Test and Release](https://github.com/alex/ioBroker.e-invoices/workflows/Test%20and%20Release/badge.svg)
+**Tests:** ![Test and Release](https://github.com/sadam6752-tech/ioBroker.e-invoices/workflows/Test%20and%20Release/badge.svg)
 
 ## E-invoices adapter for ioBroker
 
@@ -89,9 +89,13 @@ so it cannot share the compact process.
 
 ## Limitations
 
-- The sight PDFs use standard fonts without embedding, so strictly they are
-  hybrid containers rather than fully conformant PDF/A-3b. The embedded XML
-  is unaffected and stays the leading part.
+- The sight PDFs embed Liberation Sans (SIL OFL 1.1) and carry an sRGB
+  output intent, so they are built as PDF/A-3b; the structure was verified
+  against a real invoice (`/OutputIntents` with `GTS_PDFA1`, font subsets
+  with `/FontFile` and `/ToUnicode`). An independent validator run (KoSIT
+  online validator or veraPDF) is still the recommended acceptance step
+  before productive use. The embedded XML is unaffected and stays the
+  leading part.
 - The offline XSD validation runs on every issue; the KoSIT online
   validator is a recommended manual acceptance step before productive use.
 - Only EUR, domestic B2B invoices and the BASIC/EN 16931 profiles are
@@ -120,7 +124,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ## License
 MIT License
 
-Copyright (c) 2026 alex <alex@example.com>
+Copyright (c) 2026 alex <sadam6752@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
