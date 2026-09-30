@@ -163,6 +163,14 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	### **WORK IN PROGRESS**
 -->
 ### **WORK IN PROGRESS**
+* (alex) Reverse charge invoices now carry the buyer's tax identifiers (BT-48) in the CII XML,
+  so they pass the EN 16931 rule `[BR-AE-02]` (R2).
+* (alex) The never published 0.0.2 is gone from `common.news` and the changelog — the adapter
+  checker no longer reports it.
+* (alex) Quality: the unit tests run in the adapter test matrix, 11 Playwright tests cover the
+  backup/restore chain, the PDF/A-3b structure and three sample cases, and the validation
+  report documents the whole inventory (16/16 CII XMLs and 15/15 delivered PDFs conform;
+  KoSIT 1.6.3 and veraPDF 1.30.2, after the legacy invoices were re-rendered on 30.09.).
 
 ### 0.0.3 (2026-09-30)
 * (alex) Every validation run stores its report next to the artifacts
