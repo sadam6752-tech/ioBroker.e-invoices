@@ -219,6 +219,25 @@ const MIGRATIONS = [
 				updated_at TEXT NOT NULL
 			)`
     ]
+  },
+  {
+    version: 11,
+    name: "validation-reports",
+    sql: [
+      // R2: the plausibility check of an e-invoice has to be reproducible.
+      // Every run stores its report as a JSON file next to XML/PDF and is
+      // listed here, so the detail view can link to the artifact.
+      `CREATE TABLE IF NOT EXISTS validation_reports (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				invoice_id TEXT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+				seq INTEGER NOT NULL,
+				report_path TEXT NOT NULL,
+				format_errors INTEGER NOT NULL,
+				business_errors INTEGER NOT NULL,
+				created_at TEXT NOT NULL
+			)`,
+      `CREATE INDEX IF NOT EXISTS idx_validation_reports_invoice ON validation_reports(invoice_id)`
+    ]
   }
 ];
 const LATEST_SCHEMA_VERSION = MIGRATIONS.reduce((max, item) => Math.max(max, item.version), 0);

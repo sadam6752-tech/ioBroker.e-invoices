@@ -38,7 +38,7 @@ import { renderInvoiceListWorkbook } from './excel';
 import { paymentCheckDuty } from './invoice-model';
 import { renderInvoicePdf } from './pdf';
 import { validateTemplate, type LayoutTemplate } from './templates';
-import { validateArtifacts } from './validation';
+import { validateArtifacts, type ArtifactValidation } from './validation';
 import { generateInvoiceXml } from './zugferd';
 
 /**
@@ -209,6 +209,54 @@ function findShapeError(body: Record<string, unknown>, rules: Record<string, 'ob
 export function routeParam(req: Request, name: string): string {
 	const value = req.params[name];
 	return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+}
+
+/**
+ * Stores the outcome of one validation run as a JSON file next to the invoice
+ * artifacts and records it in the database (R2). A failing write never fails
+ * the validation itself — the response then carries `report: null` and the
+ * reason is logged.
+ *
+ * @param db - Open invoice database.
+ * @param storage - Artifact file backend.
+ * @param log - Logger.
+ * @param invoice - Invoice the report belongs to (draft or issued).
+ * @param result - Validation outcome of this run.
+ */
+async function storeValidationReport(
+	db: InvoiceDatabase,
+	storage: ArtifactStorage,
+	log: IssueLogger,
+	invoice: StoredInvoice,
+	result: ArtifactValidation,
+): Promise<{ seq: number; path: string; createdAt: string } | null> {
+	// The running number is owned by the database; the file name just mirrors
+	// it, so `…validation-1.json`, `…validation-2.json` stay predictable.
+	const seq = db.nextValidationSeq(invoice.id);
+	const createdAt = new Date().toISOString();
+	const name = invoice.number ?? invoice.id;
+	const path = `invoices/${invoice.issueDate.slice(0, 4)}/${name}.validation-${seq}.json`;
+	const payload = {
+		invoiceId: invoice.id,
+		invoiceNumber: invoice.number,
+		documentTitle: invoice.documentTitle,
+		profile: invoice.profile,
+		seq,
+		createdAt,
+		validator: 'e-invoices internal check (CII XSD offline + EN 16931 plausibility)',
+		ok: result.formatErrors.length === 0 && result.businessErrors.length === 0,
+		formatErrors: result.formatErrors,
+		businessErrors: result.businessErrors,
+	};
+	try {
+		await storage.write(path, JSON.stringify(payload, null, 2));
+		db.logValidationReport(invoice.id, path, result.formatErrors.length, result.businessErrors.length);
+		log.info(`Validation report stored: ${path}`);
+		return { seq, path, createdAt };
+	} catch (error) {
+		log.error(`Cannot store validation report ${path}: ${(error as Error).message}`);
+		return null;
+	}
 }
 
 /**
@@ -391,6 +439,45 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				res.send(data);
 			} catch {
 				res.status(404).json({ error: `Artifact file missing: ${invoice.xlsxPath}` });
+			}
+		}),
+	);
+
+	// R2: the stored validation reports (newest first) and the report files.
+	// Registered before /:id, same reason as the artifact downloads above.
+	app.get(
+		'/api/invoices/:id/validation',
+		route((req, res) => {
+			const id = routeParam(req, 'id');
+			if (!db.getInvoice(id)) {
+				res.status(404).json({ error: 'Invoice not found' });
+				return;
+			}
+			res.json(db.listValidationReports(id));
+		}),
+	);
+
+	app.get(
+		'/api/invoices/:id/validation/:seq.json',
+		route(async (req, res) => {
+			const id = routeParam(req, 'id');
+			const seq = Number(routeParam(req, 'seq'));
+			const report = db.listValidationReports(id).find(entry => entry.seq === seq);
+			if (!report) {
+				res.status(404).json({ error: 'Validation report not found' });
+				return;
+			}
+			if (!isContainedRelPath(report.reportPath)) {
+				res.status(500).json({ error: 'Stored report path is invalid' });
+				return;
+			}
+			try {
+				const data = await storage.read(report.reportPath);
+				res.type('application/json');
+				res.set('Content-Disposition', `attachment; filename="validation-${seq}.json"`);
+				res.send(data);
+			} catch {
+				res.status(404).json({ error: `Artifact file missing: ${report.reportPath}` });
 			}
 		}),
 	);
@@ -705,17 +792,22 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			}
 			const draft = storedToDraft(invoice);
 			const businessErrors = validateInvoiceForIssue(draft);
+			let result: ArtifactValidation;
 			if (businessErrors.length > 0) {
-				res.json({ formatErrors: [], businessErrors });
-				return;
+				// Nothing to hand to the XSD check yet: the Pflichtangaben are
+				// incomplete, so only the business layer has findings.
+				result = { formatErrors: [], businessErrors };
+			} else {
+				try {
+					const preview = previewInvoice(draft);
+					const { xml } = await generateInvoiceXml(preview);
+					result = await validateArtifacts(preview, xml);
+				} catch (error) {
+					result = { formatErrors: [(error as Error).message], businessErrors };
+				}
 			}
-			try {
-				const preview = previewInvoice(draft);
-				const { xml } = await generateInvoiceXml(preview);
-				res.json(await validateArtifacts(preview, xml));
-			} catch (error) {
-				res.json({ formatErrors: [(error as Error).message], businessErrors });
-			}
+			const report = await storeValidationReport(db, storage, log, invoice, result);
+			res.json({ ...result, report });
 		}),
 	);
 

@@ -669,6 +669,20 @@ export interface RenderHistoryEntry {
 	createdAt: string;
 }
 
+/** One stored validation report of an invoice (R2: proof of the check). */
+export interface ValidationReportEntry {
+	/** Running number, also part of the filename (`…validation-<seq>.json`). */
+	seq: number;
+	/** Storage-relative path of the stored JSON report. */
+	reportPath: string;
+	/** Number of technical (XSD) errors in this run. */
+	formatErrors: number;
+	/** Number of business-rule findings in this run. */
+	businessErrors: number;
+	/** ISO timestamp of the run. */
+	createdAt: string;
+}
+
 /** Reusable invoice content, e.g. a monthly maintenance invoice. */
 export interface StoredInvoiceTemplate {
 	/** Template UUID. */
@@ -1795,6 +1809,70 @@ export class InvoiceDatabase {
 			previousPath: row.previous_path,
 			newPath: row.new_path,
 			reason: row.reason,
+			createdAt: row.created_at,
+		}));
+	}
+
+	/**
+	 * Stores one validation report. The JSON file itself is written by the API
+	 * layer, so drafts (no number, no artifacts yet) and issued invoices share
+	 * the same flow.
+	 *
+	 * @param invoiceId - Invoice UUID the report belongs to.
+	 * @param reportPath - Storage-relative path of the JSON report.
+	 * @param formatErrors - Number of technical (XSD) errors in this run.
+	 * @param businessErrors - Number of business-rule findings in this run.
+	 * @returns The running number used in the filename.
+	 */
+	public logValidationReport(
+		invoiceId: string,
+		reportPath: string,
+		formatErrors: number,
+		businessErrors: number,
+	): number {
+		const seq = this.nextValidationSeq(invoiceId);
+		this.db
+			.prepare(
+				`INSERT INTO validation_reports (invoice_id, seq, report_path, format_errors, business_errors, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			)
+			.run(invoiceId, seq, reportPath, formatErrors, businessErrors, nowIso());
+		return seq;
+	}
+
+	/**
+	 * Highest running number of an invoice's validation reports, 0 when none
+	 * exists yet. Public because the API needs the same number for the file
+	 * name it is about to write.
+	 *
+	 * @param invoiceId - Invoice UUID.
+	 */
+	public nextValidationSeq(invoiceId: string): number {
+		const row = this.db
+			.prepare(`SELECT MAX(seq) AS max_seq FROM validation_reports WHERE invoice_id = ?`)
+			.get(invoiceId) as { max_seq: number | null };
+		return (row.max_seq ?? 0) + 1;
+	}
+
+	/**
+	 * Lists the stored validation reports of an invoice, newest first.
+	 *
+	 * @param invoiceId - Invoice UUID.
+	 */
+	public listValidationReports(invoiceId: string): ValidationReportEntry[] {
+		const rows = this.db
+			.prepare(`SELECT * FROM validation_reports WHERE invoice_id = ? ORDER BY seq DESC`)
+			.all(invoiceId) as {
+			seq: number;
+			report_path: string;
+			format_errors: number;
+			business_errors: number;
+			created_at: string;
+		}[];
+		return rows.map(row => ({
+			seq: row.seq,
+			reportPath: row.report_path,
+			formatErrors: row.format_errors,
+			businessErrors: row.business_errors,
 			createdAt: row.created_at,
 		}));
 	}

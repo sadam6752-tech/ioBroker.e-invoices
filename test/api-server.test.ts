@@ -95,6 +95,9 @@ describe('api => invoices', function () {
 		const valid = await request(app).post(`/api/invoices/${id}/validate`).expect(200);
 		expect(valid.body.businessErrors).to.deep.equal([]);
 		expect(valid.body.formatErrors).to.deep.equal([]);
+		// R2: the run is stored as a JSON report next to the artifacts
+		expect(valid.body.report.seq).to.equal(1);
+		expect(valid.body.report.path).to.match(/^invoices\/2026\/.+\.validation-1\.json$/);
 
 		const issued = await request(app).post(`/api/invoices/${id}/issue`).expect(200);
 		expect(issued.body.number).to.match(/^2026-00-\d{3}$/);
@@ -111,6 +114,27 @@ describe('api => invoices', function () {
 
 		const list = await request(app).get('/api/invoices/export.xlsx').query({ status: 'issued' }).expect(200);
 		expect(list.headers['content-type']).to.contain('spreadsheetml.sheet');
+
+		// R2: stored validation reports are listable and downloadable
+		const reports = await request(app).get(`/api/invoices/${id}/validation`).expect(200);
+		expect(reports.body).to.have.lengthOf(1);
+		expect(reports.body[0].seq).to.equal(1);
+		expect(reports.body[0].formatErrors).to.equal(0);
+		const storedReport = await request(app).get(`/api/invoices/${id}/validation/1.json`).expect(200);
+		expect(storedReport.headers['content-type']).to.contain('application/json');
+		const parsed = JSON.parse(storedReport.text) as {
+			ok: boolean;
+			invoiceNumber: string | null;
+			businessErrors: string[];
+			formatErrors: string[];
+		};
+		expect(parsed.ok).to.equal(true);
+		expect(parsed.formatErrors).to.deep.equal([]);
+		expect(parsed.businessErrors).to.deep.equal([]);
+		// reported before the invoice was issued, so it had no number yet
+		expect(parsed.invoiceNumber).to.equal(null);
+		await request(app).get(`/api/invoices/${id}/validation/7.json`).expect(404);
+		await request(app).get('/api/invoices/does-not-exist/validation').expect(404);
 
 		// issued invoices are immutable
 		await request(app).patch(`/api/invoices/${id}`).send({ dueDate: '2026-12-01' }).expect(400);

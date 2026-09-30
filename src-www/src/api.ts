@@ -117,6 +117,17 @@ export interface Product {
 export interface ValidationOutcome {
 	formatErrors: string[];
 	businessErrors: string[];
+	/** Report of this run as stored next to the artifacts, null when the file failed. */
+	report: { seq: number; path: string; createdAt: string } | null;
+}
+
+/** One stored validation report (R2). */
+export interface ValidationReport {
+	seq: number;
+	reportPath: string;
+	formatErrors: number;
+	businessErrors: number;
+	createdAt: string;
 }
 
 /** § 16 Abs. 2 Nr. 2 UStG: whether the payment method has to be checked. */
@@ -356,6 +367,10 @@ export const api = {
 			body: JSON.stringify({ reason }),
 		}),
 	renders: (id: string) => request<RenderHistoryEntry[]>(`/api/invoices/${id}/renders`),
+	/** Reports of earlier validation runs, newest first (R2). */
+	validationReports: (id: string) => request<ValidationReport[]>(`/api/invoices/${id}/validation`),
+	/** Download URL of one stored validation report. */
+	validationReportUrl: (id: string, seq: number) => `/api/invoices/${id}/validation/${seq}.json`,
 	pdfUrl: (id: string) => `/api/invoices/${id}.pdf`,
 	xmlUrl: (id: string) => `/api/invoices/${id}.xml`,
 	xlsxUrl: (id: string) => `/api/invoices/${id}.xlsx`,

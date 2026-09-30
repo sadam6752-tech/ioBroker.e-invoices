@@ -49,7 +49,7 @@ describe('db => migrations', () => {
 	it('migrates a fresh database to the latest version', () => {
 		const db = openMemoryDb();
 		try {
-			expect(db.currentVersion()).to.equal(10);
+			expect(db.currentVersion()).to.equal(11);
 			const columns = db.tableColumns('invoices');
 			expect(columns).to.contain('payment_terms');
 			expect(columns).to.contain('employee_code');
@@ -58,6 +58,7 @@ describe('db => migrations', () => {
 			expect(db.tableColumns('customers')).to.contain('profile_json');
 			expect(db.tableColumns('render_history')).to.contain('previous_path');
 			expect(db.tableColumns('invoice_templates')).to.contain('body_json');
+			expect(db.tableColumns('validation_reports')).to.contain('report_path');
 		} finally {
 			db.close();
 		}
@@ -67,7 +68,7 @@ describe('db => migrations', () => {
 		const db = openMemoryDb();
 		try {
 			db.migrate();
-			expect(db.currentVersion()).to.equal(10);
+			expect(db.currentVersion()).to.equal(11);
 		} finally {
 			db.close();
 		}
@@ -381,5 +382,39 @@ describe('db => products', () => {
 		} finally {
 			db.close();
 		}
+	});
+
+	describe('db => validation reports', () => {
+		it('stores reports with a running number, newest first', () => {
+			const db = openMemoryDb();
+			try {
+				const created = db.createDraft(draft());
+				const first = db.logValidationReport(created.id, 'invoices/2026/x.validation-1.json', 0, 0);
+				const second = db.logValidationReport(created.id, 'invoices/2026/x.validation-2.json', 1, 2);
+				expect(first).to.equal(1);
+				expect(second).to.equal(2);
+				const entries = db.listValidationReports(created.id);
+				expect(entries).to.have.lengthOf(2);
+				expect(entries[0].seq).to.equal(2);
+				expect(entries[0].formatErrors).to.equal(1);
+				expect(entries[0].businessErrors).to.equal(2);
+				expect(entries[1].reportPath).to.match(/validation-1\.json$/);
+				expect(entries[0].createdAt).to.match(/^\d{4}-\d{2}-\d{2}T/);
+			} finally {
+				db.close();
+			}
+		});
+
+		it('removes the reports together with the deleted draft', () => {
+			const db = openMemoryDb();
+			try {
+				const created = db.createDraft(draft());
+				db.logValidationReport(created.id, 'invoices/2026/x.validation-1.json', 0, 0);
+				db.deleteDraft(created.id);
+				expect(db.listValidationReports(created.id)).to.deep.equal([]);
+			} finally {
+				db.close();
+			}
+		});
 	});
 });

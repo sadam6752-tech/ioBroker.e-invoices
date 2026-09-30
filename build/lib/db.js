@@ -1138,6 +1138,51 @@ class InvoiceDatabase {
     }));
   }
   /**
+   * Stores one validation report. The JSON file itself is written by the API
+   * layer, so drafts (no number, no artifacts yet) and issued invoices share
+   * the same flow.
+   *
+   * @param invoiceId - Invoice UUID the report belongs to.
+   * @param reportPath - Storage-relative path of the JSON report.
+   * @param formatErrors - Number of technical (XSD) errors in this run.
+   * @param businessErrors - Number of business-rule findings in this run.
+   * @returns The running number used in the filename.
+   */
+  logValidationReport(invoiceId, reportPath, formatErrors, businessErrors) {
+    const seq = this.nextValidationSeq(invoiceId);
+    this.db.prepare(
+      `INSERT INTO validation_reports (invoice_id, seq, report_path, format_errors, business_errors, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(invoiceId, seq, reportPath, formatErrors, businessErrors, nowIso());
+    return seq;
+  }
+  /**
+   * Highest running number of an invoice's validation reports, 0 when none
+   * exists yet. Public because the API needs the same number for the file
+   * name it is about to write.
+   *
+   * @param invoiceId - Invoice UUID.
+   */
+  nextValidationSeq(invoiceId) {
+    var _a;
+    const row = this.db.prepare(`SELECT MAX(seq) AS max_seq FROM validation_reports WHERE invoice_id = ?`).get(invoiceId);
+    return ((_a = row.max_seq) != null ? _a : 0) + 1;
+  }
+  /**
+   * Lists the stored validation reports of an invoice, newest first.
+   *
+   * @param invoiceId - Invoice UUID.
+   */
+  listValidationReports(invoiceId) {
+    const rows = this.db.prepare(`SELECT * FROM validation_reports WHERE invoice_id = ? ORDER BY seq DESC`).all(invoiceId);
+    return rows.map((row) => ({
+      seq: row.seq,
+      reportPath: row.report_path,
+      formatErrors: row.format_errors,
+      businessErrors: row.business_errors,
+      createdAt: row.created_at
+    }));
+  }
+  /**
    * Deletes a draft. Issued, cancelled and Storno documents are never deleted:
    * they are tax relevant and must stay reproducible (GoBD, § 147 AO).
    *

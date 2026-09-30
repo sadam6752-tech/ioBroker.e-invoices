@@ -77,9 +77,9 @@ files in the backup job.
 
 ### API
 
-Same-origin JSON API under `/api` (health, invoices CRUD, issue, validate,
-XML/PDF/XLSX downloads, templates with logo upload and PDF preview,
-backups, restore). With an API token configured, every route except
+Same-origin JSON API under `/api` (health, invoices CRUD, issue, validate with
+a stored report, XML/PDF/XLSX downloads, templates with logo upload and PDF
+preview, backups, restore). With an API token configured, every route except
 `/api/health` requires an `Authorization: Bearer <token>` header.
 
 ## Why compact mode is off (W5049)
@@ -134,6 +134,11 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (alex) Every validation run stores its report next to the artifacts
+  (`…validation-<n>.json`) and the detail view links the reports of earlier
+  runs, so the plausibility check of an e-invoice is reproducible (R2).
+
 ### 0.0.2 (2026-09-30)
 * (alex) first release published by the tag pipeline: GitHub Actions builds the
   adapter and publishes it with npm provenance through Trusted Publishing

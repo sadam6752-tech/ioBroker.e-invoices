@@ -85,7 +85,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			${inv.status === 'issued' && inv.pdfPath ? `<button class="secondary" id="d-mail">E-Mail (PDF)</button>` : ''}
 			${inv.xml ? `<button class="secondary" data-dl="xml">XML ↓</button>` : ''}
 			${inv.xlsxPath ? `<button class="secondary" data-dl="xlsx">Excel ↓</button>` : ''}
-			</div><div id="d-out"></div><div id="d-duty"></div><div id="d-history"></div></div>`;
+			</div><div id="d-out"></div><div id="d-duty"></div><div id="d-history"></div><div id="d-reports"></div></div>`;
 
 		const out = root.querySelector('#d-out')!;
 		const fail = (e: unknown): void => {
@@ -121,6 +121,41 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			}
 		};
 		await loadHistory();
+		// R2: reports of earlier validation runs, so a check stays reproducible.
+		const reportsBox = root.querySelector('#d-reports')!;
+		const loadReports = async (): Promise<void> => {
+			try {
+				const reports = await api.validationReports(inv.id);
+				if (!reports.length) {
+					reportsBox.innerHTML = '';
+					return;
+				}
+				reportsBox.innerHTML = `<details><summary>Validierungsberichte (${reports.length})</summary><ul>${reports
+					.map(
+						r =>
+							`<li>${esc(r.createdAt.slice(0, 16).replace('T', ' '))} – Bericht ${r.seq}: ${
+								r.formatErrors + r.businessErrors === 0
+									? '<span style="color:var(--ok)">keine Fehler</span>'
+									: `${r.formatErrors} Format-, ${r.businessErrors} Fachfehler`
+							} – <a href="#" data-report="${r.seq}">herunterladen</a></li>`,
+					)
+					.join('')}</ul></details>`;
+				reportsBox.querySelectorAll('[data-report]').forEach(link =>
+					link.addEventListener('click', async event => {
+						event.preventDefault();
+						const seq = Number((link as HTMLElement).dataset.report);
+						try {
+							await downloadUrl(api.validationReportUrl(inv.id, seq), `validation-${seq}.json`);
+						} catch (e) {
+							fail(e);
+						}
+					}),
+				);
+			} catch {
+				// reports are informational, never block the view
+			}
+		};
+		await loadReports();
 		root.querySelectorAll('[data-dl]').forEach(btn =>
 			btn.addEventListener('click', async () => {
 				const kind = (btn as HTMLElement).dataset.dl as 'pdf' | 'xml' | 'xlsx';
@@ -143,10 +178,28 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			out.innerHTML = `<p class="muted">Validiere…</p>`;
 			try {
 				const v = await api.validate(inv.id);
+				const report = v.report;
+				const findings = [...v.formatErrors, ...v.businessErrors];
+				const stored = report
+					? `<p class="muted">Bericht gespeichert: <code>${esc(
+							report.path.split('/').pop() ?? '',
+						)}</code> – <a href="#" id="d-report-last">herunterladen</a></p>`
+					: `<p class="muted">Hinweis: der Bericht konnte nicht gespeichert werden (Adapter-Log).</p>`;
 				out.innerHTML =
-					v.formatErrors.length + v.businessErrors.length === 0
+					(findings.length === 0
 						? `<p style="color:var(--ok)">Gültig: keine Fehler.</p>`
-						: `<ul>${[...v.formatErrors, ...v.businessErrors].map(e => `<li class="error">${esc(e)}</li>`).join('')}</ul>`;
+						: `<ul>${findings.map(e => `<li class="error">${esc(e)}</li>`).join('')}</ul>`) + stored;
+				if (report) {
+					out.querySelector('#d-report-last')?.addEventListener('click', async event => {
+						event.preventDefault();
+						try {
+							await downloadUrl(api.validationReportUrl(inv.id, report.seq), `validation-${report.seq}.json`);
+						} catch (e) {
+							fail(e);
+						}
+					});
+				}
+				await loadReports();
 			} catch (e) {
 				out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
 			}

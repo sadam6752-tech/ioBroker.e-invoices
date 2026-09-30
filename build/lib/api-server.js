@@ -144,6 +144,34 @@ function routeParam(req, name) {
   const value = req.params[name];
   return Array.isArray(value) ? (_a = value[0]) != null ? _a : "" : value != null ? value : "";
 }
+async function storeValidationReport(db, storage, log, invoice, result) {
+  var _a;
+  const seq = db.nextValidationSeq(invoice.id);
+  const createdAt = (/* @__PURE__ */ new Date()).toISOString();
+  const name = (_a = invoice.number) != null ? _a : invoice.id;
+  const path = `invoices/${invoice.issueDate.slice(0, 4)}/${name}.validation-${seq}.json`;
+  const payload = {
+    invoiceId: invoice.id,
+    invoiceNumber: invoice.number,
+    documentTitle: invoice.documentTitle,
+    profile: invoice.profile,
+    seq,
+    createdAt,
+    validator: "e-invoices internal check (CII XSD offline + EN 16931 plausibility)",
+    ok: result.formatErrors.length === 0 && result.businessErrors.length === 0,
+    formatErrors: result.formatErrors,
+    businessErrors: result.businessErrors
+  };
+  try {
+    await storage.write(path, JSON.stringify(payload, null, 2));
+    db.logValidationReport(invoice.id, path, result.formatErrors.length, result.businessErrors.length);
+    log.info(`Validation report stored: ${path}`);
+    return { seq, path, createdAt };
+  } catch (error) {
+    log.error(`Cannot store validation report ${path}: ${error.message}`);
+    return null;
+  }
+}
 function createApiServer(deps) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   const { db, storage, log, version, authToken } = deps;
@@ -301,6 +329,41 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query))}`);
         res.send(data);
       } catch {
         res.status(404).json({ error: `Artifact file missing: ${invoice.xlsxPath}` });
+      }
+    })
+  );
+  app.get(
+    "/api/invoices/:id/validation",
+    route((req, res) => {
+      const id = routeParam(req, "id");
+      if (!db.getInvoice(id)) {
+        res.status(404).json({ error: "Invoice not found" });
+        return;
+      }
+      res.json(db.listValidationReports(id));
+    })
+  );
+  app.get(
+    "/api/invoices/:id/validation/:seq.json",
+    route(async (req, res) => {
+      const id = routeParam(req, "id");
+      const seq = Number(routeParam(req, "seq"));
+      const report = db.listValidationReports(id).find((entry) => entry.seq === seq);
+      if (!report) {
+        res.status(404).json({ error: "Validation report not found" });
+        return;
+      }
+      if (!isContainedRelPath(report.reportPath)) {
+        res.status(500).json({ error: "Stored report path is invalid" });
+        return;
+      }
+      try {
+        const data = await storage.read(report.reportPath);
+        res.type("application/json");
+        res.set("Content-Disposition", `attachment; filename="validation-${seq}.json"`);
+        res.send(data);
+      } catch {
+        res.status(404).json({ error: `Artifact file missing: ${report.reportPath}` });
       }
     })
   );
@@ -596,17 +659,20 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query))}`);
       }
       const draft = storedToDraft(invoice);
       const businessErrors = (0, import_invoice_model.validateInvoiceForIssue)(draft);
+      let result;
       if (businessErrors.length > 0) {
-        res.json({ formatErrors: [], businessErrors });
-        return;
+        result = { formatErrors: [], businessErrors };
+      } else {
+        try {
+          const preview = previewInvoice(draft);
+          const { xml } = await (0, import_zugferd.generateInvoiceXml)(preview);
+          result = await (0, import_validation.validateArtifacts)(preview, xml);
+        } catch (error) {
+          result = { formatErrors: [error.message], businessErrors };
+        }
       }
-      try {
-        const preview = previewInvoice(draft);
-        const { xml } = await (0, import_zugferd.generateInvoiceXml)(preview);
-        res.json(await (0, import_validation.validateArtifacts)(preview, xml));
-      } catch (error) {
-        res.json({ formatErrors: [error.message], businessErrors });
-      }
+      const report = await storeValidationReport(db, storage, log, invoice, result);
+      res.json({ ...result, report });
     })
   );
   app.get("/api/templates", (_req, res) => {
