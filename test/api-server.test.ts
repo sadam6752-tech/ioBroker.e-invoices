@@ -4,9 +4,11 @@
  * runs without js-controller via supertest + temp database.
  */
 import { expect } from 'chai';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import request from 'supertest';
-import { createApiServer } from '../src/lib/api-server';
+import { attachStatic, createApiServer } from '../src/lib/api-server';
 import { InvoiceDatabase } from '../src/lib/db';
 import { DEFAULT_TEMPLATE } from '../src/lib/templates';
 
@@ -745,5 +747,58 @@ describe('api => security (R3)', () => {
 		});
 		await request(app).post('/api/restore/preview').send({ filename: 'nothing.zip' }).expect(404);
 		await request(app).post('/api/restore/preview').send({ filename: 'nothing.zip' }).expect(429);
+	});
+});
+
+
+describe('api => static PWA bundle', function () {
+	this.timeout(60000);
+	let dir: string;
+	let db: InvoiceDatabase;
+	let app: ReturnType<typeof createApiServer>;
+	const quiet = { info: (): void => undefined, error: (): void => undefined };
+	const stubStorage = {
+		write: (): Promise<void> => Promise.resolve(),
+		read: (): Promise<Buffer> => Promise.reject(new Error('empty')),
+	};
+
+	before(() => {
+		dir = mkdtempSync(join(tmpdir(), 'e-invoices-www-'));
+		mkdirSync(join(dir, 'icons'), { recursive: true });
+		writeFileSync(join(dir, 'index.html'), '<!doctype html><title>E-Invoices</title>');
+		// the payload itself does not matter, only that an icon is shipped
+		writeFileSync(join(dir, 'icons', 'icon-192.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+		db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		app = createApiServer({ db, storage: stubStorage, log: quiet, version: 'x' });
+		expect(attachStatic(app, dir)).to.equal(true);
+	});
+
+	after(() => {
+		db.close();
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it('serves the mounted bundle', async () => {
+		const res = await request(app).get('/index.html').expect(200);
+		expect(res.text).to.contain('E-Invoices');
+	});
+
+	it('answers the implicit /favicon.ico request with the PWA icon', async () => {
+		// Regression 30.09.2026: the start page loaded, but the browser console
+		// on the real machine logged "GET /favicon.ico 404" on every visit.
+		const res = await request(app).get('/favicon.ico').expect(200);
+		expect(String(res.headers['content-type'])).to.contain('image/png');
+	});
+
+	it('keeps a missing icon a 404 instead of failing', async () => {
+		const bare = mkdtempSync(join(tmpdir(), 'e-invoices-www-bare-'));
+		try {
+			const bareApp = createApiServer({ db, storage: stubStorage, log: quiet, version: 'x' });
+			expect(attachStatic(bareApp, bare)).to.equal(true);
+			await request(bareApp).get('/favicon.ico').expect(404);
+		} finally {
+			rmSync(bare, { recursive: true, force: true });
+		}
 	});
 });

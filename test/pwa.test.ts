@@ -32,6 +32,17 @@ describe('pwa => service worker', () => {
 		expect(existsSync('www/icons/icon-192.png')).to.equal(true);
 		expect(existsSync('www/icons/icon-512.png')).to.equal(true);
 	});
+
+	it('links the app icon so the browser stops asking for /favicon.ico', () => {
+		// Regression 30.09.2026: without a <link rel="icon"> the browser asked
+		// for /favicon.ico on every load of the start page and logged "404".
+		const src = readFileSync('src-www/index.html', 'utf8');
+		expect(src).to.contain('rel="icon"');
+		expect(src).to.contain('icons/icon-192.png');
+		if (existsSync('www/index.html')) {
+			expect(readFileSync('www/index.html', 'utf8')).to.contain('rel="icon"');
+		}
+	});
 });
 
 describe('pwa => payment terms drive the due date', () => {

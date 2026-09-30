@@ -38,6 +38,7 @@ module.exports = __toCommonJS(api_server_exports);
 var import_node_crypto = require("node:crypto");
 var import_express = __toESM(require("express"));
 var import_node_fs = require("node:fs");
+var import_node_path = require("node:path");
 var import_helmet = __toESM(require("helmet"));
 var import_express_rate_limit = require("express-rate-limit");
 var import_invoice_model = require("./invoice-model");
@@ -1218,6 +1219,19 @@ function attachStatic(app, dir) {
       return false;
     }
     app.use(import_express.default.static(dir));
+    app.get("/favicon.ico", (_req, res) => {
+      const ico = (0, import_node_path.join)(dir, "favicon.ico");
+      const png = (0, import_node_path.join)(dir, "icons", "icon-192.png");
+      if ((0, import_node_fs.existsSync)(ico)) {
+        res.type("image/x-icon").sendFile(ico);
+        return;
+      }
+      if ((0, import_node_fs.existsSync)(png)) {
+        res.type("image/png").sendFile(png);
+        return;
+      }
+      res.status(404).end();
+    });
     return true;
   } catch {
     return false;

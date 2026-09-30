@@ -163,6 +163,9 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	### **WORK IN PROGRESS**
 -->
 ### **WORK IN PROGRESS**
+* (alex) The start page no longer logs a `404` for `/favicon.ico`: the page
+  links its own icon and the adapter answers the browser's implicit request
+  with the PWA icon.
 
 ### 0.0.5 (2026-09-30)
 * (alex) The PWA start page no longer stays blank when the app is opened through

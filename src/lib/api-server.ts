@@ -8,6 +8,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import express, { type Express, type Request, type Response } from 'express';
 import { existsSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import helmet from 'helmet';
 import { rateLimit, type RateLimitRequestHandler } from 'express-rate-limit';
 import type {
@@ -1408,6 +1409,10 @@ export function createApiServer(deps: ApiServerDeps): Express {
 /**
  * Serves a built PWA directory (www/) on the API app when present.
  *
+ * Besides the plain static files this answers the browser's implicit
+ * `/favicon.ico` request, which would otherwise log a 404 on every load of the
+ * start page (no `www/favicon.ico` is shipped).
+ *
  * @param app - Express app from createApiServer.
  * @param dir - Absolute path of the PWA bundle directory.
  * @returns True when the directory exists and was mounted.
@@ -1418,6 +1423,22 @@ export function attachStatic(app: Express, dir: string): boolean {
 			return false;
 		}
 		app.use(express.static(dir));
+		// Browsers ask for /favicon.ico on the origin root even when the page
+		// links its own icon. Fall back to the PWA icon (browsers accept a PNG
+		// payload) unless the bundle ships a real favicon.ico.
+		app.get('/favicon.ico', (_req, res) => {
+			const ico = join(dir, 'favicon.ico');
+			const png = join(dir, 'icons', 'icon-192.png');
+			if (existsSync(ico)) {
+				res.type('image/x-icon').sendFile(ico);
+				return;
+			}
+			if (existsSync(png)) {
+				res.type('image/png').sendFile(png);
+				return;
+			}
+			res.status(404).end();
+		});
 		return true;
 	} catch {
 		return false;
