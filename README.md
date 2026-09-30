@@ -162,7 +162,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.0.5 (2026-09-30)
 * (alex) The PWA start page no longer stays blank when the app is opened through
   a LAN address (`http://192.168.x.y:8093`): helmet's default
   `upgrade-insecure-requests` directive made the browser request the JavaScript,
