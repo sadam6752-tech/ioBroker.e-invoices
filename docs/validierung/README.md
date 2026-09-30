@@ -1,15 +1,24 @@
 # Nachweis: EN 16931 (CII) und PDF/A-3b
 
-Stand **30.09.2026**. Beleg zu Roadmap-Punkt **R2 (Konformitätsnachweis)**: Die erzeugten
-Rechnungen werden mit **zwei unabhängigen Werkzeugen** geprüft — das CII-XML gegen die
-EN-16931-Regeln, das Hybrid-PDF gegen das Profil PDF/A-3b.
+Stand **30.09.2026 (abends)**. Beleg zu Roadmap-Punkt **R2 (Konformitätsnachweis)**: Die
+erzeugten Rechnungen werden mit **zwei unabhängigen Werkzeugen** geprüft — das CII-XML gegen
+die EN-16931-Regeln, das Hybrid-PDF gegen das Profil PDF/A-3b. Der **Altbestand** des
+dev-servers ist inzwischen auf den korrigierten Rendering-Stand gezogen und geprüft wurden
+dabei die **ausgelieferten** Artefakte (Downloads der API, nicht nur die Dateien im Store).
 
 ## Ergebnis
 
 | Belegsatz | CII-XML (KoSIT Validator 1.6.3) | Hybrid-PDF (veraPDF 1.30.2) |
 | --- | --- | --- |
 | Fünf Musterfälle (frisch erzeugt 30.09.2026) | **5/5 konform** (`rep:accept`, 0 Fehler) | **5/5 PASS** für Flavour `3b` |
-| Bestand dev-server (16 Rechnungen, 17 PDFs) | **16/16 konform** (`rep:accept`, 0 Fehler) | **3/17 konform** (14 Altbestände, s. u.) |
+| Bestand dev-server, 16 Rechnungen | **16/16 konform** (`rep:accept`, 0 Fehler) | **15/16 PASS** — 15 Belege wurden am 30.09.2026 auf den PDF/A-3b-Stand gerendert; offen bleibt nur der **stornierte** `2026-01-007` (eingefroren, s. u.) |
+| Reparatur-Beleg: 13 archivierte `*.orig-1.pdf` (Altstand 28./29.09., vor dem Fix) | nicht geprüft (Altstand) | **0/13 PASS** — dokumentiert genau den behobenen Mangel |
+
+Bewertet werden die **ausgelieferten** Artefakte: Die 16 PDFs kamen über
+`GET /api/invoices/:id.pdf` und sind **byte-identisch** mit den Dateien im Store (16/16
+gleicher SHA-256), die XMLs wurden zusätzlich über `GET /api/invoices/:id.xml` geprüft
+(15/16 byte-identisch mit den Store-XMLs; die Ausnahme `2026-0001` ist dort ein älterer
+Stand desselben Generators — ebenfalls `rep:accept`).
 
 `musterfaelle/` enthält die frisch erzeugten Belege mit ihren Berichten, der Wurzelordner
 den Lauf über den Belegbestand (`2026-*-report.xml`, `alle-belege.verapdf-3b.txt`).
@@ -35,6 +44,15 @@ java -cp verapdf-all.jar org.verapdf.apps.GreenfieldCliWrapper -f 3b --format te
 ## Vorgehen
 
 ```shell
+# 0) Bestand auf den aktuellen Rendering-Stand ziehen (erzeugt PDF **und** XML neu und legt
+#    die Vorgängerdatei als <name>.orig-N.pdf ab; nur für Belege im Status "issued")
+curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+     -d '{"reason": "PDF/A-3b nachziehen"}' http://127.0.0.1:8093/api/invoices/<uuid>/rerender
+
+# 0b) die *ausgelieferten* Artefakte holen und diese prüfen (UUID, nicht die Nummer!)
+curl -H "Authorization: Bearer <token>" http://127.0.0.1:8093/api/invoices/<uuid>.xml -o <ziel>.xml
+curl -H "Authorization: Bearer <token>" http://127.0.0.1:8093/api/invoices/<uuid>.pdf -o <ziel>.pdf
+
 # 1) Musterfälle erzeugen (echter API-Stack, throwaway-Datenverzeichnis)
 $env:E2E_PORT = '8099'; $env:E2E_DATA = '<data-dir>'
 node test/e2e/server.mjs
@@ -48,7 +66,11 @@ java -cp verapdf-all.jar org.verapdf.apps.GreenfieldCliWrapper -f 3b --format te
 ```
 
 Für den Bestand laufen dieselben Schritte über
-`…\.dev-server\default\iobroker-data\files\e-invoices.0.storage\invoices\2026\`.
+`…\.dev-server\default\iobroker-data\files\e-invoices.0.storage\invoices\2026\`; die Ablage
+enthält genau die Dateien, die auch ausgeliefert werden (16/16 PDF- und 15/16 XML-Hash
+gleich), zusätzlich wurden die Downloads aus den API-Routen direkt geprüft. Belege sind
+**nur per UUID** adressierbar — die Nummer im Pfad liefert `404` (vgl.
+`PROJECT_STATUS.md` §5 ⑤b); `GET /api/invoices` liefert die Liste mit IDs.
 Bewertet wird `rep:accept`/`rep:reject` und der `failed-assert`-Zähler im VARL-Bericht,
 bei veraPDF das `PASS`/`FAIL` der Textausgabe.
 
@@ -70,15 +92,34 @@ bei veraPDF das `PASS`/`FAIL` der Textausgabe.
   Verkäufer-Kennungen. `src/lib/zugferd.ts` füllt jetzt `taxRegistrations` der
   Käufer-Party mit (`VA` aus `buyer.vatId`, `FC` aus `buyer.taxNumber`); Regressionstest
   `zugferd => reverse charge`. Danach 5/5 konform.
-- **Altbestände vom 28./29.09.2026 (14 PDFs) — offen.** PDF/A-3b scheitert an
-  `ISO 19005-3:2012 §6.2.11.4.1` (Schriften nicht eingebettet: `Helvetica`,
+- **Altbestände vom 28./29.09.2026 — behoben am 30.09.2026.** Das Symptom: PDF/A-3b
+  scheiterte an `ISO 19005-3:2012 §6.2.11.4.1` (Schriften nicht eingebettet: `Helvetica`,
   `Helvetica-Bold`) und `§6.2.4.3` (`DeviceRGB` ohne RGB-Output-Intent);
   Beispielbericht `_legacy-beispiel.2026-01-001.verapdf-3b.xml` (144 Regeln bestanden,
-  2 fehlgeschlagen, 160 Checks). Ursache ist der Stand **vor** dem PDF/A-3b-Fix.
-  Abhilfe ohne Datenverlust: `POST /api/invoices/:id/rerender` (archiviert das Original
-  als `.orig-N.pdf`); Beleg: `2026-01-002.pdf` = PASS, dessen Alt-PDF `.orig-1.pdf` =
-  FAIL. Neu gerenderte Belege sind konform (`2026-01-012`, `2026-01-013`, alle fünf
-  Musterfälle).
+  2 fehlgeschlagen, 160 Checks) — Ursache war der Stand **vor** dem PDF/A-3b-Fix. Abhilfe
+  ohne Datenverlust ist `POST /api/invoices/:id/rerender`, das Original wird dabei als
+  `.orig-N.pdf` archiviert.
+  **Lauf am 30.09.2026** (Build = 0.0.3 + PDF/A-Fix, `main` = `6d3568b`): 13 Requests für
+  alle Belege mit Alt-PDF, davon **12 `200`** mit neu gerendertem PDF **und** XML; danach
+  sind **15/15** ausgelieferte Belege PDF/A-3b-konform, die 13 archivierten `.orig-1.pdf`
+  bleiben als Beleg `FAIL` (Beispiel: `2026-01-002.pdf` = PASS, dessen `.orig-1.pdf` = FAIL;
+  neu gerenderte Belege `2026-01-012`, `2026-01-013` und alle fünf Musterfälle waren schon
+  vorher konform). Vor dem Lauf wurden `storage` und `adapter-data` gesichert (14,99 MB,
+  `%TEMP%\einvoice-backup-vor-rerender`).
+  - **`2026-01-007` (storniert) — zurückgerollt.** Diesen Beleg lehnt der Endpunkt mit `400`
+    ab: `attachIssueArtifacts` arbeitet nur bei Status `issued`, ein Storno bleibt per Design
+    unverändert. Der Lauf hatte die Datei jedoch **vor** dieser Prüfung schon überschrieben;
+    sie wurde deshalb byte-identisch aus der Sicherung zurückgespielt (Rollback per SHA-256
+    verifiziert) und das dabei entstandene `.orig-1.pdf` entfernt. Der Beleg bleibt im
+    Altstand und ist der **einzige** `FAIL` unter den ausgelieferten PDFs.
+  - **Offen (klein): der Archivname ist fest verdrahtet.** `rerender` schreibt immer
+    `<name>.orig-1.pdf`; ein zweiter Lauf für denselben Beleg überschreibt also das ältere
+    Backup. Vorschlag: fortlaufende Nummer (`orig-N`) wie hier beschrieben.
+  - **Offen (klein): XML-Ablage und Datenbank können auseinanderlaufen.** `rerender` erneuert
+    das XML in der Datenbank (das ist die ausgelieferte Fassung), die Datei im Store bleibt
+    aber stehen — bei `2026-0001` gemessen: Store-XML 4 451 B (ohne Käuferkontakt und
+    Vorauszahlung), ausgeliefert 4 667 B; **beide** `rep:accept`. Da Backup/Restore die
+    Store-Dateien bewegt, sollte `rerender` sie mitziehen.
 - **Abschlag/Teilzahlung ist kein eigener Fall** — das Datenmodell kennt Skonto und
   Zahlungsstatus (`paid`), aber keine Abschlags-/Teilrechnung. Offen für R4/R6.
 
@@ -91,3 +132,6 @@ bei veraPDF das `PASS`/`FAIL` der Textausgabe.
   bewusst nur **„EN16931 (CII)"** (Factur-X ist keine XRechnung).
 - Regelstand ist CEN 1.3.16 (2026-04-13). Ein neues CEN- oder Factur-X-Release verlangt
   einen erneuten Lauf mit dem dann gültigen Konfigurationspaket.
+- Das Ergebnis gilt für den **geprüften Stand**: `alle-belege.verapdf-3b.txt` nennt die
+  geprüften Pfade. Werden Belege danach erneut gerendert, ist der Lauf zu wiederholen
+  (Rerender ersetzt die Datei und legt dafür `.orig-1.pdf` an).
