@@ -19,8 +19,12 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      # The checkout is required: the action reads the config from the working tree
+      # (`cat "$CONFIG_FILE"`), and without the file it silently falls back to its default
+      # rules. On `pull_request_target` this checks out the base branch — which is wanted here.
+      # Version 7 of the action runs on Node 24 (`@v4` still targets the deprecated Node 20).
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check if PR should be auto-merged
         uses: iobroker-bot-orga/action-automerge-dependabot@v1
