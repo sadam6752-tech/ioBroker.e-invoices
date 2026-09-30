@@ -11,6 +11,7 @@
 import PDFDocument from 'pdfkit';
 import { FONT_BOLD, FONT_REGULAR, registerFonts } from './fonts';
 import { calcSkonto, calcTotals, formatDeliveryDateDe, lineNetAmount, lineNetUnitPrice } from './invoice-model';
+import { ATTACHMENT_EMBED_HINT, attachmentTypeLabel, formatFileSize } from './pdf-attachments';
 import { ARCHIVE_HINT, DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
 import type { StoredInvoice } from './db';
 
@@ -84,6 +85,24 @@ export interface TemplateLogoImage {
 	data: Buffer;
 }
 
+/** One attachment as the sight component lists it (without its content). */
+export interface InvoiceAttachmentSummary {
+	/** Stored filename. */
+	filename: string;
+	/** MIME type taken from the content (magic bytes). */
+	mime: string;
+	/** Size in bytes. */
+	size: number;
+}
+
+/** Extra render context: everything that is not part of the stored invoice. */
+export interface InvoiceRenderContext {
+	/** Number of the invoice this one reverses (Storno). */
+	stornoOfNumber?: string | null;
+	/** Attachments embedded into the file; they are listed in the sight part. */
+	attachments?: InvoiceAttachmentSummary[];
+}
+
 /**
  * Renders the invoice sight PDF (A4) and resolves with its bytes.
  *
@@ -92,12 +111,13 @@ export interface TemplateLogoImage {
  * @param logo - Logo image bytes (optional, from template logo path).
  * @param context - Extra render context.
  * @param context.stornoOfNumber - Number of the invoice this one reverses.
+ * @param context.attachments - Attachments embedded into the file (R4).
  */
 export async function renderInvoicePdf(
 	invoice: StoredInvoice,
 	template: LayoutTemplate = DEFAULT_TEMPLATE,
 	logo?: TemplateLogoImage,
-	context: { stornoOfNumber?: string | null } = {},
+	context: InvoiceRenderContext = {},
 ): Promise<Buffer> {
 	if (!invoice.number) {
 		throw new Error('Invoice has no number yet - issue it before rendering');
@@ -540,6 +560,33 @@ export async function renderInvoicePdf(
 			});
 			doc.fontSize(10);
 			rowY = footTop + maxLines * lineHeight + 8;
+		}
+
+		// R4: Anlagenverzeichnis. The files are embedded in this very PDF
+		// (PDF/A-3) and listed here, so the reader sees that nothing was left
+		// out — a table of contents, not a set of links (PROMPT §2).
+		const attachments = context.attachments ?? [];
+		if (attachments.length > 0) {
+			doc.fontSize(9).font(FONT_REGULAR);
+			const hintHeight = doc.heightOfString(ATTACHMENT_EMBED_HINT, { width: pageWidth });
+			// the whole block moves to the next page when it does not fit
+			ensureSpace(30 + attachments.length * 12 + hintHeight);
+			doc.fontSize(10).font(FONT_BOLD).fillColor(colors.text);
+			doc.text('Anlagen', left, rowY, { width: pageWidth });
+			rowY += 14;
+			doc.fontSize(9).font(FONT_REGULAR).fillColor(colors.muted);
+			attachments.forEach((attachment, index) => {
+				const label =
+					`${index + 1}. ${attachment.filename} ` +
+					`(${attachmentTypeLabel(attachment.mime)}, ${formatFileSize(attachment.size)})`;
+				// a long filename is cut with an ellipsis instead of wrapping
+				// into the line below
+				doc.text(label, left + 8, rowY, { width: pageWidth - 8, height: 12, ellipsis: true });
+				rowY += 12;
+			});
+			doc.text(ATTACHMENT_EMBED_HINT, left, rowY, { width: pageWidth });
+			rowY += hintHeight + 8;
+			doc.fontSize(10).fillColor(colors.text);
 		}
 
 		if (template.showArchiveHint) {

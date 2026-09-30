@@ -38,6 +38,7 @@ var import_better_sqlite3 = __toESM(require("better-sqlite3"));
 var import_node_crypto = require("node:crypto");
 var import_node_fs = require("node:fs");
 var import_node_path = require("node:path");
+var import_attachments = require("./attachments");
 var import_invoice_model = require("./invoice-model");
 var import_migrations = require("./migrations");
 var import_templates = require("./templates");
@@ -172,6 +173,27 @@ function mapTemplateRow(row) {
     isDefault: row.is_default === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at
+  };
+}
+function mapAttachment(row) {
+  return {
+    id: row.id,
+    invoiceId: row.invoice_id,
+    filename: row.filename,
+    mime: row.mime,
+    size: row.size,
+    data: row.data,
+    createdAt: row.created_at
+  };
+}
+function mapAttachmentMeta(row) {
+  return {
+    id: row.id,
+    invoiceId: row.invoice_id,
+    filename: row.filename,
+    mime: row.mime,
+    size: row.size,
+    createdAt: row.created_at
   };
 }
 function mapCompanyRow(row) {
@@ -853,52 +875,101 @@ class InvoiceDatabase {
     this.db.prepare(`DELETE FROM templates WHERE id = ?`).run(id);
   }
   /**
-   * Adds a file attachment to an invoice (max 5 MB).
+   * Adds a file attachment to a draft.
+   *
+   * Only drafts may carry attachments: an issued invoice is frozen, and its
+   * PDF/XML already name the files (GoBD). Type, size and count come from
+   * `attachments.ts`, so no caller can bypass them.
    *
    * @param invoiceId - Owning invoice UUID.
-   * @param attachment - Filename, MIME type and content.
+   * @param attachment - Filename, declared MIME type and content.
    */
   addAttachment(invoiceId, attachment) {
-    if (!this.getInvoice(invoiceId)) {
+    const invoice = this.getInvoice(invoiceId);
+    if (!invoice) {
       throw new Error(`Invoice not found: ${invoiceId}`);
     }
-    if (attachment.filename.trim().length === 0 || attachment.data.length === 0) {
-      throw new Error("Attachment needs a filename and content");
+    if (invoice.status !== "draft") {
+      throw new Error("Only drafts can carry attachments; an issued invoice is frozen.");
     }
-    if (attachment.data.length > 5 * 1024 * 1024) {
-      throw new Error("Attachment exceeds 5 MB");
+    const check = (0, import_attachments.checkAttachment)(attachment);
+    if (!check.ok) {
+      throw new Error(check.error);
+    }
+    if (this.countAttachments(invoiceId) >= import_attachments.ATTACHMENT_MAX_COUNT) {
+      throw new Error(`At most ${import_attachments.ATTACHMENT_MAX_COUNT} attachments per invoice`);
     }
     const result = this.db.prepare(
       `INSERT INTO attachments (invoice_id, filename, mime, size, data, created_at)
 				VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(invoiceId, attachment.filename, attachment.mime, attachment.data.length, attachment.data, nowIso());
+    ).run(invoiceId, check.filename, check.mime, attachment.data.length, attachment.data, nowIso());
     const row = this.db.prepare(`SELECT * FROM attachments WHERE id = ?`).get(result.lastInsertRowid);
-    return {
-      id: row.id,
-      invoiceId: row.invoice_id,
-      filename: row.filename,
-      mime: row.mime,
-      size: row.size,
-      data: row.data,
-      createdAt: row.created_at
-    };
+    return mapAttachment(row);
   }
   /**
-   * Lists attachments of one invoice.
+   * Lists attachments of one invoice including their content.
+   *
+   * Prefer `listAttachmentMeta` for listings: a PDF or an image can be several
+   * megabytes, and `SELECT *` would pull every BLOB into memory.
    *
    * @param invoiceId - Owning invoice UUID.
    */
   listAttachments(invoiceId) {
     const rows = this.db.prepare(`SELECT * FROM attachments WHERE invoice_id = ? ORDER BY id ASC`).all(invoiceId);
-    return rows.map((row) => ({
-      id: row.id,
-      invoiceId: row.invoice_id,
-      filename: row.filename,
-      mime: row.mime,
-      size: row.size,
-      data: row.data,
-      createdAt: row.created_at
-    }));
+    return rows.map(mapAttachment);
+  }
+  /**
+   * Lists the attachments of one invoice without their content.
+   *
+   * @param invoiceId - Owning invoice UUID.
+   */
+  listAttachmentMeta(invoiceId) {
+    const rows = this.db.prepare(
+      `SELECT id, invoice_id, filename, mime, size, created_at
+				FROM attachments WHERE invoice_id = ? ORDER BY id ASC`
+    ).all(invoiceId);
+    return rows.map(mapAttachmentMeta);
+  }
+  /**
+   * Reads one attachment including its content.
+   *
+   * @param invoiceId - Owning invoice UUID.
+   * @param attachmentId - Row id of the attachment.
+   */
+  getAttachment(invoiceId, attachmentId) {
+    const row = this.db.prepare(`SELECT * FROM attachments WHERE id = ? AND invoice_id = ?`).get(attachmentId, invoiceId);
+    return row ? mapAttachment(row) : void 0;
+  }
+  /**
+   * Counts the attachments of one invoice.
+   *
+   * @param invoiceId - Owning invoice UUID.
+   */
+  countAttachments(invoiceId) {
+    const row = this.db.prepare(`SELECT COUNT(*) AS n FROM attachments WHERE invoice_id = ?`).get(invoiceId);
+    return row.n;
+  }
+  /**
+   * Deletes one attachment of a draft.
+   *
+   * Issued invoices keep their attachments: the stored PDF/XML name them, so
+   * dropping one afterwards would break the frozen record (GoBD).
+   *
+   * @param invoiceId - Owning invoice UUID.
+   * @param attachmentId - Row id of the attachment.
+   */
+  deleteAttachment(invoiceId, attachmentId) {
+    const invoice = this.getInvoice(invoiceId);
+    if (!invoice) {
+      throw new Error(`Invoice not found: ${invoiceId}`);
+    }
+    if (invoice.status !== "draft") {
+      throw new Error("Only drafts can change attachments; an issued invoice is frozen.");
+    }
+    const result = this.db.prepare(`DELETE FROM attachments WHERE id = ? AND invoice_id = ?`).run(attachmentId, invoiceId);
+    if (result.changes === 0) {
+      throw new Error(`Attachment not found: ${attachmentId}`);
+    }
   }
   /**
    * Exports the full database content for backups.

@@ -1,4 +1,5 @@
 import { api, downloadUrl, esc, eur, openUrl } from '../api';
+import { mountAttachments } from './attachments';
 
 /** Rounds to cents without the float trap of a bare Math.round. */
 function round2(value: number): number {
@@ -85,7 +86,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			${inv.status === 'issued' && inv.pdfPath ? `<button class="secondary" id="d-mail">E-Mail (PDF)</button>` : ''}
 			${inv.xml ? `<button class="secondary" data-dl="xml">XML ↓</button>` : ''}
 			${inv.xlsxPath ? `<button class="secondary" data-dl="xlsx">Excel ↓</button>` : ''}
-			</div><div id="d-out"></div><div id="d-duty"></div><div id="d-history"></div><div id="d-reports"></div></div>`;
+			</div><div id="d-out"></div><div id="d-duty"></div><div id="d-history"></div><div id="d-reports"></div><div id="d-attachments"></div></div>`;
 
 		const out = root.querySelector('#d-out')!;
 		const fail = (e: unknown): void => {
@@ -156,6 +157,9 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			}
 		};
 		await loadReports();
+		// R4: Anlagen — hochladen/löschen nur beim Entwurf, ausgestellte
+		// Rechnungen zeigen die Dateien nur noch an (GoBD).
+		mountAttachments(root.querySelector('#d-attachments')!, inv.id, { readOnly: inv.status !== 'draft' });
 		root.querySelectorAll('[data-dl]').forEach(btn =>
 			btn.addEventListener('click', async () => {
 				const kind = (btn as HTMLElement).dataset.dl as 'pdf' | 'xml' | 'xlsx';

@@ -28,6 +28,7 @@ module.exports = __toCommonJS(issue_service_exports);
 var import_excel = require("./excel");
 var import_invoice_model = require("./invoice-model");
 var import_pdf = require("./pdf");
+var import_pdf_attachments = require("./pdf-attachments");
 var import_templates = require("./templates");
 var import_zugferd = require("./zugferd");
 async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
@@ -42,13 +43,25 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
   const issued = db.issueDraft(invoiceId);
   log.info(`Invoice issued: ${issued.number} (${issued.id})`);
   const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
-  const { xml } = await (0, import_zugferd.generateInvoiceXml)(issued);
+  const attachments = db.listAttachments(invoiceId);
+  const { xml, attachmentDocuments } = await (0, import_zugferd.generateInvoiceXml)(issued, attachments);
   const sight = await (0, import_pdf.renderInvoicePdf)(issued, template, logo, {
-    stornoOfNumber: issued.stornoOfId ? (_b = (_a = db.getInvoice(issued.stornoOfId)) == null ? void 0 : _a.number) != null ? _b : null : null
+    stornoOfNumber: issued.stornoOfId ? (_b = (_a = db.getInvoice(issued.stornoOfId)) == null ? void 0 : _a.number) != null ? _b : null : null,
+    attachments
   });
-  const hybrid = await (0, import_zugferd.embedHybridPdf)(sight, xml, issued.profile, `${issued.documentTitle} ${issued.number}`);
+  const hybrid = await (0, import_zugferd.embedHybridPdf)(
+    await (0, import_pdf_attachments.embedPdfAttachments)(sight, attachments),
+    xml,
+    issued.profile,
+    `${issued.documentTitle} ${issued.number}`
+  );
   const xlsx = await (0, import_excel.renderInvoiceWorkbook)(issued);
   const base = `invoices/${issued.issueDate.slice(0, 4)}/${issued.number}`;
+  if (attachments.length > 0) {
+    log.info(
+      `Attachments: ${attachments.length} embedded in the PDF, ${attachmentDocuments} written into the XML (BG-24)`
+    );
+  }
   const written = /* @__PURE__ */ new Set();
   try {
     await storage.write(`${base}.xml`, xml);
@@ -139,11 +152,23 @@ async function rerenderInvoicePdf(db, log, invoiceId, storage, reason) {
     throw new Error("Invoice has no number yet - issue it before re-rendering");
   }
   const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
-  const { xml } = await (0, import_zugferd.generateInvoiceXml)(invoice);
+  const attachments = db.listAttachments(invoiceId);
+  const { xml, attachmentDocuments } = await (0, import_zugferd.generateInvoiceXml)(invoice, attachments);
   const sight = await (0, import_pdf.renderInvoicePdf)(invoice, template, logo, {
-    stornoOfNumber: invoice.stornoOfId ? (_b = (_a = db.getInvoice(invoice.stornoOfId)) == null ? void 0 : _a.number) != null ? _b : null : null
+    stornoOfNumber: invoice.stornoOfId ? (_b = (_a = db.getInvoice(invoice.stornoOfId)) == null ? void 0 : _a.number) != null ? _b : null : null,
+    attachments
   });
-  const hybrid = await (0, import_zugferd.embedHybridPdf)(sight, xml, invoice.profile, `${invoice.documentTitle} ${invoice.number}`);
+  const hybrid = await (0, import_zugferd.embedHybridPdf)(
+    await (0, import_pdf_attachments.embedPdfAttachments)(sight, attachments),
+    xml,
+    invoice.profile,
+    `${invoice.documentTitle} ${invoice.number}`
+  );
+  if (attachments.length > 0) {
+    log.info(
+      `Attachments re-embedded: ${attachments.length} in the PDF, ${attachmentDocuments} in the XML (BG-24)`
+    );
+  }
   const base = `invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}`;
   const newPath = `${base}.pdf`;
   let archivedPath = null;

@@ -18,6 +18,8 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var zugferd_exports = {};
 __export(zugferd_exports, {
+  SUPPORTING_DOCUMENT_TYPE_CODE: () => SUPPORTING_DOCUMENT_TYPE_CODE,
+  applyAdditionalDocuments: () => applyAdditionalDocuments,
   applyBillingPeriod: () => applyBillingPeriod,
   embedHybridPdf: () => embedHybridPdf,
   generateInvoiceXml: () => generateInvoiceXml,
@@ -236,7 +238,7 @@ function toFacturXInput(invoice) {
     }
   };
 }
-async function generateInvoiceXml(invoice) {
+async function generateInvoiceXml(invoice, attachments = []) {
   const profile = resolveProfile(invoice.profile);
   const input = toFacturXInput(invoice);
   const inputCheck = (0, import_factur_x.validateInput)(input, profile, import_factur_x.Flavor.ZUGFERD);
@@ -247,11 +249,32 @@ async function generateInvoiceXml(invoice) {
   }
   const xml = (0, import_factur_x.buildXml)(input, profile, import_factur_x.Flavor.ZUGFERD);
   const withPeriod = applyBillingPeriod(xml, (0, import_invoice_model.parseDeliveryPeriod)(invoice.deliveryDate));
-  const xsd = await (0, import_factur_x.validateXsd)(withPeriod, profile);
+  const embeddable = profile === import_factur_x.Profile.EN16931 ? attachments : [];
+  const withDocuments = applyAdditionalDocuments(withPeriod, embeddable);
+  const xsd = await (0, import_factur_x.validateXsd)(withDocuments, profile);
   if (!xsd.valid) {
     throw new Error(`Factur-X XSD invalid: ${xsd.errors.map((e) => e.message).join(" | ")}`);
   }
-  return { xml: withPeriod, profile };
+  return { xml: withDocuments, profile, attachmentDocuments: embeddable.length };
+}
+const SUPPORTING_DOCUMENT_TYPE_CODE = "916";
+function applyAdditionalDocuments(xml, attachments) {
+  if (attachments.length === 0) {
+    return xml;
+  }
+  const closeAgreement = "</ram:ApplicableHeaderTradeAgreement>";
+  const agreementEnd = xml.indexOf(closeAgreement);
+  if (agreementEnd < 0) {
+    throw new Error("Cannot place the supporting documents: header trade agreement not found");
+  }
+  const agreementStart = xml.lastIndexOf("<ram:ApplicableHeaderTradeAgreement>", agreementEnd);
+  const project = agreementStart >= 0 ? xml.indexOf("<ram:SpecifiedProcuringProject>", agreementStart) : -1;
+  const insertAt = project > 0 && project < agreementEnd ? project : agreementEnd;
+  const nodes = attachments.map((attachment) => {
+    const name = (0, import_factur_x.escapeXml)(attachment.filename);
+    return `<ram:AdditionalReferencedDocument><ram:IssuerAssignedID>${name}</ram:IssuerAssignedID><ram:TypeCode>${SUPPORTING_DOCUMENT_TYPE_CODE}</ram:TypeCode><ram:Name>${name}</ram:Name><ram:AttachmentBinaryObject mimeCode="${(0, import_factur_x.escapeXml)(attachment.mime)}" filename="${name}">${attachment.data.toString("base64")}</ram:AttachmentBinaryObject></ram:AdditionalReferencedDocument>`;
+  }).join("");
+  return `${xml.slice(0, insertAt)}${nodes}${xml.slice(insertAt)}`;
 }
 function applyBillingPeriod(xml, period) {
   if (!(period == null ? void 0 : period.end)) {
@@ -292,6 +315,8 @@ async function embedHybridPdf(pdfBytes, xml, profileName, title) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  SUPPORTING_DOCUMENT_TYPE_CODE,
+  applyAdditionalDocuments,
   applyBillingPeriod,
   embedHybridPdf,
   generateInvoiceXml,

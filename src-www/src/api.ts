@@ -192,6 +192,22 @@ export interface RenderHistoryEntry {
 	createdAt: string;
 }
 
+/** One stored attachment of an invoice (without its content, R4). */
+export interface AttachmentMeta {
+	/** Row id, used in the download URL. */
+	id: number;
+	/** Owning invoice UUID. */
+	invoiceId: string;
+	/** Stored filename. */
+	filename: string;
+	/** MIME type taken from the content (magic bytes). */
+	mime: string;
+	/** Size in bytes. */
+	size: number;
+	/** ISO timestamp of the upload. */
+	createdAt: string;
+}
+
 /** API token storage (localStorage, set on the login page). */
 const TOKEN_KEY = 'einv-token';
 
@@ -371,6 +387,21 @@ export const api = {
 	validationReports: (id: string) => request<ValidationReport[]>(`/api/invoices/${id}/validation`),
 	/** Download URL of one stored validation report. */
 	validationReportUrl: (id: string, seq: number) => `/api/invoices/${id}/validation/${seq}.json`,
+	/**
+	 * R4: attachments of a draft. Listing never carries the content; the files
+	 * are uploaded as base64 JSON (no multipart) and downloaded one by one.
+	 */
+	attachments: {
+		list: (id: string) => request<AttachmentMeta[]>(`/api/invoices/${id}/attachments`),
+		add: (id: string, file: { filename: string; mime: string; dataBase64: string }) =>
+			request<AttachmentMeta>(`/api/invoices/${id}/attachments`, {
+				method: 'POST',
+				body: JSON.stringify(file),
+			}),
+		remove: (id: string, attachmentId: number) =>
+			request<void>(`/api/invoices/${id}/attachments/${attachmentId}`, { method: 'DELETE' }),
+		url: (id: string, attachmentId: number) => `/api/invoices/${id}/attachments/${attachmentId}`,
+	},
 	pdfUrl: (id: string) => `/api/invoices/${id}.pdf`,
 	xmlUrl: (id: string) => `/api/invoices/${id}.xml`,
 	xlsxUrl: (id: string) => `/api/invoices/${id}.xlsx`,

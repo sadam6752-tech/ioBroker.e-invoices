@@ -10,6 +10,7 @@ import type { InvoiceDatabase, StoredInvoice } from './db';
 import { renderInvoiceWorkbook } from './excel';
 import { daysBetween, todayIso } from './invoice-model';
 import { renderInvoicePdf, type TemplateLogoImage } from './pdf';
+import { embedPdfAttachments } from './pdf-attachments';
 import { DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
 import { embedHybridPdf, generateInvoiceXml } from './zugferd';
 
@@ -75,13 +76,32 @@ export async function issueInvoiceWithArtifacts(
 	log.info(`Invoice issued: ${issued.number} (${issued.id})`);
 
 	const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
-	const { xml } = await generateInvoiceXml(issued);
+	// R4: the attachments of the draft travel with it. They are read before the
+	// records are written: the file becomes part of the e-invoice, so they have
+	// to sit in the PDF container (PDF/A-3) and — EN 16931 — in the XML (BG-24).
+	const attachments = db.listAttachments(invoiceId);
+	const { xml, attachmentDocuments } = await generateInvoiceXml(issued, attachments);
 	const sight = await renderInvoicePdf(issued, template, logo, {
 		stornoOfNumber: issued.stornoOfId ? (db.getInvoice(issued.stornoOfId)?.number ?? null) : null,
+		attachments,
 	});
-	const hybrid = await embedHybridPdf(sight, xml, issued.profile, `${issued.documentTitle} ${issued.number}`);
+	// `pdf-lib` appends to the existing /AF array, so the Factur-X step below
+	// stays the last writer: it owns the XMP packet, the output intent and the
+	// trailer /ID that PDF/A-3b is checked for.
+	const hybrid = await embedHybridPdf(
+		await embedPdfAttachments(sight, attachments),
+		xml,
+		issued.profile,
+		`${issued.documentTitle} ${issued.number}`,
+	);
 	const xlsx = await renderInvoiceWorkbook(issued);
 	const base = `invoices/${issued.issueDate.slice(0, 4)}/${issued.number}`;
+	if (attachments.length > 0) {
+		log.info(
+			`Attachments: ${attachments.length} embedded in the PDF, ` +
+				`${attachmentDocuments} written into the XML (BG-24)`,
+		);
+	}
 
 	// Only paths that were really written may be stored: a silent write
 	// failure would otherwise leave the DB pointing at 404 downloads.
@@ -249,11 +269,26 @@ export async function rerenderInvoicePdf(
 	// Render from the stored invoice data, not from a fresh preview: the numbers,
 	// totals and Storno reference must stay exactly as they were issued.
 	const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
-	const { xml } = await generateInvoiceXml(invoice);
+	// R4: the attachments are part of the record, so a re-render reproduces
+	// them exactly — an issued invoice keeps its Anlagenverzeichnis and its
+	// embedded files.
+	const attachments = db.listAttachments(invoiceId);
+	const { xml, attachmentDocuments } = await generateInvoiceXml(invoice, attachments);
 	const sight = await renderInvoicePdf(invoice, template, logo, {
 		stornoOfNumber: invoice.stornoOfId ? (db.getInvoice(invoice.stornoOfId)?.number ?? null) : null,
+		attachments,
 	});
-	const hybrid = await embedHybridPdf(sight, xml, invoice.profile, `${invoice.documentTitle} ${invoice.number}`);
+	const hybrid = await embedHybridPdf(
+		await embedPdfAttachments(sight, attachments),
+		xml,
+		invoice.profile,
+		`${invoice.documentTitle} ${invoice.number}`,
+	);
+	if (attachments.length > 0) {
+		log.info(
+			`Attachments re-embedded: ${attachments.length} in the PDF, ` + `${attachmentDocuments} in the XML (BG-24)`,
+		);
+	}
 
 	const base = `invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}`;
 	const newPath = `${base}.pdf`;

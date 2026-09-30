@@ -17,6 +17,7 @@ import {
 	VatCategoryCode,
 	buildXml,
 	embedFacturX,
+	escapeXml,
 	validateInput,
 	validateXsd,
 	type FacturXInvoiceInput,
@@ -303,6 +304,13 @@ export interface GeneratedXml {
 	xml: string;
 	/** Library profile enum used. */
 	profile: Profile;
+	/**
+	 * How many attachments were written into the XML as BG-24. Zero for a
+	 * BASIC invoice: that profile's XSD has no `AdditionalReferencedDocument`,
+	 * so its files ride in the PDF container alone (still embedded, never
+	 * linked).
+	 */
+	attachmentDocuments: number;
 }
 
 /**
@@ -310,8 +318,12 @@ export interface GeneratedXml {
  * Throws with all messages when any step fails.
  *
  * @param invoice - Stored invoice with an assigned number.
+ * @param attachments - Attachments to embed as BG-24 (optional).
  */
-export async function generateInvoiceXml(invoice: StoredInvoice): Promise<GeneratedXml> {
+export async function generateInvoiceXml(
+	invoice: StoredInvoice,
+	attachments: XmlAttachment[] = [],
+): Promise<GeneratedXml> {
 	const profile = resolveProfile(invoice.profile);
 	const input = toFacturXInput(invoice);
 
@@ -324,11 +336,81 @@ export async function generateInvoiceXml(invoice: StoredInvoice): Promise<Genera
 
 	const xml = buildXml(input, profile, Flavor.ZUGFERD);
 	const withPeriod = applyBillingPeriod(xml, parseDeliveryPeriod(invoice.deliveryDate));
-	const xsd = await validateXsd(withPeriod, profile);
+	// BG-24 lives in EN 16931 only. `FACTUR-X_BASIC.xsd` has no
+	// AdditionalReferencedDocument in its HeaderTradeAgreementType, so a BASIC
+	// invoice keeps its files in the PDF container and stays XSD-valid.
+	const embeddable = profile === Profile.EN16931 ? attachments : [];
+	const withDocuments = applyAdditionalDocuments(withPeriod, embeddable);
+	const xsd = await validateXsd(withDocuments, profile);
 	if (!xsd.valid) {
 		throw new Error(`Factur-X XSD invalid: ${xsd.errors.map(e => e.message).join(' | ')}`);
 	}
-	return { xml: withPeriod, profile };
+	return { xml: withDocuments, profile, attachmentDocuments: embeddable.length };
+}
+
+/** One attachment as it goes into the CII XML. */
+export interface XmlAttachment {
+	/** Filename as stored (already sanitized by `attachments.ts`). */
+	filename: string;
+	/** MIME type taken from the content (magic bytes). */
+	mime: string;
+	/** File content. */
+	data: Buffer;
+}
+
+/**
+ * UNTDID 1001 code of an additional document that belongs to the invoice.
+ * `916` is the code the Factur-X specification uses for BT-125 (attached
+ * document) — the validator's CII binding expects it next to the embedded file.
+ */
+export const SUPPORTING_DOCUMENT_TYPE_CODE = '916';
+
+/**
+ * Adds the attachments as BG-24 "Additional supporting documents"
+ * (BT-122 reference, BT-123 description, BT-125 attached file).
+ *
+ * The library's input model has no field for BG-24, so the nodes are injected
+ * here — like `applyBillingPeriod` does for BG-26 — and the result is
+ * XSD-validated by the caller. PROMPT §2 asks for "embedded, not linked": the
+ * file travels base64 encoded inside `ram:AttachmentBinaryObject`, there is no
+ * `ram:URIID` and no dangling reference.
+ *
+ * @param xml - CII XML from the builder (after `applyBillingPeriod`).
+ * @param attachments - Attachments to write into the XML; empty is a no-op.
+ * @returns XML with one `ram:AdditionalReferencedDocument` per attachment.
+ */
+export function applyAdditionalDocuments(xml: string, attachments: XmlAttachment[]): string {
+	if (attachments.length === 0) {
+		return xml;
+	}
+	const closeAgreement = '</ram:ApplicableHeaderTradeAgreement>';
+	const agreementEnd = xml.indexOf(closeAgreement);
+	if (agreementEnd < 0) {
+		throw new Error('Cannot place the supporting documents: header trade agreement not found');
+	}
+	// The XSD sequence puts AdditionalReferencedDocument after the order and
+	// contract references and before a procuring project (which the builder
+	// never writes, but a future flavour might).
+	const agreementStart = xml.lastIndexOf('<ram:ApplicableHeaderTradeAgreement>', agreementEnd);
+	const project = agreementStart >= 0 ? xml.indexOf('<ram:SpecifiedProcuringProject>', agreementStart) : -1;
+	const insertAt = project > 0 && project < agreementEnd ? project : agreementEnd;
+
+	const nodes = attachments
+		.map(attachment => {
+			const name = escapeXml(attachment.filename);
+			return (
+				'<ram:AdditionalReferencedDocument>' +
+				`<ram:IssuerAssignedID>${name}</ram:IssuerAssignedID>` +
+				`<ram:TypeCode>${SUPPORTING_DOCUMENT_TYPE_CODE}</ram:TypeCode>` +
+				`<ram:Name>${name}</ram:Name>` +
+				`<ram:AttachmentBinaryObject mimeCode="${escapeXml(attachment.mime)}" filename="${name}">` +
+				`${attachment.data.toString('base64')}` +
+				'</ram:AttachmentBinaryObject>' +
+				'</ram:AdditionalReferencedDocument>'
+			);
+		})
+		.join('');
+	return `${xml.slice(0, insertAt)}${nodes}${xml.slice(insertAt)}`;
 }
 
 /**

@@ -8,7 +8,9 @@
  * was parsed). This reader resolves the object streams, so a test can assert what
  * PDF/A-3b actually requires.
  */
-import { PDFArray, PDFDict, PDFDocument, PDFName } from 'pdf-lib';
+import type { PDFRawStream } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFString } from 'pdf-lib';
+import { inflateSync } from 'node:zlib';
 
 /** One font of the sight component. */
 export interface PdfFontInfo {
@@ -20,6 +22,18 @@ export interface PdfFontInfo {
 	embedded: boolean;
 	/** `/ToUnicode` — needed to copy text out of the document. */
 	toUnicode: boolean;
+}
+
+/** One embedded file as it is written into the PDF container (R4). */
+export interface PdfEmbeddedFileInfo {
+	/** Name in the `Names → EmbeddedFiles` name tree. */
+	name: string;
+	/** `/AFRelationship`: `Alternative` for the XML, `Data` for an Anlage. */
+	afRelationship: string;
+	/** MIME type from the file stream's `/Subtype`. */
+	mimeType: string;
+	/** Size of the decoded content in bytes. */
+	size: number;
 }
 
 /** The parts of the structure that PDF/A-3b level B prescribes. */
@@ -34,8 +48,67 @@ export interface PdfStructure {
 	hasXmpMetadata: boolean;
 	/** `/AF` — the associated files, this is where the ZUGFeRD XML rides along. */
 	hasAssociatedFiles: boolean;
+	/** Entries in the catalogue's `/AF` array (XML plus every Anlage). */
+	associatedFileCount: number;
+	/** Every embedded file (XML and Anlagen), in the order of the name tree. */
+	embeddedFiles: PdfEmbeddedFileInfo[];
 	/** Every font the pages use, without duplicates. */
 	fonts: PdfFontInfo[];
+}
+
+/**
+ * Text of a PDF name/string object, empty for anything else.
+ *
+ * @param value - Object taken from a PDF dictionary.
+ */
+function textOf(value: unknown): string {
+	if (value instanceof PDFName || value instanceof PDFString || value instanceof PDFHexString) {
+		return value.decodeText();
+	}
+	return '';
+}
+
+/**
+ * Decoded content of a file stream (pdf-lib writes embedded files with FlateDecode).
+ *
+ * @param stream - Stream from the file specification's `/EF` dictionary.
+ */
+function streamBytes(stream: PDFRawStream): Buffer {
+	const raw = Buffer.from(stream.contents);
+	try {
+		return inflateSync(raw);
+	} catch {
+		return raw;
+	}
+}
+
+/**
+ * Reads the embedded files of a PDF (`Names → EmbeddedFiles`), the way a checker does.
+ *
+ * @param document_ - the loaded PDF
+ */
+function readEmbeddedFiles(document_: PDFDocument): PdfEmbeddedFileInfo[] {
+	const names = document_.catalog.lookup(PDFName.of('Names'), PDFDict);
+	const tree = names?.lookup(PDFName.of('EmbeddedFiles'), PDFDict);
+	const list = tree?.lookup(PDFName.of('Names'), PDFArray);
+	if (!list) {
+		return [];
+	}
+	const files: PdfEmbeddedFileInfo[] = [];
+	for (let index = 0; index + 1 < list.size(); index += 2) {
+		const spec = list.lookup(index + 1, PDFDict);
+		const stream = spec?.lookup(PDFName.of('EF'), PDFDict)?.lookup(PDFName.of('F')) as PDFRawStream | undefined;
+		if (!spec || !stream) {
+			continue;
+		}
+		files.push({
+			name: textOf(list.get(index)),
+			afRelationship: textOf(spec.get(PDFName.of('AFRelationship'))),
+			mimeType: textOf(stream.dict.get(PDFName.of('Subtype'))),
+			size: streamBytes(stream).length,
+		});
+	}
+	return files;
 }
 
 /**
@@ -55,6 +128,8 @@ export async function readPdfStructure(bytes: Uint8Array): Promise<PdfStructure>
 		hasDestOutputProfile: false,
 		hasXmpMetadata: catalogue.get(name('Metadata')) !== undefined,
 		hasAssociatedFiles: catalogue.get(name('AF')) !== undefined,
+		associatedFileCount: catalogue.lookup(name('AF'), PDFArray)?.size() ?? 0,
+		embeddedFiles: readEmbeddedFiles(document_),
 		fonts: [],
 	};
 

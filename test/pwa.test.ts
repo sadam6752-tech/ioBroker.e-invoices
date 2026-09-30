@@ -107,3 +107,49 @@ describe('pwa => wizard opens without TDZ crash', () => {
 		}
 	});
 });
+
+describe('pwa => attachments (R4)', () => {
+	it('ships one shared Anlagen module with the server rules as a pre-check', () => {
+		const src = readFileSync('src-www/src/views/attachments.ts', 'utf8');
+		// mirrored from src/lib/attachments.ts — the server stays the judge
+		expect(src).to.contain('5 * 1024 * 1024');
+		expect(src).to.contain('ATTACHMENT_MAX_COUNT = 10');
+		expect(src).to.contain("['pdf', 'png', 'jpg', 'jpeg']");
+		// upload as base64 JSON (no multipart), download and delete via the API
+		expect(src).to.contain('api.attachments.add');
+		expect(src).to.contain('dataBase64');
+		expect(src).to.contain('api.attachments.remove');
+		expect(src).to.contain('api.attachments.url');
+	});
+
+	it('mounts the section in the detail view and in the wizard', () => {
+		const detail = readFileSync('src-www/src/views/detail.ts', 'utf8');
+		expect(detail).to.contain("mountAttachments(root.querySelector('#d-attachments')!");
+		// GoBD: an issued invoice keeps its files but cannot change them
+		expect(detail).to.contain("readOnly: inv.status !== 'draft'");
+		const wizard = readFileSync('src-www/src/views/wizard.ts', 'utf8');
+		expect(wizard).to.contain('<div id="w-attachments"></div>');
+		expect(wizard).to.contain('mountAttachments(attachmentHost, s.draftId');
+	});
+
+	it('exposes the attachment routes in the API client', () => {
+		const api = readFileSync('src-www/src/api.ts', 'utf8');
+		expect(api).to.contain('attachments: {');
+		expect(api).to.contain('`/api/invoices/${id}/attachments`');
+		expect(api).to.contain('`/api/invoices/${id}/attachments/${attachmentId}`');
+		expect(api).to.contain("method: 'DELETE'");
+	});
+
+	it('ships the built bundle with the Anlagen section', function () {
+		const asset = existsSync('www/assets')
+			? readdirSync('www/assets').find(f => /^index-.*\.js$/.test(f))
+			: undefined;
+		if (!asset) {
+			this.skip();
+			return;
+		}
+		const bundle = readFileSync(`www/assets/${asset}`, 'utf8');
+		expect(bundle).to.contain('Noch keine Anlagen');
+		expect(bundle).to.contain('/attachments');
+	});
+});

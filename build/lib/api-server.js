@@ -44,6 +44,7 @@ var import_express_rate_limit = require("express-rate-limit");
 var import_invoice_model = require("./invoice-model");
 var import_issue_service = require("./issue-service");
 var import_backup = require("./backup");
+var import_attachments = require("./attachments");
 var import_csv = require("./csv");
 var import_excel = require("./excel");
 var import_invoice_model2 = require("./invoice-model");
@@ -147,6 +148,10 @@ function routeParam(req, name) {
   var _a;
   const value = req.params[name];
   return Array.isArray(value) ? (_a = value[0]) != null ? _a : "" : value != null ? value : "";
+}
+function routeIdParam(req, name) {
+  const value = Number(routeParam(req, name));
+  return Number.isInteger(value) && value > 0 ? value : void 0;
 }
 async function storeValidationReport(db, storage, log, invoice, result) {
   var _a;
@@ -422,6 +427,81 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query))}`);
         res.send(data);
       } catch {
         res.status(404).json({ error: `Artifact file missing: ${report.reportPath}` });
+      }
+    })
+  );
+  app.get(
+    "/api/invoices/:id/attachments",
+    route((req, res) => {
+      const id = routeParam(req, "id");
+      if (!db.getInvoice(id)) {
+        res.status(404).json({ error: "Invoice not found" });
+        return;
+      }
+      res.json(db.listAttachmentMeta(id));
+    })
+  );
+  app.post(
+    "/api/invoices/:id/attachments",
+    route((req, res) => {
+      var _a2;
+      const id = routeParam(req, "id");
+      const body = (_a2 = req.body) != null ? _a2 : {};
+      if (typeof body.filename !== "string" || typeof body.dataBase64 !== "string") {
+        res.status(400).json({ error: "Body needs filename and dataBase64 (mime is optional)" });
+        return;
+      }
+      try {
+        const stored = db.addAttachment(id, {
+          filename: body.filename,
+          mime: typeof body.mime === "string" ? body.mime : "",
+          data: Buffer.from(body.dataBase64, "base64")
+        });
+        log.info(`Attachment stored for ${id}: ${stored.filename} (${stored.size} bytes)`);
+        res.status(201).json({
+          id: stored.id,
+          invoiceId: stored.invoiceId,
+          filename: stored.filename,
+          mime: stored.mime,
+          size: stored.size,
+          createdAt: stored.createdAt
+        });
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.get(
+    "/api/invoices/:id/attachments/:aid",
+    route((req, res) => {
+      const attachmentId = routeIdParam(req, "aid");
+      if (attachmentId === void 0) {
+        res.status(400).json({ error: "Attachment id must be a positive integer" });
+        return;
+      }
+      const attachment = db.getAttachment(routeParam(req, "id"), attachmentId);
+      if (!attachment) {
+        res.status(404).json({ error: "Attachment not found" });
+        return;
+      }
+      res.type(attachment.mime);
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(attachment.filename));
+      res.send(attachment.data);
+    })
+  );
+  app.delete(
+    "/api/invoices/:id/attachments/:aid",
+    route((req, res) => {
+      const attachmentId = routeIdParam(req, "aid");
+      if (attachmentId === void 0) {
+        res.status(400).json({ error: "Attachment id must be a positive integer" });
+        return;
+      }
+      try {
+        db.deleteAttachment(routeParam(req, "id"), attachmentId);
+        res.status(204).end();
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
       }
     })
   );

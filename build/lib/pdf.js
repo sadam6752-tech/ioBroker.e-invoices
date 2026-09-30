@@ -38,6 +38,7 @@ module.exports = __toCommonJS(pdf_exports);
 var import_pdfkit = __toESM(require("pdfkit"));
 var import_fonts = require("./fonts");
 var import_invoice_model = require("./invoice-model");
+var import_pdf_attachments = require("./pdf-attachments");
 var import_templates = require("./templates");
 function formatEur(value) {
   return `${value.toFixed(2)} EUR`;
@@ -89,7 +90,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
   const signature = ((_i = template.signatureName) == null ? void 0 : _i.trim()) || "";
   const showTagline = (_j = template.showTagline) != null ? _j : true;
   return new Promise((resolve, reject) => {
-    var _a2, _b2, _c2, _d2, _e2, _f2, _g2, _h2, _i2;
+    var _a2, _b2, _c2, _d2, _e2, _f2, _g2, _h2, _i2, _j2;
     const doc = new import_pdfkit.default({
       size: "A4",
       margins: { top: 50, bottom: 36, left: 50, right: 50 },
@@ -432,6 +433,24 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       });
       doc.fontSize(10);
       rowY = footTop + maxLines * lineHeight + 8;
+    }
+    const attachments = (_j2 = context.attachments) != null ? _j2 : [];
+    if (attachments.length > 0) {
+      doc.fontSize(9).font(import_fonts.FONT_REGULAR);
+      const hintHeight = doc.heightOfString(import_pdf_attachments.ATTACHMENT_EMBED_HINT, { width: pageWidth });
+      ensureSpace(30 + attachments.length * 12 + hintHeight);
+      doc.fontSize(10).font(import_fonts.FONT_BOLD).fillColor(colors.text);
+      doc.text("Anlagen", left, rowY, { width: pageWidth });
+      rowY += 14;
+      doc.fontSize(9).font(import_fonts.FONT_REGULAR).fillColor(colors.muted);
+      attachments.forEach((attachment, index) => {
+        const label = `${index + 1}. ${attachment.filename} (${(0, import_pdf_attachments.attachmentTypeLabel)(attachment.mime)}, ${(0, import_pdf_attachments.formatFileSize)(attachment.size)})`;
+        doc.text(label, left + 8, rowY, { width: pageWidth - 8, height: 12, ellipsis: true });
+        rowY += 12;
+      });
+      doc.text(import_pdf_attachments.ATTACHMENT_EMBED_HINT, left, rowY, { width: pageWidth });
+      rowY += hintHeight + 8;
+      doc.fontSize(10).fillColor(colors.text);
     }
     if (template.showArchiveHint) {
       ensureSpace(36);

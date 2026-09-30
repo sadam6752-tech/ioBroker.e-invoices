@@ -3,13 +3,20 @@
  * Three fixtures (standard, mixed-rates BASIC, exempt small) must validate
  * cleanly; the hybrid PDF must round-trip its XML.
  */
-import { extractXml } from '@stackforge-eu/factur-x';
+import { Profile, extractXml, validateXsd } from '@stackforge-eu/factur-x';
 import { PDFDocument } from 'pdf-lib';
 import { expect } from 'chai';
 import { deflateSync, inflateSync } from 'node:zlib';
-import { InvoiceDatabase, type StoredInvoice } from './db';
+import { InvoiceDatabase, type StoredAttachment, type StoredInvoice } from './db';
 import type { InvoiceDraftInput, InvoiceLine, Party } from './invoice-model';
-import { embedHybridPdf, generateInvoiceXml, mapUnitCode, mapVatCategory, resolveProfile } from './zugferd';
+import {
+	applyAdditionalDocuments,
+	embedHybridPdf,
+	generateInvoiceXml,
+	mapUnitCode,
+	mapVatCategory,
+	resolveProfile,
+} from './zugferd';
 import { renderInvoicePdf, type TemplateLogoImage } from './pdf';
 import { DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
 import { validateArtifacts } from './validation';
@@ -1041,6 +1048,100 @@ describe('validation => tampered xml', function () {
 			const tampered = xml.split(invoice.number ?? 'NUMBER-MISSING').join('2000-9999');
 			const check = await validateArtifacts(invoice, tampered);
 			expect(check.businessErrors.length).to.be.greaterThan(0);
+		} finally {
+			db.close();
+		}
+	});
+});
+
+describe('zugferd => attachments (R4)', function () {
+	this.timeout(60000);
+
+	/** PNG signature plus IHDR — the content decides the accepted type. */
+	const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48]);
+
+	/**
+	 * Issues a draft that carries one attachment (the record freezes on issue,
+	 * so the file has to be attached while it is still a draft).
+	 */
+	function issuedWithAttachment(): {
+		db: InvoiceDatabase;
+		invoice: StoredInvoice;
+		attachments: StoredAttachment[];
+	} {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const created = db.createDraft(draft());
+		db.addAttachment(created.id, { filename: 'Lieferschein.png', mime: 'image/png', data: png });
+		const invoice = db.issueDraft(created.id);
+		return { db, invoice, attachments: db.listAttachments(invoice.id) };
+	}
+
+	it('writes BG-24 with the embedded file into an EN 16931 invoice', async () => {
+		const { db, invoice, attachments } = issuedWithAttachment();
+		try {
+			const { xml, attachmentDocuments } = await generateInvoiceXml(invoice, attachments);
+			expect(attachmentDocuments).to.equal(1);
+			expect(xml).to.contain('<ram:AdditionalReferencedDocument>');
+			expect(xml).to.contain('<ram:IssuerAssignedID>Lieferschein.png</ram:IssuerAssignedID>');
+			expect(xml).to.contain('<ram:TypeCode>916</ram:TypeCode>');
+			expect(xml).to.contain('<ram:Name>Lieferschein.png</ram:Name>');
+			expect(xml).to.contain('mimeCode="image/png" filename="Lieferschein.png"');
+			// embedded, not linked: the payload itself travels in the XML and the
+			// node carries no external location
+			expect(xml).to.contain(png.toString('base64'));
+			const node = xml.indexOf('<ram:AdditionalReferencedDocument>');
+			const document = xml.slice(node, xml.indexOf('</ram:AdditionalReferencedDocument>') + 1);
+			expect(document).to.not.contain('<ram:URIID>');
+			// the XSD sequence puts it into the header agreement
+			expect(node).to.be.greaterThan(xml.indexOf('<ram:ApplicableHeaderTradeAgreement>'));
+			expect(node).to.be.lessThan(xml.indexOf('</ram:ApplicableHeaderTradeAgreement>'));
+
+			const xsd = await validateXsd(xml, Profile.EN16931);
+			expect(xsd.valid, xsd.errors.map(e => e.message).join(' | ')).to.equal(true);
+			const check = await validateArtifacts(invoice, xml);
+			expect(check.formatErrors).to.deep.equal([]);
+			expect(check.businessErrors).to.deep.equal([]);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('keeps a BASIC invoice free of BG-24, its XSD has no such node', async () => {
+		const { db, invoice, attachments } = issuedWithAttachment();
+		try {
+			const basic = { ...invoice, profile: 'BASIC' };
+			const { xml, attachmentDocuments } = await generateInvoiceXml(basic, attachments);
+			expect(attachmentDocuments).to.equal(0);
+			expect(xml).to.not.contain('AdditionalReferencedDocument');
+			const xsd = await validateXsd(xml, Profile.BASIC);
+			expect(xsd.valid, xsd.errors.map(e => e.message).join(' | ')).to.equal(true);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('refuses to guess where a supporting document belongs', () => {
+		expect(() =>
+			applyAdditionalDocuments('<x/>', [
+				{ filename: 'Anlage.pdf', mime: 'application/pdf', data: Buffer.from('%PDF-1.4') },
+			]),
+		).to.throw();
+	});
+
+	it('lists the Anlagen in the sight component', async () => {
+		const { db, invoice, attachments } = issuedWithAttachment();
+		try {
+			const text = pdfText(await renderInvoicePdf(invoice, DEFAULT_TEMPLATE, undefined, { attachments })).replace(
+				/\s+/g,
+				'',
+			);
+			expect(text).to.contain('Anlagen');
+			expect(text).to.contain('Lieferschein.png');
+			expect(text).to.contain('PNG');
+			// an invoice without attachments does not grow the block
+			const plain = pdfText(await renderInvoicePdf(invoice)).replace(/\s+/g, '');
+			expect(plain).to.not.contain('Anlagen');
 		} finally {
 			db.close();
 		}

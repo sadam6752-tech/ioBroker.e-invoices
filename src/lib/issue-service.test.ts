@@ -7,6 +7,7 @@
  */
 import { expect } from 'chai';
 import { inflateSync } from 'node:zlib';
+import { PDFArray, PDFDocument, PDFName } from 'pdf-lib';
 import { InvoiceDatabase } from './db';
 import { issueInvoiceWithArtifacts, rerenderInvoicePdf, type IssueStorage } from './issue-service';
 import { DEFAULT_TEMPLATE } from './templates';
@@ -237,6 +238,70 @@ describe('issue => re-render', function () {
 			const result = await rerenderInvoicePdf(db, logger, issued.invoice.id, memStorage(files), 'Fix');
 			// the re-rendered file is a new artifact, not the untouched original
 			expect(files.get(result.pdfPath)!.equals(before)).to.equal(false);
+		} finally {
+			db.close();
+		}
+	});
+});
+
+describe('issue => attachments (R4)', function () {
+	this.timeout(60000);
+
+	/** PNG signature plus IHDR — the content decides the accepted type. */
+	const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48]);
+
+	/**
+	 * Number of associated files in a PDF (the Factur-X XML plus the Anlagen).
+	 *
+	 * @param pdf - PDF bytes.
+	 */
+	async function associatedFiles(pdf: Buffer): Promise<number> {
+		const doc = await PDFDocument.load(pdf, { updateMetadata: false });
+		return doc.catalog.lookup(PDFName.of('AF'), PDFArray)?.size() ?? 0;
+	}
+
+	it('freezes the attachments of the draft into the issued artifacts', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const files = new Map<string, Buffer>();
+		try {
+			const created = db.createDraft(draft);
+			db.addAttachment(created.id, { filename: 'n.png', mime: 'image/png', data: png });
+			const outcome = await issueInvoiceWithArtifacts(db, logger, created.id, memStorage(files));
+
+			// the file is inside the stored PDF container, next to the XML
+			expect(await associatedFiles(files.get(outcome.pdfPath)!)).to.equal(2);
+			// the PDF also lists it for the reader
+			expect(pdfText(files.get(outcome.pdfPath)!)).to.contain('n.png');
+			// and the XML carries it as BG-24 with the embedded payload
+			const xml = files.get(outcome.xmlPath)!.toString('utf8');
+			expect(xml).to.contain('<ram:AdditionalReferencedDocument>');
+			expect(xml).to.contain(png.toString('base64'));
+
+			// GoBD: an issued invoice keeps its attachments, but cannot change them
+			expect(db.listAttachments(outcome.invoice.id)).to.have.lengthOf(1);
+			expect(() => db.addAttachment(outcome.invoice.id, { filename: 'x.png', data: png })).to.throw();
+			expect(() =>
+				db.deleteAttachment(outcome.invoice.id, db.listAttachments(outcome.invoice.id)[0].id),
+			).to.throw();
+		} finally {
+			db.close();
+		}
+	});
+
+	it('re-embeds the attachments when the PDF is re-rendered', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const files = new Map<string, Buffer>();
+		try {
+			const created = db.createDraft(draft);
+			db.addAttachment(created.id, { filename: 'n.png', mime: 'image/png', data: png });
+			const issued = await issueInvoiceWithArtifacts(db, logger, created.id, memStorage(files));
+			const result = await rerenderInvoicePdf(db, logger, issued.invoice.id, memStorage(files), 'Layoutfix');
+			expect(await associatedFiles(files.get(result.pdfPath)!)).to.equal(2);
+			expect(pdfText(files.get(result.pdfPath)!)).to.contain('n.png');
+			// the original file stays retrievable, attachments included
+			expect(await associatedFiles(files.get(result.archivedPath!)!)).to.equal(2);
 		} finally {
 			db.close();
 		}

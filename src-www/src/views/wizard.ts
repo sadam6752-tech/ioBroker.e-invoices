@@ -1,4 +1,5 @@
 import { api, esc, eur, type CompanyProfile, type DraftInput, type Invoice, type InvoiceLine, type InvoiceTemplate, type Party, type Product } from '../api';
+import { mountAttachments } from './attachments';
 
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
 const emptyLine = (): InvoiceLine => ({
@@ -610,11 +611,26 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		}
 		root.innerHTML = `${stepsBar()}${body}
 			${s.error ? `<div class="card error">${esc(s.error)}</div>` : ''}
+			${s.step === 3 ? `<div id="w-attachments"></div>` : ''}
 			<div class="row">
 				${s.step > 0 ? `<button class="secondary" id="w-back">Zurück</button>` : ''}
 				${s.step < 3 ? `<button id="w-next">Weiter</button>` : `<button id="w-save">Entwurf speichern</button><button id="w-issue">Ausstellen</button>`}
 				<button class="secondary" id="w-clear">Verwerfen</button>
 			</div>`;
+
+		// R4: Anlagen gehören zum gespeicherten Entwurf. Der Bereich erscheint im
+		// letzten Schritt; ohne Entwurf steht dort, was zu tun ist.
+		const attachmentHost = root.querySelector<HTMLElement>('#w-attachments');
+		if (attachmentHost) {
+			if (s.draftId) {
+				mountAttachments(attachmentHost, s.draftId, { readOnly: false });
+			} else {
+				attachmentHost.innerHTML = `<div class="card"><h3 style="margin:0">Anlagen</h3>
+					<p class="muted">Belege wie Lieferschein oder Nachweis lassen sich nach dem Speichern des
+					Entwurfs anhängen: erst „Entwurf speichern“, dann hier hochladen. Beim Ausstellen wandern die
+					Anlagen in PDF und XML.</p></div>`;
+			}
+		}
 
 		root.querySelector('#w-back')?.addEventListener('click', () => {
 			s.step--;

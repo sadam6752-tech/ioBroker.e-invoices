@@ -78,7 +78,15 @@ describe('backup => roundtrip', function () {
 			const restored = dbB.getInvoice(invoiceId);
 			expect(restored?.number).to.match(/^2026-00-\d{3}$/);
 			expect(restored?.xml).to.contain('CrossIndustryInvoice');
-			expect(dbB.listAttachments(invoiceId)).to.have.lengthOf(1);
+			// R4: attachments are part of the dump (base64) and come back as a
+			// BLOB, byte for byte. The price is size: base64 costs about a third
+			// more than the file, so a backup with Anlagen grows noticeably —
+			// documented in the README.
+			const restoredAttachments = dbB.listAttachments(invoiceId);
+			expect(restoredAttachments).to.have.lengthOf(1);
+			expect(restoredAttachments[0].filename).to.equal('n.png');
+			expect(restoredAttachments[0].mime).to.equal('image/png');
+			expect(restoredAttachments[0].data.equals(png)).to.equal(true);
 			expect(dbB.listTemplates().length).to.be.greaterThan(0);
 			const pdf = await storeB.read(restored?.pdfPath ?? 'missing');
 			expect(pdf.subarray(0, 4).toString()).to.equal('%PDF');
