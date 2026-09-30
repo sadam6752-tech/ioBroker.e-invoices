@@ -82,6 +82,42 @@ describe('backup => roundtrip', function () {
 			dbB.close();
 		}
 	});
+
+	it('merges counters that differ only by employee-code normalization', async () => {
+		const dbA = new InvoiceDatabase(':memory:');
+		dbA.migrate();
+		const dbB = new InvoiceDatabase(':memory:');
+		dbB.migrate();
+		try {
+			const storeA = memoryStorage();
+			await seedIssued(dbA, storeA);
+			const backup = await createBackup(dbA, storeA, quiet, '0.0.0-test');
+
+			// databases from before the normalization stored the same employee
+			// twice ("0" and "00"); a restore must merge instead of aborting
+			const zip = await JSZip.loadAsync(backup.data);
+			const dump = JSON.parse(await zip.file('dump.json')!.async('string'));
+			const counter = dump.counters[0];
+			dump.counters.push({ year: counter.year, employee: '0', last_seq: counter.last_seq + 5 });
+			const dumpText = JSON.stringify(dump);
+			zip.file('dump.json', dumpText);
+			const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
+			manifest.dumpSha256 = createHash('sha256').update(dumpText).digest('hex');
+			zip.file('manifest.json', JSON.stringify(manifest));
+			const legacy = await zip.generateAsync({ type: 'nodebuffer' });
+
+			const summary = await restoreBackup(dbB, memoryStorage(), legacy, quiet);
+			expect(summary.invoices).to.equal(1);
+			expect(summary.fileErrors).to.deep.equal([]);
+			const counters = dbB.exportData().counters;
+			expect(counters).to.have.lengthOf(1);
+			expect(counters[0].employee).to.equal('00');
+			expect(counters[0].last_seq).to.equal(counter.last_seq + 5);
+		} finally {
+			dbA.close();
+			dbB.close();
+		}
+	});
 });
 
 describe('backup => corrupt input', () => {

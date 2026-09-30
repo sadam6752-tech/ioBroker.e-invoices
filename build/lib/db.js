@@ -960,9 +960,17 @@ class InvoiceDatabase {
       if (has("products")) {
         this.db.prepare(`DELETE FROM products`).run();
       }
+      const mergedCounters = /* @__PURE__ */ new Map();
       for (const counter of (_a = dump.counters) != null ? _a : []) {
         const employee = (0, import_invoice_model.normalizeEmployeeCode)((_b = counter.employee) != null ? _b : "00");
-        this.db.prepare(`INSERT INTO counters (year, employee, last_seq) VALUES (?, ?, ?)`).run(counter.year, employee, counter.last_seq);
+        const key = `${counter.year}/${employee}`;
+        const prev = mergedCounters.get(key);
+        if (!prev || counter.last_seq > prev.lastSeq) {
+          mergedCounters.set(key, { year: counter.year, employee, lastSeq: counter.last_seq });
+        }
+      }
+      for (const counter of mergedCounters.values()) {
+        this.db.prepare(`INSERT INTO counters (year, employee, last_seq) VALUES (?, ?, ?)`).run(counter.year, counter.employee, counter.lastSeq);
       }
       for (const template of dump.templates) {
         this.db.prepare(

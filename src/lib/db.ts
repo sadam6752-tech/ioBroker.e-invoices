@@ -1574,11 +1574,23 @@ export class InvoiceDatabase {
 			if (has('products')) {
 				this.db.prepare(`DELETE FROM products`).run();
 			}
+			// Counters are keyed by normalized employee code, but older databases
+			// may hold the same employee twice ("1" and "01" both mean "01").
+			// Merging by maximum keeps the sequence lückenlos instead of
+			// aborting the whole restore with a UNIQUE violation.
+			const mergedCounters = new Map<string, { year: number; employee: string; lastSeq: number }>();
 			for (const counter of dump.counters ?? []) {
 				const employee = normalizeEmployeeCode((counter as { employee?: string }).employee ?? '00');
+				const key = `${counter.year}/${employee}`;
+				const prev = mergedCounters.get(key);
+				if (!prev || counter.last_seq > prev.lastSeq) {
+					mergedCounters.set(key, { year: counter.year, employee, lastSeq: counter.last_seq });
+				}
+			}
+			for (const counter of mergedCounters.values()) {
 				this.db
 					.prepare(`INSERT INTO counters (year, employee, last_seq) VALUES (?, ?, ?)`)
-					.run(counter.year, employee, counter.last_seq);
+					.run(counter.year, counter.employee, counter.lastSeq);
 			}
 			for (const template of dump.templates) {
 				this.db

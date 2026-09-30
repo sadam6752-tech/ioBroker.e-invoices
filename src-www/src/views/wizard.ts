@@ -235,10 +235,14 @@ export function wizard(root: HTMLElement, editId?: string): void {
 	let companies: CompanyProfile[] = [];
 	let customers: CompanyProfile[] = [];
 	let catalog: Product[] = [];
-/** Reusable invoice content (recurring maintenance, flat fees). */
-let invoiceTemplates: InvoiceTemplate[] = [];
+	/** Reusable invoice content (recurring maintenance, flat fees). */
+	let invoiceTemplates: InvoiceTemplate[] = [];
 	/** Guards save/issue against double clicks creating two invoices. */
 	let busy = false;
+	// The list loader is called from every branch below, so the guard must be
+	// initialized here: a `let` declared further down would still be in the
+	// temporal dead zone and crash the wizard on open (TDZ ReferenceError).
+	let listsLoaded = false;
 	// invoicing defaults (standard VAT rate, payment terms) from the instance config
 	void api
 		.settings()
@@ -323,7 +327,6 @@ let invoiceTemplates: InvoiceTemplate[] = [];
 	 * catalog field is `#w-catalog`, so a re-render must not restart the whole
 	 * chain or the select would keep its stale (empty) options.
 	 */
-	let listsLoaded = false;
 	function bootLists(): void {
 		if (listsLoaded) {
 			return;

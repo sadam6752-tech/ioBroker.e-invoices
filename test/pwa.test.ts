@@ -74,3 +74,25 @@ describe('pwa => payment terms drive the due date', () => {
 		expect(bundle).to.contain('Fällig');
 	});
 });
+
+describe('pwa => wizard opens without TDZ crash', () => {
+	it('declares the list guard before the first bootLists() call', () => {
+		// Regression 30.09.2026: bootLists() ran before `let listsLoaded`
+		// was initialized (temporal dead zone), so #/new died with
+		// "can't access lexical declaration before initialization".
+		// The route() caller is async, hence "Uncaught (in promise)".
+		const src = readFileSync('src-www/src/views/wizard.ts', 'utf8');
+		const guard = src.indexOf('let listsLoaded');
+		expect(guard, 'let listsLoaded missing').to.be.greaterThan(-1);
+		const calls: number[] = [];
+		const re = /(?<!function )bootLists\(\)/g;
+		let m: RegExpExecArray | null;
+		while ((m = re.exec(src)) !== null) {
+			calls.push(m.index);
+		}
+		expect(calls.length, 'no bootLists() calls found').to.be.greaterThan(0);
+		for (const at of calls) {
+			expect(at, 'bootLists() called before let listsLoaded').to.be.greaterThan(guard);
+		}
+	});
+});
