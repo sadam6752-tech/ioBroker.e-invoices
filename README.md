@@ -164,6 +164,12 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) The admin translations are proper UTF-8 again: all eleven
+  `admin/i18n/*.json` files had once been written with the Windows code page
+  1252, so the instance settings showed "StraÃŸe" instead of "Straße". The key
+  of the company hint was mangled as well, which is why its German text was
+  never used. A new test (`npm run test:i18n`) keeps both from happening again.
+
 ### 0.0.6 (2026-09-30)
 * (alex) The start page no longer logs a `404` for `/favicon.ico`: the page
   links its own icon and the adapter answers the browser's implicit request

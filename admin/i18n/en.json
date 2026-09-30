@@ -25,7 +25,7 @@
     "Server":  "Server",
     "Storage mount name":  "Storage mount name",
     "Tax number (Steuernr.)":  "Tax number (Steuernr.)",
-    "These values fill the default company profile on every start. The PWA page â€œFirmaâ€ can still add further profiles; whatever is edited there is kept.":  "These values fill the default company profile on every start. The PWA page â€œFirmaâ€ can still add further profiles; whatever is edited there is kept.",
+    "These values fill the default company profile on every start. The PWA page “Firma” can still add further profiles; whatever is edited there is kept.":  "These values fill the default company profile on every start. The PWA page “Firma” can still add further profiles; whatever is edited there is kept.",
     "Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.":  "Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.",
     "VAT ID (USt-IdNr.)":  "VAT ID (USt-IdNr.)",
     "Website":  "Website",

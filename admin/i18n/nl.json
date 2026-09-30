@@ -25,7 +25,7 @@
     "Server":  "Server",
     "Storage mount name":  "Naam van opslagmount",
     "Tax number (Steuernr.)":  "Fiscaal nummer",
-    "These values fill the default company profile on every start. The PWA page â€œFirmaâ€ can still add further profiles; whatever is edited there is kept.":  "Deze waarden vullen bij elke start het standaardbedrijfsprofiel. De PWA-pagina â€œFirmaâ€ kan meer profielen toevoegen; wat daar is bewerkt blijft behouden.",
+    "These values fill the default company profile on every start. The PWA page “Firma” can still add further profiles; whatever is edited there is kept.":  "Deze waarden vullen bij elke start het standaardbedrijfsprofiel. De PWA-pagina “Firma” kan meer profielen toevoegen; wat daar is bewerkt blijft behouden.",
     "Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.":  "Tokens: {YYYY} jaar, {EMPLOYEE} personeelscode, {SEQ} volgnummer. {SEQ} is verplicht.",
     "VAT ID (USt-IdNr.)":  "Btw-identificatienummer",
     "Website":  "Website",
