@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "0.0.5",
+    "version": "0.0.6",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "0.0.6": {
+        "en": "* The start page no longer logs a `404` for `/favicon.ico`: the page\n  links its own icon and the adapter answers the browser's implicit request\n  with the PWA icon.",
+        "de": "* Die Startseite loggt kein `404` mehr für `/favicon.ico`: die Seite\n  verlinkt sein Icon und der Adapter beantwortet die Browseranfrage\n  mit dem PWA-Icon.",
+        "ru": "* На стартовой странице больше не записывается `404` для `/favicon.ico`: страница\n  связывает свой собственный значок, а адаптер отвечает на неявный запрос браузера\n  со значком PWA.",
+        "pt": "* A página inicial não registra mais `404` para `/favicon.ico`:\n  vincula seu ícone e o adaptador atende ao pedido implícito do navegador\n  com o ícone PWA",
+        "nl": "* Op de startpagina wordt niet langer een `404` geregistreerd voor `/favicon.ico`: de pagina\n  koppelt zijn eigen pictogram en de adapter beantwoordt het impliciete verzoek van de browser\n  met het PWA-pictogram.",
+        "fr": "* La page d'accueil n'enregistre plus de « 404 » pour « /favicon.ico » : la page\n  crée sa propre icône et l'adaptateur répond à la demande implicite du navigateur\n  avec l'icône PWA.",
+        "it": "* La pagina iniziale non dà più un `404` per `/favicon.ico`:\n  collega la sua icona e l'adattatore risponde al browser\n  con icona PWA.",
+        "es": "* La página de inicio ya no registra un 404 para /favicon.ico: la página\n  enlaza su propio icono y el adaptador responde a la petición del navegador\n  con el icono de PWA.",
+        "pl": "* Strona początkowa nie rejestruje już „404” dla `/favicon.ico`: strona\n  łączy własną ikonę, a adapter odpowiada na ukryte żądanie przeglądarki\n  z ikoną PWA.",
+        "uk": "* Стартова сторінка більше не реєструє `404` для `/favicon.ico`: сторінки\n  пов'язує власний значок, і адаптер відповідає на неявний запит браузера\n  з піктограмою PWA.",
+        "zh-cn": "* 起始页不再为 `/favicon.ico` 记录 `404`：该页面\n  链接自己的图标，适配器响应浏览器的隐式请求\n  带有 PWA 图标。"
+      },
       "0.0.5": {
         "en": "* The PWA start page no longer stays blank when the app is opened through\n  a LAN address (`http://192.168.x.y:8093`): helmet's default\n  `upgrade-insecure-requests` directive made the browser request the JavaScript,\n  the CSS and `registerSW.js` over `https://`, which failed with a CORS error.\n  The directive is switched off, so plain-HTTP origins load the app again\n  (`localhost`/`127.0.0.1` were never affected).",
         "de": "* Die PWA-Startseite bleibt beim Öffnen der App nicht mehr leer\n  LAN-Adresse (`http://192.168.x.y:8093`): Helm-Standard\n  Mit der Anweisung `Upgrade-Insecure-Requests“ fragte der Browser JavaScript an\n  CSS und `RegisterSW.js` über `https://`, was mit CORS fehlschlug.\n  Die Direktive ist aus, also lädt Plain-HTTP die App erneut\n  (`localhost`/`127.0.0.1` waren nie betroffen).",
