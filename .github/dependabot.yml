@@ -3,12 +3,15 @@ updates:
   - package-ecosystem: npm
     directory: "/"
     schedule:
-      interval: monthly
-      time: "00:05"
+      # Spread-out cron instead of "monthly": the repository checker asks for a
+      # randomized schedule so that not every adapter queries the registry at
+      # the same minute (S8906).
+      interval: "cron"
+      cronjob: "13 4 3 * *"
       timezone: Europe/Berlin
     cooldown:
       default: 7
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 15
     assignees:
       - sadam6752-tech
     versioning-strategy: increase
@@ -19,21 +22,21 @@ updates:
   - package-ecosystem: npm
     directory: "/src-www"
     schedule:
-      interval: monthly
-      time: "00:05"
+      interval: "cron"
+      cronjob: "41 5 11 * *"
       timezone: Europe/Berlin
     cooldown:
       default: 7
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 15
     assignees:
       - sadam6752-tech
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: monthly
-      time: "00:05"
+      interval: "cron"
+      cronjob: "7 6 19 * *"
       timezone: Europe/Berlin
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 15
     assignees:
       - sadam6752-tech
