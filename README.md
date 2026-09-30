@@ -162,6 +162,8 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
 ### 0.0.3 (2026-09-30)
 * (alex) Every validation run stores its report next to the artifacts
   (`…validation-<n>.json`) and the detail view links the reports of earlier
