@@ -28,9 +28,9 @@ class EInvoices extends utils.Adapter {
 	private filesAvailable = false;
 	private server: Server | null = null;
 	/** Pending automatic backup, cancelled on unload. */
-	private backupTimer: NodeJS.Timeout | undefined;
+	private backupTimer: ReturnType<EInvoices['setTimeout']> | undefined;
 	/** Pending automatic dunning check, cancelled on unload. */
-	private reminderTimer: NodeJS.Timeout | undefined;
+	private reminderTimer: ReturnType<EInvoices['setTimeout']> | undefined;
 
 	public constructor(options: Partial<utils.AdapterOptions> = {}) {
 		super({
@@ -494,13 +494,12 @@ class EInvoices extends utils.Adapter {
 		}
 		const delay = Math.min(Math.max(Math.round(minutes * 60_000), 60_000), 7 * 24 * 60 * 60_000);
 		const schedule = (): void => {
-			this.backupTimer = setTimeout(() => {
+			// adapter timer (E5005): tracked by the controller and cancelled on unload
+			this.backupTimer = this.setTimeout(() => {
 				void this.runBackup()
 					.catch((error: Error) => this.log.error(`Automatic backup failed: ${error.message}`))
 					.finally(schedule);
 			}, delay);
-			// must not hold the event loop on stop
-			this.backupTimer.unref?.();
 		};
 		this.log.info(`Automatic backup every ${Math.round(delay / 60_000)} min into ${this.mountId}.`);
 		schedule();
@@ -509,7 +508,7 @@ class EInvoices extends utils.Adapter {
 	/** Cancels a pending automatic backup. */
 	private stopBackupTimer(): void {
 		if (this.backupTimer) {
-			clearTimeout(this.backupTimer);
+			this.clearTimeout(this.backupTimer);
 			this.backupTimer = undefined;
 		}
 	}
@@ -530,13 +529,12 @@ class EInvoices extends utils.Adapter {
 		}
 		const delay = Math.min(Math.max(Math.round(hours * 3_600_000), 60_000), 7 * 24 * 3_600_000);
 		const schedule = (): void => {
-			this.reminderTimer = setTimeout(() => {
+			// adapter timer (E5005): tracked by the controller and cancelled on unload
+			this.reminderTimer = this.setTimeout(() => {
 				void this.refreshOverdue()
 					.catch((error: Error) => this.log.error(`Dunning check failed: ${error.message}`))
 					.finally(schedule);
 			}, delay);
-			// must not hold the event loop on stop
-			this.reminderTimer.unref?.();
 		};
 		this.log.info(`Dunning check every ${Math.round(delay / 3_600_000)} h.`);
 		schedule();
@@ -545,7 +543,7 @@ class EInvoices extends utils.Adapter {
 	/** Cancels a pending dunning check. */
 	private stopReminderTimer(): void {
 		if (this.reminderTimer) {
-			clearTimeout(this.reminderTimer);
+			this.clearTimeout(this.reminderTimer);
 			this.reminderTimer = undefined;
 		}
 	}

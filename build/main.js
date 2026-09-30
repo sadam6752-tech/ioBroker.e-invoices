@@ -483,11 +483,9 @@ class EInvoices extends utils.Adapter {
     }
     const delay = Math.min(Math.max(Math.round(minutes * 6e4), 6e4), 7 * 24 * 60 * 6e4);
     const schedule = () => {
-      var _a, _b;
-      this.backupTimer = setTimeout(() => {
+      this.backupTimer = this.setTimeout(() => {
         void this.runBackup().catch((error) => this.log.error(`Automatic backup failed: ${error.message}`)).finally(schedule);
       }, delay);
-      (_b = (_a = this.backupTimer).unref) == null ? void 0 : _b.call(_a);
     };
     this.log.info(`Automatic backup every ${Math.round(delay / 6e4)} min into ${this.mountId}.`);
     schedule();
@@ -495,7 +493,7 @@ class EInvoices extends utils.Adapter {
   /** Cancels a pending automatic backup. */
   stopBackupTimer() {
     if (this.backupTimer) {
-      clearTimeout(this.backupTimer);
+      this.clearTimeout(this.backupTimer);
       this.backupTimer = void 0;
     }
   }
@@ -515,11 +513,9 @@ class EInvoices extends utils.Adapter {
     }
     const delay = Math.min(Math.max(Math.round(hours * 36e5), 6e4), 7 * 24 * 36e5);
     const schedule = () => {
-      var _a, _b;
-      this.reminderTimer = setTimeout(() => {
+      this.reminderTimer = this.setTimeout(() => {
         void this.refreshOverdue().catch((error) => this.log.error(`Dunning check failed: ${error.message}`)).finally(schedule);
       }, delay);
-      (_b = (_a = this.reminderTimer).unref) == null ? void 0 : _b.call(_a);
     };
     this.log.info(`Dunning check every ${Math.round(delay / 36e5)} h.`);
     schedule();
@@ -527,7 +523,7 @@ class EInvoices extends utils.Adapter {
   /** Cancels a pending dunning check. */
   stopReminderTimer() {
     if (this.reminderTimer) {
-      clearTimeout(this.reminderTimer);
+      this.clearTimeout(this.reminderTimer);
       this.reminderTimer = void 0;
     }
   }

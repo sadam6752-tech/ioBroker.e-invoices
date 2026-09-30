@@ -1,7 +1,6 @@
 {
 	"common": {
 		"name": "e-invoices",
-		"title": "E-Invoices",
 		"version": "0.0.1",
 		"localLinks": {
 			"_default": {
@@ -66,7 +65,7 @@
 			"zh-cn": "创建 ZUGFeRD 电子发票作为 PWA，支持 PDF、Excel 导出和备份"
 		},
 		"authors": ["alex <sadam6752@gmail.com>"],
-		"keywords": ["e-invoice", "zugferd", "xrechnung", "pdf", "excel", "backup", "pwa", "ioBroker"],
+		"keywords": ["e-invoice", "zugferd", "xrechnung", "pdf", "excel", "backup", "pwa"],
 		"licenseInformation": {
 			"type": "free",
 			"license": "MIT"
@@ -93,7 +92,7 @@
 		],
 		"globalDependencies": [
 			{
-				"admin": ">=7.0.23"
+				"admin": ">=7.6.20"
 			}
 		]
 	},
@@ -101,8 +100,8 @@
 		"port": 8093,
 		"bind": "127.0.0.1",
 		"storageMount": "",
-  "backupIntervalMinutes": 0,
-  "reminderCheckHours": 6,
+		"backupIntervalMinutes": 0,
+		"reminderCheckHours": 6,
 		"authToken": "",
 		"companyName": "",
 		"companyStreet": "",

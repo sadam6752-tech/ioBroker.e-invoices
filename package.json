@@ -7,8 +7,7 @@
     "email": "sadam6752@gmail.com"
   },
   "contributors": [],
-  "authors": ["alex <sadam6752@gmail.com>"],
-    "homepage": "https://github.com/sadam6752-tech/ioBroker.e-invoices",
+  "homepage": "https://github.com/sadam6752-tech/ioBroker.e-invoices",
   "license": "MIT",
   "keywords": [
     "e-invoice",
@@ -50,7 +49,6 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/express": "^5.0.6",
     "@types/iobroker": "npm:@iobroker/types@^7.2.3",
-    "@types/mocha": "^10.0.10",
     "@types/node": "^22.20.4",
     "@types/pdfkit": "^0.17.6",
     "@types/supertest": "^7.2.1",
