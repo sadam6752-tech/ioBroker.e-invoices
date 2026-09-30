@@ -77,6 +77,19 @@ describe('api => invoices', function () {
 		expect(res.body.counts.draft).to.equal(0);
 	});
 
+	it('sends a same-origin CSP that keeps plain-HTTP LAN access working', async () => {
+		const res = await request(app).get('/api/health').expect(200);
+		const csp = String(res.headers['content-security-policy'] ?? '');
+		expect(csp).to.contain("default-src 'self'");
+		expect(csp).to.contain("script-src 'self'");
+		expect(csp).to.contain("frame-ancestors 'none'");
+		// helmet's default directives include `upgrade-insecure-requests`. On a
+		// plain-HTTP LAN origin (http://192.168.x.y:8093) the browser then
+		// rewrites every asset URL to https://, fails with a CORS error and
+		// leaves the start page blank. Only localhost is exempt as "trustworthy".
+		expect(csp).to.not.contain('upgrade-insecure-requests');
+	});
+
 	it('rejects drafts without parties/lines', async () => {
 		await request(app).post('/api/invoices').send({ seller }).expect(400);
 	});

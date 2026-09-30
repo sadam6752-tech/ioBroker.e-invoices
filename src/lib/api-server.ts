@@ -312,6 +312,14 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			// (scripts, styles, connections, frames) stays blocked.
 			contentSecurityPolicy: {
 				directives: {
+					// helmet merges its own defaults into this list. One of them,
+					// `upgrade-insecure-requests`, has to go: the adapter speaks plain
+					// HTTP, and that directive makes the browser rewrite every asset
+					// URL to https:// on any origin that is not "trustworthy"
+					// (localhost/127.0.0.1 only). A client on the LAN
+					// (http://192.168.x.y:8093) therefore requested the JS/CSS over
+					// https, got a CORS error and showed a blank start page (0.0.4).
+					'upgrade-insecure-requests': null,
 					'default-src': ["'self'"],
 					'script-src': ["'self'"],
 					// the views set inline style attributes (badges, status colors)
