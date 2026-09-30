@@ -11,6 +11,7 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { ATTACHMENT_MAX_COUNT, checkAttachment } from './attachments';
 import {
 	calcTotals,
 	DEFAULT_NUMBER_FORMAT,
@@ -406,8 +407,11 @@ function mapTemplateRow(row: TemplateRow): StoredTemplate {
 export interface NewAttachment {
 	/** Original filename. */
 	filename: string;
-	/** MIME type. */
-	mime: string;
+	/**
+	 * Client-declared MIME type. Optional, because the stored type is taken from
+	 * the content (magic bytes), see `attachments.ts`.
+	 */
+	mime?: string;
 	/** File content. */
 	data: Buffer;
 }
@@ -439,6 +443,69 @@ export interface StoredAttachment {
 	data: Buffer;
 	/** Creation timestamp. */
 	createdAt: string;
+}
+
+/** Stored attachment without its content (list view, API list route). */
+export interface StoredAttachmentMeta {
+	/** Row id. */
+	id: number;
+	/** Owning invoice UUID. */
+	invoiceId: string;
+	/** Original filename. */
+	filename: string;
+	/** MIME type taken from the content. */
+	mime: string;
+	/** Size in bytes. */
+	size: number;
+	/** Creation timestamp. */
+	createdAt: string;
+}
+
+/** `attachments` row as SQLite returns it. */
+interface AttachmentRow {
+	id: number;
+	invoice_id: string;
+	filename: string;
+	mime: string;
+	size: number;
+	data: Buffer;
+	created_at: string;
+}
+
+/** `attachments` row without the BLOB column. */
+type AttachmentMetaRow = Omit<AttachmentRow, 'data'>;
+
+/**
+ * Maps an `attachments` row to the stored shape.
+ *
+ * @param row - Row of the attachments table.
+ */
+function mapAttachment(row: AttachmentRow): StoredAttachment {
+	return {
+		id: row.id,
+		invoiceId: row.invoice_id,
+		filename: row.filename,
+		mime: row.mime,
+		size: row.size,
+		data: row.data,
+		createdAt: row.created_at,
+	};
+}
+
+/**
+ * Maps an `attachments` row without content to the metadata shape.
+ *
+ * @param row - Row of the attachments table (without `data`).
+ */
+function mapAttachmentMeta(row: AttachmentMetaRow): StoredAttachmentMeta {
+	return {
+		id: row.id,
+		invoiceId: row.invoice_id,
+		filename: row.filename,
+		mime: row.mime,
+		size: row.size,
+		createdAt: row.created_at,
+	};
 }
 
 /** Year counter scoped by employee. */
@@ -1445,73 +1512,120 @@ export class InvoiceDatabase {
 	}
 
 	/**
-	 * Adds a file attachment to an invoice (max 5 MB).
+	 * Adds a file attachment to a draft.
+	 *
+	 * Only drafts may carry attachments: an issued invoice is frozen, and its
+	 * PDF/XML already name the files (GoBD). Type, size and count come from
+	 * `attachments.ts`, so no caller can bypass them.
 	 *
 	 * @param invoiceId - Owning invoice UUID.
-	 * @param attachment - Filename, MIME type and content.
+	 * @param attachment - Filename, declared MIME type and content.
 	 */
 	public addAttachment(invoiceId: string, attachment: NewAttachment): StoredAttachment {
-		if (!this.getInvoice(invoiceId)) {
+		const invoice = this.getInvoice(invoiceId);
+		if (!invoice) {
 			throw new Error(`Invoice not found: ${invoiceId}`);
 		}
-		if (attachment.filename.trim().length === 0 || attachment.data.length === 0) {
-			throw new Error('Attachment needs a filename and content');
+		if (invoice.status !== 'draft') {
+			throw new Error('Only drafts can carry attachments; an issued invoice is frozen.');
 		}
-		if (attachment.data.length > 5 * 1024 * 1024) {
-			throw new Error('Attachment exceeds 5 MB');
+		const check = checkAttachment(attachment);
+		if (!check.ok) {
+			throw new Error(check.error);
+		}
+		if (this.countAttachments(invoiceId) >= ATTACHMENT_MAX_COUNT) {
+			throw new Error(`At most ${ATTACHMENT_MAX_COUNT} attachments per invoice`);
 		}
 		const result = this.db
 			.prepare(
 				`INSERT INTO attachments (invoice_id, filename, mime, size, data, created_at)
 				VALUES (?, ?, ?, ?, ?, ?)`,
 			)
-			.run(invoiceId, attachment.filename, attachment.mime, attachment.data.length, attachment.data, nowIso());
-		const row = this.db.prepare(`SELECT * FROM attachments WHERE id = ?`).get(result.lastInsertRowid) as {
-			id: number;
-			invoice_id: string;
-			filename: string;
-			mime: string;
-			size: number;
-			data: Buffer;
-			created_at: string;
-		};
-		return {
-			id: row.id,
-			invoiceId: row.invoice_id,
-			filename: row.filename,
-			mime: row.mime,
-			size: row.size,
-			data: row.data,
-			createdAt: row.created_at,
-		};
+			.run(invoiceId, check.filename, check.mime, attachment.data.length, attachment.data, nowIso());
+		const row = this.db
+			.prepare(`SELECT * FROM attachments WHERE id = ?`)
+			.get(result.lastInsertRowid) as AttachmentRow;
+		return mapAttachment(row);
 	}
 
 	/**
-	 * Lists attachments of one invoice.
+	 * Lists attachments of one invoice including their content.
+	 *
+	 * Prefer `listAttachmentMeta` for listings: a PDF or an image can be several
+	 * megabytes, and `SELECT *` would pull every BLOB into memory.
 	 *
 	 * @param invoiceId - Owning invoice UUID.
 	 */
 	public listAttachments(invoiceId: string): StoredAttachment[] {
 		const rows = this.db
 			.prepare(`SELECT * FROM attachments WHERE invoice_id = ? ORDER BY id ASC`)
-			.all(invoiceId) as {
-			id: number;
-			invoice_id: string;
-			filename: string;
-			mime: string;
-			size: number;
-			data: Buffer;
-			created_at: string;
-		}[];
-		return rows.map(row => ({
-			id: row.id,
-			invoiceId: row.invoice_id,
-			filename: row.filename,
-			mime: row.mime,
-			size: row.size,
-			data: row.data,
-			createdAt: row.created_at,
-		}));
+			.all(invoiceId) as AttachmentRow[];
+		return rows.map(mapAttachment);
+	}
+
+	/**
+	 * Lists the attachments of one invoice without their content.
+	 *
+	 * @param invoiceId - Owning invoice UUID.
+	 */
+	public listAttachmentMeta(invoiceId: string): StoredAttachmentMeta[] {
+		const rows = this.db
+			.prepare(
+				`SELECT id, invoice_id, filename, mime, size, created_at
+				FROM attachments WHERE invoice_id = ? ORDER BY id ASC`,
+			)
+			.all(invoiceId) as AttachmentMetaRow[];
+		return rows.map(mapAttachmentMeta);
+	}
+
+	/**
+	 * Reads one attachment including its content.
+	 *
+	 * @param invoiceId - Owning invoice UUID.
+	 * @param attachmentId - Row id of the attachment.
+	 */
+	public getAttachment(invoiceId: string, attachmentId: number): StoredAttachment | undefined {
+		const row = this.db
+			.prepare(`SELECT * FROM attachments WHERE id = ? AND invoice_id = ?`)
+			.get(attachmentId, invoiceId) as AttachmentRow | undefined;
+		return row ? mapAttachment(row) : undefined;
+	}
+
+	/**
+	 * Counts the attachments of one invoice.
+	 *
+	 * @param invoiceId - Owning invoice UUID.
+	 */
+	public countAttachments(invoiceId: string): number {
+		const row = this.db.prepare(`SELECT COUNT(*) AS n FROM attachments WHERE invoice_id = ?`).get(invoiceId) as {
+			n: number;
+		};
+		return row.n;
+	}
+
+	/**
+	 * Deletes one attachment of a draft.
+	 *
+	 * Issued invoices keep their attachments: the stored PDF/XML name them, so
+	 * dropping one afterwards would break the frozen record (GoBD).
+	 *
+	 * @param invoiceId - Owning invoice UUID.
+	 * @param attachmentId - Row id of the attachment.
+	 */
+	public deleteAttachment(invoiceId: string, attachmentId: number): void {
+		const invoice = this.getInvoice(invoiceId);
+		if (!invoice) {
+			throw new Error(`Invoice not found: ${invoiceId}`);
+		}
+		if (invoice.status !== 'draft') {
+			throw new Error('Only drafts can change attachments; an issued invoice is frozen.');
+		}
+		const result = this.db
+			.prepare(`DELETE FROM attachments WHERE id = ? AND invoice_id = ?`)
+			.run(attachmentId, invoiceId);
+		if (result.changes === 0) {
+			throw new Error(`Attachment not found: ${attachmentId}`);
+		}
 	}
 
 	/**

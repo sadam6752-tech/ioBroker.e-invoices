@@ -31,6 +31,9 @@ function memoryStorage(): BackupStorage & { files: Map<string, Buffer> } {
 const seller = { name: 'S', street: 'a', zip: '1', city: 'B', country: 'DE', vatId: 'DE1' };
 const buyer = { name: 'K', street: 'a', zip: '1', city: 'B', country: 'DE', customerNumber: 'K-7' };
 
+/** Minimal PNG (signature plus IHDR marker) — the content decides the type (R4). */
+const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49]);
+
 async function seedIssued(db: InvoiceDatabase, storage: BackupStorage): Promise<string> {
 	db.ensureDefaultTemplate();
 	const created = db.createDraft({
@@ -41,8 +44,10 @@ async function seedIssued(db: InvoiceDatabase, storage: BackupStorage): Promise<
 		deliveryDate: '2026-09-28',
 		currency: 'EUR',
 	});
+	// R4: an attachment belongs to the draft — the issue run freezes the record,
+	// so the file has to be there before the invoice is issued.
+	db.addAttachment(created.id, { filename: 'n.png', mime: 'image/png', data: png });
 	const outcome = await issueInvoiceWithArtifacts(db, quiet, created.id, storage);
-	db.addAttachment(outcome.invoice.id, { filename: 'n.txt', mime: 'text/plain', data: Buffer.from('hi') });
 	return outcome.invoice.id;
 }
 

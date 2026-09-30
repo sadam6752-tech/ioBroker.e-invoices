@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import request from 'supertest';
 import { attachStatic, createApiServer } from '../src/lib/api-server';
+import { ATTACHMENT_MAX_BYTES, ATTACHMENT_MAX_COUNT } from '../src/lib/attachments';
 import { InvoiceDatabase } from '../src/lib/db';
 import { DEFAULT_TEMPLATE } from '../src/lib/templates';
 
@@ -799,5 +800,130 @@ describe('api => static PWA bundle', function () {
 		} finally {
 			rmSync(bare, { recursive: true, force: true });
 		}
+	});
+});
+
+describe('api => attachments (R4)', function () {
+	this.timeout(60000);
+	let db: InvoiceDatabase;
+	let app: ReturnType<typeof createApiServer>;
+	const quiet = { info: (): void => undefined, error: (): void => undefined };
+	/** Minimal PNG: signature plus IHDR marker. */
+	const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49]);
+	const sendPng = (filename = 'anlage.png', mime = 'image/png'): Record<string, string> => ({
+		filename,
+		mime,
+		dataBase64: png.toString('base64'),
+	});
+
+	before(() => {
+		db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		app = createApiServer({
+			db,
+			storage: {
+				write: (): Promise<void> => Promise.resolve(),
+				read: (): Promise<Buffer> => Promise.reject(new Error('empty')),
+			},
+			log: quiet,
+			version: '0.0.0-test',
+		});
+	});
+
+	after(() => {
+		db.close();
+	});
+
+	it('runs upload -> list -> download -> delete on a draft', async () => {
+		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		const id = created.body.id as string;
+		expect((await request(app).get(`/api/invoices/${id}/attachments`).expect(200)).body).to.deep.equal([]);
+
+		const uploaded = await request(app)
+			.post(`/api/invoices/${id}/attachments`)
+			.send(sendPng('Lieferschein Müller.png'))
+			.expect(201);
+		expect(uploaded.body.filename).to.equal('Lieferschein Müller.png');
+		expect(uploaded.body.mime).to.equal('image/png');
+		expect(uploaded.body.size).to.equal(png.length);
+
+		const list = await request(app).get(`/api/invoices/${id}/attachments`).expect(200);
+		expect(list.body).to.have.lengthOf(1);
+		expect(list.body[0].id).to.equal(uploaded.body.id);
+		// the list must not drag the BLOB into the response
+		expect(list.body[0].data).to.equal(undefined);
+
+		const download = await request(app).get(`/api/invoices/${id}/attachments/${uploaded.body.id}`).expect(200);
+		expect(String(download.headers['content-type'])).to.contain('image/png');
+		expect(String(download.headers['content-disposition'])).to.contain('filename*=UTF-8');
+		expect(Buffer.compare(download.body, png)).to.equal(0);
+
+		await request(app).delete(`/api/invoices/${id}/attachments/${uploaded.body.id}`).expect(204);
+		await request(app).get(`/api/invoices/${id}/attachments/${uploaded.body.id}`).expect(404);
+		expect((await request(app).get(`/api/invoices/${id}/attachments`).expect(200)).body).to.deep.equal([]);
+	});
+
+	it('rejects unknown invoices, bad ids and incomplete bodies', async () => {
+		await request(app).get('/api/invoices/does-not-exist/attachments').expect(404);
+		await request(app).post('/api/invoices/does-not-exist/attachments').send(sendPng()).expect(404);
+		await request(app).delete('/api/invoices/does-not-exist/attachments/1').expect(404);
+
+		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		const id = created.body.id as string;
+		await request(app).post(`/api/invoices/${id}/attachments`).send({ filename: 'a.png' }).expect(400);
+		await request(app).get(`/api/invoices/${id}/attachments/abc`).expect(400);
+		await request(app).delete(`/api/invoices/${id}/attachments/abc`).expect(400);
+		await request(app).get(`/api/invoices/${id}/attachments/7`).expect(404);
+	});
+
+	it('trusts the content, not the extension or the declared type', async () => {
+		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		const id = created.body.id as string;
+		const zipBase64 = Buffer.from([0x50, 0x4b, 0x03, 0x04]).toString('base64');
+
+		await request(app)
+			.post(`/api/invoices/${id}/attachments`)
+			.send({ filename: 'beleg.pdf', mime: 'application/pdf', dataBase64: zipBase64 })
+			.expect(400);
+		await request(app)
+			.post(`/api/invoices/${id}/attachments`)
+			.send({ filename: 'beleg.txt', mime: 'text/plain', dataBase64: Buffer.from('Text').toString('base64') })
+			.expect(400);
+		const mismatch = await request(app)
+			.post(`/api/invoices/${id}/attachments`)
+			.send(sendPng('beleg.png', 'application/pdf'))
+			.expect(400);
+		expect(String(mismatch.body.error)).to.match(/declared type/i);
+		const tooBig = await request(app)
+			.post(`/api/invoices/${id}/attachments`)
+			.send({
+				filename: 'gross.png',
+				dataBase64: Buffer.concat([png, Buffer.alloc(ATTACHMENT_MAX_BYTES)]).toString('base64'),
+			})
+			.expect(400);
+		expect(String(tooBig.body.error)).to.match(/5 MB/);
+		expect((await request(app).get(`/api/invoices/${id}/attachments`).expect(200)).body).to.deep.equal([]);
+	});
+
+	it('limits the count and freezes the attachments with the issued invoice', async () => {
+		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		const id = created.body.id as string;
+		for (let i = 0; i < ATTACHMENT_MAX_COUNT; i++) {
+			await request(app)
+				.post(`/api/invoices/${id}/attachments`)
+				.send(sendPng(`anlage-${i}.png`))
+				.expect(201);
+		}
+		const full = await request(app).post(`/api/invoices/${id}/attachments`).send(sendPng()).expect(400);
+		expect(String(full.body.error)).to.match(/At most 10/);
+
+		db.issueDraft(id);
+		const frozen = await request(app).post(`/api/invoices/${id}/attachments`).send(sendPng()).expect(400);
+		expect(String(frozen.body.error)).to.match(/draft/i);
+		// reading stays possible: the issued PDF/XML name these files
+		const list = await request(app).get(`/api/invoices/${id}/attachments`).expect(200);
+		expect(list.body).to.have.lengthOf(10);
+		await request(app).delete(`/api/invoices/${id}/attachments/${list.body[0].id}`).expect(400);
+		await request(app).get(`/api/invoices/${id}/attachments/${list.body[0].id}`).expect(200);
 	});
 });

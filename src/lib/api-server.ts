@@ -37,6 +37,7 @@ import {
 	type IssueLogger,
 } from './issue-service';
 import { createBackup, previewRestore, restoreBackup } from './backup';
+import { attachmentDisposition } from './attachments';
 import { renderDatevHead, renderDatevRows, renderInvoiceListCsv } from './csv';
 import { renderInvoiceListWorkbook } from './excel';
 import { paymentCheckDuty } from './invoice-model';
@@ -218,6 +219,18 @@ function findShapeError(body: Record<string, unknown>, rules: Record<string, 'ob
 export function routeParam(req: Request, name: string): string {
 	const value = req.params[name];
 	return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+}
+
+/**
+ * Reads a row id from a route param.
+ *
+ * @param req - Express request.
+ * @param name - Param name.
+ * @returns The id, or undefined when the param is not a positive integer.
+ */
+function routeIdParam(req: Request, name: string): number | undefined {
+	const value = Number(routeParam(req, name));
+	return Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
 /**
@@ -555,6 +568,90 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				res.send(data);
 			} catch {
 				res.status(404).json({ error: `Artifact file missing: ${report.reportPath}` });
+			}
+		}),
+	);
+
+	// R4: attachments of a draft. Registered before /:id, same reason as the
+	// routes above. Listing never returns content (a BLOB is megabytes), the
+	// download route below is the one that streams it.
+	app.get(
+		'/api/invoices/:id/attachments',
+		route((req, res) => {
+			const id = routeParam(req, 'id');
+			if (!db.getInvoice(id)) {
+				res.status(404).json({ error: 'Invoice not found' });
+				return;
+			}
+			res.json(db.listAttachmentMeta(id));
+		}),
+	);
+
+	app.post(
+		'/api/invoices/:id/attachments',
+		route((req, res) => {
+			const id = routeParam(req, 'id');
+			const body = (req.body ?? {}) as { filename?: unknown; mime?: unknown; dataBase64?: unknown };
+			if (typeof body.filename !== 'string' || typeof body.dataBase64 !== 'string') {
+				res.status(400).json({ error: 'Body needs filename and dataBase64 (mime is optional)' });
+				return;
+			}
+			// The content decides the type: `attachments.ts` checks size, magic
+			// bytes and the agreement with the extension before anything is
+			// written, and the database repeats the check for every other caller.
+			try {
+				const stored = db.addAttachment(id, {
+					filename: body.filename,
+					mime: typeof body.mime === 'string' ? body.mime : '',
+					data: Buffer.from(body.dataBase64, 'base64'),
+				});
+				log.info(`Attachment stored for ${id}: ${stored.filename} (${stored.size} bytes)`);
+				res.status(201).json({
+					id: stored.id,
+					invoiceId: stored.invoiceId,
+					filename: stored.filename,
+					mime: stored.mime,
+					size: stored.size,
+					createdAt: stored.createdAt,
+				});
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.get(
+		'/api/invoices/:id/attachments/:aid',
+		route((req, res) => {
+			const attachmentId = routeIdParam(req, 'aid');
+			if (attachmentId === undefined) {
+				res.status(400).json({ error: 'Attachment id must be a positive integer' });
+				return;
+			}
+			const attachment = db.getAttachment(routeParam(req, 'id'), attachmentId);
+			if (!attachment) {
+				res.status(404).json({ error: 'Attachment not found' });
+				return;
+			}
+			res.type(attachment.mime);
+			res.set('Content-Disposition', attachmentDisposition(attachment.filename));
+			res.send(attachment.data);
+		}),
+	);
+
+	app.delete(
+		'/api/invoices/:id/attachments/:aid',
+		route((req, res) => {
+			const attachmentId = routeIdParam(req, 'aid');
+			if (attachmentId === undefined) {
+				res.status(400).json({ error: 'Attachment id must be a positive integer' });
+				return;
+			}
+			try {
+				db.deleteAttachment(routeParam(req, 'id'), attachmentId);
+				res.status(204).end();
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
 			}
 		}),
 	);

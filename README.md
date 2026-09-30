@@ -78,9 +78,10 @@ files in the backup job.
 ### API
 
 Same-origin JSON API under `/api` (health, invoices CRUD, issue, validate with
-a stored report, XML/PDF/XLSX downloads, templates with logo upload and PDF
-preview, backups, restore). With an API token configured, every route except
-`/api/health` requires an `Authorization: Bearer <token>` header.
+a stored report, XML/PDF/XLSX downloads, attachments of a draft, templates with
+logo upload and PDF preview, backups, restore). With an API token configured,
+every route except `/api/health` requires an `Authorization: Bearer <token>`
+header.
 
 ## Security notes
 
@@ -107,6 +108,11 @@ preview, backups, restore). With an API token configured, every route except
   the adapter (never in a URL), but a script running on the same origin could read
   it — use a dedicated browser profile, and note that changing the token in the
   instance config takes effect after the adapter restart.
+- **Attachments:** a draft may carry at most 10 files of 5 MB each, and only PDF,
+  PNG or JPEG. The type is decided by the file's magic bytes, not by its name or
+  the declared MIME type, and the filename is cleaned before it can reach a
+  `Content-Disposition` header. An issued invoice is frozen: its attachments can
+  be listed and downloaded, but no longer added or deleted (GoBD).
 - **Backup files are not encrypted:** the ZIP contains the database, attachments
   and XML/PDF artifacts in plain text. Keep it on an encrypted volume or share.
 
@@ -169,6 +175,14 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
   1252, so the instance settings showed "StraÃŸe" instead of "Straße". The key
   of the company hint was mangled as well, which is why its German text was
   never used. A new test (`npm run test:i18n`) keeps both from happening again.
+* (alex) Drafts can carry attachments now (`GET/POST/DELETE
+  /api/invoices/:id/attachments` plus a download route per file). The rules live
+  in one place (`src/lib/attachments.ts`) and are enforced by the database, so
+  every caller obeys them: at most 10 files of 5 MB each, PDF/PNG/JPEG only, and
+  the type is taken from the file's magic bytes instead of its name or the
+  declared MIME type. Issued invoices stay frozen — their attachments can be
+  read, but no longer changed (GoBD). The PWA section and the embedding into the
+  hybrid PDF and the XML follow in the next R4 steps.
 
 ### 0.0.6 (2026-09-30)
 * (alex) The start page no longer logs a `404` for `/favicon.ico`: the page

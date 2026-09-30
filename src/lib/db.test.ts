@@ -7,6 +7,7 @@ import { expect } from 'chai';
 import { InvoiceDatabase } from './db';
 import type { InvoiceDraftInput, Party } from './invoice-model';
 import { calcTotals } from './invoice-model';
+import { ATTACHMENT_MAX_BYTES, ATTACHMENT_MAX_COUNT } from './attachments';
 
 const seller: Party = {
 	name: 'Muster GmbH',
@@ -416,5 +417,112 @@ describe('db => products', () => {
 				db.close();
 			}
 		});
+	});
+});
+
+describe('db => attachments (R4)', () => {
+	/** Minimal PNG: signature plus IHDR marker. */
+	const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49]);
+	/** Minimal PDF: the sniffer only looks at the signature. */
+	const pdf = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n');
+
+	it('stores filename, sniffed type, size and content of a draft', () => {
+		const db = openMemoryDb();
+		try {
+			const created = db.createDraft(draft());
+			const stored = db.addAttachment(created.id, {
+				filename: 'C:\\Temp\\Lieferschein Müller.png',
+				mime: 'application/octet-stream',
+				data: png,
+			});
+			// the path and the declared type are dropped, the content decides
+			expect(stored.filename).to.equal('Lieferschein Müller.png');
+			expect(stored.mime).to.equal('image/png');
+			expect(stored.size).to.equal(png.length);
+			expect(stored.data.equals(png)).to.equal(true);
+			expect(db.countAttachments(created.id)).to.equal(1);
+			expect(db.getAttachment(created.id, stored.id)?.data.equals(png)).to.equal(true);
+			expect(db.getAttachment('00000000-0000-0000-0000-000000000000', stored.id)).to.equal(undefined);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('keeps the content out of the listing used by the UI', () => {
+		const db = openMemoryDb();
+		try {
+			const created = db.createDraft(draft());
+			const stored = db.addAttachment(created.id, { filename: 'beleg.png', data: png });
+			const meta = db.listAttachmentMeta(created.id);
+			expect(meta).to.have.lengthOf(1);
+			expect(meta[0]).to.not.have.property('data');
+			expect(meta[0].id).to.equal(stored.id);
+			expect(meta[0].createdAt).to.match(/^\d{4}-\d{2}-\d{2}T/);
+			// the backup dump still gets the content
+			expect(db.listAttachments(created.id)[0].data.equals(png)).to.equal(true);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('deletes an attachment of a draft exactly once', () => {
+		const db = openMemoryDb();
+		try {
+			const created = db.createDraft(draft());
+			const stored = db.addAttachment(created.id, { filename: 'beleg.png', data: png });
+			db.deleteAttachment(created.id, stored.id);
+			expect(db.countAttachments(created.id)).to.equal(0);
+			expect(() => db.deleteAttachment(created.id, stored.id)).to.throw(/not found/i);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('refuses attachments on issued invoices and on unknown invoices', () => {
+		const db = openMemoryDb();
+		try {
+			const created = db.createDraft(draft());
+			db.issueDraft(created.id);
+			expect(() => db.addAttachment(created.id, { filename: 'a.pdf', data: pdf })).to.throw(/draft/i);
+			expect(() => db.deleteAttachment(created.id, 1)).to.throw(/draft/i);
+			expect(() => db.addAttachment('nope', { filename: 'a.pdf', data: pdf })).to.throw(/not found/i);
+			expect(() => db.deleteAttachment('nope', 1)).to.throw(/not found/i);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('enforces the type whitelist, 5 MB and the count limit', () => {
+		const db = openMemoryDb();
+		try {
+			const created = db.createDraft(draft());
+			expect(() => db.addAttachment(created.id, { filename: 'a.txt', data: Buffer.from('Text') })).to.throw(
+				/PDF, PNG and JPEG/,
+			);
+			const tooBig = Buffer.concat([png, Buffer.alloc(ATTACHMENT_MAX_BYTES)]);
+			expect(() => db.addAttachment(created.id, { filename: 'gross.png', data: tooBig })).to.throw(/5 MB/);
+			for (let i = 0; i < ATTACHMENT_MAX_COUNT; i++) {
+				db.addAttachment(created.id, { filename: `anlage-${i}.png`, data: png });
+			}
+			expect(db.countAttachments(created.id)).to.equal(ATTACHMENT_MAX_COUNT);
+			expect(() => db.addAttachment(created.id, { filename: 'elf.png', data: png })).to.throw(/At most 10/);
+			// the limit is per invoice, not global
+			const other = db.createDraft(draft());
+			expect(db.addAttachment(other.id, { filename: 'neu.png', data: png }).id).to.be.greaterThan(0);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('drops the attachments together with a deleted draft', () => {
+		const db = openMemoryDb();
+		try {
+			const created = db.createDraft(draft());
+			db.addAttachment(created.id, { filename: 'beleg.png', data: png });
+			db.deleteDraft(created.id);
+			expect(db.countAttachments(created.id)).to.equal(0);
+		} finally {
+			db.close();
+		}
 	});
 });
