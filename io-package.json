@@ -1,343 +1,371 @@
 {
-	"common": {
-		"name": "e-invoices",
-		"version": "0.0.1",
-		"localLinks": {
-			"_default": {
-				"link": "%protocol%://%bind%:%port%",
-				"name": {
-					"en": "Open the invoicing PWA",
-					"de": "Rechnungs-PWA öffnen",
-					"ru": "Открыть PWA для счетов",
-					"pt": "Abrir a PWA de faturação",
-					"nl": "Facturatie-PWA openen",
-					"fr": "Ouvrir la PWA de facturation",
-					"it": "Apri la PWA di fatturazione",
-					"es": "Abrir la PWA de facturación",
-					"pl": "Otwórz PWA do fakturowania",
-					"uk": "Відкрити PWA для рахунків",
-					"zh-cn": "打开开票 PWA"
-				},
-				"icon": "e-invoices.svg",
-				"color": "blue",
-				"order": 5
-			}
-		},
-		"news": {
-			"0.0.1": {
-				"en": "initial release",
-				"de": "Erstveröffentlichung",
-				"ru": "Начальная версия",
-				"pt": "lançamento inicial",
-				"nl": "Eerste uitgave",
-				"fr": "Première version",
-				"it": "Versione iniziale",
-				"es": "Versión inicial",
-				"pl": "Pierwsze wydanie",
-				"uk": "Початкова версія",
-				"zh-cn": "首次出版"
-			}
-		},
-		"titleLang": {
-			"en": "E-Invoices",
-			"de": "E-Rechnungen",
-			"ru": "Электронные счета",
-			"pt": "Faturas eletrônicas",
-			"nl": "E-facturen",
-			"fr": "Factures électroniques",
-			"it": "Fatture elettroniche",
-			"es": "Facturas Electrónicas",
-			"pl": "E-faktury",
-			"uk": "Електронні рахунки-фактури",
-			"zh-cn": "电子发票"
-		},
-		"desc": {
-			"en": "Create ZUGFeRD e-invoices as PWA with PDF, Excel export and backup",
-			"de": "Erstellen Sie ZUGFeRD E-Rechnungen als PWA mit PDF, Excel-Export und Backup",
-			"ru": "Создавайте электронные счета ZUGFeRD в формате PWA с экспортом в PDF, Excel и резервным копированием.",
-			"pt": "Crie faturas eletrônicas ZUGFeRD como PWA com PDF, exportação e backup para Excel",
-			"nl": "Maak ZUGFeRD e-facturen als PWA met PDF, Excel-export en back-up",
-			"fr": "Créez des factures électroniques ZUGFeRD sous forme de PWA avec PDF, exportation et sauvegarde Excel",
-			"it": "Crea fatture elettroniche ZUGFeRD come PWA con PDF, esportazione Excel e backup",
-			"es": "Cree facturas electrónicas ZUGFeRD como PWA con PDF, exportación a Excel y copia de seguridad",
-			"pl": "Twórz e-faktury ZUGFeRD jako PWA z eksportem do formatu PDF, Excel i kopią zapasową",
-			"uk": "Створюйте електронні рахунки-фактури ZUGFeRD як PWA з PDF, експортом у Excel і резервним копіюванням",
-			"zh-cn": "创建 ZUGFeRD 电子发票作为 PWA，支持 PDF、Excel 导出和备份"
-		},
-		"authors": ["alex <sadam6752@gmail.com>"],
-		"keywords": ["e-invoice", "zugferd", "xrechnung", "pdf", "excel", "backup", "pwa"],
-		"licenseInformation": {
-			"type": "free",
-			"license": "MIT"
-		},
-		"platform": "Javascript/Node.js",
-		"icon": "e-invoices.png",
-		"enabled": true,
-		"extIcon": "https://raw.githubusercontent.com/sadam6752-tech/ioBroker.e-invoices/main/admin/e-invoices.png",
-		"readme": "https://github.com/sadam6752-tech/ioBroker.e-invoices/blob/main/README.md",
-		"loglevel": "info",
-		"tier": 3,
-		"mode": "daemon",
-		"type": "utility",
-		"compact": false,
-		"connectionType": "local",
-		"dataSource": "push",
-		"adminUI": {
-			"config": "json"
-		},
-		"dependencies": [
-			{
-				"js-controller": ">=6.0.11"
-			}
-		],
-		"globalDependencies": [
-			{
-				"admin": ">=7.6.20"
-			}
-		]
-	},
-	"native": {
-		"port": 8093,
-		"bind": "127.0.0.1",
-		"storageMount": "",
-		"backupIntervalMinutes": 0,
-		"reminderCheckHours": 6,
-		"authToken": "",
-		"companyName": "",
-		"companyStreet": "",
-		"companyZip": "",
-		"companyCity": "",
-		"companyCountry": "DE",
-		"vatId": "",
-		"taxNumber": "",
-		"companyEmail": "",
-		"iban": "",
-		"bic": "",
-		"website": "",
-		"numberFormat": "{YYYY}-{EMPLOYEE}-{SEQ}",
-		"defaultVatRate": 19,
-		"defaultPaymentTerms": ""	},
-	"encryptedNative": ["authToken"],
-	"protectedNative": ["authToken"],
-	"objects": [],
-	"instanceObjects": [
-		{
-			"_id": "info",
-			"type": "channel",
-			"common": {
-				"name": "Information"
-			},
-			"native": {}
-		},
-		{
-			"_id": "info.connection",
-			"type": "state",
-			"common": {
-				"role": "indicator.connected",
-				"name": "Device or service connected",
-				"type": "boolean",
-				"read": true,
-				"write": false,
-				"def": false
-			},
-			"native": {}
-		},
-		{
-			"_id": "info.invoiceCount",
-			"type": "state",
-			"common": {
-				"role": "value",
-				"name": "Total invoices",
-				"type": "number",
-				"read": true,
-				"write": false,
-				"def": 0
-			},
-			"native": {}
-		},
-		{
-			"_id": "info.draftCount",
-			"type": "state",
-			"common": {
-				"role": "value",
-				"name": "Draft invoices",
-				"type": "number",
-				"read": true,
-				"write": false,
-				"def": 0
-			},
-			"native": {}
-		},
-		{
-			"_id": "info.issuedCount",
-			"type": "state",
-			"common": {
-				"role": "value",
-				"name": "Issued invoices",
-				"type": "number",
-				"read": true,
-				"write": false,
-				"def": 0
-			},
-			"native": {}
-		},
-		{
-			"_id": "info.lastNumber",
-			"type": "state",
-			"common": {
-				"role": "text",
-				"name": "Last issued number",
-				"type": "string",
-				"read": true,
-				"write": false
-			},
-			"native": {}
-		},
-		{
-			"_id": "info.lastIssuedAt",
-			"type": "state",
-			"common": {
-				"role": "text",
-				"name": "Last issue timestamp",
-				"type": "string",
-				"read": true,
-				"write": false
-			},
-			"native": {}
-		},
-		{
-			"_id": "info.dbVersion",
-			"type": "state",
-			"common": {
-				"role": "value",
-				"name": "Database schema version",
-				"type": "number",
-				"read": true,
-				"write": false,
-				"def": 0
-			},
-			"native": {}
-		},
-		{
-			"_id": "info.lastBackup",
-			"type": "state",
-			"common": {
-				"role": "text",
-				"name": "Last backup filename",
-				"type": "string",
-				"read": true,
-				"write": false
-			},
-			"native": {}
-		},
-		{
-			"_id": "control",
-			"type": "channel",
-			"common": {
-				"name": "Control commands"
-			},
-			"native": {}
-		},
-		{
-			"_id": "control.createDraft",
-			"type": "state",
-			"common": {
-				"role": "button",
-				"name": "Create empty draft",
-				"type": "boolean",
-				"read": false,
-				"write": true,
-				"def": false
-			},
-			"native": {}
-		},
-		{
-			"_id": "control.lastDraftId",
-			"type": "state",
-			"common": {
-				"role": "text",
-				"name": "Last created draft id",
-				"type": "string",
-				"read": true,
-				"write": false
-			},
-			"native": {}
-		},
-		{
-			"_id": "control.issueId",
-			"type": "state",
-			"common": {
-				"role": "text",
-				"name": "Draft id to issue",
-				"type": "string",
-				"read": true,
-				"write": true
-			},
-			"native": {}
-		},
-		{
-			"_id": "control.issue",
-			"type": "state",
-			"common": {
-				"role": "button",
-				"name": "Issue draft from issueId",
-				"type": "boolean",
-				"read": false,
-				"write": true,
-				"def": false
-			},
-			"native": {}
-		},
-		{
-			"_id": "control.refresh",
-			"type": "state",
-			"common": {
-				"role": "button",
-				"name": "Refresh stats and status file",
-				"type": "boolean",
-				"read": false,
-				"write": true,
-				"def": false
-			},
-			"native": {}
-		},
-		{
-			"_id": "control.backup",
-			"type": "state",
-			"common": {
-				"role": "button",
-				"name": "Create backup now",
-				"type": "boolean",
-				"read": false,
-				"write": true,
-				"def": false
-			},
-			"native": {}
-		},
-		{
-			"_id": "control.restoreId",
-			"type": "state",
-			"common": {
-				"role": "text",
-				"name": "Backup filename to restore",
-				"type": "string",
-				"read": true,
-				"write": true
-			},
-			"native": {}
-		},
-		{
-			"_id": "control.restore",
-			"type": "state",
-			"common": {
-				"role": "button",
-				"name": "Restore backup from restoreId",
-				"type": "boolean",
-				"read": false,
-				"write": true,
-				"def": false
-			},
-			"native": {}
-		}
-	]
+  "common": {
+    "name": "e-invoices",
+    "version": "0.0.2",
+    "localLinks": {
+      "_default": {
+        "link": "%protocol%://%bind%:%port%",
+        "name": {
+          "en": "Open the invoicing PWA",
+          "de": "Rechnungs-PWA öffnen",
+          "ru": "Открыть PWA для счетов",
+          "pt": "Abrir a PWA de faturação",
+          "nl": "Facturatie-PWA openen",
+          "fr": "Ouvrir la PWA de facturation",
+          "it": "Apri la PWA di fatturazione",
+          "es": "Abrir la PWA de facturación",
+          "pl": "Otwórz PWA do fakturowania",
+          "uk": "Відкрити PWA для рахунків",
+          "zh-cn": "打开开票 PWA"
+        },
+        "icon": "e-invoices.svg",
+        "color": "blue",
+        "order": 5
+      }
+    },
+    "news": {
+      "0.0.2": {
+        "en": "* first release published by the tag pipeline: GitHub Actions builds the\n  adapter and publishes it with npm provenance through Trusted Publishing\n  (OIDC). The code is identical to 0.0.1, only the version changed",
+        "de": "* Erste Version mit dem Tag Pipeline: GitHub Actions baut den\n  Adapter und veröffentlicht ihn mit NPM-Herkunft über Trusted Publishing\n  (OIC). Der Code ist identisch mit 0.0.1, nur Version geändert",
+        "ru": "* первый релиз, опубликованный конвейером тегов: GitHub Actions создает\n  адаптер и публикует его с именем npm provenance через Trusted Publishing\n  (ИДИК). Код идентичен 0.0.1, изменена только версия",
+        "pt": "* primeira versão publicada pelo tag pipeline: o GitHub Actions cria o\n  adapta e o publica com origem npm por meio da Trusted Publishing\n  (DOC). O código é idêntico a 0.0.1, só a versão mudou",
+        "nl": "* eerste release gepubliceerd door de tag pipeline: GitHub Actions bouwt de\n  adapter en publiceert het met npm-herkomst via Trusted Publishing\n  (OÏC). De code is identiek aan 0.0.1, alleen de versie is gewijzigd",
+        "fr": "* première version publiée par le tag pipeline : GitHub Actions crée le\n  adapter et le publie avec npm provenance via Trusted Publishing\n  (OIC). Le code est identique à 0.0.1, seule la version a changé",
+        "it": "* prima release pubblicata dal tag pipeline: GitHub Actions crea\n  adattatore e lo pubblica con provenienza npm tramite Trusted Publishing\n  (OIC). Il codice è uguale a 0.0.1, solo la versione è cambiata",
+        "es": "* primera versión publicada por Tag Pipeline: GitHub Actions crea el\n  adaptador y lo publica con procedencia npm a través de Trusted Publishing\n  (IDC). El código es idéntico a 0.0.1, solo que la versión cambió",
+        "pl": "* pierwsze wydanie opublikowane przez potok tagów: GitHub Actions buduje\n  adaptuje i publikuje go z prowinancją npm za pośrednictwem Trusted Publishing\n  (OIDC). Kod jest identyczny z 0.0.1, zmieniła się tylko wersja",
+        "uk": "* перший випуск, опублікований конвеєром тегів: GitHub Actions будує\n  адаптер і публікує його з походженням npm через Trusted Publishing\n  (ОИДК). Код ідентичний 0.0.1, змінена тільки версія",
+        "zh-cn": "* 标签管道发布的第一个版本：GitHub Actions 构建了\n  适配器并通过 Trusted Publishing 以 npm 来源发布它\n  (OIDC)。代码与 0.0.1 相同，只是版本发生了变化"
+      },
+      "0.0.1": {
+        "en": "initial release",
+        "de": "Erstveröffentlichung",
+        "ru": "Начальная версия",
+        "pt": "lançamento inicial",
+        "nl": "Eerste uitgave",
+        "fr": "Première version",
+        "it": "Versione iniziale",
+        "es": "Versión inicial",
+        "pl": "Pierwsze wydanie",
+        "uk": "Початкова версія",
+        "zh-cn": "首次出版"
+      }
+    },
+    "titleLang": {
+      "en": "E-Invoices",
+      "de": "E-Rechnungen",
+      "ru": "Электронные счета",
+      "pt": "Faturas eletrônicas",
+      "nl": "E-facturen",
+      "fr": "Factures électroniques",
+      "it": "Fatture elettroniche",
+      "es": "Facturas Electrónicas",
+      "pl": "E-faktury",
+      "uk": "Електронні рахунки-фактури",
+      "zh-cn": "电子发票"
+    },
+    "desc": {
+      "en": "Create ZUGFeRD e-invoices as PWA with PDF, Excel export and backup",
+      "de": "Erstellen Sie ZUGFeRD E-Rechnungen als PWA mit PDF, Excel-Export und Backup",
+      "ru": "Создавайте электронные счета ZUGFeRD в формате PWA с экспортом в PDF, Excel и резервным копированием.",
+      "pt": "Crie faturas eletrônicas ZUGFeRD como PWA com PDF, exportação e backup para Excel",
+      "nl": "Maak ZUGFeRD e-facturen als PWA met PDF, Excel-export en back-up",
+      "fr": "Créez des factures électroniques ZUGFeRD sous forme de PWA avec PDF, exportation et sauvegarde Excel",
+      "it": "Crea fatture elettroniche ZUGFeRD come PWA con PDF, esportazione Excel e backup",
+      "es": "Cree facturas electrónicas ZUGFeRD como PWA con PDF, exportación a Excel y copia de seguridad",
+      "pl": "Twórz e-faktury ZUGFeRD jako PWA z eksportem do formatu PDF, Excel i kopią zapasową",
+      "uk": "Створюйте електронні рахунки-фактури ZUGFeRD як PWA з PDF, експортом у Excel і резервним копіюванням",
+      "zh-cn": "创建 ZUGFeRD 电子发票作为 PWA，支持 PDF、Excel 导出和备份"
+    },
+    "authors": [
+      "alex <sadam6752@gmail.com>"
+    ],
+    "keywords": [
+      "e-invoice",
+      "zugferd",
+      "xrechnung",
+      "pdf",
+      "excel",
+      "backup",
+      "pwa"
+    ],
+    "licenseInformation": {
+      "type": "free",
+      "license": "MIT"
+    },
+    "platform": "Javascript/Node.js",
+    "icon": "e-invoices.png",
+    "enabled": true,
+    "extIcon": "https://raw.githubusercontent.com/sadam6752-tech/ioBroker.e-invoices/main/admin/e-invoices.png",
+    "readme": "https://github.com/sadam6752-tech/ioBroker.e-invoices/blob/main/README.md",
+    "loglevel": "info",
+    "tier": 3,
+    "mode": "daemon",
+    "type": "utility",
+    "compact": false,
+    "connectionType": "local",
+    "dataSource": "push",
+    "adminUI": {
+      "config": "json"
+    },
+    "dependencies": [
+      {
+        "js-controller": ">=6.0.11"
+      }
+    ],
+    "globalDependencies": [
+      {
+        "admin": ">=7.6.20"
+      }
+    ]
+  },
+  "native": {
+    "port": 8093,
+    "bind": "127.0.0.1",
+    "storageMount": "",
+    "backupIntervalMinutes": 0,
+    "reminderCheckHours": 6,
+    "authToken": "",
+    "companyName": "",
+    "companyStreet": "",
+    "companyZip": "",
+    "companyCity": "",
+    "companyCountry": "DE",
+    "vatId": "",
+    "taxNumber": "",
+    "companyEmail": "",
+    "iban": "",
+    "bic": "",
+    "website": "",
+    "numberFormat": "{YYYY}-{EMPLOYEE}-{SEQ}",
+    "defaultVatRate": 19,
+    "defaultPaymentTerms": ""
+  },
+  "encryptedNative": [
+    "authToken"
+  ],
+  "protectedNative": [
+    "authToken"
+  ],
+  "objects": [],
+  "instanceObjects": [
+    {
+      "_id": "info",
+      "type": "channel",
+      "common": {
+        "name": "Information"
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.connection",
+      "type": "state",
+      "common": {
+        "role": "indicator.connected",
+        "name": "Device or service connected",
+        "type": "boolean",
+        "read": true,
+        "write": false,
+        "def": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.invoiceCount",
+      "type": "state",
+      "common": {
+        "role": "value",
+        "name": "Total invoices",
+        "type": "number",
+        "read": true,
+        "write": false,
+        "def": 0
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.draftCount",
+      "type": "state",
+      "common": {
+        "role": "value",
+        "name": "Draft invoices",
+        "type": "number",
+        "read": true,
+        "write": false,
+        "def": 0
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.issuedCount",
+      "type": "state",
+      "common": {
+        "role": "value",
+        "name": "Issued invoices",
+        "type": "number",
+        "read": true,
+        "write": false,
+        "def": 0
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.lastNumber",
+      "type": "state",
+      "common": {
+        "role": "text",
+        "name": "Last issued number",
+        "type": "string",
+        "read": true,
+        "write": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.lastIssuedAt",
+      "type": "state",
+      "common": {
+        "role": "text",
+        "name": "Last issue timestamp",
+        "type": "string",
+        "read": true,
+        "write": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.dbVersion",
+      "type": "state",
+      "common": {
+        "role": "value",
+        "name": "Database schema version",
+        "type": "number",
+        "read": true,
+        "write": false,
+        "def": 0
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.lastBackup",
+      "type": "state",
+      "common": {
+        "role": "text",
+        "name": "Last backup filename",
+        "type": "string",
+        "read": true,
+        "write": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "control",
+      "type": "channel",
+      "common": {
+        "name": "Control commands"
+      },
+      "native": {}
+    },
+    {
+      "_id": "control.createDraft",
+      "type": "state",
+      "common": {
+        "role": "button",
+        "name": "Create empty draft",
+        "type": "boolean",
+        "read": false,
+        "write": true,
+        "def": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "control.lastDraftId",
+      "type": "state",
+      "common": {
+        "role": "text",
+        "name": "Last created draft id",
+        "type": "string",
+        "read": true,
+        "write": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "control.issueId",
+      "type": "state",
+      "common": {
+        "role": "text",
+        "name": "Draft id to issue",
+        "type": "string",
+        "read": true,
+        "write": true
+      },
+      "native": {}
+    },
+    {
+      "_id": "control.issue",
+      "type": "state",
+      "common": {
+        "role": "button",
+        "name": "Issue draft from issueId",
+        "type": "boolean",
+        "read": false,
+        "write": true,
+        "def": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "control.refresh",
+      "type": "state",
+      "common": {
+        "role": "button",
+        "name": "Refresh stats and status file",
+        "type": "boolean",
+        "read": false,
+        "write": true,
+        "def": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "control.backup",
+      "type": "state",
+      "common": {
+        "role": "button",
+        "name": "Create backup now",
+        "type": "boolean",
+        "read": false,
+        "write": true,
+        "def": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "control.restoreId",
+      "type": "state",
+      "common": {
+        "role": "text",
+        "name": "Backup filename to restore",
+        "type": "string",
+        "read": true,
+        "write": true
+      },
+      "native": {}
+    },
+    {
+      "_id": "control.restore",
+      "type": "state",
+      "common": {
+        "role": "button",
+        "name": "Restore backup from restoreId",
+        "type": "boolean",
+        "read": false,
+        "write": true,
+        "def": false
+      },
+      "native": {}
+    }
+  ]
 }

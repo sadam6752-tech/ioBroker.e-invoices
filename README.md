@@ -134,8 +134,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-
-### **WORK IN PROGRESS**
+### 0.0.2 (2026-09-30)
 * (alex) first release published by the tag pipeline: GitHub Actions builds the
   adapter and publishes it with npm provenance through Trusted Publishing
   (OIDC). The code is identical to 0.0.1, only the version changed
