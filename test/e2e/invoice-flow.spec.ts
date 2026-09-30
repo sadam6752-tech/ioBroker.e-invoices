@@ -5,6 +5,8 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
+import { readPdfStructure } from './pdf-structure';
+
 /** Token the end-to-end server expects (see `test/e2e/server.mjs`). */
 const token = process.env.E2E_TOKEN ?? 'e2e-token-2026';
 
@@ -97,9 +99,29 @@ test('walks from the issued invoice to the PDF download', async ({ page, request
 	expect(bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-');
 	expect(bytes.length).toBeGreaterThan(20_000);
 
+	// 7. the served PDF is the PDF/A-3b hybrid the archive needs: output intent, XMP and
+	//    embedded fonts. The file has to be parsed for that (`pdf-structure.ts`) — the
+	//    object streams pdf-lib writes hide the markers from a raw byte scan.
+	const structure = await readPdfStructure(bytes);
+	expect(structure.outputIntentSubtype).toBe('GTS_PDFA1');
+	expect(structure.outputIntentIdentifier).toContain('sRGB');
+	expect(structure.hasDestOutputProfile).toBe(true);
+	expect(structure.hasXmpMetadata).toBe(true);
+	// `/AF` is what makes it a ZUGFeRD file: the XML rides along as an associated file
+	expect(structure.hasAssociatedFiles).toBe(true);
+	expect(structure.fonts.length).toBeGreaterThan(0);
+	for (const font of structure.fonts) {
+		expect(font.embedded, `${font.baseFont} is not embedded`).toBe(true);
+		expect(font.toUnicode, `${font.baseFont} has no /ToUnicode`).toBe(true);
+	}
+	// base-14 faces are not allowed in PDF/A (ISO 19005-3, 6.2.11.4.1)
+	expect(structure.fonts.map(font => font.baseFont).join('|')).not.toMatch(/Helvetica|Times|Courier/i);
+
 	const xml = await request.get(`/api/invoices/${id}.xml`, { headers: auth });
 	expect(xml.status()).toBe(200);
 	const text = await xml.text();
 	expect(text).toContain('CrossIndustryInvoice');
 	expect(text).toContain('DE123456789');
+	// BT-3: a normal invoice is a commercial invoice (380)
+	expect(text).toContain('<ram:TypeCode>380</ram:TypeCode>');
 });
