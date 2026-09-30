@@ -162,6 +162,8 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
 ### 0.0.6 (2026-09-30)
 * (alex) The start page no longer logs a `404` for `/favicon.ico`: the page
   links its own icon and the adapter answers the browser's implicit request
