@@ -136,12 +136,14 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 
 ### **WORK IN PROGRESS**
-* (alex) initial release
-* (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
-  when the sRGB profile for PDF/A-3 is missing
+* (alex) first release published by the tag pipeline: GitHub Actions builds the
+  adapter and publishes it with npm provenance through Trusted Publishing
+  (OIDC). The code is identical to 0.0.1, only the version changed
 
 ### 0.0.1
 * (alex) initial release
+* (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
+  when the sRGB profile for PDF/A-3 is missing
 
 ## License
 MIT License
