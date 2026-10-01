@@ -14,6 +14,7 @@ const token = process.env.E2E_TOKEN ?? 'e2e-token-2026';
 const routes = [
 	'/#/',
 	'/#/offers',
+	// not a tab any more: the dashboard button "+ Neu" and the wizard deep link lead here
 	'/#/new',
 	'/#/templates',
 	'/#/company',
@@ -65,4 +66,18 @@ test('keeps the navigation reachable on a phone', async ({ page }) => {
 		const box = await link.boundingBox();
 		expect(box?.height ?? 0, `link ${index} is too small to tap`).toBeGreaterThanOrEqual(24);
 	}
+
+	// the bar is for the tabs only: the new-document buttons sit in their lists
+	await expect(page.locator('header.top nav')).not.toContainText('+ Neu');
+});
+
+test('names the app, the version and the schema on the status page', async ({ page }) => {
+	await signIn(page);
+	await page.goto('/#/status');
+	await page.waitForLoadState('networkidle');
+
+	const card = page.locator('#view .card').first();
+	await expect(card).toContainText('E-Invoices');
+	await expect(card).toContainText(/Version: \d+\.\d+\.\d+/);
+	await expect(card).toContainText(/Schema: \d+/);
 });

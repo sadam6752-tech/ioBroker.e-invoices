@@ -17,10 +17,12 @@ const app = document.querySelector('#app')!;
 
 function shell(route: string): void {
 	const logged = !!getToken();
+	// The bar carries the tabs and nothing else: it grew with every feature. The
+	// "+ Neu" buttons sit where their lists are (invoices, offers) and the app name
+	// moved to the status page — `#/new` stays routable for those buttons.
 	const links: [string, string][] = [
 		['#/', 'Rechnungen'],
 		['#/offers', 'Angebote'],
-		['#/new', '+ Neu'],
 		['#/templates', 'Druckvorlagen'],
 		['#/company', 'Firma'],
 		['#/customers', 'Kunden'],
@@ -31,7 +33,6 @@ function shell(route: string): void {
 		[logged ? '#/logout' : '#/login', logged ? 'Logout' : 'Login'],
 	];
 	app.innerHTML = `<header class="top"><nav>
-		<strong>E-Invoices</strong>
 		${links.map(([h, t]) => `<a href="${h}" class="${route === h || (h === '#/' && route.startsWith('#/invoices')) ? 'active' : ''}">${t}</a>`).join('')}
 	</nav></header><main id="view"></main>`;
 }

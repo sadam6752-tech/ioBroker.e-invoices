@@ -45,6 +45,40 @@ describe('pwa => service worker', () => {
 	});
 });
 
+describe('pwa => shell and identity', () => {
+	it('keeps the new-document button out of the header bar', () => {
+		// The bar grew with every feature; the lists carry the button themselves
+		// (invoices: "+ Neu", offers: "+ Neues Angebot").
+		const src = readFileSync('src-www/src/main.ts', 'utf8');
+		expect(src).to.not.contain("['#/new', '+ Neu']");
+		expect(src).to.contain('await dashboard(v)');
+		// the route itself stays: the dashboard link and the e2e deep links use it
+		expect(src).to.contain("hash === '#/new'");
+	});
+
+	it('moves the app name from the bar to the status page', () => {
+		const shell = readFileSync('src-www/src/main.ts', 'utf8');
+		expect(shell).to.not.contain('<strong>E-Invoices</strong>');
+		const status = readFileSync('src-www/src/views/status.ts', 'utf8');
+		expect(status).to.contain('<strong>E-Invoices</strong> - Version:');
+		expect(status).to.contain('Schema: ');
+	});
+
+	it('ships the built bundle with the identity on the status page', function () {
+		const asset = existsSync('www/assets')
+			? readdirSync('www/assets').find(f => /^index-.*\.js$/.test(f))
+			: undefined;
+		if (!asset) {
+			this.skip();
+			return;
+		}
+		const bundle = readFileSync(`www/assets/${asset}`, 'utf8');
+		// the name is written next to the version and the schema
+		expect(bundle).to.contain('E-Invoices</strong> - Version:');
+		expect(bundle.match(/E-Invoices/g)?.length).to.equal(1);
+	});
+});
+
 describe('pwa => payment terms drive the due date', () => {
 	it('keeps the three presets with their day offsets in the source', () => {
 		const src = readFileSync('src-www/src/views/wizard.ts', 'utf8');
