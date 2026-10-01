@@ -7,6 +7,7 @@ import { dashboard } from './views/dashboard';
 import { detail } from './views/detail';
 import { invoiceTemplates } from './views/invoice-templates';
 import { login, logout } from './views/login';
+import { offers } from './views/offers';
 import { products } from './views/products';
 import { status } from './views/status';
 import { templates } from './views/templates';
@@ -18,6 +19,7 @@ function shell(route: string): void {
 	const logged = !!getToken();
 	const links: [string, string][] = [
 		['#/', 'Rechnungen'],
+		['#/offers', 'Angebote'],
 		['#/new', '+ Neu'],
 		['#/templates', 'Druckvorlagen'],
 		['#/company', 'Firma'],
@@ -40,8 +42,10 @@ async function route(): Promise<void> {
 	const v = document.querySelector<HTMLElement>('#view')!;
 	if (hash === '#/' || hash === '#') {
 		await dashboard(v);
-	} else if (hash === '#/new') {
-		wizard(v);
+	} else if (hash === '#/offers') {
+		await offers(v);
+	} else if (hash === '#/new' || hash === '#/new/quote') {
+		wizard(v, undefined, hash === '#/new/quote' ? 'quote' : 'invoice');
 	} else if (hash.startsWith('#/edit/')) {
 		wizard(v, decodeURIComponent(hash.slice('#/edit/'.length)));
 	} else if (hash.startsWith('#/invoices/')) {

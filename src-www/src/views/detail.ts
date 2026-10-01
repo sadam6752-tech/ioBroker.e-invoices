@@ -1,4 +1,5 @@
 import { api, downloadUrl, esc, eur, openUrl } from '../api';
+import { isQuote, labels, quoteState, quoteStateLabel } from '../labels';
 import { mountAttachments } from './attachments';
 
 /** Rounds to cents without the float trap of a bare Math.round. */
@@ -20,6 +21,11 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 	try {
 		const loaded = await api.get(id);
 		let inv = loaded;
+		// R8: the words follow the document type, never the free display title,
+		// and the state of an offer is derived the way the server derives it.
+		const lbl = labels(inv.docType);
+		const quote = isQuote(inv.docType);
+		const state = quoteState(inv);
 		const lines = Array.isArray(inv.lines) ? inv.lines : [];
 		const rows = lines.map(l => {
 			const discount = Math.min(Math.max(Number(l.discountPercent) || 0, 0), 100);
@@ -36,14 +42,36 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 		root.innerHTML = `
 			<div class="card"><div class="row">
 				<strong>${esc(inv.number ?? '(Entwurf)')}</strong>
-				<span class="badge ${inv.status}">${inv.status}</span>
-				<a class="btn secondary" href="#/">← Liste</a>
+				${
+					quote
+						? `<span class="badge ${state}">${esc(quoteStateLabel(state))}</span>`
+						: `<span class="badge ${inv.status}">${inv.status}</span>`
+				}
+				<span class="muted">${esc(lbl.one)}</span>
+				<a class="btn secondary" href="${quote ? '#/offers' : '#/'}">← ${quote ? 'Angebote' : 'Liste'}</a>
 			</div></div>
 			<div class="card"><div class="grid2">
 				<div><strong>Verkäufer</strong><br />${esc(inv.seller.name)}<br />${esc(inv.seller.street)}<br />${esc(inv.seller.zip)} ${esc(inv.seller.city)}</div>
 				<div><strong>Käufer</strong><br />${esc(inv.buyer.name)}<br />${esc(inv.buyer.street)}<br />${esc(inv.buyer.zip)} ${esc(inv.buyer.city)}${inv.buyer.email ? `<br />${esc(inv.buyer.email)}` : ''}</div>
 			</div>
-			<p>Ausgestellt: ${esc(inv.issueDate)} · Leistung: ${esc(deliveryDe(inv.deliveryDate))}${inv.dueDate ? ` · Fällig: ${esc(inv.dueDate)}` : ''}</p>
+			<p>${esc(lbl.date.replace(/:$/, ''))}: ${esc(inv.issueDate)} · ${esc(
+				lbl.delivery.replace(/:$/, ''),
+			)}: ${esc(deliveryDe(inv.deliveryDate))}${inv.dueDate ? ` · Fällig: ${esc(inv.dueDate)}` : ''}${
+				quote && inv.validUntil ? ` · ${esc(lbl.validUntil.replace(/:$/, ''))}: ${esc(inv.validUntil)}` : ''
+			}</p>
+			${
+				quote && inv.acceptedAt
+					? `<p style="color:var(--ok)">Angenommen am ${esc(inv.acceptedAt.slice(0, 10))}.</p>`
+					: ''
+			}
+			${
+				quote && inv.rejectedAt
+					? `<p class="error">Abgelehnt am ${esc(inv.rejectedAt.slice(0, 10))}${
+							inv.rejectionReason ? `: ${esc(inv.rejectionReason)}` : ''
+						}.</p>`
+					: ''
+			}
+			${quote && state === 'expired' ? `<p class="muted">Das Angebot ist am ${esc(inv.validUntil ?? '')} verfallen.</p>` : ''}
 			<table class="lines"><tr>
 				<th>#</th><th>Bezeichnung</th><th class="r">Menge</th><th class="r">Preis netto</th>
 				${hasDiscount ? '<th class="r">Rabatt</th><th class="r">Rabatt €</th>' : ''}
@@ -66,9 +94,9 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			</div>
 			<div class="card"><div class="row">
 				${inv.status === 'draft' ? `<a class="btn" href="#/edit/${esc(inv.id)}">Bearbeiten</a>` : ''}
-				${inv.status === 'draft' ? `<button id="d-issue">Ausstellen</button><span class="muted">Danach nicht mehr änderbar.</span>` : ''}
-				${inv.status === 'issued' ? `<label class="pay"><input type="checkbox" id="d-paid" ${inv.paid ? 'checked' : ''} /><span>bezahlt${inv.paid && inv.paidAt ? ` (${esc(inv.paidAt.slice(0, 10))})` : ''}</span></label>` : ''}
-				${inv.status === 'issued' ? `<button class="secondary" id="d-storno">Storno</button>` : ''}
+				${inv.status === 'draft' ? `<button id="d-issue">${esc(lbl.issue)}</button><span class="muted">Danach nicht mehr änderbar.</span>` : ''}
+				${!quote && inv.status === 'issued' ? `<label class="pay"><input type="checkbox" id="d-paid" ${inv.paid ? 'checked' : ''} /><span>bezahlt${inv.paid && inv.paidAt ? ` (${esc(inv.paidAt.slice(0, 10))})` : ''}</span></label>` : ''}
+				${!quote && inv.status === 'issued' ? `<button class="secondary" id="d-storno">Storno</button>` : ''}
 				${
 					inv.status === 'issued'
 						? inv.sentAt
@@ -78,15 +106,17 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 							: `<button class="secondary" id="d-sent" title="Als versendet markieren">Als versendet markieren</button>`
 						: ''
 				}
-				${inv.status !== 'draft' && inv.pdfPath ? `<button class="secondary" id="d-rerender" title="Erzeugt die PDF neu, z. B. nach einer Layout-Korrektur. Der Inhalt der Rechnung bleibt unverändert, das Original wird archiviert.">Neu rendern</button>` : ''}
-				<button class="secondary" id="d-as-tpl" title="Legt eine Rechnungsvorlage mit diesen Positionen, Terminen und Zahlungsbedingungen an. Käufer und Datum werden nicht übernommen.">Vorlage erstellen</button>
-				<button class="secondary" id="d-validate">Validieren</button>
+				${inv.status !== 'draft' && inv.pdfPath ? `<button class="secondary" id="d-rerender" title="Erzeugt die PDF aus den gespeicherten Daten neu (z. B. nach einer Layout-Korrektur). Nummer, Beträge und Daten bleiben unverändert, das Original wird archiviert.">Neu rendern</button>` : ''}
+				${!quote ? `<button class="secondary" id="d-as-tpl" title="Legt eine Rechnungsvorlage mit diesen Positionen, Terminen und Zahlungsbedingungen an. Käufer und Datum werden nicht übernommen.">Vorlage erstellen</button>` : ''}
+				<button class="secondary" id="d-validate">${quote ? 'Pflichtangaben prüfen' : 'Validieren'}</button>
+				${quote && inv.status === 'issued' && !inv.acceptedAt && !inv.rejectedAt ? `<button id="d-accept">Annehmen</button><button class="secondary" id="d-reject">Ablehnen</button>` : ''}
+				${quote && inv.status === 'issued' ? `<button class="secondary" id="d-convert" title="Erstellt einen Rechnungsentwurf mit Verweis auf dieses Angebot. Die Rechnungsnummer fällt erst beim Ausstellen.">In Rechnung umwandeln</button>` : ''}
 			${inv.pdfPath ? `<button class="secondary" data-view="pdf">PDF ansehen</button>` : ''}
 			${inv.pdfPath ? `<button class="secondary" data-dl="pdf">PDF ↓</button>` : ''}
 			${inv.status === 'issued' && inv.pdfPath ? `<button class="secondary" id="d-mail">E-Mail (PDF)</button>` : ''}
 			${inv.xml ? `<button class="secondary" data-dl="xml">XML ↓</button>` : ''}
 			${inv.xlsxPath ? `<button class="secondary" data-dl="xlsx">Excel ↓</button>` : ''}
-			</div><div id="d-out"></div><div id="d-duty"></div><div id="d-history"></div><div id="d-reports"></div><div id="d-attachments"></div></div>`;
+			</div><div id="d-out"></div><div id="d-duty"></div><div id="d-history"></div><div id="d-reports"></div><div id="d-attachments"></div><div id="d-links"></div></div>`;
 
 		const out = root.querySelector('#d-out')!;
 		const fail = (e: unknown): void => {
@@ -160,6 +190,38 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 		// R4: Anlagen — hochladen/löschen nur beim Entwurf, ausgestellte
 		// Rechnungen zeigen die Dateien nur noch an (GoBD).
 		mountAttachments(root.querySelector('#d-attachments')!, inv.id, { readOnly: inv.status !== 'draft' });
+		// R8: the chain offer → invoice stays visible from both sides. The offer
+		// lists the invoices it became, the invoice names its offer.
+		const linksBox = root.querySelector('#d-links')!;
+		const loadLinks = async (): Promise<void> => {
+			const parts: string[] = [];
+			try {
+				if (inv.sourceDocumentId) {
+					const source = await api.get(inv.sourceDocumentId);
+					parts.push(
+						`<p>Zugrunde liegendes Angebot: <a href="#/invoices/${esc(source.id)}">${esc(
+							source.number ?? '(Entwurf)',
+						)}</a>${source.validUntil ? ` (gültig bis ${esc(source.validUntil)})` : ''}${
+							source.acceptedAt ? ` – angenommen am ${esc(source.acceptedAt.slice(0, 10))}` : ''
+						}</p>`,
+					);
+				}
+				if (quote) {
+					const derived = await api.list({ docType: 'invoice', sourceDocumentId: inv.id });
+					if (derived.length > 0) {
+						parts.push(
+							`<p>Daraus hervorgegangene Rechnung(en): ${derived
+								.map(d => `<a href="#/invoices/${esc(d.id)}">${esc(d.number ?? '(Entwurf)')}</a>`)
+								.join(', ')}</p>`,
+						);
+					}
+				}
+				linksBox.innerHTML = parts.length ? `<div class="card">${parts.join('')}</div>` : '';
+			} catch {
+				// the relationship panel is informational, never block the view
+			}
+		};
+		await loadLinks();
 		root.querySelectorAll('[data-dl]').forEach(btn =>
 			btn.addEventListener('click', async () => {
 				const kind = (btn as HTMLElement).dataset.dl as 'pdf' | 'xml' | 'xlsx';
@@ -191,8 +253,12 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 					: `<p class="muted">Hinweis: der Bericht konnte nicht gespeichert werden (Adapter-Log).</p>`;
 				out.innerHTML =
 					(findings.length === 0
-						? `<p style="color:var(--ok)">Gültig: keine Fehler.</p>`
-						: `<ul>${findings.map(e => `<li class="error">${esc(e)}</li>`).join('')}</ul>`) + stored;
+						? `<p style="color:var(--ok)">${quote ? 'Gültig: keine offenen Pflichtangaben.' : 'Gültig: keine Fehler.'}</p>`
+						: `<ul>${findings.map(e => `<li class="error">${esc(e)}</li>`).join('')}</ul>`) +
+					(quote
+						? `<p class="muted">Ein Angebot ist keine E-Rechnung: geprüft werden nur die Pflichtangaben — es gibt kein XML und keine XSD-Prüfung.</p>`
+						: '') +
+					stored;
 				if (report) {
 					out.querySelector('#d-report-last')?.addEventListener('click', async event => {
 						event.preventDefault();
@@ -231,7 +297,8 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 				`Guten Tag ${inv.buyer.name || ''},\n\n` +
 				`anbei erhalten Sie ${subject} vom ${inv.issueDate}.\n` +
 				`Gesamtbetrag: ${eur(inv.totals.grossTotal)}.\n` +
-				`${inv.dueDate ? `Bitte überweisen bis ${inv.dueDate}.\n` : ''}\n` +
+				`${quote && inv.validUntil ? `Das Angebot ist bis ${inv.validUntil} gültig.\n` : ''}` +
+				`${!quote && inv.dueDate ? `Bitte überweisen bis ${inv.dueDate}.\n` : ''}\n` +
 				`Mit freundlichen Grüßen\n${inv.seller.name}\n`;
 			try {
 				await downloadUrl(api.pdfUrl(inv.id), `${inv.number ?? 'rechnung'}.pdf`);
@@ -348,11 +415,63 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			}
 		});
 		root.querySelector('#d-issue')?.addEventListener('click', async () => {
-			if (!window.confirm('Wirklich ausstellen? Danach ist keine Änderung mehr möglich (GoBD).')) return;
+			if (!window.confirm(lbl.issueConfirm)) return;
 			try {
 				const issued = await api.issue(inv.id);
 				location.hash = `#/invoices/${issued.id}`;
 				location.reload();
+			} catch (e) {
+				out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
+			}
+		});
+		// R8: the two answers of the customer. The first one counts — the second
+		// is refused by the server, so the buttons disappear afterwards.
+		root.querySelector('#d-accept')?.addEventListener('click', async () => {
+			if (!window.confirm('Angebot als angenommen vermerken? Die Entscheidung ist endgültig und steht danach auf dem Angebot.')) {
+				return;
+			}
+			try {
+				await api.quoteAccept(inv.id);
+				location.reload();
+			} catch (e) {
+				out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
+			}
+		});
+		root.querySelector('#d-reject')?.addEventListener('click', async () => {
+			const reason = window.prompt('Grund der Ablehnung (erscheint auf dem Angebot):', '');
+			if (reason === null) {
+				return;
+			}
+			if (!window.confirm('Angebot als abgelehnt vermerken? Die Entscheidung ist endgültig.')) {
+				return;
+			}
+			try {
+				await api.quoteReject(inv.id, reason.trim() || undefined);
+				location.reload();
+			} catch (e) {
+				out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
+			}
+		});
+		// R8: the conversion creates an invoice *draft*; the number and the PDF
+		// follow when that draft is issued, so nothing is booked by accident.
+		root.querySelector('#d-convert')?.addEventListener('click', async () => {
+			const accepted = !!inv.acceptedAt;
+			if (
+				!accepted &&
+				!window.confirm(
+					'Das Angebot ist nicht als angenommen vermerkt. Trotzdem einen Rechnungsentwurf daraus erstellen?',
+				)
+			) {
+				return;
+			}
+			try {
+				const draft = await api.convert(inv.id, accepted);
+				out.innerHTML =
+					`<p style="color:var(--ok)">Rechnungsentwurf erstellt – Nummer und PDF folgen beim Ausstellen: ` +
+					`<a href="#/edit/${esc(draft.id)}">Entwurf öffnen</a></p>`;
+				// the offer itself stays the page's subject: the panel then lists
+				// the invoice that came out of it
+				await loadLinks();
 			} catch (e) {
 				out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
 			}

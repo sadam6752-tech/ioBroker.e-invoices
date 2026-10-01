@@ -456,7 +456,11 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			const offset = typeof req.query.offset === 'string' ? Number(req.query.offset) : undefined;
 			const docType =
 				typeof req.query.docType === 'string' ? normalizeDocumentType(req.query.docType) : undefined;
-			res.json(db.listInvoices({ status, year, docType, query, limit, offset }));
+			// R8: the invoices an offer was converted into, so the chain stays
+			// visible on both sides (the offer lists them, the invoice links back).
+			const sourceDocumentId =
+				typeof req.query.sourceDocumentId === 'string' ? req.query.sourceDocumentId : undefined;
+			res.json(db.listInvoices({ status, year, docType, sourceDocumentId, query, limit, offset }));
 		}),
 	);
 

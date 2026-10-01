@@ -310,7 +310,8 @@ function createApiServer(deps) {
       const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : void 0;
       const offset = typeof req.query.offset === "string" ? Number(req.query.offset) : void 0;
       const docType = typeof req.query.docType === "string" ? (0, import_invoice_model.normalizeDocumentType)(req.query.docType) : void 0;
-      res.json(db.listInvoices({ status, year, docType, query, limit, offset }));
+      const sourceDocumentId = typeof req.query.sourceDocumentId === "string" ? req.query.sourceDocumentId : void 0;
+      res.json(db.listInvoices({ status, year, docType, sourceDocumentId, query, limit, offset }));
     })
   );
   app.post(

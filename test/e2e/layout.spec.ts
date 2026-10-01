@@ -13,6 +13,7 @@ const token = process.env.E2E_TOKEN ?? 'e2e-token-2026';
 /** Routes of the navigation, as a user reaches them. */
 const routes = [
 	'/#/',
+	'/#/offers',
 	'/#/new',
 	'/#/templates',
 	'/#/company',

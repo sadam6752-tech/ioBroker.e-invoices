@@ -153,3 +153,77 @@ describe('pwa => attachments (R4)', () => {
 		expect(bundle).to.contain('/attachments');
 	});
 });
+describe('pwa => offers (R8)', () => {
+	it('ships one label table for both document types, mirroring the server', () => {
+		const src = readFileSync('src-www/src/labels.ts', 'utf8');
+		// the wording of the sight PDF (documentLabels on the server)
+		expect(src).to.contain('Angebotsnr.:');
+		expect(src).to.contain('Angebotsdatum:');
+		expect(src).to.contain('Gültig bis:');
+		expect(src).to.contain('Rechnungsnr.:');
+		// the life cycle (quoteState/quoteStateLabel on the server)
+		expect(src).to.contain('QUOTE_VALIDITY_DAYS = 30');
+		for (const state of ['draft', 'open', 'accepted', 'rejected', 'expired']) {
+			expect(src).to.contain(`'${state}'`);
+		}
+		// the rule the state hangs on: a validity before today expires
+		expect(src).to.contain('quote.validUntil < today');
+	});
+
+	it('gives offers their own tab, view and wizard entry point', () => {
+		const main = readFileSync('src-www/src/main.ts', 'utf8');
+		expect(main).to.contain("['#/offers', 'Angebote']");
+		expect(main).to.contain("hash === '#/offers'");
+		expect(main).to.contain("'#/new/quote'");
+		const view = readFileSync('src-www/src/views/offers.ts', 'utf8');
+		// the list asks for offers only and carries the whole life cycle
+		expect(view).to.contain("docType: 'quote'");
+		expect(view).to.contain('api.quoteAccept');
+		expect(view).to.contain('api.quoteReject');
+		expect(view).to.contain('api.convert');
+	});
+
+	it('keeps the booking list and the accounting exports free of offers', () => {
+		const dashboard = readFileSync('src-www/src/views/dashboard.ts', 'utf8');
+		expect(dashboard).to.contain("params.docType = 'invoice'");
+		const api = readFileSync('src-www/src/api.ts', 'utf8');
+		// the export query is pinned to invoices unless the caller asks otherwise
+		expect(api).to.contain("new URLSearchParams({ docType: 'invoice', ...params }).toString()");
+	});
+
+	it('lets the wizard choose the type and hides the invoice-only fields', () => {
+		const src = readFileSync('src-www/src/views/wizard.ts', 'utf8');
+		expect(src).to.contain('id="w-doctype"');
+		expect(src).to.contain('id="w-valid"');
+		expect(src).to.contain('docType: s.docType');
+		// the validity of an offer follows its issue date while it is untouched
+		expect(src).to.contain('syncValidUntil(s, issueBefore)');
+		// an offer has no Skonto and no payment terms
+		expect(src).to.contain('Ein Angebot kennt kein Zahlungsziel, keinen Skonto und keine Zahlungsbedingungen');
+	});
+
+	it('carries the offer actions and the chain in the detail view', () => {
+		const src = readFileSync('src-www/src/views/detail.ts', 'utf8');
+		expect(src).to.contain("root.querySelector('#d-accept')?.addEventListener");
+		expect(src).to.contain("root.querySelector('#d-reject')?.addEventListener");
+		expect(src).to.contain("root.querySelector('#d-convert')?.addEventListener");
+		// an offer is never paid, so the booking actions stay away
+		expect(src).to.contain(`\${!quote && inv.status === 'issued' ? \`<label class="pay">`);
+		// offer → invoice and invoice → offer
+		expect(src).to.contain('Zugrunde liegendes Angebot');
+		expect(src).to.contain('Daraus hervorgegangene Rechnung(en)');
+	});
+
+	it('ships the built bundle with the offers tab', function () {
+		const asset = existsSync('www/assets')
+			? readdirSync('www/assets').find(f => /^index-.*\.js$/.test(f))
+			: undefined;
+		if (!asset) {
+			this.skip();
+			return;
+		}
+		const bundle = readFileSync(`www/assets/${asset}`, 'utf8');
+		expect(bundle).to.contain('Angebote');
+		expect(bundle).to.contain('In Rechnung umwandeln');
+	});
+});

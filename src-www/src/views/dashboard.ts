@@ -83,6 +83,9 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 		// guard against out-of-order responses overwriting a newer result
 		const seq = ++loadSeq;
 		const params: Record<string, string> = { sort: sortEl.value, order };
+		// R8: this is the booking list. Offers are their own document type with
+		// their own number circle and have their own tab (#/offers).
+		params.docType = 'invoice';
 		if (statusEl.value) params.status = statusEl.value;
 		if (qEl.value.trim()) params.q = qEl.value.trim();
 		if (sentEl.value) params.sent = sentEl.value;
@@ -206,6 +209,8 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	/** Shared filter for the three export formats. */
 	const exportParams = (): Record<string, string> => {
 		const params: Record<string, string> = {};
+		// R8: accounting sees invoices only; offers never book.
+		params.docType = 'invoice';
 		if (statusEl.value) params.status = statusEl.value;
 		if (qEl.value.trim()) params.q = qEl.value.trim();
 		return params;

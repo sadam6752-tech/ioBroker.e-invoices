@@ -63,6 +63,18 @@ export interface Invoice {
 	paid: boolean;
 	paidAt: string | null;
 	stornoOfId: string | null;
+	/** R8: `invoice` or `quote` — the type decides number circle and artifacts. */
+	docType: string;
+	/** R8: last day an offer stands, null for an invoice. */
+	validUntil: string | null;
+	/** R8: offer this invoice was converted from, null when standalone. */
+	sourceDocumentId: string | null;
+	/** R8: when the customer accepted the offer, null while undecided. */
+	acceptedAt: string | null;
+	/** R8: when the customer declined the offer, null while undecided. */
+	rejectedAt: string | null;
+	/** R8: free-text reason of a rejection. */
+	rejectionReason: string | null;
 	skontoPercent: number;
 	skontoDueDate: string | null;
 	/** ISO time of the handover to the customer, null while unsent. */
@@ -95,6 +107,10 @@ export interface DraftInput {
 	paymentTerms?: string;
 	skontoPercent?: number;
 	skontoDueDate?: string;
+	/** R8: `invoice` (default) or `quote` — decides number circle and artifacts. */
+	docType?: string;
+	/** R8: last day an offer stands (ISO date), only used for offers. */
+	validUntil?: string;
 }
 
 export interface CompanyProfile {
@@ -302,6 +318,19 @@ export async function openUrl(url: string): Promise<void> {
 	window.setTimeout(() => URL.revokeObjectURL(obj), 60000);
 }
 
+/**
+ * Query string of an accounting export.
+ *
+ * R8: pinned to invoices unless the caller asks otherwise — an export must
+ * never mix A-numbers into the booking list by accident, and the type is data
+ * on the record, not a matter of remembering the parameter.
+ *
+ * @param params - Filters of the export (status, q, year, …).
+ */
+function exportQuery(params: Record<string, string>): string {
+	return new URLSearchParams({ docType: 'invoice', ...params }).toString();
+}
+
 export const api = {
 	health: () => request<{ status: string; version: string; schemaVersion: number; counts: Record<string, number> }>('/api/health'),
 	settings: () =>
@@ -372,6 +401,27 @@ export const api = {
 			body: JSON.stringify({ reason }),
 		}),
 	validate: (id: string) => request<ValidationOutcome>(`/api/invoices/${id}/validate`, { method: 'POST' }),
+	/** R8: records the customer's "yes" — the first decision counts. */
+	quoteAccept: (id: string, at?: string) =>
+		request<Invoice>(`/api/invoices/${id}/quote-accept`, {
+			method: 'POST',
+			body: JSON.stringify({ at }),
+		}),
+	/** R8: records the customer's "no", with a free-text reason. */
+	quoteReject: (id: string, reason?: string) =>
+		request<Invoice>(`/api/invoices/${id}/quote-reject`, {
+			method: 'POST',
+			body: JSON.stringify({ reason }),
+		}),
+	/**
+	 * R8: turns an offer into an invoice *draft* — the number falls on issue.
+	 * `requireAccepted: false` covers the deal agreed by phone.
+	 */
+	convert: (id: string, requireAccepted = true) =>
+		request<Invoice>(`/api/invoices/${id}/convert`, {
+			method: 'POST',
+			body: JSON.stringify({ requireAccepted }),
+		}),
 	/** Copies the content of an invoice into a new template (no customer, no dates). */
 	asTemplate: (id: string, name: string) =>
 		request<InvoiceTemplate>(`/api/invoices/${id}/as-template`, {
@@ -432,20 +482,11 @@ export const api = {
 			request<Product>(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
 		remove: (id: string) => request<{ ok: boolean }>(`/api/products/${id}`, { method: 'DELETE' }),
 	},
-	exportUrl: (params: Record<string, string> = {}) => {
-		const q = new URLSearchParams(params).toString();
-		return `/api/invoices/export.xlsx${q ? `?${q}` : ''}`;
-	},
+	exportUrl: (params: Record<string, string> = {}) => `/api/invoices/export.xlsx?${exportQuery(params)}`,
 	/** Semicolon CSV for the accounting department. */
-	csvUrl: (params: Record<string, string> = {}) => {
-		const q = new URLSearchParams(params).toString();
-		return `/api/invoices/export.csv${q ? `?${q}` : ''}`;
-	},
+	csvUrl: (params: Record<string, string> = {}) => `/api/invoices/export.csv?${exportQuery(params)}`,
 	/** DATEV booking lines. */
-	datevUrl: (params: Record<string, string> = {}) => {
-		const q = new URLSearchParams(params).toString();
-		return `/api/invoices/export.datev${q ? `?${q}` : ''}`;
-	},
+	datevUrl: (params: Record<string, string> = {}) => `/api/invoices/export.datev?${exportQuery(params)}`,
 	/** What a restore would change, without writing anything. */
 	restorePreview: (filename?: string, dataBase64?: string) =>
 		request<RestorePreview>('/api/restore/preview', {

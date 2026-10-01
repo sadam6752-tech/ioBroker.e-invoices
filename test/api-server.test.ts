@@ -1156,6 +1156,14 @@ describe('api => quotations (R8)', function () {
 		// once that invoice is out, the next conversion follows (partial/final)
 		await request(app).post(`/api/invoices/${id}/convert`).send({ requireAccepted: false }).expect(201);
 
+		// R8: the offer names the invoices that came out of it (the PWA links both
+		// directions), and an offer without a conversion has nothing to show
+		const derived = await request(app).get(`/api/invoices?docType=invoice&sourceDocumentId=${id}`).expect(200);
+		expect(derived.body).to.have.length(2);
+		expect(derived.body.map((entry: { id: string }) => entry.id)).to.include(converted.body.id);
+		const nothing = await request(app).get(`/api/invoices?sourceDocumentId=${converted.body.id}`).expect(200);
+		expect(nothing.body).to.deep.equal([]);
+
 		// an accepted quotation needs no opt-out
 		const secondQuote = await createQuote();
 		await request(app).post(`/api/invoices/${secondQuote}/issue`).expect(200);

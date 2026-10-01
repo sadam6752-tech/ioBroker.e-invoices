@@ -81,6 +81,23 @@ main {
 	background: #fee2e2;
 	color: var(--danger);
 }
+/* R8: the life cycle of an offer, derived from its dates */
+.badge.open {
+	background: #dbeafe;
+	color: #1e40af;
+}
+.badge.accepted {
+	background: #dcfce7;
+	color: var(--ok);
+}
+.badge.rejected {
+	background: #fee2e2;
+	color: var(--danger);
+}
+.badge.expired {
+	background: #e5e7eb;
+	color: #374151;
+}
 button,
 .btn {
 	background: var(--brand);

@@ -1,4 +1,5 @@
 import { api, esc, eur, type CompanyProfile, type DraftInput, type Invoice, type InvoiceLine, type InvoiceTemplate, type Party, type Product } from '../api';
+import { defaultTitle, isQuote, labels, normalizeDocType, QUOTE_VALIDITY_DAYS, type DocType } from '../labels';
 import { mountAttachments } from './attachments';
 
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
@@ -68,6 +69,23 @@ function syncAutoDueDate(state: WizardState): void {
 	state.dueDate = addDays(state.issueDate, days);
 }
 
+/**
+ * R8: keeps the prefilled validity of an offer in step with the issue date.
+ * A date the user typed themselves is never touched — only the untouched
+ * default (issue date + 30 days) moves along.
+ *
+ * @param state - Wizard state, mutated in place.
+ * @param previousIssueDate - Issue date before the current edit.
+ */
+function syncValidUntil(state: WizardState, previousIssueDate: string): void {
+	if (!isQuote(state.docType)) {
+		return;
+	}
+	if (!state.validUntil || state.validUntil === addDays(previousIssueDate, QUOTE_VALIDITY_DAYS)) {
+		state.validUntil = addDays(state.issueDate, QUOTE_VALIDITY_DAYS);
+	}
+}
+
 /** Rounds to cents without the float trap of a bare Math.round (544 × 19 % = 103,36 → 103). */
 function round2(value: number): number {
 	return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -108,12 +126,16 @@ function loadEmployee(): string {
 
 interface WizardState {
 	step: number;
+	/** R8: what is being typed — decides number circle, labels and artifacts. */
+	docType: DocType;
 	seller: Party;
 	buyer: Party;
 	lines: InvoiceLine[];
 	issueDate: string;
 	deliveryDate: string;
 	dueDate: string;
+	/** R8: last day an offer stands (ISO), empty for an invoice. */
+	validUntil: string;
 	employee: string;
 	documentTitle: string;
 	notes: string;
@@ -143,14 +165,16 @@ function today(): string {
 function freshState(): WizardState {
 	return {
 		step: 0,
+		docType: 'invoice',
 		seller: emptyParty(),
 		buyer: emptyParty(),
 		lines: [emptyLine()],
 		issueDate: today(),
 		deliveryDate: today(),
 		dueDate: '',
+		validUntil: '',
 		employee: loadEmployee(),
-		documentTitle: 'Rechnung',
+		documentTitle: defaultTitle('invoice'),
 		notes: '',
 		paymentTerms: settings.defaultPaymentTerms,
 		termsCustom: isCustomTerms(settings.defaultPaymentTerms),
@@ -218,8 +242,6 @@ function partyFields(prefix: string, p: Party, withTax: boolean): string {
 		}`;
 }
 
-const DOC_TITLES = ['Rechnung', 'Abschlagsrechnung', 'Schlussrechnung', 'Gutschrift'];
-
 /** German labels for the EN 16931 VAT category codes used on 0 % lines. */
 const EXEMPTION_LABELS: Record<string, string> = {
 	E: 'steuerfrei',
@@ -230,8 +252,15 @@ const EXEMPTION_LABELS: Record<string, string> = {
 };
 
 /** Multi-step invoice wizard: seller -> buyer -> lines -> review/issue. */
-export function wizard(root: HTMLElement, editId?: string): void {
+export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'invoice'): void {
 	let s = freshState();
+	// R8: the entry point decides the type of a *new* document — an existing one
+	// keeps the type it was created with, its number circle hangs on it.
+	if (!editId && docType === 'quote') {
+		s.docType = 'quote';
+		s.documentTitle = defaultTitle('quote');
+		s.validUntil = addDays(s.issueDate, QUOTE_VALIDITY_DAYS);
+	}
 	const isEdit = !!editId;
 	let companies: CompanyProfile[] = [];
 	let customers: CompanyProfile[] = [];
@@ -262,12 +291,14 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				}
 				s = {
 					...freshState(),
+					docType: normalizeDocType(inv.docType),
 					seller: inv.seller,
 					buyer: inv.buyer,
 					lines: inv.lines.length > 0 ? inv.lines : [emptyLine()],
 					issueDate: inv.issueDate,
 					deliveryDate: inv.deliveryDate,
 					dueDate: inv.dueDate ?? '',
+					validUntil: inv.validUntil ?? '',
 					employee: inv.employeeCode ?? loadEmployee(),
 					documentTitle: inv.documentTitle,
 					notes: inv.notes ?? '',
@@ -286,13 +317,18 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		return;
 	}
 	const saved = loadSaved();
-	if (saved && hasContent(saved) && !saved.draftId) {
+	// A saved state belongs to the type it was typed for: a new offer must not
+	// resume an invoice draft that happens to be in the browser.
+	const resumable = saved && hasContent(saved) && (docType !== 'quote' || isQuote(saved.docType)) ? saved : null;
+	if (resumable && !resumable.draftId) {
 		root.innerHTML = `<div class="card"><h3>Weiter bearbeiten?</h3>
-			<p class="muted">Ungesendeter Entwurf vom ${esc(saved.savedAt.slice(0, 16).replace('T', ' '))} gefunden.</p>
+			<p class="muted">Ungesendeter ${esc(labels(resumable.docType).one)}-Entwurf vom ${esc(
+				resumable.savedAt.slice(0, 16).replace('T', ' '),
+			)} gefunden.</p>
 			<div class="row"><button id="w-resume">Fortsetzen</button><button class="secondary" id="w-discard">Verwerfen</button></div>
 		</div>`;
 		root.querySelector('#w-resume')?.addEventListener('click', () => {
-			s = saved;
+			s = resumable;
 			bootLists();
 			render();
 		});
@@ -303,8 +339,8 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		});
 		return;
 	}
-	if (saved && hasContent(saved)) {
-		s = saved;
+	if (resumable) {
+		s = resumable;
 	}
 	bootLists();
 	if (!hasContent(s)) {
@@ -403,10 +439,13 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			const to = get('w-delivery-to');
 			s.deliveryDate = to && to !== from ? `${from}..${to}` : from;
 		};
+		const issueBefore = s.issueDate;
 		s.issueDate = get('w-issue') || s.issueDate;
 		readDelivery();
 		if (root.querySelector('#w-due')) s.dueDate = get('w-due');
 		syncAutoDueDate(s);
+		if (root.querySelector('#w-valid')) s.validUntil = get('w-valid') || s.validUntil;
+		syncValidUntil(s, issueBefore);
 		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
 		if (root.querySelector('#w-title')) s.documentTitle = get('w-title') || s.documentTitle;
 		const notesEl = root.querySelector<HTMLTextAreaElement>('#w-notes');
@@ -431,6 +470,16 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		let body = '';
 		if (s.step === 0) {
 			body = `<div class="card"><h3>Verkäufer</h3>
+				${
+					isEdit
+						? `<p class="muted">Belegart: <strong>${esc(
+								labels(s.docType).one,
+							)}</strong> — bleibt beim Bearbeiten erhalten, der Nummernkreis hängt an ihr.</p>`
+						: `<label>Belegart<select id="w-doctype">
+							<option value="invoice" ${s.docType === 'invoice' ? 'selected' : ''}>Rechnung — E-Rechnung mit XML, Mahnwesen, Export</option>
+							<option value="quote" ${s.docType === 'quote' ? 'selected' : ''}>Angebot — Sicht-PDF ohne XML, eigene Nummer</option>
+						</select></label>`
+				}
 				${
 					companies.length > 0
 						? `<label>Aus Firma übernehmen<select id="w-company">
@@ -462,7 +511,9 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		if (s.step === 2) {
 			body = `<div class="card"><h3>Positionen & Termine</h3>
 				<label>Dokumenttyp<select id="w-title">
-					${DOC_TITLES.map(t => `<option ${t === s.documentTitle ? 'selected' : ''}>${t}</option>`).join('')}
+					${labels(s.docType)
+						.titles.map(t => `<option ${t === s.documentTitle ? 'selected' : ''}>${t}</option>`)
+						.join('')}
 				</select></label>
 				${
 					invoiceTemplates.length > 0
@@ -516,9 +567,19 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				<p><button class="secondary" id="w-add">+ Position</button></p>
 				<div class="grid2">
 					<label>Ausstellungsdatum<input id="w-issue" type="date" value="${esc(s.issueDate)}" /></label>
-					<label>Fällig am<input id="w-due" type="date" value="${esc(s.dueDate)}" />${
-					s.dueAuto ? ' <span class="muted">(aus Zahlungsbedingung)</span>' : ''
-				}</label>
+					${
+						isQuote(s.docType)
+							? `<label>${esc(labels(s.docType).validUntil.replace(/:$/, ''))}<input id="w-valid" type="date" value="${esc(
+									s.validUntil,
+								)}" />${
+									s.validUntil === addDays(s.issueDate, QUOTE_VALIDITY_DAYS)
+										? ' <span class="muted">(30 Tage)</span>'
+										: ''
+								}</label>`
+							: `<label>Fällig am<input id="w-due" type="date" value="${esc(s.dueDate)}" />${
+									s.dueAuto ? ' <span class="muted">(aus Zahlungsbedingung)</span>' : ''
+								}</label>`
+					}
 				</div>
 				<fieldset class="period">
 					<legend>Leistungszeitraum</legend>
@@ -526,10 +587,20 @@ export function wizard(root: HTMLElement, editId?: string): void {
 						<label>von<input id="w-delivery" type="date" value="${esc(deliveryStart(s.deliveryDate))}" /></label>
 						<label>bis (optional)<input id="w-delivery-to" type="date" value="${esc(deliveryEnd(s.deliveryDate))}" /></label>
 					</div>
-					<p class="muted">Nur „von" angeben, wenn die Leistung an einem Tag erbracht wurde. Mit „bis" wird der Zeitraum als BT-74/BT-75 in die Rechnung geschrieben.</p>
+					<p class="muted">Nur „von" angeben, wenn die Leistung an einem Tag erbracht wurde. ${
+						isQuote(s.docType)
+							? 'Mit „bis" steht der Zeitraum als Leistungszeitraum auf dem Angebot.'
+							: 'Mit „bis" wird der Zeitraum als BT-74/BT-75 in die Rechnung geschrieben.'
+					}</p>
 				</fieldset>
-				<label>Mitarbeiter-Kürzel (für Nr. JJJJ-KK-LLL)<input id="w-employee" maxlength="8" placeholder="z.B. 01" value="${esc(s.employee)}" /></label>
-				<fieldset class="period">
+				<label>Mitarbeiter-Kürzel (für Nr. ${
+					isQuote(s.docType) ? 'A-JJJJ-KK-LLL' : 'JJJJ-KK-LLL'
+				})<input id="w-employee" maxlength="8" placeholder="z.B. 01" value="${esc(s.employee)}" /></label>
+				${
+					isQuote(s.docType)
+						? `<p class="muted">Ein Angebot kennt kein Zahlungsziel, keinen Skonto und keine Zahlungsbedingungen —
+							es gilt bis zum Datum „Gültig bis".</p>`
+						: `<fieldset class="period">
 					<legend>Skonto (Rabatt bei früher Zahlung)</legend>
 					<div class="grid2">
 						<label>Skonto %<input id="w-skonto" type="number" min="0" max="100" step="0.01" value="${esc(s.skontoPercent)}" /></label>
@@ -537,7 +608,6 @@ export function wizard(root: HTMLElement, editId?: string): void {
 					</div>
 					<p class="muted">Bei 0 % kein Skonto. Ohne eigenes Datum gilt das Fälligkeitsdatum. Der Skonto mindert den Zahlbetrag (BT-9) und steht als Bedingung mit Subject-Code AAK im XML.</p>
 				</fieldset>
-				<label>Notizen<textarea id="w-notes">${esc(s.notes)}</textarea></label>
 				<label>Zahlungsbedingungen<select id="w-terms-select">
 					<option value="" ${s.paymentTerms === '' ? 'selected' : ''}>keine</option>
 					${PAYMENT_TERMS_PRESETS.map(
@@ -550,7 +620,9 @@ export function wizard(root: HTMLElement, editId?: string): void {
 					s.termsCustom
 						? `<label>eigener Zahlungstext<textarea id="w-terms" rows="3" placeholder="z. B. Zahlbar innerhalb 14 Tagen ohne Abzug">${esc(s.paymentTerms)}</textarea></label>`
 						: ''
+				}`
 				}
+				<label>Notizen<textarea id="w-notes">${esc(s.notes)}</textarea></label>
 			</div>`;
 		}
 		if (s.step === 3) {
@@ -598,15 +670,22 @@ export function wizard(root: HTMLElement, editId?: string): void {
 						${breakdown.map(b => `<tr class="sub"><td class="lbl">USt ${esc(b.rate)} % auf ${eur(b.net)}</td><td class="r">${eur(b.tax)}</td></tr>`).join('')}
 						<tr class="sum total"><td class="lbl">Gesamtbetrag</td><td class="r">${eur(grossTotal)}</td></tr>
 						${
-							s.skontoPercent > 0
+							!isQuote(s.docType) && s.skontoPercent > 0
 								? `<tr class="sub"><td class="lbl">${esc(s.skontoPercent)} % Skonto bis ${esc(s.skontoDueDate || s.dueDate || '—')}</td><td class="r">−${eur(skontoAmount)}</td></tr>
 							<tr class="sum total"><td class="lbl">Zahlbetrag bei Skonto</td><td class="r">${eur(grossTotal - skontoAmount)}</td></tr>`
 								: ''
 						}
 					</tbody>
 				</table>
-				<p class="muted">Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.</p>
-				<p class="muted">Ausstellen vergibt endgültig die Rechnungsnummer — danach ist keine Änderung mehr möglich (GoBD).</p>
+				${
+					isQuote(s.docType)
+						? `<p class="muted">${esc(labels(s.docType).validUntil)} ${esc(
+								s.validUntil || addDays(s.issueDate, QUOTE_VALIDITY_DAYS),
+							)} — ein Angebot ist keine E-Rechnung: es gibt kein XML und keine XSD-Prüfung.</p>
+					<p class="muted">Ausstellen vergibt endgültig die Angebotsnummer aus dem eigenen Nummernkreis — die Rechnungsnummern bleiben davon unberührt.</p>`
+						: `<p class="muted">Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.</p>
+					<p class="muted">Ausstellen vergibt endgültig die Rechnungsnummer — danach ist keine Änderung mehr möglich (GoBD).</p>`
+				}
 			</div>`;
 		}
 		root.innerHTML = `${stepsBar()}${body}
@@ -614,7 +693,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 			${s.step === 3 ? `<div id="w-attachments"></div>` : ''}
 			<div class="row">
 				${s.step > 0 ? `<button class="secondary" id="w-back">Zurück</button>` : ''}
-				${s.step < 3 ? `<button id="w-next">Weiter</button>` : `<button id="w-save">Entwurf speichern</button><button id="w-issue">Ausstellen</button>`}
+				${s.step < 3 ? `<button id="w-next">Weiter</button>` : `<button id="w-save">Entwurf speichern</button><button id="w-issue">${esc(labels(s.docType).issue)}</button>`}
 				<button class="secondary" id="w-clear">Verwerfen</button>
 			</div>`;
 
@@ -667,6 +746,38 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		root.querySelector('#w-due')?.addEventListener('change', () => {
 			collect();
 			s.dueAuto = false;
+			render();
+		});
+		// R8: the type of a new document is chosen here; it decides the number
+		// circle, the wording and the review hints. An existing document keeps
+		// its type (the number circle hangs on it), so the field is not rendered.
+		root.querySelector('#w-doctype')?.addEventListener('change', event => {
+			const next = normalizeDocType((event.target as HTMLSelectElement).value);
+			if (next === s.docType) {
+				return;
+			}
+			collect();
+			s.docType = next;
+			s.dirty = true;
+			if (isQuote(next)) {
+				// an offer states a validity: no due date, no Skonto and no
+				// invoice payment terms travel with it
+				s.dueDate = '';
+				s.dueAuto = false;
+				s.skontoPercent = 0;
+				s.skontoDueDate = '';
+				s.paymentTerms = '';
+				s.termsCustom = false;
+				s.validUntil = addDays(s.issueDate, QUOTE_VALIDITY_DAYS);
+			} else {
+				s.validUntil = '';
+				s.paymentTerms = settings.defaultPaymentTerms;
+				s.termsCustom = isCustomTerms(settings.defaultPaymentTerms);
+				s.dueAuto = false;
+			}
+			if (!labels(next).titles.includes(s.documentTitle)) {
+				s.documentTitle = defaultTitle(next);
+			}
 			render();
 		});
 		root.querySelector('#w-company')?.addEventListener('change', () => {
@@ -777,7 +888,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		);
 		root.querySelector('#w-save')?.addEventListener('click', () => void save(false));
 		root.querySelector('#w-issue')?.addEventListener('click', () => {
-			if (!window.confirm('Wirklich ausstellen? Danach ist keine Änderung mehr möglich (GoBD).')) return;
+			if (!window.confirm(labels(s.docType).issueConfirm)) return;
 			void save(true);
 		});
 	}
@@ -800,12 +911,18 @@ export function wizard(root: HTMLElement, editId?: string): void {
 				deliveryDate: s.deliveryDate,
 				dueDate: s.dueDate || undefined,
 				currency: 'EUR',
+				// R8: the type travels with every write — it decides the number
+				// circle, the validation rules and the artifacts
+				docType: s.docType,
 			employeeCode: s.employee.trim() || undefined,
 			documentTitle: s.documentTitle,
 			notes: s.notes || undefined,
 			paymentTerms: s.paymentTerms || undefined,
 			skontoPercent: s.skontoPercent || undefined,
 			skontoDueDate: s.skontoDueDate || undefined,
+			// R8: an offer carries a validity; the server fills the 30-day
+			// default when the field is left empty
+			validUntil: isQuote(s.docType) ? s.validUntil || addDays(s.issueDate, QUOTE_VALIDITY_DAYS) : undefined,
 		};
 			try {
 				if (s.employee.trim()) {
@@ -869,6 +986,7 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		});
 		const get = (id: string): string =>
 			root.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value ?? '';
+		const issueBefore = s.issueDate;
 		const issue = get('w-issue');
 		const delivery = get('w-delivery');
 		const deliveryTo = get('w-delivery-to');
@@ -876,6 +994,8 @@ export function wizard(root: HTMLElement, editId?: string): void {
 		if (delivery) s.deliveryDate = deliveryTo && deliveryTo !== delivery ? `${delivery}..${deliveryTo}` : delivery;
 		if (root.querySelector('#w-due')) s.dueDate = get('w-due');
 		syncAutoDueDate(s);
+		if (root.querySelector('#w-valid')) s.validUntil = get('w-valid') || s.validUntil;
+		syncValidUntil(s, issueBefore);
 		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
 		const title = get('w-title');
 		if (title) s.documentTitle = title;
