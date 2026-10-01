@@ -56,16 +56,19 @@ function filteredInvoices(db, query) {
   const status = typeof query.status === "string" ? query.status : void 0;
   const year = typeof query.year === "string" ? Number(query.year) : void 0;
   const text = typeof query.q === "string" ? query.q : void 0;
+  const docType = typeof query.docType === "string" ? (0, import_invoice_model.normalizeDocumentType)(query.docType) : void 0;
   return db.listInvoices({
     status: status && ["draft", "issued", "cancelled"].includes(status) ? status : void 0,
     year: Number.isInteger(year) ? year : void 0,
+    docType,
     query: text,
     limit: 500
   });
 }
 function previewInvoice(draft) {
-  var _a, _b, _c, _d, _e, _f;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   const stamp = (/* @__PURE__ */ new Date()).toISOString();
+  const docType = (0, import_invoice_model.normalizeDocumentType)(draft.docType);
   return {
     id: "preview",
     number: "PREVIEW",
@@ -79,12 +82,18 @@ function previewInvoice(draft) {
     profile: "EN16931",
     status: "draft",
     templateId: null,
-    documentTitle: (_b = draft.documentTitle) != null ? _b : "Rechnung",
+    docType,
+    documentTitle: (_b = draft.documentTitle) != null ? _b : (0, import_invoice_model.defaultDocumentTitle)(docType),
     notes: (_c = draft.notes) != null ? _c : null,
     paymentTerms: (_d = draft.paymentTerms) != null ? _d : null,
     employeeCode: (_e = draft.employeeCode) != null ? _e : null,
     skontoPercent: Number(draft.skontoPercent) || 0,
     skontoDueDate: (_f = draft.skontoDueDate) != null ? _f : null,
+    validUntil: docType === "quote" ? ((_g = draft.validUntil) == null ? void 0 : _g.trim()) || (0, import_invoice_model.defaultValidUntil)(draft.issueDate) : (_h = draft.validUntil) != null ? _h : null,
+    sourceDocumentId: (_i = draft.sourceDocumentId) != null ? _i : null,
+    acceptedAt: null,
+    rejectedAt: null,
+    rejectionReason: null,
     sentAt: null,
     sendChannel: null,
     paymentCheck: null,
@@ -103,7 +112,7 @@ function previewInvoice(draft) {
   };
 }
 function storedToDraft(invoice) {
-  var _a, _b, _c;
+  var _a, _b, _c, _d, _e, _f;
   return {
     seller: invoice.seller,
     buyer: invoice.buyer,
@@ -112,9 +121,16 @@ function storedToDraft(invoice) {
     deliveryDate: invoice.deliveryDate,
     dueDate: (_a = invoice.dueDate) != null ? _a : void 0,
     currency: "EUR",
+    // R8: without the type the re-validation would test invoice rules
+    // against a quotation (and vice versa).
+    docType: invoice.docType,
+    validUntil: (_b = invoice.validUntil) != null ? _b : void 0,
+    employeeCode: (_c = invoice.employeeCode) != null ? _c : void 0,
+    skontoPercent: invoice.skontoPercent,
+    skontoDueDate: (_d = invoice.skontoDueDate) != null ? _d : void 0,
     documentTitle: invoice.documentTitle,
-    notes: (_b = invoice.notes) != null ? _b : void 0,
-    paymentTerms: (_c = invoice.paymentTerms) != null ? _c : void 0
+    notes: (_e = invoice.notes) != null ? _e : void 0,
+    paymentTerms: (_f = invoice.paymentTerms) != null ? _f : void 0
   };
 }
 function isMissingError(error) {
@@ -187,18 +203,21 @@ function secretEquals(provided, expected) {
   return (0, import_node_crypto.timingSafeEqual)(a, b);
 }
 function createApiServer(deps) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
   const { db, storage, log, version, authToken } = deps;
   const settings = {
     defaultVatRate: import_invoice_model.ALLOWED_VAT_RATES.includes(Number((_a = deps.settings) == null ? void 0 : _a.defaultVatRate)) ? Number((_b = deps.settings) == null ? void 0 : _b.defaultVatRate) : 19,
     defaultPaymentTerms: (_e = (_d = (_c = deps.settings) == null ? void 0 : _c.defaultPaymentTerms) == null ? void 0 : _d.trim()) != null ? _e : "",
     numberFormat: ((_g = (_f = deps.settings) == null ? void 0 : _f.numberFormat) == null ? void 0 : _g.trim()) || import_invoice_model.DEFAULT_NUMBER_FORMAT,
-    storageMount: (_j = (_i = (_h = deps.settings) == null ? void 0 : _h.storageMount) == null ? void 0 : _i.trim()) != null ? _j : "",
-    backupIntervalMinutes: Math.max(0, Math.round(Number((_k = deps.settings) == null ? void 0 : _k.backupIntervalMinutes) || 0))
+    // R8: quotations number in their own circle, so the PWA shows the
+    // matching format next to the invoice one.
+    quoteNumberFormat: ((_i = (_h = deps.settings) == null ? void 0 : _h.quoteNumberFormat) == null ? void 0 : _i.trim()) || import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
+    storageMount: (_l = (_k = (_j = deps.settings) == null ? void 0 : _j.storageMount) == null ? void 0 : _k.trim()) != null ? _l : "",
+    backupIntervalMinutes: Math.max(0, Math.round(Number((_m = deps.settings) == null ? void 0 : _m.backupIntervalMinutes) || 0))
   };
   const limits = {
-    api: Math.max(1, Math.round((_m = (_l = deps.limits) == null ? void 0 : _l.api) != null ? _m : 600)),
-    restore: Math.max(1, Math.round((_o = (_n = deps.limits) == null ? void 0 : _n.restore) != null ? _o : 10))
+    api: Math.max(1, Math.round((_o = (_n = deps.limits) == null ? void 0 : _n.api) != null ? _o : 600)),
+    restore: Math.max(1, Math.round((_q = (_p = deps.limits) == null ? void 0 : _p.restore) != null ? _q : 10))
   };
   const app = (0, import_express.default)();
   app.disable("x-powered-by");
@@ -290,7 +309,8 @@ function createApiServer(deps) {
       const query = typeof req.query.q === "string" ? req.query.q : void 0;
       const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : void 0;
       const offset = typeof req.query.offset === "string" ? Number(req.query.offset) : void 0;
-      res.json(db.listInvoices({ status, year, query, limit, offset }));
+      const docType = typeof req.query.docType === "string" ? (0, import_invoice_model.normalizeDocumentType)(req.query.docType) : void 0;
+      res.json(db.listInvoices({ status, year, docType, query, limit, offset }));
     })
   );
   app.post(
@@ -307,7 +327,8 @@ function createApiServer(deps) {
         return;
       }
       try {
-        const created = db.createDraft({ ...(0, import_invoice_model.blankDraft)(), ...input });
+        const docType = (0, import_invoice_model.normalizeDocumentType)(typeof input.docType === "string" ? input.docType : void 0);
+        const created = db.createDraft({ ...(0, import_invoice_model.blankDraft)((0, import_invoice_model.todayIso)(), docType), ...input, docType });
         log.info(`API draft created: ${created.id}`);
         res.status(201).json(created);
       } catch (error) {
@@ -549,6 +570,77 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query))}`);
         const result = db.reverseInvoice(routeParam(req, "id"), body.reason);
         log.info(`Storno created for ${result.original.number}: draft ${result.reversal.id}`);
         res.status(201).json(result);
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.post(
+    "/api/invoices/:id/quote-accept",
+    route((req, res) => {
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
+      if (body.at !== void 0 && typeof body.at !== "string") {
+        res.status(400).json({ error: "at must be an ISO timestamp" });
+        return;
+      }
+      try {
+        const updated = db.setQuoteDecision(routeParam(req, "id"), "accepted", {
+          at: typeof body.at === "string" ? body.at : void 0
+        });
+        log.info(`Quotation accepted: ${updated.number} (${updated.id})`);
+        res.json(updated);
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.post(
+    "/api/invoices/:id/quote-reject",
+    route((req, res) => {
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
+      if (body.at !== void 0 && typeof body.at !== "string") {
+        res.status(400).json({ error: "at must be an ISO timestamp" });
+        return;
+      }
+      if (body.reason !== void 0 && typeof body.reason !== "string") {
+        res.status(400).json({ error: "reason must be a string" });
+        return;
+      }
+      try {
+        const updated = db.setQuoteDecision(routeParam(req, "id"), "rejected", {
+          at: typeof body.at === "string" ? body.at : void 0,
+          reason: typeof body.reason === "string" ? body.reason : void 0
+        });
+        log.info(`Quotation rejected: ${updated.number} (${updated.id})`);
+        res.json(updated);
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
+      }
+    })
+  );
+  app.post(
+    "/api/invoices/:id/convert",
+    route((req, res) => {
+      var _a2;
+      const body = (_a2 = req.body) != null ? _a2 : {};
+      if (body.requireAccepted !== void 0 && typeof body.requireAccepted !== "boolean") {
+        res.status(400).json({ error: "requireAccepted must be a boolean" });
+        return;
+      }
+      const bad = findShapeError(body, { seller: "object", buyer: "object", lines: "array" });
+      if (bad) {
+        res.status(400).json({ error: bad });
+        return;
+      }
+      const { requireAccepted, ...patch } = body;
+      try {
+        const created = db.convertQuoteToInvoice(routeParam(req, "id"), patch, {
+          requireAccepted: requireAccepted !== false
+        });
+        log.info(`Quotation ${routeParam(req, "id")} converted to draft ${created.id}`);
+        res.status(201).json(created);
       } catch (error) {
         res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
       }
@@ -800,6 +892,8 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query))}`);
       let result;
       if (businessErrors.length > 0) {
         result = { formatErrors: [], businessErrors };
+      } else if ((0, import_invoice_model.isQuote)(invoice.docType)) {
+        result = { formatErrors: [], businessErrors: [] };
       } else {
         try {
           const preview = previewInvoice(draft);

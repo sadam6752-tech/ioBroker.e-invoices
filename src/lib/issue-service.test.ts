@@ -9,7 +9,12 @@ import { expect } from 'chai';
 import { inflateSync } from 'node:zlib';
 import { PDFArray, PDFDocument, PDFName } from 'pdf-lib';
 import { InvoiceDatabase } from './db';
-import { issueInvoiceWithArtifacts, rerenderInvoicePdf, type IssueStorage } from './issue-service';
+import {
+	collectReminderCandidates,
+	issueInvoiceWithArtifacts,
+	rerenderInvoicePdf,
+	type IssueStorage,
+} from './issue-service';
 import { DEFAULT_TEMPLATE } from './templates';
 import type { InvoiceDraftInput } from './invoice-model';
 
@@ -98,7 +103,7 @@ describe('issue => artifacts', function () {
 			expect(outcome.invoice.number).to.match(/^2026-00-\d{3}$/);
 			expect(outcome.invoice.status).to.equal('issued');
 			expect(files.get(outcome.pdfPath)!.subarray(0, 4).toString()).to.equal('%PDF');
-			expect(files.get(outcome.xmlPath)!.toString()).to.contain('CrossIndustryInvoice');
+			expect(files.get(outcome.xmlPath!)!.toString()).to.contain('CrossIndustryInvoice');
 			expect(files.has('invoices/2026/2026-00-001.xlsx')).to.equal(true);
 		} finally {
 			db.close();
@@ -274,7 +279,7 @@ describe('issue => attachments (R4)', function () {
 			// the PDF also lists it for the reader
 			expect(pdfText(files.get(outcome.pdfPath)!)).to.contain('n.png');
 			// and the XML carries it as BG-24 with the embedded payload
-			const xml = files.get(outcome.xmlPath)!.toString('utf8');
+			const xml = files.get(outcome.xmlPath!)!.toString('utf8');
 			expect(xml).to.contain('<ram:AdditionalReferencedDocument>');
 			expect(xml).to.contain(png.toString('base64'));
 
@@ -302,6 +307,151 @@ describe('issue => attachments (R4)', function () {
 			expect(pdfText(files.get(result.pdfPath)!)).to.contain('n.png');
 			// the original file stays retrievable, attachments included
 			expect(await associatedFiles(files.get(result.archivedPath!)!)).to.equal(2);
+		} finally {
+			db.close();
+		}
+	});
+});
+
+describe('issue => quotations (R8)', function () {
+	this.timeout(60000);
+
+	/** PNG signature plus IHDR — the content decides the accepted type. */
+	const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48]);
+
+	const quote: InvoiceDraftInput = {
+		...draft,
+		docType: 'quote',
+		documentTitle: 'Angebot',
+		validUntil: '2026-10-28',
+	};
+
+	/**
+	 * Number of associated files in a PDF (the Factur-X XML plus the Anlagen).
+	 *
+	 * @param pdf - PDF bytes.
+	 */
+	async function associatedFiles(pdf: Buffer): Promise<number> {
+		const doc = await PDFDocument.load(pdf, { updateMetadata: false });
+		return doc.catalog.lookupMaybe(PDFName.of('AF'), PDFArray)?.size() ?? 0;
+	}
+
+	it('issues a quotation as a plain sight PDF without XML', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const files = new Map<string, Buffer>();
+		try {
+			const created = db.createDraft(quote);
+			const storage = memStorage(files);
+			const outcome = await issueInvoiceWithArtifacts(db, logger, created.id, storage);
+
+			// its own number circle and no XML artifact at all (R8)
+			expect(outcome.invoice.number).to.equal('A-2026-00-001');
+			expect(outcome.xmlPath).to.equal(null);
+			expect(outcome.invoice.xml).to.equal(null);
+			expect(outcome.invoice.validUntil).to.equal('2026-10-28');
+			expect(storage.writes).to.deep.equal([
+				'invoices/2026/A-2026-00-001.pdf',
+				'invoices/2026/A-2026-00-001.xlsx',
+			]);
+
+			const pdf = files.get(outcome.pdfPath)!;
+			expect(pdf.subarray(0, 4).toString()).to.equal('%PDF');
+			expect(await associatedFiles(pdf)).to.equal(0);
+			expect(pdf.toString('latin1')).to.not.contain('CrossIndustryInvoice');
+			// the file is titled as an offer, not as a hybrid e-invoice
+			expect(pdfText(pdf)).to.contain('Angebot');
+			expect(logs.join('\n')).to.contain('Quotation issued: A-2026-00-001');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('lists attachments of a quotation instead of embedding them', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const files = new Map<string, Buffer>();
+		try {
+			const created = db.createDraft(quote);
+			db.addAttachment(created.id, { filename: 'n.png', mime: 'image/png', data: png });
+			const outcome = await issueInvoiceWithArtifacts(db, logger, created.id, memStorage(files));
+
+			// R8: no PDF/A-3 container and no BG-24 — the file travels beside the PDF
+			const pdf = files.get(outcome.pdfPath)!;
+			expect(await associatedFiles(pdf)).to.equal(0);
+			// nothing is embedded: the Anlagenverzeichnis is plain page text only
+			expect(pdf.toString('latin1')).to.not.contain('n.png');
+			expect(db.listAttachments(outcome.invoice.id)).to.have.lengthOf(1);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('documents the decision of an offer without changing its artifacts', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const files = new Map<string, Buffer>();
+		try {
+			const created = db.createDraft(quote);
+			const issued = await issueInvoiceWithArtifacts(db, logger, created.id, memStorage(files));
+			db.setQuoteDecision(issued.invoice.id, 'accepted', { at: '2026-10-02T09:00:00.000Z' });
+			const accepted = await rerenderInvoicePdf(
+				db,
+				logger,
+				issued.invoice.id,
+				memStorage(files),
+				'Kunde hat zugesagt',
+			);
+
+			// a re-render of a sight PDF must not invent an XML either
+			expect(accepted.invoice.xml).to.equal(null);
+			expect(files.has('invoices/2026/A-2026-00-001.xml')).to.equal(false);
+			// the original stays retrievable and the reason is on record
+			expect(files.has('invoices/2026/A-2026-00-001.orig-1.pdf')).to.equal(true);
+			expect(db.listRenderHistory(issued.invoice.id)[0].reason).to.equal('Kunde hat zugesagt');
+			expect(accepted.invoice.acceptedAt).to.equal('2026-10-02T09:00:00.000Z');
+
+			const refusedDraft = db.createDraft({ ...quote, issueDate: '2026-10-05' });
+			const refused = await issueInvoiceWithArtifacts(db, logger, refusedDraft.id, memStorage(files));
+			db.setQuoteDecision(refused.invoice.id, 'rejected', {
+				at: '2026-10-06T09:00:00.000Z',
+				reason: 'zu teuer',
+			});
+			const rejected = await rerenderInvoicePdf(db, logger, refused.invoice.id, memStorage(files), null);
+			// the refused offer keeps its number, its validity and its plain PDF
+			expect(rejected.invoice.number).to.equal('A-2026-00-002');
+			expect(rejected.invoice.validUntil).to.equal('2026-10-28');
+			expect(rejected.invoice.rejectionReason).to.equal('zu teuer');
+			expect(rejected.invoice.rejectedAt).to.equal('2026-10-06T09:00:00.000Z');
+			expect(await associatedFiles(files.get(rejected.pdfPath)!)).to.equal(0);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('never chases a quotation and links it to the invoice it produced', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			// a quotation can carry a due date, but it is not a debt
+			const overdue = { ...quote, dueDate: '2026-01-05' };
+			const quoteId = db.createDraft(overdue).id;
+			const invoiceId = db.createDraft({ ...draft, dueDate: '2026-01-05' }).id;
+			await issueInvoiceWithArtifacts(db, logger, quoteId, memStorage(new Map()));
+			await issueInvoiceWithArtifacts(db, logger, invoiceId, memStorage(new Map()));
+
+			const candidates = collectReminderCandidates(db, '2026-09-28');
+			expect(candidates.map(candidate => candidate.invoice.docType)).to.deep.equal(['invoice']);
+
+			// the chain Angebot -> Rechnung that the PDFs print is the stored link
+			const converted = db.convertQuoteToInvoice(quoteId, {}, { requireAccepted: false });
+			const issuedConverted = await issueInvoiceWithArtifacts(db, logger, converted.id, memStorage(new Map()));
+			expect(issuedConverted.invoice.sourceDocumentId).to.equal(quoteId);
+			const children = db.listInvoices({ sourceDocumentId: quoteId });
+			expect(children.map(child => child.number)).to.deep.equal(['2026-00-002']);
+			// and the offer itself is still the offer
+			expect(db.getInvoice(quoteId)?.docType).to.equal('quote');
+			expect(db.getInvoice(quoteId)?.number).to.equal('A-2026-00-001');
 		} finally {
 			db.close();
 		}

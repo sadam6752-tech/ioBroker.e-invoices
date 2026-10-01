@@ -122,6 +122,15 @@ export interface InvoiceDraftInput {
 	currency?: string;
 	/** Employee code for numbering (e.g. `01`), defaults to `00`. */
 	employeeCode?: string;
+	/** Document type (R8): invoice (default) or quotation. */
+	docType?: DocumentType;
+	/** Quotation only: last day the offer stands, ISO `YYYY-MM-DD` (optional). */
+	validUntil?: string;
+	/**
+	 * Quotation this document was created from (R8). Set by the conversion —
+	 * never typed by the user — so the chain Angebot → Rechnung stays traceable.
+	 */
+	sourceDocumentId?: string;
 	/** Payment terms text, e.g. Skonto (optional). */
 	paymentTerms?: string;
 	/** Cash discount in percent, 0-100 (optional, EN 16931 BT-147). */
@@ -136,6 +145,188 @@ export interface InvoiceDraftInput {
 
 /** Invoice lifecycle status. */
 export type InvoiceStatus = 'draft' | 'issued' | 'cancelled';
+
+/**
+ * Document type (R8). The *technical* behaviour hangs off this value: a quote
+ * never enters the CII/EN 16931 path, has its own number circle and no
+ * retention. `documentTitle` stays a pure display label.
+ */
+export type DocumentType = 'invoice' | 'quote';
+
+/** All known document types, default first. */
+export const DOCUMENT_TYPES: DocumentType[] = ['invoice', 'quote'];
+
+/**
+ * Narrows an unknown value to a supported document type (default invoice).
+ *
+ * @param value - Raw document type as typed by a user or stored in the DB.
+ */
+export function normalizeDocumentType(value?: string | null): DocumentType {
+	const raw = (value ?? '').trim().toLowerCase();
+	return raw === 'quote' ? 'quote' : 'invoice';
+}
+
+/**
+ * True for a quotation — the guard for "never an e-invoice" (R8).
+ *
+ * @param docType - Document type to inspect.
+ */
+export function isQuote(docType?: string | null): boolean {
+	return normalizeDocumentType(docType) === 'quote';
+}
+
+/**
+ * Display title used when the user did not type one.
+ *
+ * @param docType - Document type, defaults to invoice.
+ */
+export function defaultDocumentTitle(docType?: string | null): string {
+	return isQuote(docType) ? 'Angebot' : 'Rechnung';
+}
+
+/** Display titles a quotation may carry (offered in the PWA). */
+export const QUOTE_TITLES: string[] = ['Angebot', 'Kostenvoranschlag'];
+
+/** Display titles an invoice may carry (offered in the PWA). */
+export const INVOICE_TITLES: string[] = ['Rechnung', 'Abschlagsrechnung', 'Schlussrechnung', 'Gutschrift'];
+
+/** Default validity of a quotation in days (R8). */
+export const QUOTE_VALIDITY_DAYS = 30;
+
+/** Customer decision on a quotation (R8). */
+export type QuoteDecision = 'accepted' | 'rejected';
+
+/**
+ * Adds whole days to an ISO date with UTC arithmetic, so the result never
+ * drifts over a timezone boundary.
+ *
+ * @param iso - ISO date `YYYY-MM-DD`.
+ * @param days - Days to add, may be negative.
+ * @returns The shifted ISO date, or the input when it is not a date.
+ */
+export function addDaysIso(iso: string, days: number): string {
+	if (!isIsoDate(iso)) {
+		return iso;
+	}
+	const base = Date.parse(`${iso}T00:00:00Z`);
+	return new Date(base + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Default end of validity of a quotation: 30 days after the issue date (R8,
+ * "Gültig bis"). Used when the user leaves the field empty.
+ *
+ * @param issueDate - ISO issue date of the quotation.
+ */
+export function defaultValidUntil(issueDate: string): string {
+	return addDaysIso(issueDate, QUOTE_VALIDITY_DAYS);
+}
+
+/** State of a quotation, derived from its stored dates (R8). */
+export type QuoteState = 'draft' | 'open' | 'accepted' | 'rejected' | 'expired';
+
+/** Fields the quotation state is derived from. */
+export interface QuoteLifecycle {
+	/** Lifecycle status of the record. */
+	status: InvoiceStatus;
+	/** Last day the offer stands, null for an open-ended offer. */
+	validUntil: string | null;
+	/** When the customer accepted the offer. */
+	acceptedAt: string | null;
+	/** When the customer declined the offer. */
+	rejectedAt: string | null;
+}
+
+/**
+ * Derives the state of a quotation. "Verfallen" is computed from `validUntil`
+ * and never stored, so the adapter needs no background job for it.
+ *
+ * @param quote - Lifecycle fields of the quotation.
+ * @param today - ISO reference date, default today.
+ */
+export function quoteState(quote: QuoteLifecycle, today: string = todayIso()): QuoteState {
+	if (quote.acceptedAt) {
+		return 'accepted';
+	}
+	// a discarded quotation is off the table for good
+	if (quote.rejectedAt || quote.status === 'cancelled') {
+		return 'rejected';
+	}
+	if (quote.status === 'draft') {
+		return 'draft';
+	}
+	if (quote.validUntil && isIsoDate(quote.validUntil) && quote.validUntil < today) {
+		return 'expired';
+	}
+	return 'open';
+}
+
+/**
+ * German label of a quotation state (PWA badge, PDF note).
+ *
+ * @param state - Derived state.
+ */
+export function quoteStateLabel(state: QuoteState): string {
+	switch (state) {
+		case 'draft':
+			return 'Entwurf';
+		case 'open':
+			return 'Offen';
+		case 'accepted':
+			return 'Angenommen';
+		case 'rejected':
+			return 'Abgelehnt';
+		default:
+			return 'Verfallen';
+	}
+}
+
+/** Sight-PDF wording that differs between invoices and quotations (R8). */
+export interface DocumentLabels {
+	/** Meta label of the document number. */
+	number: string;
+	/** Meta label of the issue date. */
+	date: string;
+	/** Meta label of the delivery/service date. */
+	delivery: string;
+	/** Meta label of the payment due date. */
+	due: string;
+	/** Meta label of the end of validity (quotation). */
+	validUntil: string;
+	/** Wording of a cash-discount line, e.g. "je Rechnung". */
+	perDocument: string;
+	/** PDF metadata subject. */
+	subject: string;
+}
+
+/**
+ * Returns the sight-PDF wording for a document type. The XML keeps its neutral
+ * EN 16931 wording — this is display only.
+ *
+ * @param docType - Document type, defaults to invoice.
+ */
+export function documentLabels(docType?: string | null): DocumentLabels {
+	if (isQuote(docType)) {
+		return {
+			number: 'Angebotsnr.:',
+			date: 'Angebotsdatum:',
+			delivery: 'Leistungszeitraum:',
+			due: 'Zahlungsziel:',
+			validUntil: 'Gültig bis:',
+			perDocument: 'je Angebot',
+			subject: 'Angebot (Sichtkomponente, ohne E-Rechnungs-XML)',
+		};
+	}
+	return {
+		number: 'Rechnungsnr.:',
+		date: 'Rechnungsdatum:',
+		delivery: 'Lieferdatum:',
+		due: 'Fällig am:',
+		validUntil: 'Gültig bis:',
+		perDocument: 'je Rechnung',
+		subject: 'E-Rechnung Sichtkomponente (ZUGFeRD)',
+	};
+}
 
 /** Supported ZUGFeRD profiles (MINIMUM / BASIC-WL are rejected). */
 export type ZugferdProfile = 'BASIC' | 'EN16931' | 'EXTENDED' | 'XRECHNUNG';
@@ -154,6 +345,12 @@ export function roundCents(value: number): number {
 
 /** Default invoice number pattern: year, employee code, sequence. */
 export const DEFAULT_NUMBER_FORMAT = '{YYYY}-{EMPLOYEE}-{SEQ}';
+
+/**
+ * Default quotation number pattern. A different circle with a visible prefix:
+ * `A-2026-01-001`. It never touches the invoice sequence.
+ */
+export const DEFAULT_QUOTE_NUMBER_FORMAT = 'A-{YYYY}-{EMPLOYEE}-{SEQ}';
 
 /** Tokens accepted in a custom number format. */
 const NUMBER_FORMAT_TOKENS = ['YYYY', 'EMPLOYEE', 'SEQ'] as const;
@@ -479,9 +676,11 @@ export function paymentCheckDuty(
  * validation happens only at issue.
  *
  * @param date - Prefill date for issue/delivery, defaults to today.
+ * @param docType - Document type of the new draft, defaults to an invoice.
  */
-export function blankDraft(date = todayIso()): InvoiceDraftInput {
+export function blankDraft(date = todayIso(), docType: DocumentType = 'invoice'): InvoiceDraftInput {
 	const emptyParty: Party = { name: '', street: '', zip: '', city: '', country: 'DE' };
+	const kind = normalizeDocumentType(docType);
 	return {
 		seller: { ...emptyParty },
 		buyer: { ...emptyParty },
@@ -489,7 +688,12 @@ export function blankDraft(date = todayIso()): InvoiceDraftInput {
 		issueDate: date,
 		deliveryDate: date,
 		currency: 'EUR',
-		documentTitle: 'Rechnung',
+		// a new document starts as an invoice unless the caller asks for a
+		// quotation; the PWA switches the type in the wizard, too (R8)
+		docType: kind,
+		documentTitle: defaultDocumentTitle(kind),
+		// a quotation carries a validity date from the start (R8)
+		validUntil: isQuote(kind) ? defaultValidUntil(date) : undefined,
 	};
 }
 
@@ -499,7 +703,9 @@ function isBlank(value: string | undefined): boolean {
 
 /**
  * Validates a draft against the German Pflichtangaben for issue.
- * Returns a list of human-readable errors; empty means issuable.
+ * The required set depends on the document type (R8): a quotation needs no
+ * BT-10 and no Skonto, an invoice does. Returns a list of human-readable
+ * errors; empty means issuable.
  * Drafts may be incomplete — call this only on the issue path.
  *
  * @param input - Invoice draft to validate.
@@ -507,6 +713,9 @@ function isBlank(value: string | undefined): boolean {
 export function validateInvoiceForIssue(input: InvoiceDraftInput): string[] {
 	const errors: string[] = [];
 	const { seller, buyer, lines } = input;
+	// R8: a quotation has its own, smaller Pflicht-set. It is a plain PDF and
+	// never enters the CII/EN 16931 path, so BT-10 and Skonto do not apply.
+	const quote = isQuote(input.docType);
 
 	if (isBlank(seller.name) || isBlank(seller.street) || isBlank(seller.zip) || isBlank(seller.city)) {
 		errors.push('Seller needs full name and address (name, street, zip, city).');
@@ -519,7 +728,7 @@ export function validateInvoiceForIssue(input: InvoiceDraftInput): string[] {
 	}
 	// BT-10 (Käuferreferenz) is mandatory in the German EN 16931 profile; without
 	// it the receiver's validation tooling rejects the invoice
-	if (isBlank(buyer.customerNumber)) {
+	if (!quote && isBlank(buyer.customerNumber)) {
 		errors.push('Buyer needs a customer number (Kundennummer, BT-10) for the German e-invoice.');
 	}
 	if (isBlank(input.issueDate) || !isIsoDate(input.issueDate)) {
@@ -533,7 +742,14 @@ export function validateInvoiceForIssue(input: InvoiceDraftInput): string[] {
 			'Delivery/service date must be a real calendar date (YYYY-MM-DD) or a period (YYYY-MM-DD..YYYY-MM-DD).',
 		);
 	}
-	if (input.skontoPercent !== undefined) {
+	if (isQuote(input.docType) && !isBlank(input.validUntil)) {
+		if (!isIsoDate(input.validUntil as string)) {
+			errors.push('Valid-until date must be a real calendar date (YYYY-MM-DD).');
+		} else if (isIsoDate(input.issueDate) && (input.validUntil as string) < input.issueDate) {
+			errors.push('Valid-until date must not be before the issue date.');
+		}
+	}
+	if (!quote && input.skontoPercent !== undefined) {
 		const skonto = Number(input.skontoPercent);
 		if (!(skonto >= 0) || skonto > 100) {
 			errors.push('Skonto must be between 0 and 100 percent.');

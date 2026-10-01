@@ -10,9 +10,22 @@
  */
 import PDFDocument from 'pdfkit';
 import { FONT_BOLD, FONT_REGULAR, registerFonts } from './fonts';
-import { calcSkonto, calcTotals, formatDeliveryDateDe, lineNetAmount, lineNetUnitPrice } from './invoice-model';
-import { ATTACHMENT_EMBED_HINT, attachmentTypeLabel, formatFileSize } from './pdf-attachments';
-import { ARCHIVE_HINT, DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
+import {
+	calcSkonto,
+	calcTotals,
+	documentLabels,
+	formatDeliveryDateDe,
+	isQuote,
+	lineNetAmount,
+	lineNetUnitPrice,
+} from './invoice-model';
+import {
+	ATTACHMENT_EMBED_HINT,
+	ATTACHMENT_SEPARATE_HINT,
+	attachmentTypeLabel,
+	formatFileSize,
+} from './pdf-attachments';
+import { ARCHIVE_HINT, DEFAULT_QUOTE_INTRO, DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
 import type { StoredInvoice } from './db';
 
 /**
@@ -101,6 +114,19 @@ export interface InvoiceRenderContext {
 	stornoOfNumber?: string | null;
 	/** Attachments embedded into the file; they are listed in the sight part. */
 	attachments?: InvoiceAttachmentSummary[];
+	/**
+	 * Number of the quotation this invoice was created from (R8). Printed as a
+	 * reference, so the chain Angebot → Rechnung stays visible on paper.
+	 */
+	sourceDocumentNumber?: string | null;
+	/** Numbers of the invoices a quotation led to (R8). */
+	relatedNumbers?: string[];
+	/**
+	 * Ready-made note about the customer decision on a quotation ("Angenommen
+	 * am …"), null for an invoice. Built by the caller, so the renderer stays
+	 * free of lifecycle logic.
+	 */
+	decisionNote?: string | null;
 }
 
 /**
@@ -112,6 +138,9 @@ export interface InvoiceRenderContext {
  * @param context - Extra render context.
  * @param context.stornoOfNumber - Number of the invoice this one reverses.
  * @param context.attachments - Attachments embedded into the file (R4).
+ * @param context.sourceDocumentNumber - Number of the quotation behind this invoice (R8).
+ * @param context.relatedNumbers - Numbers of the invoices a quotation led to (R8).
+ * @param context.decisionNote - Decision line of a quotation (R8).
  */
 export async function renderInvoicePdf(
 	invoice: StoredInvoice,
@@ -138,12 +167,20 @@ export async function renderInvoicePdf(
 	const accentFill = usePrimary ? colors.primary : HEADER_GRAY;
 	const titleAccent = usePrimary && (template.titleAccent ?? DEFAULT_TEMPLATE.titleAccent);
 	const headerAccent = usePrimary && (template.tableHeaderAccent ?? DEFAULT_TEMPLATE.tableHeaderAccent);
-	const intro = template.introText ?? DEFAULT_TEMPLATE.introText;
+	// R8: an invoice with invoice wording, a quotation with offer wording. A
+	// template that was given its own intro text always wins.
+	const introText = template.introText ?? DEFAULT_TEMPLATE.introText;
 	const closing = template.closingText ?? DEFAULT_TEMPLATE.closingText;
 	// Kein Rückfall auf den Firmennamen: die Namenszeile erscheint nur, wenn im
 	// Template bewusst ein Unterschriftsname gepflegt wurde.
 	const signature = template.signatureName?.trim() || '';
 	const showTagline = template.showTagline ?? true;
+	// R8: labels and reference lines depend on the document type (quote vs.
+	// invoice), never on the free display title.
+	const labels = documentLabels(invoice.docType);
+	const quote = isQuote(invoice.docType);
+	const intro = quote && introText === DEFAULT_TEMPLATE.introText ? DEFAULT_QUOTE_INTRO : introText;
+	const relatedNumbers = (context.relatedNumbers ?? []).filter(number => number.trim() !== '');
 
 	return new Promise<Buffer>((resolve, reject) => {
 		const doc = new PDFDocument({
@@ -153,7 +190,7 @@ export async function renderInvoicePdf(
 			info: {
 				Title: `${invoice.documentTitle} ${invoice.number}`,
 				Author: invoice.seller.name,
-				Subject: 'E-Rechnung Sichtkomponente (ZUGFeRD)',
+				Subject: labels.subject,
 				Creator: 'ioBroker.e-invoices',
 			},
 		});
@@ -236,13 +273,18 @@ export async function renderInvoicePdf(
 		}
 		doc.font(FONT_REGULAR).fontSize(10);
 		const meta: [string, string][] = [
-			['Rechnungsnr.:', invoiceNumber],
-			['Rechnungsdatum:', formatDeDate(invoice.issueDate)],
-			['Lieferdatum:', formatDeDate(invoice.deliveryDate)],
+			[labels.number, invoiceNumber],
+			[labels.date, formatDeDate(invoice.issueDate)],
+			[labels.delivery, formatDeDate(invoice.deliveryDate)],
 			...(template.showCustomerNumber && invoice.buyer.customerNumber
 				? [['Kundennr.:', invoice.buyer.customerNumber] as [string, string]]
 				: []),
-			...(invoice.dueDate ? [['Fällig am:', formatDeDate(invoice.dueDate)] as [string, string]] : []),
+			// R8: a quotation states until when it stands, an invoice when it
+			// has to be paid
+			...(quote && invoice.validUntil
+				? [[labels.validUntil, formatDeDate(invoice.validUntil)] as [string, string]]
+				: []),
+			...(invoice.dueDate ? [[labels.due, formatDeDate(invoice.dueDate)] as [string, string]] : []),
 		];
 		let my = cursor + 4;
 		for (const [label, value] of meta) {
@@ -276,6 +318,22 @@ export async function renderInvoicePdf(
 			);
 			doc.fillColor(colors.text).fontSize(10);
 			cursor += 14;
+		}
+		// R8: the chain Angebot → Rechnung is documented on both papers, and a
+		// quotation carries the customer's decision.
+		const references = [
+			context.sourceDocumentNumber ? `Zugrunde liegendes Angebot: ${context.sourceDocumentNumber}.` : '',
+			relatedNumbers.length > 0 ? `Daraus hervorgegangene Rechnung(en): ${relatedNumbers.join(', ')}.` : '',
+			context.decisionNote?.trim() ?? '',
+		].filter(line => line !== '');
+		if (references.length > 0) {
+			doc.fillColor(colors.muted).fontSize(9);
+			for (const line of references) {
+				doc.text(line, left, cursor, { width: pageWidth });
+				cursor += 12;
+			}
+			doc.fillColor(colors.text).fontSize(10);
+			cursor += 2;
 		}
 		if (intro.trim()) {
 			doc.text(intro.trim(), left, cursor, { width: pageWidth });
@@ -436,7 +494,7 @@ export async function renderInvoicePdf(
 			ensureSpace(30);
 			doc.fillColor(colors.muted).fontSize(9);
 			doc.text(
-				`Bei Zahlung bis ${formatDeDate(skonto.dueDate ?? '')} ${formatEurDe(skonto.payableNow)} je Rechnung ` +
+				`Bei Zahlung bis ${formatDeDate(skonto.dueDate ?? '')} ${formatEurDe(skonto.payableNow)} ${labels.perDocument} ` +
 					`(${skonto.percent} % Skonto = ${formatEurDe(skonto.amount)}).`,
 				left,
 				rowY,
@@ -562,13 +620,14 @@ export async function renderInvoicePdf(
 			rowY = footTop + maxLines * lineHeight + 8;
 		}
 
-		// R4: Anlagenverzeichnis. The files are embedded in this very PDF
-		// (PDF/A-3) and listed here, so the reader sees that nothing was left
-		// out — a table of contents, not a set of links (PROMPT §2).
+		// R4: Anlagenverzeichnis. For an invoice the files are embedded in this
+		// very PDF (PDF/A-3), for a quotation (R8) they travel next to it — the
+		// list is a table of contents either way, never a set of links.
 		const attachments = context.attachments ?? [];
 		if (attachments.length > 0) {
+			const attachHint = quote ? ATTACHMENT_SEPARATE_HINT : ATTACHMENT_EMBED_HINT;
 			doc.fontSize(9).font(FONT_REGULAR);
-			const hintHeight = doc.heightOfString(ATTACHMENT_EMBED_HINT, { width: pageWidth });
+			const hintHeight = doc.heightOfString(attachHint, { width: pageWidth });
 			// the whole block moves to the next page when it does not fit
 			ensureSpace(30 + attachments.length * 12 + hintHeight);
 			doc.fontSize(10).font(FONT_BOLD).fillColor(colors.text);
@@ -584,12 +643,13 @@ export async function renderInvoicePdf(
 				doc.text(label, left + 8, rowY, { width: pageWidth - 8, height: 12, ellipsis: true });
 				rowY += 12;
 			});
-			doc.text(ATTACHMENT_EMBED_HINT, left, rowY, { width: pageWidth });
+			doc.text(attachHint, left, rowY, { width: pageWidth });
 			rowY += hintHeight + 8;
 			doc.fontSize(10).fillColor(colors.text);
 		}
 
-		if (template.showArchiveHint) {
+		// § 14b Abs. 1 S. 5 UStG applies to an invoice, never to a quotation (R8)
+		if (template.showArchiveHint && !quote) {
 			ensureSpace(36);
 			doc.fontSize(9).fillColor(colors.muted).text(ARCHIVE_HINT, left, rowY, { width: pageWidth });
 			doc.fontSize(10).fillColor(colors.text);

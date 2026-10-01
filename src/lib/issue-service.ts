@@ -6,10 +6,10 @@
  * injected storage: the adapter passes its file mountpoint, tests pass an
  * in-memory map. Rendering uses the default layout template (+ logo).
  */
-import type { InvoiceDatabase, StoredInvoice } from './db';
+import type { InvoiceDatabase, StoredAttachmentMeta, StoredInvoice } from './db';
 import { renderInvoiceWorkbook } from './excel';
-import { daysBetween, todayIso } from './invoice-model';
-import { renderInvoicePdf, type TemplateLogoImage } from './pdf';
+import { daysBetween, isQuote, quoteState, todayIso } from './invoice-model';
+import { formatDeDate, renderInvoicePdf, type InvoiceRenderContext, type TemplateLogoImage } from './pdf';
 import { embedPdfAttachments } from './pdf-attachments';
 import { DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
 import { embedHybridPdf, generateInvoiceXml } from './zugferd';
@@ -42,10 +42,61 @@ export interface IssueLogger {
 export interface IssueOutcome {
 	/** Issued invoice with number and artifact links. */
 	invoice: StoredInvoice;
-	/** Relative path of the hybrid PDF. */
+	/** Relative path of the sight/hybrid PDF. */
 	pdfPath: string;
-	/** Relative path of the standalone XML. */
-	xmlPath: string;
+	/** Relative path of the standalone XML; null for a quotation (R8). */
+	xmlPath: string | null;
+}
+
+/**
+ * Decision line of a quotation for the sight PDF (R8). Null for an invoice and
+ * for a quotation without a decision — the renderer prints only what exists.
+ *
+ * @param invoice - Stored document.
+ */
+function quoteDecisionNote(invoice: StoredInvoice): string | null {
+	if (!isQuote(invoice.docType)) {
+		return null;
+	}
+	const state = quoteState(invoice);
+	if (state === 'accepted' && invoice.acceptedAt) {
+		return `Das Angebot wurde am ${formatDeDate(invoice.acceptedAt.slice(0, 10))} angenommen.`;
+	}
+	if (state === 'rejected') {
+		const when = invoice.rejectedAt ? ` am ${formatDeDate(invoice.rejectedAt.slice(0, 10))}` : '';
+		const why = invoice.rejectionReason?.trim() ? ` (${invoice.rejectionReason.trim()})` : '';
+		return `Das Angebot wurde${when} abgelehnt${why}.`;
+	}
+	if (state === 'expired' && invoice.validUntil) {
+		return `Das Angebot ist am ${formatDeDate(invoice.validUntil)} verfallen.`;
+	}
+	return null;
+}
+
+/**
+ * Builds the extra render context: Storno reference, attachments and the
+ * quotation chain (R8). An invoice names the offer it came from, a quotation
+ * names the invoices that followed it, plus the customer's decision.
+ *
+ * @param db - Open invoice database.
+ * @param invoice - Document that is about to be rendered.
+ * @param attachments - Attachments of that document.
+ */
+function buildRenderContext(
+	db: InvoiceDatabase,
+	invoice: StoredInvoice,
+	attachments: StoredAttachmentMeta[],
+): InvoiceRenderContext {
+	const source = invoice.sourceDocumentId ? db.getInvoice(invoice.sourceDocumentId) : null;
+	return {
+		stornoOfNumber: invoice.stornoOfId ? (db.getInvoice(invoice.stornoOfId)?.number ?? null) : null,
+		attachments,
+		sourceDocumentNumber: source?.number ?? null,
+		relatedNumbers: isQuote(invoice.docType)
+			? db.listInvoices({ sourceDocumentId: invoice.id, limit: 50 }).map(child => child.number ?? '')
+			: [],
+		decisionNote: quoteDecisionNote(invoice),
+	};
 }
 
 /**
@@ -73,50 +124,58 @@ export async function issueInvoiceWithArtifacts(
 		throw new Error('Only drafts can be issued');
 	}
 	const issued = db.issueDraft(invoiceId);
-	log.info(`Invoice issued: ${issued.number} (${issued.id})`);
+	const quote = isQuote(issued.docType);
+	log.info(`${quote ? 'Quotation' : 'Invoice'} issued: ${issued.number} (${issued.id})`);
 
 	const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
 	// R4: the attachments of the draft travel with it. They are read before the
 	// records are written: the file becomes part of the e-invoice, so they have
 	// to sit in the PDF container (PDF/A-3) and — EN 16931 — in the XML (BG-24).
 	const attachments = db.listAttachments(invoiceId);
-	const { xml, attachmentDocuments } = await generateInvoiceXml(issued, attachments);
-	const sight = await renderInvoicePdf(issued, template, logo, {
-		stornoOfNumber: issued.stornoOfId ? (db.getInvoice(issued.stornoOfId)?.number ?? null) : null,
-		attachments,
-	});
+	// R8: a quotation is not an e-invoice. No CII XML, no PDF/A-3 container and
+	// no BG-24 — it ships as a plain sight PDF whose files travel next to it.
+	const generated = quote ? null : await generateInvoiceXml(issued, attachments);
+	const xml = generated?.xml ?? null;
+	const attachmentDocuments = generated?.attachmentDocuments ?? 0;
+	const sight = await renderInvoicePdf(issued, template, logo, buildRenderContext(db, issued, attachments));
 	// `pdf-lib` appends to the existing /AF array, so the Factur-X step below
 	// stays the last writer: it owns the XMP packet, the output intent and the
 	// trailer /ID that PDF/A-3b is checked for.
-	const hybrid = await embedHybridPdf(
-		await embedPdfAttachments(sight, attachments),
-		xml,
-		issued.profile,
-		`${issued.documentTitle} ${issued.number}`,
-	);
+	const hybrid = xml
+		? await embedHybridPdf(
+				await embedPdfAttachments(sight, attachments),
+				xml,
+				issued.profile,
+				`${issued.documentTitle} ${issued.number}`,
+			)
+		: sight;
 	const xlsx = await renderInvoiceWorkbook(issued);
 	const base = `invoices/${issued.issueDate.slice(0, 4)}/${issued.number}`;
 	if (attachments.length > 0) {
 		log.info(
-			`Attachments: ${attachments.length} embedded in the PDF, ` +
-				`${attachmentDocuments} written into the XML (BG-24)`,
+			quote
+				? `Attachments: ${attachments.length} listed in the quotation PDF (not embedded, R8)`
+				: `Attachments: ${attachments.length} embedded in the PDF, ${attachmentDocuments} written into the XML (BG-24)`,
 		);
 	}
 
 	// Only paths that were really written may be stored: a silent write
 	// failure would otherwise leave the DB pointing at 404 downloads.
 	const written = new Set<string>();
-	try {
-		await storage.write(`${base}.xml`, xml);
-		written.add(`${base}.xml`);
-		log.info(`XML stored: ${base}.xml`);
-	} catch (error) {
-		log.error(`Cannot write XML file ${base}.xml: ${(error as Error).message}`);
+	// A quotation has no XML to store (R8).
+	if (xml) {
+		try {
+			await storage.write(`${base}.xml`, xml);
+			written.add(`${base}.xml`);
+			log.info(`XML stored: ${base}.xml`);
+		} catch (error) {
+			log.error(`Cannot write XML file ${base}.xml: ${(error as Error).message}`);
+		}
 	}
 	try {
 		await storage.write(`${base}.pdf`, Buffer.from(hybrid));
 		written.add(`${base}.pdf`);
-		log.info(`Hybrid PDF stored: ${base}.pdf`);
+		log.info(`${quote ? 'PDF' : 'Hybrid PDF'} stored: ${base}.pdf`);
 	} catch (error) {
 		log.error(`Cannot write PDF file ${base}.pdf: ${(error as Error).message}`);
 	}
@@ -134,12 +193,16 @@ export async function issueInvoiceWithArtifacts(
 	}
 
 	const withArtifacts = db.attachIssueArtifacts(issued.id, {
-		xml,
+		xml: xml ?? undefined,
 		pdfPath: written.has(`${base}.pdf`) ? `${base}.pdf` : null,
 		xlsxPath: written.has(`${base}.xlsx`) ? `${base}.xlsx` : undefined,
 		templateId,
 	});
-	return { invoice: withArtifacts, pdfPath: `${base}.pdf`, xmlPath: `${base}.xml` };
+	return {
+		invoice: withArtifacts,
+		pdfPath: `${base}.pdf`,
+		xmlPath: written.has(`${base}.xml`) ? `${base}.xml` : null,
+	};
 }
 
 /**
@@ -210,6 +273,10 @@ export function collectReminderCandidates(db: InvoiceDatabase, today: string = t
 		if (invoice.status !== 'issued' || invoice.paid || !invoice.dueDate) {
 			continue;
 		}
+		// R8: a quotation is never dunned — there is no debt to chase.
+		if (isQuote(invoice.docType)) {
+			continue;
+		}
 		// A Storno reverses an original, chasing the original makes no sense.
 		if (db.listInvoices({ status: 'cancelled' }).some(c => c.stornoOfId === invoice.id)) {
 			continue;
@@ -273,20 +340,25 @@ export async function rerenderInvoicePdf(
 	// them exactly — an issued invoice keeps its Anlagenverzeichnis and its
 	// embedded files.
 	const attachments = db.listAttachments(invoiceId);
-	const { xml, attachmentDocuments } = await generateInvoiceXml(invoice, attachments);
-	const sight = await renderInvoicePdf(invoice, template, logo, {
-		stornoOfNumber: invoice.stornoOfId ? (db.getInvoice(invoice.stornoOfId)?.number ?? null) : null,
-		attachments,
-	});
-	const hybrid = await embedHybridPdf(
-		await embedPdfAttachments(sight, attachments),
-		xml,
-		invoice.profile,
-		`${invoice.documentTitle} ${invoice.number}`,
-	);
+	// R8: a quotation stays a sight PDF — re-rendering must not invent an XML.
+	const quote = isQuote(invoice.docType);
+	const generated = quote ? null : await generateInvoiceXml(invoice, attachments);
+	const xml = generated?.xml ?? null;
+	const attachmentDocuments = generated?.attachmentDocuments ?? 0;
+	const sight = await renderInvoicePdf(invoice, template, logo, buildRenderContext(db, invoice, attachments));
+	const hybrid = xml
+		? await embedHybridPdf(
+				await embedPdfAttachments(sight, attachments),
+				xml,
+				invoice.profile,
+				`${invoice.documentTitle} ${invoice.number}`,
+			)
+		: sight;
 	if (attachments.length > 0) {
 		log.info(
-			`Attachments re-embedded: ${attachments.length} in the PDF, ` + `${attachmentDocuments} in the XML (BG-24)`,
+			quote
+				? `Attachments re-listed: ${attachments.length} in the quotation PDF (R8)`
+				: `Attachments re-embedded: ${attachments.length} in the PDF, ${attachmentDocuments} in the XML (BG-24)`,
 		);
 	}
 
@@ -312,7 +384,7 @@ export async function rerenderInvoicePdf(
 	log.info(`PDF re-rendered: ${newPath} (${invoice.number})`);
 
 	const updated = db.attachIssueArtifacts(invoiceId, {
-		xml,
+		xml: xml ?? undefined,
 		pdfPath: newPath,
 		xlsxPath: invoice.xlsxPath ?? undefined,
 		templateId: templateId ?? invoice.templateId,

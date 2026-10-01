@@ -20,21 +20,34 @@ var invoice_model_exports = {};
 __export(invoice_model_exports, {
   ALLOWED_VAT_RATES: () => ALLOWED_VAT_RATES,
   DEFAULT_NUMBER_FORMAT: () => DEFAULT_NUMBER_FORMAT,
+  DEFAULT_QUOTE_NUMBER_FORMAT: () => DEFAULT_QUOTE_NUMBER_FORMAT,
+  DOCUMENT_TYPES: () => DOCUMENT_TYPES,
   EXEMPTION_CATEGORIES: () => EXEMPTION_CATEGORIES,
+  INVOICE_TITLES: () => INVOICE_TITLES,
+  QUOTE_TITLES: () => QUOTE_TITLES,
+  QUOTE_VALIDITY_DAYS: () => QUOTE_VALIDITY_DAYS,
+  addDaysIso: () => addDaysIso,
   blankDraft: () => blankDraft,
   calcSkonto: () => calcSkonto,
   calcTotals: () => calcTotals,
   daysBetween: () => daysBetween,
+  defaultDocumentTitle: () => defaultDocumentTitle,
+  defaultValidUntil: () => defaultValidUntil,
+  documentLabels: () => documentLabels,
   formatCustomerNumber: () => formatCustomerNumber,
   formatDeliveryDateDe: () => formatDeliveryDateDe,
   formatInvoiceNumber: () => formatInvoiceNumber,
   isIsoDate: () => isIsoDate,
+  isQuote: () => isQuote,
   lineNetAmount: () => lineNetAmount,
   lineNetUnitPrice: () => lineNetUnitPrice,
+  normalizeDocumentType: () => normalizeDocumentType,
   normalizeEmployeeCode: () => normalizeEmployeeCode,
   normalizeNumberFormat: () => normalizeNumberFormat,
   parseDeliveryPeriod: () => parseDeliveryPeriod,
   paymentCheckDuty: () => paymentCheckDuty,
+  quoteState: () => quoteState,
+  quoteStateLabel: () => quoteStateLabel,
   renderInvoiceNumber: () => renderInvoiceNumber,
   roundCents: () => roundCents,
   todayIso: () => todayIso,
@@ -42,11 +55,87 @@ __export(invoice_model_exports, {
 });
 module.exports = __toCommonJS(invoice_model_exports);
 const EXEMPTION_CATEGORIES = ["E", "AE", "K", "G", "O"];
+const DOCUMENT_TYPES = ["invoice", "quote"];
+function normalizeDocumentType(value) {
+  const raw = (value != null ? value : "").trim().toLowerCase();
+  return raw === "quote" ? "quote" : "invoice";
+}
+function isQuote(docType) {
+  return normalizeDocumentType(docType) === "quote";
+}
+function defaultDocumentTitle(docType) {
+  return isQuote(docType) ? "Angebot" : "Rechnung";
+}
+const QUOTE_TITLES = ["Angebot", "Kostenvoranschlag"];
+const INVOICE_TITLES = ["Rechnung", "Abschlagsrechnung", "Schlussrechnung", "Gutschrift"];
+const QUOTE_VALIDITY_DAYS = 30;
+function addDaysIso(iso, days) {
+  if (!isIsoDate(iso)) {
+    return iso;
+  }
+  const base = Date.parse(`${iso}T00:00:00Z`);
+  return new Date(base + days * 864e5).toISOString().slice(0, 10);
+}
+function defaultValidUntil(issueDate) {
+  return addDaysIso(issueDate, QUOTE_VALIDITY_DAYS);
+}
+function quoteState(quote, today = todayIso()) {
+  if (quote.acceptedAt) {
+    return "accepted";
+  }
+  if (quote.rejectedAt || quote.status === "cancelled") {
+    return "rejected";
+  }
+  if (quote.status === "draft") {
+    return "draft";
+  }
+  if (quote.validUntil && isIsoDate(quote.validUntil) && quote.validUntil < today) {
+    return "expired";
+  }
+  return "open";
+}
+function quoteStateLabel(state) {
+  switch (state) {
+    case "draft":
+      return "Entwurf";
+    case "open":
+      return "Offen";
+    case "accepted":
+      return "Angenommen";
+    case "rejected":
+      return "Abgelehnt";
+    default:
+      return "Verfallen";
+  }
+}
+function documentLabels(docType) {
+  if (isQuote(docType)) {
+    return {
+      number: "Angebotsnr.:",
+      date: "Angebotsdatum:",
+      delivery: "Leistungszeitraum:",
+      due: "Zahlungsziel:",
+      validUntil: "G\xFCltig bis:",
+      perDocument: "je Angebot",
+      subject: "Angebot (Sichtkomponente, ohne E-Rechnungs-XML)"
+    };
+  }
+  return {
+    number: "Rechnungsnr.:",
+    date: "Rechnungsdatum:",
+    delivery: "Lieferdatum:",
+    due: "F\xE4llig am:",
+    validUntil: "G\xFCltig bis:",
+    perDocument: "je Rechnung",
+    subject: "E-Rechnung Sichtkomponente (ZUGFeRD)"
+  };
+}
 const ALLOWED_VAT_RATES = [0, 7, 19];
 function roundCents(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 const DEFAULT_NUMBER_FORMAT = "{YYYY}-{EMPLOYEE}-{SEQ}";
+const DEFAULT_QUOTE_NUMBER_FORMAT = "A-{YYYY}-{EMPLOYEE}-{SEQ}";
 const NUMBER_FORMAT_TOKENS = ["YYYY", "EMPLOYEE", "SEQ"];
 function normalizeNumberFormat(format) {
   const raw = (format != null ? format : "").trim();
@@ -200,8 +289,9 @@ function paymentCheckDuty(dueDate, grossTotal, today = todayIso()) {
   }
   return { required: false, reason: "", overdueDays };
 }
-function blankDraft(date = todayIso()) {
+function blankDraft(date = todayIso(), docType = "invoice") {
   const emptyParty = { name: "", street: "", zip: "", city: "", country: "DE" };
+  const kind = normalizeDocumentType(docType);
   return {
     seller: { ...emptyParty },
     buyer: { ...emptyParty },
@@ -209,7 +299,12 @@ function blankDraft(date = todayIso()) {
     issueDate: date,
     deliveryDate: date,
     currency: "EUR",
-    documentTitle: "Rechnung"
+    // a new document starts as an invoice unless the caller asks for a
+    // quotation; the PWA switches the type in the wizard, too (R8)
+    docType: kind,
+    documentTitle: defaultDocumentTitle(kind),
+    // a quotation carries a validity date from the start (R8)
+    validUntil: isQuote(kind) ? defaultValidUntil(date) : void 0
   };
 }
 function isBlank(value) {
@@ -219,6 +314,7 @@ function validateInvoiceForIssue(input) {
   var _a;
   const errors = [];
   const { seller, buyer, lines } = input;
+  const quote = isQuote(input.docType);
   if (isBlank(seller.name) || isBlank(seller.street) || isBlank(seller.zip) || isBlank(seller.city)) {
     errors.push("Seller needs full name and address (name, street, zip, city).");
   }
@@ -228,7 +324,7 @@ function validateInvoiceForIssue(input) {
   if (isBlank(buyer.name) || isBlank(buyer.street) || isBlank(buyer.zip) || isBlank(buyer.city)) {
     errors.push("Buyer needs full name and address (name, street, zip, city).");
   }
-  if (isBlank(buyer.customerNumber)) {
+  if (!quote && isBlank(buyer.customerNumber)) {
     errors.push("Buyer needs a customer number (Kundennummer, BT-10) for the German e-invoice.");
   }
   if (isBlank(input.issueDate) || !isIsoDate(input.issueDate)) {
@@ -241,7 +337,14 @@ function validateInvoiceForIssue(input) {
       "Delivery/service date must be a real calendar date (YYYY-MM-DD) or a period (YYYY-MM-DD..YYYY-MM-DD)."
     );
   }
-  if (input.skontoPercent !== void 0) {
+  if (isQuote(input.docType) && !isBlank(input.validUntil)) {
+    if (!isIsoDate(input.validUntil)) {
+      errors.push("Valid-until date must be a real calendar date (YYYY-MM-DD).");
+    } else if (isIsoDate(input.issueDate) && input.validUntil < input.issueDate) {
+      errors.push("Valid-until date must not be before the issue date.");
+    }
+  }
+  if (!quote && input.skontoPercent !== void 0) {
     const skonto = Number(input.skontoPercent);
     if (!(skonto >= 0) || skonto > 100) {
       errors.push("Skonto must be between 0 and 100 percent.");
@@ -301,21 +404,34 @@ function validateInvoiceForIssue(input) {
 0 && (module.exports = {
   ALLOWED_VAT_RATES,
   DEFAULT_NUMBER_FORMAT,
+  DEFAULT_QUOTE_NUMBER_FORMAT,
+  DOCUMENT_TYPES,
   EXEMPTION_CATEGORIES,
+  INVOICE_TITLES,
+  QUOTE_TITLES,
+  QUOTE_VALIDITY_DAYS,
+  addDaysIso,
   blankDraft,
   calcSkonto,
   calcTotals,
   daysBetween,
+  defaultDocumentTitle,
+  defaultValidUntil,
+  documentLabels,
   formatCustomerNumber,
   formatDeliveryDateDe,
   formatInvoiceNumber,
   isIsoDate,
+  isQuote,
   lineNetAmount,
   lineNetUnitPrice,
+  normalizeDocumentType,
   normalizeEmployeeCode,
   normalizeNumberFormat,
   parseDeliveryPeriod,
   paymentCheckDuty,
+  quoteState,
+  quoteStateLabel,
   renderInvoiceNumber,
   roundCents,
   todayIso,

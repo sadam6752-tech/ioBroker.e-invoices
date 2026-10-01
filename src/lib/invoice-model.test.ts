@@ -17,8 +17,21 @@ import {
 	normalizeNumberFormat,
 	todayIso,
 	validateInvoiceForIssue,
+	addDaysIso,
+	defaultDocumentTitle,
+	defaultValidUntil,
+	documentLabels,
+	DOCUMENT_TYPES,
+	INVOICE_TITLES,
+	isQuote,
+	normalizeDocumentType,
+	QUOTE_TITLES,
+	QUOTE_VALIDITY_DAYS,
+	quoteState,
+	quoteStateLabel,
 	type InvoiceDraftInput,
 	type Party,
+	type QuoteLifecycle,
 } from './invoice-model';
 
 const seller: Party = {
@@ -270,5 +283,96 @@ describe('invoice-model => validateInvoiceForIssue', () => {
 		const exempt = validDraft();
 		exempt.lines = [{ description: 'Buch', quantity: 1, unit: 'Stk', unitPriceNet: 10, vatRate: 0 }];
 		expect(validateInvoiceForIssue(exempt).join(' ')).to.contain('exemption');
+	});
+});
+
+describe('invoice-model => document type and quotation lifecycle (R8)', () => {
+	it('normalises the document type and guards the e-invoice path', () => {
+		expect(normalizeDocumentType(undefined)).to.equal('invoice');
+		expect(normalizeDocumentType(null)).to.equal('invoice');
+		expect(normalizeDocumentType('  QUOTE ')).to.equal('quote');
+		expect(normalizeDocumentType('Auftrag')).to.equal('invoice');
+		expect(DOCUMENT_TYPES).to.deep.equal(['invoice', 'quote']);
+		expect(isQuote('quote')).to.equal(true);
+		expect(isQuote('Rechnung')).to.equal(false);
+		expect(defaultDocumentTitle('quote')).to.equal('Angebot');
+		expect(defaultDocumentTitle()).to.equal('Rechnung');
+		expect(QUOTE_TITLES).to.contain('Angebot');
+		expect(INVOICE_TITLES).to.not.contain('Angebot');
+	});
+
+	it('gives a quotation 30 days of validity by default', () => {
+		expect(QUOTE_VALIDITY_DAYS).to.equal(30);
+		expect(defaultValidUntil('2026-09-28')).to.equal('2026-10-28');
+		// UTC arithmetic: no drift at the year boundary
+		expect(defaultValidUntil('2025-12-31')).to.equal('2026-01-30');
+		expect(addDaysIso('2026-01-31', 31)).to.equal('2026-03-03');
+		// a value that is no date is handed back untouched
+		expect(addDaysIso('28.09.2026', 30)).to.equal('28.09.2026');
+	});
+
+	it('derives the state of a quotation from its dates', () => {
+		const base: QuoteLifecycle = { status: 'issued', validUntil: '2026-10-28', acceptedAt: null, rejectedAt: null };
+		expect(quoteState({ ...base, status: 'draft' }, '2026-10-01')).to.equal('draft');
+		// the last day of validity is still open, "verfallen" starts the day after
+		expect(quoteState(base, '2026-10-28')).to.equal('open');
+		expect(quoteState(base, '2026-10-29')).to.equal('expired');
+		// an open-ended offer and a broken date never expire
+		expect(quoteState({ ...base, validUntil: null }, '2027-01-01')).to.equal('open');
+		expect(quoteState({ ...base, validUntil: 'nope' }, '2027-01-01')).to.equal('open');
+		// a discarded quotation is off the table for good
+		expect(quoteState({ ...base, status: 'cancelled' }, '2026-10-01')).to.equal('rejected');
+		// the decision beats every date, an accepted offer never expires
+		expect(quoteState({ ...base, acceptedAt: '2026-10-02T09:00:00.000Z' }, '2027-01-01')).to.equal('accepted');
+		expect(quoteState({ ...base, rejectedAt: '2026-10-02T09:00:00.000Z' }, '2026-10-01')).to.equal('rejected');
+	});
+
+	it('labels the quotation states in German', () => {
+		expect(quoteStateLabel('draft')).to.equal('Entwurf');
+		expect(quoteStateLabel('open')).to.equal('Offen');
+		expect(quoteStateLabel('accepted')).to.equal('Angenommen');
+		expect(quoteStateLabel('rejected')).to.equal('Abgelehnt');
+		expect(quoteStateLabel('expired')).to.equal('Verfallen');
+	});
+
+	it('writes a plain sight PDF for a quotation and says so', () => {
+		const quote = documentLabels('quote');
+		expect(quote.number).to.equal('Angebotsnr.:');
+		expect(quote.date).to.equal('Angebotsdatum:');
+		expect(quote.delivery).to.equal('Leistungszeitraum:');
+		expect(quote.validUntil).to.equal('Gültig bis:');
+		expect(quote.perDocument).to.equal('je Angebot');
+		expect(quote.subject).to.contain('ohne E-Rechnungs-XML');
+		// the e-invoice keeps the EN 16931 wording
+		const invoice = documentLabels();
+		expect(invoice.number).to.equal('Rechnungsnr.:');
+		expect(invoice.perDocument).to.equal('je Rechnung');
+		expect(invoice.subject).to.contain('ZUGFeRD');
+	});
+
+	it('starts a blank quotation with its own title and validity', () => {
+		const quote = blankDraft('2026-09-28', 'quote');
+		expect(quote.docType).to.equal('quote');
+		expect(quote.documentTitle).to.equal('Angebot');
+		expect(quote.validUntil).to.equal('2026-10-28');
+		const invoice = blankDraft('2026-09-28');
+		expect(invoice.docType).to.equal('invoice');
+		expect(invoice.documentTitle).to.equal('Rechnung');
+		expect(invoice.validUntil).to.equal(undefined);
+	});
+
+	it('validates a quotation without BT-10 and without Skonto', () => {
+		const quote: InvoiceDraftInput = { ...validDraft(), docType: 'quote', documentTitle: 'Angebot' };
+		quote.buyer = { ...buyer, customerNumber: undefined };
+		expect(validateInvoiceForIssue(quote)).to.deep.equal([]);
+
+		// the invoice counterpart fails on the missing customer number
+		const invoice = validDraft();
+		invoice.buyer = { ...buyer, customerNumber: undefined };
+		expect(validateInvoiceForIssue(invoice).join(' ')).to.contain('customer number');
+
+		// the validity date is a real date and never before the issue date
+		expect(validateInvoiceForIssue({ ...quote, validUntil: '31.10.2026' }).join(' ')).to.contain('Valid-until');
+		expect(validateInvoiceForIssue({ ...quote, validUntil: '2026-09-01' }).join(' ')).to.contain('not be before');
 	});
 });

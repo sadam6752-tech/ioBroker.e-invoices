@@ -190,6 +190,7 @@
     "bic": "",
     "website": "",
     "numberFormat": "{YYYY}-{EMPLOYEE}-{SEQ}",
+    "quoteNumberFormat": "A-{YYYY}-{EMPLOYEE}-{SEQ}",
     "defaultVatRate": 19,
     "defaultPaymentTerms": ""
   },

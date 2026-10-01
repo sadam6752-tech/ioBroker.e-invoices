@@ -80,6 +80,11 @@ function mapVatCategory(vatRate, exemptionCategory) {
 }
 function mapDocumentTypeCode(documentTitle) {
   const title = (documentTitle != null ? documentTitle : "").toLowerCase();
+  if (title.includes("angebot") || title.includes("kostenvoranschlag") || title.includes("quote")) {
+    throw new Error(
+      "Ein Angebot ist keine E-Rechnung (R8): es wird nur als Sicht-PDF ausgegeben, nie als CII-XML."
+    );
+  }
   if (title.includes("gutschrift") || title.includes("credit")) {
     return import_factur_x.DocumentTypeCode.CREDIT_NOTE;
   }
@@ -96,6 +101,9 @@ function mapDocumentTypeCode(documentTitle) {
 }
 function toFacturXInput(invoice) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y;
+  if ((0, import_invoice_model.isQuote)(invoice.docType)) {
+    throw new Error("Angebote sind keine E-Rechnungen (R8): f\xFCr ein Angebot wird kein ZUGFeRD-/CII-XML erzeugt.");
+  }
   if (!invoice.number) {
     throw new Error("Invoice has no number yet \u2014 issue it before generating XML");
   }

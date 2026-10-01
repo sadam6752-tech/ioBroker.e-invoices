@@ -25,6 +25,8 @@ declare global {
 			bic?: string;
 			website?: string;
 			numberFormat?: string;
+			/** Quotation number format; separate number circle (R8). */
+			quoteNumberFormat?: string;
 			defaultVatRate?: number;
 			defaultPaymentTerms?: string;
 		}

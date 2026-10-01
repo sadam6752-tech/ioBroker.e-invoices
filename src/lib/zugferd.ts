@@ -26,6 +26,7 @@ import {
 	calcSkonto,
 	calcTotals,
 	formatDeliveryDateDe,
+	isQuote,
 	lineNetUnitPrice,
 	parseDeliveryPeriod,
 	roundCents,
@@ -108,11 +109,20 @@ export function mapVatCategory(vatRate: number, exemptionCategory?: ExemptionCat
  * Maps the German document title to the UNTDID 1001 code list (BT-3).
  * Everything that is not explicitly a progress or correction invoice stays a
  * commercial invoice (380) — that is what the German EN 16931 profile expects.
+ * A quotation has no code at all: it is rejected loudly, because an offer is
+ * not an e-invoice (R8).
  *
  * @param documentTitle - Free-text title chosen in the PWA.
  */
 export function mapDocumentTypeCode(documentTitle?: string): DocumentTypeCode {
 	const title = (documentTitle ?? '').toLowerCase();
+	// R8: a quotation never becomes an e-invoice. The check sits in front of the
+	// mapping, so a hand-edited title cannot smuggle one in either.
+	if (title.includes('angebot') || title.includes('kostenvoranschlag') || title.includes('quote')) {
+		throw new Error(
+			'Ein Angebot ist keine E-Rechnung (R8): es wird nur als Sicht-PDF ausgegeben, nie als CII-XML.',
+		);
+	}
 	if (title.includes('gutschrift') || title.includes('credit')) {
 		return DocumentTypeCode.CREDIT_NOTE;
 	}
@@ -130,11 +140,17 @@ export function mapDocumentTypeCode(documentTitle?: string): DocumentTypeCode {
 
 /**
  * Maps a stored invoice to the Factur-X input object.
- * Throws when mandatory generation data (number, parties, lines) is missing.
+ * Throws when mandatory generation data (number, parties, lines) is missing,
+ * and for a quotation: an offer is not an e-invoice (R8).
  *
  * @param invoice - Issued (or issuable) stored invoice.
  */
 export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
+	// R8: the document type decides, not the display title. A quotation never
+	// has a CII representation, so every XML entry point stops here.
+	if (isQuote(invoice.docType)) {
+		throw new Error('Angebote sind keine E-Rechnungen (R8): für ein Angebot wird kein ZUGFeRD-/CII-XML erzeugt.');
+	}
 	if (!invoice.number) {
 		throw new Error('Invoice has no number yet — issue it before generating XML');
 	}

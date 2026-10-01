@@ -12,7 +12,12 @@ import { version as adapterVersion } from '../package.json';
 import { attachStatic, createApiServer } from './lib/api-server';
 import { createBackup, restoreBackup } from './lib/backup';
 import { InvoiceDatabase } from './lib/db';
-import { blankDraft, DEFAULT_NUMBER_FORMAT, normalizeNumberFormat } from './lib/invoice-model';
+import {
+	blankDraft,
+	DEFAULT_NUMBER_FORMAT,
+	DEFAULT_QUOTE_NUMBER_FORMAT,
+	normalizeNumberFormat,
+} from './lib/invoice-model';
 import { collectReminderCandidates, issueInvoiceWithArtifacts } from './lib/issue-service';
 
 const MOUNT_POINT = 'storage';
@@ -56,7 +61,7 @@ class EInvoices extends utils.Adapter {
 			this.db = new InvoiceDatabase(dbPath);
 			this.db.migrate();
 			this.log.info(`Database ready (schema v${this.db.currentVersion()}): ${dbPath}`);
-			this.applyNumberFormat();
+			this.applyNumberFormats();
 			const defaultTemplate = this.db.ensureDefaultTemplate();
 			this.log.info(`Layout template: ${defaultTemplate.name} v${defaultTemplate.version}`);
 			this.syncCompanyFromConfig();
@@ -79,18 +84,35 @@ class EInvoices extends utils.Adapter {
 	}
 
 	/**
-	 * Validates the configured invoice number format once and warns loudly if
-	 * it is unusable, so the fallback to the default is never silent.
+	 * Validates the configured number formats once and warns loudly when one is
+	 * unusable, so the fallback to the default is never silent. Invoices and
+	 * quotations number in separate circles and therefore have separate
+	 * formats (R8).
 	 */
-	private applyNumberFormat(): void {
-		const raw = typeof this.config.numberFormat === 'string' ? this.config.numberFormat : '';
-		const validated = normalizeNumberFormat(raw);
-		if (raw.trim() !== '' && !validated) {
+	private applyNumberFormats(): void {
+		const numberFormat = this.readNumberFormat('numberFormat', 'Invoice', DEFAULT_NUMBER_FORMAT);
+		const quoteNumberFormat = this.readNumberFormat('quoteNumberFormat', 'Quotation', DEFAULT_QUOTE_NUMBER_FORMAT);
+		this.db?.applyOptions({ numberFormat, quoteNumberFormat });
+	}
+
+	/**
+	 * Reads one number format from the instance config and reports a broken
+	 * value. The raw string is passed on: the database keeps the last valid
+	 * format, and an empty value simply means "use the default".
+	 *
+	 * @param key - Config key (`numberFormat` or `quoteNumberFormat`).
+	 * @param label - Document type for the warning text.
+	 * @param fallback - Default format quoted in the warning.
+	 */
+	private readNumberFormat(key: 'numberFormat' | 'quoteNumberFormat', label: string, fallback: string): string {
+		const value: unknown = this.config[key];
+		const raw = typeof value === 'string' ? value : '';
+		if (raw.trim() !== '' && !normalizeNumberFormat(raw)) {
 			this.log.warn(
-				`Invoice number format "${raw.trim()}" is unusable (needs {SEQ} and may only use {YYYY}, {EMPLOYEE}, {SEQ} plus separators) — falling back to ${DEFAULT_NUMBER_FORMAT}`,
+				`${label} number format "${raw.trim()}" is unusable (needs {SEQ} and may only use {YYYY}, {EMPLOYEE}, {SEQ} plus separators) — falling back to ${fallback}`,
 			);
 		}
-		this.db?.applyOptions({ numberFormat: raw });
+		return raw;
 	}
 
 	/**
@@ -625,6 +647,7 @@ class EInvoices extends utils.Adapter {
 					defaultVatRate: Number(this.config.defaultVatRate ?? 19),
 					defaultPaymentTerms: this.config.defaultPaymentTerms ?? '',
 					numberFormat: this.db?.effectiveNumberFormat() ?? DEFAULT_NUMBER_FORMAT,
+					quoteNumberFormat: this.db?.effectiveQuoteNumberFormat() ?? DEFAULT_QUOTE_NUMBER_FORMAT,
 					storageMount: this.mountId,
 					backupIntervalMinutes: Number(this.config.backupIntervalMinutes ?? 0),
 				},

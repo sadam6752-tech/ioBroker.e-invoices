@@ -31,6 +31,39 @@ var import_pdf = require("./pdf");
 var import_pdf_attachments = require("./pdf-attachments");
 var import_templates = require("./templates");
 var import_zugferd = require("./zugferd");
+function quoteDecisionNote(invoice) {
+  var _a;
+  if (!(0, import_invoice_model.isQuote)(invoice.docType)) {
+    return null;
+  }
+  const state = (0, import_invoice_model.quoteState)(invoice);
+  if (state === "accepted" && invoice.acceptedAt) {
+    return `Das Angebot wurde am ${(0, import_pdf.formatDeDate)(invoice.acceptedAt.slice(0, 10))} angenommen.`;
+  }
+  if (state === "rejected") {
+    const when = invoice.rejectedAt ? ` am ${(0, import_pdf.formatDeDate)(invoice.rejectedAt.slice(0, 10))}` : "";
+    const why = ((_a = invoice.rejectionReason) == null ? void 0 : _a.trim()) ? ` (${invoice.rejectionReason.trim()})` : "";
+    return `Das Angebot wurde${when} abgelehnt${why}.`;
+  }
+  if (state === "expired" && invoice.validUntil) {
+    return `Das Angebot ist am ${(0, import_pdf.formatDeDate)(invoice.validUntil)} verfallen.`;
+  }
+  return null;
+}
+function buildRenderContext(db, invoice, attachments) {
+  var _a, _b, _c;
+  const source = invoice.sourceDocumentId ? db.getInvoice(invoice.sourceDocumentId) : null;
+  return {
+    stornoOfNumber: invoice.stornoOfId ? (_b = (_a = db.getInvoice(invoice.stornoOfId)) == null ? void 0 : _a.number) != null ? _b : null : null,
+    attachments,
+    sourceDocumentNumber: (_c = source == null ? void 0 : source.number) != null ? _c : null,
+    relatedNumbers: (0, import_invoice_model.isQuote)(invoice.docType) ? db.listInvoices({ sourceDocumentId: invoice.id, limit: 50 }).map((child) => {
+      var _a2;
+      return (_a2 = child.number) != null ? _a2 : "";
+    }) : [],
+    decisionNote: quoteDecisionNote(invoice)
+  };
+}
 async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
   var _a, _b;
   const current = db.getInvoice(invoiceId);
@@ -41,39 +74,41 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
     throw new Error("Only drafts can be issued");
   }
   const issued = db.issueDraft(invoiceId);
-  log.info(`Invoice issued: ${issued.number} (${issued.id})`);
+  const quote = (0, import_invoice_model.isQuote)(issued.docType);
+  log.info(`${quote ? "Quotation" : "Invoice"} issued: ${issued.number} (${issued.id})`);
   const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
   const attachments = db.listAttachments(invoiceId);
-  const { xml, attachmentDocuments } = await (0, import_zugferd.generateInvoiceXml)(issued, attachments);
-  const sight = await (0, import_pdf.renderInvoicePdf)(issued, template, logo, {
-    stornoOfNumber: issued.stornoOfId ? (_b = (_a = db.getInvoice(issued.stornoOfId)) == null ? void 0 : _a.number) != null ? _b : null : null,
-    attachments
-  });
-  const hybrid = await (0, import_zugferd.embedHybridPdf)(
+  const generated = quote ? null : await (0, import_zugferd.generateInvoiceXml)(issued, attachments);
+  const xml = (_a = generated == null ? void 0 : generated.xml) != null ? _a : null;
+  const attachmentDocuments = (_b = generated == null ? void 0 : generated.attachmentDocuments) != null ? _b : 0;
+  const sight = await (0, import_pdf.renderInvoicePdf)(issued, template, logo, buildRenderContext(db, issued, attachments));
+  const hybrid = xml ? await (0, import_zugferd.embedHybridPdf)(
     await (0, import_pdf_attachments.embedPdfAttachments)(sight, attachments),
     xml,
     issued.profile,
     `${issued.documentTitle} ${issued.number}`
-  );
+  ) : sight;
   const xlsx = await (0, import_excel.renderInvoiceWorkbook)(issued);
   const base = `invoices/${issued.issueDate.slice(0, 4)}/${issued.number}`;
   if (attachments.length > 0) {
     log.info(
-      `Attachments: ${attachments.length} embedded in the PDF, ${attachmentDocuments} written into the XML (BG-24)`
+      quote ? `Attachments: ${attachments.length} listed in the quotation PDF (not embedded, R8)` : `Attachments: ${attachments.length} embedded in the PDF, ${attachmentDocuments} written into the XML (BG-24)`
     );
   }
   const written = /* @__PURE__ */ new Set();
-  try {
-    await storage.write(`${base}.xml`, xml);
-    written.add(`${base}.xml`);
-    log.info(`XML stored: ${base}.xml`);
-  } catch (error) {
-    log.error(`Cannot write XML file ${base}.xml: ${error.message}`);
+  if (xml) {
+    try {
+      await storage.write(`${base}.xml`, xml);
+      written.add(`${base}.xml`);
+      log.info(`XML stored: ${base}.xml`);
+    } catch (error) {
+      log.error(`Cannot write XML file ${base}.xml: ${error.message}`);
+    }
   }
   try {
     await storage.write(`${base}.pdf`, Buffer.from(hybrid));
     written.add(`${base}.pdf`);
-    log.info(`Hybrid PDF stored: ${base}.pdf`);
+    log.info(`${quote ? "PDF" : "Hybrid PDF"} stored: ${base}.pdf`);
   } catch (error) {
     log.error(`Cannot write PDF file ${base}.pdf: ${error.message}`);
   }
@@ -90,12 +125,16 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
     );
   }
   const withArtifacts = db.attachIssueArtifacts(issued.id, {
-    xml,
+    xml: xml != null ? xml : void 0,
     pdfPath: written.has(`${base}.pdf`) ? `${base}.pdf` : null,
     xlsxPath: written.has(`${base}.xlsx`) ? `${base}.xlsx` : void 0,
     templateId
   });
-  return { invoice: withArtifacts, pdfPath: `${base}.pdf`, xmlPath: `${base}.xml` };
+  return {
+    invoice: withArtifacts,
+    pdfPath: `${base}.pdf`,
+    xmlPath: written.has(`${base}.xml`) ? `${base}.xml` : null
+  };
 }
 async function issueInvoiceBatch(db, log, invoiceIds, storage) {
   const issued = [];
@@ -117,6 +156,9 @@ function collectReminderCandidates(db, today = (0, import_invoice_model.todayIso
   const out = [];
   for (const invoice of db.allInvoices()) {
     if (invoice.status !== "issued" || invoice.paid || !invoice.dueDate) {
+      continue;
+    }
+    if ((0, import_invoice_model.isQuote)(invoice.docType)) {
       continue;
     }
     if (db.listInvoices({ status: "cancelled" }).some((c) => c.stornoOfId === invoice.id)) {
@@ -153,20 +195,20 @@ async function rerenderInvoicePdf(db, log, invoiceId, storage, reason) {
   }
   const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
   const attachments = db.listAttachments(invoiceId);
-  const { xml, attachmentDocuments } = await (0, import_zugferd.generateInvoiceXml)(invoice, attachments);
-  const sight = await (0, import_pdf.renderInvoicePdf)(invoice, template, logo, {
-    stornoOfNumber: invoice.stornoOfId ? (_b = (_a = db.getInvoice(invoice.stornoOfId)) == null ? void 0 : _a.number) != null ? _b : null : null,
-    attachments
-  });
-  const hybrid = await (0, import_zugferd.embedHybridPdf)(
+  const quote = (0, import_invoice_model.isQuote)(invoice.docType);
+  const generated = quote ? null : await (0, import_zugferd.generateInvoiceXml)(invoice, attachments);
+  const xml = (_a = generated == null ? void 0 : generated.xml) != null ? _a : null;
+  const attachmentDocuments = (_b = generated == null ? void 0 : generated.attachmentDocuments) != null ? _b : 0;
+  const sight = await (0, import_pdf.renderInvoicePdf)(invoice, template, logo, buildRenderContext(db, invoice, attachments));
+  const hybrid = xml ? await (0, import_zugferd.embedHybridPdf)(
     await (0, import_pdf_attachments.embedPdfAttachments)(sight, attachments),
     xml,
     invoice.profile,
     `${invoice.documentTitle} ${invoice.number}`
-  );
+  ) : sight;
   if (attachments.length > 0) {
     log.info(
-      `Attachments re-embedded: ${attachments.length} in the PDF, ${attachmentDocuments} in the XML (BG-24)`
+      quote ? `Attachments re-listed: ${attachments.length} in the quotation PDF (R8)` : `Attachments re-embedded: ${attachments.length} in the PDF, ${attachmentDocuments} in the XML (BG-24)`
     );
   }
   const base = `invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}`;
@@ -186,7 +228,7 @@ async function rerenderInvoicePdf(db, log, invoiceId, storage, reason) {
   await storage.write(newPath, Buffer.from(hybrid));
   log.info(`PDF re-rendered: ${newPath} (${invoice.number})`);
   const updated = db.attachIssueArtifacts(invoiceId, {
-    xml,
+    xml: xml != null ? xml : void 0,
     pdfPath: newPath,
     xlsxPath: (_c = invoice.xlsxPath) != null ? _c : void 0,
     templateId: templateId != null ? templateId : invoice.templateId

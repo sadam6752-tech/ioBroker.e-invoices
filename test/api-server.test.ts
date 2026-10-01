@@ -11,6 +11,7 @@ import request from 'supertest';
 import { attachStatic, createApiServer } from '../src/lib/api-server';
 import { ATTACHMENT_MAX_BYTES, ATTACHMENT_MAX_COUNT } from '../src/lib/attachments';
 import { InvoiceDatabase } from '../src/lib/db';
+import { defaultValidUntil } from '../src/lib/invoice-model';
 import { DEFAULT_TEMPLATE } from '../src/lib/templates';
 
 const seller = {
@@ -925,5 +926,292 @@ describe('api => attachments (R4)', function () {
 		expect(list.body).to.have.lengthOf(10);
 		await request(app).delete(`/api/invoices/${id}/attachments/${list.body[0].id}`).expect(400);
 		await request(app).get(`/api/invoices/${id}/attachments/${list.body[0].id}`).expect(200);
+	});
+});
+
+describe('api => quotations (R8)', function () {
+	this.timeout(60000);
+	let db: InvoiceDatabase;
+	let app: ReturnType<typeof createApiServer>;
+	let files: Map<string, Buffer>;
+	const quiet = { info: (): void => undefined, error: (): void => undefined };
+	const quoteBody = {
+		seller,
+		buyer,
+		lines: [{ description: 'Beratung', quantity: 2, unit: 'Std', unitPriceNet: 100, vatRate: 19 }],
+		issueDate: '2026-09-28',
+		deliveryDate: '2026-09-27',
+		currency: 'EUR',
+		docType: 'quote',
+	};
+
+	beforeEach(() => {
+		db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		files = new Map<string, Buffer>();
+		app = createApiServer({
+			db,
+			storage: {
+				write: (path: string, data: string | Buffer): Promise<void> => {
+					files.set(path, Buffer.isBuffer(data) ? data : Buffer.from(data));
+					return Promise.resolve();
+				},
+				read: (path: string): Promise<Buffer> => {
+					const found = files.get(path);
+					return found ? Promise.resolve(found) : Promise.reject(new Error(`missing: ${path}`));
+				},
+			},
+			log: quiet,
+			version: '0.0.0-test',
+		});
+	});
+
+	afterEach(() => {
+		db.close();
+	});
+
+	/**
+	 * Creates a quotation draft through the API and returns its id.
+	 *
+	 * @param overrides - Fields that replace the defaults of the quoted body.
+	 */
+	async function createQuote(overrides: Record<string, unknown> = {}): Promise<string> {
+		const created = await request(app)
+			.post('/api/invoices')
+			.send({ ...quoteBody, ...overrides })
+			.expect(201);
+		return created.body.id as string;
+	}
+
+	it('starts a quotation draft with its own title and validity', async () => {
+		const id = await createQuote({ docType: 'QUOTE' });
+		const stored = await request(app).get(`/api/invoices/${id}`).expect(200);
+		expect(stored.body.docType).to.equal('quote');
+		expect(stored.body.documentTitle).to.equal('Angebot');
+		expect(stored.body.status).to.equal('draft');
+		expect(stored.body.number).to.equal(null);
+		// filled with 30 days, so "Gültig bis" is never empty while the wizard runs
+		const today = new Date().toISOString().slice(0, 10);
+		expect(stored.body.validUntil).to.equal(defaultValidUntil(today));
+
+		// an explicit date from the request wins over that default
+		const explicit = await createQuote({ validUntil: '2026-11-15' });
+		expect((await request(app).get(`/api/invoices/${explicit}`).expect(200)).body.validUntil).to.equal(
+			'2026-11-15',
+		);
+
+		// the invoice keeps its own defaults
+		const invoice = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		expect(invoice.body.docType).to.equal('invoice');
+		expect(invoice.body.documentTitle).to.equal('Rechnung');
+		expect(invoice.body.validUntil).to.equal(null);
+	});
+
+	it('issues a quotation as a plain sight PDF without e-invoice XML', async () => {
+		const id = await createQuote({ validUntil: '2026-10-28' });
+		const issued = await request(app).post(`/api/invoices/${id}/issue`).expect(200);
+		expect(issued.body.docType).to.equal('quote');
+		expect(issued.body.number).to.match(/^A-2026-00-\d{3}$/);
+		expect(issued.body.validUntil).to.equal('2026-10-28');
+		// R8: no CII XML, so no PDF/A-3 container and no BG-24 either
+		expect(issued.body.xml).to.equal(null);
+		expect([...files.keys()].filter(path => path.endsWith('.xml'))).to.deep.equal([]);
+		expect(issued.body.pdfPath).to.match(/\.pdf$/);
+		expect(files.has(issued.body.pdfPath as string)).to.equal(true);
+		expect((await request(app).get(`/api/invoices/${id}.xml`).expect(404)).body.error).to.contain('No XML');
+
+		const pdf = await request(app).get(`/api/invoices/${id}.pdf`).expect(200);
+		expect(pdf.body.subarray(0, 4).toString()).to.equal('%PDF');
+		expect(pdf.body.toString('latin1')).to.not.contain('pdfaid');
+
+		// the hybrid file (PDF/A-3 + Factur-X) stays an invoice thing
+		const invoice = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		const hybrid = await request(app).post(`/api/invoices/${invoice.body.id}/issue`).expect(200);
+		expect(hybrid.body.xml).to.contain('CrossIndustryInvoice');
+		const hybridPdf = await request(app).get(`/api/invoices/${invoice.body.id}.pdf`).expect(200);
+		expect(hybridPdf.body.toString('latin1')).to.contain('pdfaid');
+	});
+
+	it('keeps quotation and invoice numbers in separate circles', async () => {
+		const quoteId = await createQuote();
+		const invoice = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		const issuedQuote = await request(app).post(`/api/invoices/${quoteId}/issue`).expect(200);
+		const issuedInvoice = await request(app).post(`/api/invoices/${invoice.body.id}/issue`).expect(200);
+		expect(issuedQuote.body.number).to.equal('A-2026-00-001');
+		expect(issuedInvoice.body.number).to.equal('2026-00-001');
+
+		// the list filters by document type, so offers and bookings stay apart
+		const all = await request(app).get('/api/invoices').expect(200);
+		expect(all.body.map((entry: { id: string }) => entry.id)).to.include(quoteId);
+		const quotes = await request(app).get('/api/invoices?docType=quote').expect(200);
+		expect(quotes.body.map((entry: { id: string }) => entry.id)).to.deep.equal([quoteId]);
+		const invoices = await request(app).get('/api/invoices?docType=invoice').expect(200);
+		expect(invoices.body.map((entry: { id: string }) => entry.id)).to.not.include(quoteId);
+	});
+
+	it('records the single customer decision on an issued quotation', async () => {
+		const id = await createQuote();
+		// a draft has not been handed out yet, so there is nothing to decide
+		expect((await request(app).post(`/api/invoices/${id}/quote-accept`).expect(400)).body.error).to.contain(
+			'before recording a decision',
+		);
+		await request(app).post(`/api/invoices/${id}/quote-accept`).send({ at: 42 }).expect(400);
+
+		const issued = await request(app).post(`/api/invoices/${id}/issue`).expect(200);
+		expect(issued.body.acceptedAt).to.equal(null);
+		expect(issued.body.rejectedAt).to.equal(null);
+
+		const accepted = await request(app)
+			.post(`/api/invoices/${id}/quote-accept`)
+			.send({ at: '2026-10-02T09:00:00.000Z' })
+			.expect(200);
+		expect(accepted.body.acceptedAt).to.equal('2026-10-02T09:00:00.000Z');
+		expect(accepted.body.rejectedAt).to.equal(null);
+		expect(accepted.body.rejectionReason).to.equal(null);
+
+		// the first answer wins: a later "Nein" never overwrites the "Ja"
+		const second = await request(app)
+			.post(`/api/invoices/${id}/quote-reject`)
+			.send({ reason: 'doch nicht' })
+			.expect(400);
+		expect(String(second.body.error)).to.contain('already recorded');
+		const still = await request(app).get(`/api/invoices/${id}`).expect(200);
+		expect(still.body.acceptedAt).to.equal('2026-10-02T09:00:00.000Z');
+		expect(still.body.rejectionReason).to.equal(null);
+
+		// an invoice has no customer decision, unknown ids are missing
+		const invoice = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		await request(app).post(`/api/invoices/${invoice.body.id}/issue`).expect(200);
+		expect(
+			(await request(app).post(`/api/invoices/${invoice.body.id}/quote-accept`).expect(400)).body.error,
+		).to.contain('Only a quotation');
+		await request(app).post('/api/invoices/gibt-es-nicht/quote-reject').expect(404);
+	});
+
+	it('rejects a quotation with reason and refuses undeclared request bodies', async () => {
+		const id = await createQuote();
+		await request(app).post(`/api/invoices/${id}/issue`).expect(200);
+
+		await request(app).post(`/api/invoices/${id}/quote-reject`).send({ reason: 42 }).expect(400);
+		await request(app).post(`/api/invoices/${id}/quote-reject`).send({ at: 42 }).expect(400);
+		const rejected = await request(app)
+			.post(`/api/invoices/${id}/quote-reject`)
+			.send({ reason: 'zu teuer', at: '2026-10-03T08:30:00.000Z' })
+			.expect(200);
+		expect(rejected.body.rejectedAt).to.equal('2026-10-03T08:30:00.000Z');
+		expect(rejected.body.rejectionReason).to.equal('zu teuer');
+		expect(rejected.body.acceptedAt).to.equal(null);
+
+		// without a reason the timestamp alone still documents the "Nein"
+		const other = await createQuote();
+		await request(app).post(`/api/invoices/${other}/issue`).expect(200);
+		const plain = await request(app).post(`/api/invoices/${other}/quote-reject`).send({}).expect(200);
+		expect(plain.body.rejectedAt).to.match(/^\d{4}-\d{2}-\d{2}T/);
+		expect(plain.body.rejectionReason).to.equal(null);
+	});
+
+	it('converts a quotation into an invoice draft and leaves the offer frozen', async () => {
+		const id = await createQuote({ validUntil: '2026-10-28' });
+		await request(app).post(`/api/invoices/${id}/issue`).expect(200);
+
+		// the recorded "Ja" is the paper trail, so it is required by default
+		await request(app).post(`/api/invoices/${id}/convert`).send({}).expect(400);
+		await request(app).post(`/api/invoices/${id}/convert`).send({ requireAccepted: 'yes' }).expect(400);
+		const refused = await request(app)
+			.post(`/api/invoices/${id}/convert`)
+			.send({ requireAccepted: true })
+			.expect(400);
+		expect(String(refused.body.error)).to.contain('has not accepted');
+
+		const converted = await request(app)
+			.post(`/api/invoices/${id}/convert`)
+			.send({ requireAccepted: false, dueDate: '2026-11-12' })
+			.expect(201);
+		expect(converted.body.docType).to.equal('invoice');
+		expect(converted.body.documentTitle).to.equal('Rechnung');
+		expect(converted.body.sourceDocumentId).to.equal(id);
+		expect(converted.body.status).to.equal('draft');
+		expect(converted.body.number).to.equal(null);
+		expect(converted.body.dueDate).to.equal('2026-11-12');
+		expect(converted.body.validUntil).to.equal(null);
+		// lines and parties travel over unchanged
+		expect(converted.body.lines).to.deep.equal(quoteBody.lines);
+		expect(converted.body.buyer).to.deep.equal(buyer);
+
+		// only one open draft per quotation
+		const again = await request(app)
+			.post(`/api/invoices/${id}/convert`)
+			.send({ requireAccepted: false })
+			.expect(400);
+		expect(String(again.body.error)).to.contain('already exists');
+
+		// issuing the draft numbers it from the invoice circle; the offer stays put
+		const issued = await request(app).post(`/api/invoices/${converted.body.id}/issue`).expect(200);
+		expect(issued.body.number).to.match(/^\d{4}-00-001$/);
+		const quote = await request(app).get(`/api/invoices/${id}`).expect(200);
+		expect(quote.body.docType).to.equal('quote');
+		expect(quote.body.number).to.equal('A-2026-00-001');
+		expect(quote.body.status).to.equal('issued');
+		expect(quote.body.validUntil).to.equal('2026-10-28');
+		// once that invoice is out, the next conversion follows (partial/final)
+		await request(app).post(`/api/invoices/${id}/convert`).send({ requireAccepted: false }).expect(201);
+
+		// an accepted quotation needs no opt-out
+		const secondQuote = await createQuote();
+		await request(app).post(`/api/invoices/${secondQuote}/issue`).expect(200);
+		await request(app).post(`/api/invoices/${secondQuote}/quote-accept`).send({}).expect(200);
+		const fromAccepted = await request(app).post(`/api/invoices/${secondQuote}/convert`).send({}).expect(201);
+		expect(fromAccepted.body.docType).to.equal('invoice');
+		expect(fromAccepted.body.sourceDocumentId).to.equal(secondQuote);
+
+		// only a quotation can be converted
+		const invoice = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		expect((await request(app).post(`/api/invoices/${invoice.body.id}/convert`).expect(400)).body.error).to.contain(
+			'Only a quotation',
+		);
+		await request(app).post('/api/invoices/gibt-es-nicht/convert').expect(404);
+	});
+
+	it('validates a quotation without an e-invoice check and exports it apart', async () => {
+		const id = await createQuote();
+		const validation = await request(app).post(`/api/invoices/${id}/validate`).expect(200);
+		// R8: a quotation is not an e-invoice, so no XSD findings may appear
+		expect(validation.body.formatErrors).to.deep.equal([]);
+		expect(validation.body.businessErrors).to.deep.equal([]);
+		const report = validation.body.report as { seq: number; path: string };
+		expect(report.seq).to.equal(1);
+		expect(report.path).to.contain('validation-1.json');
+		const stored = files.get(report.path);
+		expect(stored).to.not.equal(undefined);
+		const payload = JSON.parse(String(stored)) as { ok: boolean; documentTitle: string; validator: string };
+		expect(payload.ok).to.equal(true);
+		expect(payload.documentTitle).to.equal('Angebot');
+		expect(payload.validator).to.contain('internal check');
+
+		// an incomplete quotation reports a Pflichtangabe, still no format error
+		const broken = await createQuote({ lines: [] });
+		const brokenResult = await request(app).post(`/api/invoices/${broken}/validate`).expect(200);
+		expect(brokenResult.body.businessErrors).to.not.deep.equal([]);
+		expect(brokenResult.body.formatErrors).to.deep.equal([]);
+
+		// an offer that expired before its own issue date is not handed out
+		await request(app).post(`/api/invoices/${id}/issue`).expect(200);
+		const expired = await createQuote({ validUntil: '2026-09-27' });
+		const refused = await request(app).post(`/api/invoices/${expired}/issue`).expect(400);
+		expect(String(refused.body.error)).to.contain('Valid-until date');
+
+		// the accounting exports separate the two document types
+		const csv = await request(app).get('/api/invoices/export.csv').expect(200);
+		expect(csv.text).to.contain('A-2026-00-001');
+		expect(csv.text).to.contain('Angebot');
+		const onlyInvoices = await request(app).get('/api/invoices/export.csv?docType=invoice').expect(200);
+		expect(onlyInvoices.text).to.not.contain('A-2026-00-001');
+		const onlyQuotes = await request(app).get('/api/invoices/export.csv?docType=quote').expect(200);
+		expect(onlyQuotes.text).to.contain('A-2026-00-001');
+		const datevInvoices = await request(app).get('/api/invoices/export.datev?docType=invoice').expect(200);
+		expect(datevInvoices.text).to.contain('EXTF');
+		expect(datevInvoices.text).to.not.contain('A-2026-00-001');
+		const datevQuotes = await request(app).get('/api/invoices/export.datev?docType=quote').expect(200);
+		expect(datevQuotes.text).to.contain('A-2026-00-001');
 	});
 });

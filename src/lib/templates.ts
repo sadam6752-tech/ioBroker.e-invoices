@@ -117,6 +117,12 @@ export const DEFAULT_TEMPLATE: LayoutTemplate = {
 export const ARCHIVE_HINT =
 	'Hinweis: Diese Rechnung ist vom Leistungsempfänger zwei Jahre aufzubewahren (§ 14b Abs. 1 Satz 5 UStG).';
 
+/**
+ * Intro sentence used for a quotation when the template still carries the
+ * invoice wording (R8). A template with its own `introText` always wins.
+ */
+export const DEFAULT_QUOTE_INTRO = 'Gerne unterbreiten wir Ihnen das folgende Angebot.';
+
 function isHexColor(value: unknown): boolean {
 	return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
 }

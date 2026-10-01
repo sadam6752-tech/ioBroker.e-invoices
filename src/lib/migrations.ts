@@ -237,6 +237,40 @@ export const MIGRATIONS: Migration[] = [
 			`CREATE INDEX IF NOT EXISTS idx_validation_reports_invoice ON validation_reports(invoice_id)`,
 		],
 	},
+	{
+		version: 12,
+		name: 'document-types-and-quotes',
+		sql: [
+			// R8: one document model, several document types. Everything that
+			// already exists is an invoice, so the default keeps every legacy
+			// record valid and untouched (Leitlinie 7).
+			`ALTER TABLE invoices ADD COLUMN doc_type TEXT NOT NULL DEFAULT 'invoice'`,
+			// Quotation lifecycle: how long the offer stands and how it ended.
+			`ALTER TABLE invoices ADD COLUMN valid_until TEXT`,
+			`ALTER TABLE invoices ADD COLUMN accepted_at TEXT`,
+			`ALTER TABLE invoices ADD COLUMN rejected_at TEXT`,
+			`ALTER TABLE invoices ADD COLUMN rejection_reason TEXT`,
+			// Document chain quotation -> invoice. `storno_of_id` stays free for
+			// the reversal case, both references never mix.
+			`ALTER TABLE invoices ADD COLUMN source_document_id TEXT`,
+			`CREATE INDEX IF NOT EXISTS idx_invoices_doc_type ON invoices(doc_type)`,
+			`CREATE INDEX IF NOT EXISTS idx_invoices_source_document ON invoices(source_document_id)`,
+			// Separate number circles, rebuilt exactly like v3 did it: the
+			// existing rows keep their last_seq, so the invoice sequence stays
+			// continuous (§ 14 Abs. 4 Nr. 4 UStG — no renumbering), while the
+			// quotation circle starts at 1.
+			`CREATE TABLE counters_new (
+				year INTEGER NOT NULL,
+				employee TEXT NOT NULL DEFAULT '00',
+				doc_type TEXT NOT NULL DEFAULT 'invoice',
+				last_seq INTEGER NOT NULL DEFAULT 0,
+				PRIMARY KEY (year, employee, doc_type)
+			)`,
+			`INSERT INTO counters_new (year, employee, doc_type, last_seq) SELECT year, employee, 'invoice', last_seq FROM counters`,
+			`DROP TABLE counters`,
+			`ALTER TABLE counters_new RENAME TO counters`,
+		],
+	},
 ];
 
 /** Highest schema version defined. */

@@ -140,6 +140,7 @@ function mapRow(row) {
     totals: parseJson(row.totals_json, "totals"),
     profile: row.profile,
     status: row.status,
+    docType: (0, import_invoice_model.normalizeDocumentType)(row.doc_type),
     templateId: row.template_id,
     documentTitle: row.document_title,
     notes: row.notes,
@@ -160,6 +161,11 @@ function mapRow(row) {
     remindedAt: row.reminded_at,
     reminderLevel: row.reminder_level,
     retainUntil: row.retain_until,
+    validUntil: row.valid_until,
+    sourceDocumentId: row.source_document_id,
+    acceptedAt: row.accepted_at,
+    rejectedAt: row.rejected_at,
+    rejectionReason: row.rejection_reason,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -265,6 +271,8 @@ class InvoiceDatabase {
   db;
   /** Invoice number format from the instance config. */
   numberFormat = import_invoice_model.DEFAULT_NUMBER_FORMAT;
+  /** Quotation number format from the instance config (own circle, R8). */
+  quoteNumberFormat = import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT;
   /**
    * Opens (and creates) the SQLite file.
    *
@@ -284,10 +292,12 @@ class InvoiceDatabase {
    *
    * @param options - Adapter options from the instance config.
    * @param options.numberFormat - Desired invoice number pattern.
+   * @param options.quoteNumberFormat - Desired quotation number pattern.
    */
   applyOptions(options) {
-    var _a;
+    var _a, _b;
     this.numberFormat = (_a = options.numberFormat) != null ? _a : import_invoice_model.DEFAULT_NUMBER_FORMAT;
+    this.quoteNumberFormat = (_b = options.quoteNumberFormat) != null ? _b : import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT;
   }
   /**
    * The number format actually in use (falls back to the default when the
@@ -298,6 +308,13 @@ class InvoiceDatabase {
   effectiveNumberFormat() {
     var _a;
     return (_a = (0, import_invoice_model.normalizeNumberFormat)(this.numberFormat)) != null ? _a : import_invoice_model.DEFAULT_NUMBER_FORMAT;
+  }
+  /**
+   * Effective, validated quotation number format (own circle, R8).
+   */
+  effectiveQuoteNumberFormat() {
+    var _a;
+    return (_a = (0, import_invoice_model.normalizeNumberFormat)(this.quoteNumberFormat)) != null ? _a : import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT;
   }
   /** Closes the database handle. */
   close() {
@@ -344,45 +361,74 @@ class InvoiceDatabase {
     }
   }
   /**
-   * Reserves the next invoice number for a year+employee atomically
-   * (`YYYY-EE-NNN`).
+   * Reserves the next document number for a document type + year + employee
+   * atomically (`YYYY-EE-NNN`, custom format honoured).
    *
+   * Invoice and quotation circles are strictly separate (R8): issuing a
+   * quotation never advances the invoice sequence and vice versa, so the
+   * invoice numbering stays uninterrupted (§ 14 Abs. 4 Nr. 4 UStG).
+   *
+   * @param docType - Invoice (default) or quotation.
    * @param year - Calendar year, e.g. 2026.
    * @param employee - Employee code, defaults to `00`.
    */
-  nextInvoiceNumber(year, employee) {
+  nextDocumentNumber(docType, year, employee) {
     var _a;
     if (!Number.isInteger(year) || year < 2e3 || year > 2100) {
       throw new Error(`Invalid year: ${year}`);
     }
+    const kind = (0, import_invoice_model.normalizeDocumentType)(docType);
     const code = (0, import_invoice_model.normalizeEmployeeCode)(employee);
-    const format = (_a = (0, import_invoice_model.normalizeNumberFormat)(this.numberFormat)) != null ? _a : import_invoice_model.DEFAULT_NUMBER_FORMAT;
+    const fallback = kind === "quote" ? import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT : import_invoice_model.DEFAULT_NUMBER_FORMAT;
+    const format = (_a = (0, import_invoice_model.normalizeNumberFormat)(kind === "quote" ? this.quoteNumberFormat : this.numberFormat)) != null ? _a : fallback;
     const run = this.db.transaction(() => {
       var _a2;
-      const row = this.db.prepare(`SELECT last_seq AS seq FROM counters WHERE year = ? AND employee = ?`).get(year, code);
+      const row = this.db.prepare(`SELECT last_seq AS seq FROM counters WHERE year = ? AND employee = ? AND doc_type = ?`).get(year, code, kind);
       const next = ((_a2 = row == null ? void 0 : row.seq) != null ? _a2 : 0) + 1;
       this.db.prepare(
-        `INSERT INTO counters (year, employee, last_seq) VALUES (?, ?, ?)
-					ON CONFLICT(year, employee) DO UPDATE SET last_seq = excluded.last_seq`
-      ).run(year, code, next);
+        `INSERT INTO counters (year, employee, doc_type, last_seq) VALUES (?, ?, ?, ?)
+					ON CONFLICT(year, employee, doc_type) DO UPDATE SET last_seq = excluded.last_seq`
+      ).run(year, code, kind, next);
+      if (kind === "quote") {
+        return (0, import_invoice_model.renderInvoiceNumber)(format, { year, employee: code, seq: next });
+      }
       return format === import_invoice_model.DEFAULT_NUMBER_FORMAT ? (0, import_invoice_model.formatInvoiceNumber)(year, code, next) : (0, import_invoice_model.renderInvoiceNumber)(format, { year, employee: code, seq: next });
     });
     return run();
   }
   /**
+   * Next invoice number (`YYYY-EE-NNN`).
+   *
+   * @param year - Calendar year.
+   * @param employee - Employee code, defaults to `00`.
+   */
+  nextInvoiceNumber(year, employee) {
+    return this.nextDocumentNumber("invoice", year, employee);
+  }
+  /**
+   * Next quotation number (`A-YYYY-EE-NNN` by default, own circle).
+   *
+   * @param year - Calendar year.
+   * @param employee - Employee code, defaults to `00`.
+   */
+  nextQuoteNumber(year, employee) {
+    return this.nextDocumentNumber("quote", year, employee);
+  }
+  /**
    * Creates a new draft (may be incomplete; validation happens at issue).
    *
-   * @param input - Draft content.
+   * @param input - Draft content; `docType` decides invoice vs. quotation.
    */
   createDraft(input) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     const id = (0, import_node_crypto.randomUUID)();
     const stamp = nowIso();
+    const kind = (0, import_invoice_model.normalizeDocumentType)(input.docType);
     const totals = (0, import_invoice_model.calcTotals)(input.lines.length > 0 ? input.lines : []);
     this.db.prepare(
       `INSERT INTO invoices
-				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, template_id, document_title, notes, payment_terms, employee_code, skonto_percent, skonto_due_date, created_at, updated_at)
-				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', NULL, ?, ?, ?, ?, ?, ?, ?, ?)`
+				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, doc_type, template_id, document_title, notes, payment_terms, employee_code, skonto_percent, skonto_due_date, valid_until, source_document_id, created_at, updated_at)
+				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       id,
       input.issueDate,
@@ -392,12 +438,15 @@ class InvoiceDatabase {
       JSON.stringify(input.buyer),
       JSON.stringify(input.lines),
       JSON.stringify(totals),
-      (_b = input.documentTitle) != null ? _b : "Rechnung",
+      kind,
+      ((_b = input.documentTitle) == null ? void 0 : _b.trim()) || (0, import_invoice_model.defaultDocumentTitle)(kind),
       (_c = input.notes) != null ? _c : null,
       (_d = input.paymentTerms) != null ? _d : null,
       ((_e = input.employeeCode) == null ? void 0 : _e.trim()) ? (0, import_invoice_model.normalizeEmployeeCode)(input.employeeCode) : null,
       Number(input.skontoPercent) || 0,
       ((_f = input.skontoDueDate) == null ? void 0 : _f.trim()) || null,
+      ((_g = input.validUntil) == null ? void 0 : _g.trim()) || null,
+      (_h = input.sourceDocumentId) != null ? _h : null,
       stamp,
       stamp
     );
@@ -425,6 +474,14 @@ class InvoiceDatabase {
     var _a, _b;
     const where = [];
     const params = [];
+    if (filter.docType) {
+      where.push(`doc_type = ?`);
+      params.push((0, import_invoice_model.normalizeDocumentType)(filter.docType));
+    }
+    if (filter.sourceDocumentId) {
+      where.push(`source_document_id = ?`);
+      params.push(filter.sourceDocumentId);
+    }
     if (filter.status) {
       where.push(`status = ?`);
       params.push(filter.status);
@@ -495,6 +552,7 @@ class InvoiceDatabase {
       var _a2;
       return next === null || next === "" ? void 0 : (_a2 = next != null ? next : fallback) != null ? _a2 : void 0;
     };
+    const kindSwitch = patch.docType !== void 0 && (0, import_invoice_model.normalizeDocumentType)(patch.docType) !== current.docType;
     const merged = {
       seller: (_a = patch.seller) != null ? _a : current.seller,
       buyer: (_b = patch.buyer) != null ? _b : current.buyer,
@@ -505,30 +563,34 @@ class InvoiceDatabase {
       currency: "EUR",
       employeeCode: pick(patch.employeeCode, current.employeeCode),
       paymentTerms: pick(patch.paymentTerms, current.paymentTerms),
-      documentTitle: (_f = patch.documentTitle) != null ? _f : current.documentTitle,
+      docType: patch.docType === void 0 ? current.docType : (0, import_invoice_model.normalizeDocumentType)(patch.docType),
+      documentTitle: pick(patch.documentTitle, current.documentTitle) || (kindSwitch ? (0, import_invoice_model.defaultDocumentTitle)(patch.docType) : current.documentTitle),
       notes: pick(patch.notes, current.notes),
-      skontoPercent: (_g = patch.skontoPercent) != null ? _g : current.skontoPercent,
-      skontoDueDate: pick(patch.skontoDueDate, current.skontoDueDate)
+      skontoPercent: (_f = patch.skontoPercent) != null ? _f : current.skontoPercent,
+      skontoDueDate: pick(patch.skontoDueDate, current.skontoDueDate),
+      validUntil: pick(patch.validUntil, current.validUntil)
     };
     const totals = (0, import_invoice_model.calcTotals)(merged.lines.length > 0 ? merged.lines : []);
     this.db.prepare(
       `UPDATE invoices SET issue_date = ?, delivery_date = ?, due_date = ?, seller_json = ?, buyer_json = ?,
 				lines_json = ?, totals_json = ?, document_title = ?, notes = ?, payment_terms = ?, employee_code = ?,
-				skonto_percent = ?, skonto_due_date = ?, updated_at = ? WHERE id = ?`
+				skonto_percent = ?, skonto_due_date = ?, doc_type = ?, valid_until = ?, updated_at = ? WHERE id = ?`
     ).run(
       merged.issueDate,
       merged.deliveryDate,
-      (_h = merged.dueDate) != null ? _h : null,
+      (_g = merged.dueDate) != null ? _g : null,
       JSON.stringify(merged.seller),
       JSON.stringify(merged.buyer),
       JSON.stringify(merged.lines),
       JSON.stringify(totals),
-      (_i = merged.documentTitle) != null ? _i : "Rechnung",
-      (_j = merged.notes) != null ? _j : null,
-      (_k = merged.paymentTerms) != null ? _k : null,
-      ((_l = merged.employeeCode) == null ? void 0 : _l.trim()) ? (0, import_invoice_model.normalizeEmployeeCode)(merged.employeeCode) : null,
+      (_h = merged.documentTitle) != null ? _h : "Rechnung",
+      (_i = merged.notes) != null ? _i : null,
+      (_j = merged.paymentTerms) != null ? _j : null,
+      ((_k = merged.employeeCode) == null ? void 0 : _k.trim()) ? (0, import_invoice_model.normalizeEmployeeCode)(merged.employeeCode) : null,
       Number(merged.skontoPercent) || 0,
-      ((_m = merged.skontoDueDate) == null ? void 0 : _m.trim()) || null,
+      ((_l = merged.skontoDueDate) == null ? void 0 : _l.trim()) || null,
+      (0, import_invoice_model.normalizeDocumentType)(merged.docType),
+      ((_m = merged.validUntil) == null ? void 0 : _m.trim()) || null,
       nowIso(),
       id
     );
@@ -540,14 +602,15 @@ class InvoiceDatabase {
   }
   /**
    * Issues a draft: validates Pflichtangaben, assigns the next number
-   * (`YYYY-EE-NNN` from issue year + employee code) atomically and
-   * freezes the record. File paths are attached later
+   * (`YYYY-EE-NNN` for invoices, `A-YYYY-EE-NNN` for quotations — separate
+   * circles, from issue year + employee code) atomically and freezes the
+   * record. File paths are attached later
    * by the P2/P3 generation step via attachIssueArtifacts().
    *
    * @param id - Draft UUID.
    */
   issueDraft(id) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const current = this.getInvoice(id);
     if (!current) {
       throw new Error(`Invoice not found: ${id}`);
@@ -559,6 +622,7 @@ class InvoiceDatabase {
     if (!Number.isInteger(year)) {
       throw new Error(`Invalid issue year in ${current.issueDate}`);
     }
+    const docType = (0, import_invoice_model.normalizeDocumentType)(current.docType);
     const errors = (0, import_invoice_model.validateInvoiceForIssue)({
       seller: current.seller,
       buyer: current.buyer,
@@ -567,23 +631,29 @@ class InvoiceDatabase {
       deliveryDate: current.deliveryDate,
       dueDate: (_a = current.dueDate) != null ? _a : void 0,
       currency: "EUR",
+      docType: current.docType,
       employeeCode: (_b = current.employeeCode) != null ? _b : void 0,
       documentTitle: current.documentTitle,
-      notes: (_c = current.notes) != null ? _c : void 0
+      notes: (_c = current.notes) != null ? _c : void 0,
+      validUntil: (_d = current.validUntil) != null ? _d : void 0
     });
     if (errors.length > 0) {
       throw new Error(`Invoice not issuable: ${errors.join(" | ")}`);
     }
     const run = this.db.transaction(() => {
-      var _a2;
-      const number = this.nextInvoiceNumber(year, (_a2 = current.employeeCode) != null ? _a2 : void 0);
+      var _a2, _b2, _c2;
+      const number = this.nextDocumentNumber(docType, year, (_a2 = current.employeeCode) != null ? _a2 : void 0);
+      const validUntil = (0, import_invoice_model.isQuote)(docType) ? ((_b2 = current.validUntil) == null ? void 0 : _b2.trim()) || (0, import_invoice_model.defaultValidUntil)(current.issueDate) : (_c2 = current.validUntil) != null ? _c2 : null;
       this.db.prepare(
-        `UPDATE invoices SET number = ?, status = 'issued', totals_json = ?, retain_until = ?, updated_at = ? WHERE id = ? AND status = 'draft'`
+        `UPDATE invoices SET number = ?, status = 'issued', totals_json = ?, retain_until = ?, valid_until = ?, updated_at = ? WHERE id = ? AND status = 'draft'`
       ).run(
         number,
         JSON.stringify((0, import_invoice_model.calcTotals)(current.lines)),
-        // § 147 AO / § 14b UStG: ten years, computed once at issuance
-        retentionUntil(current.issueDate),
+        // § 147 AO / § 14b UStG: ten years, computed once at issuance.
+        // A quotation is no booking record, so it carries no
+        // retention date at all (R8).
+        (0, import_invoice_model.isQuote)(docType) ? null : retentionUntil(current.issueDate),
+        validUntil,
         nowIso(),
         id
       );
@@ -596,13 +666,107 @@ class InvoiceDatabase {
     return run();
   }
   /**
+   * Records the customer's decision on an issued quotation (R8).
+   *
+   * The decision is bookkeeping only: it never changes the frozen PDF, it
+   * documents what the customer said and when. A second decision is refused,
+   * so a mis-click cannot overwrite the first answer.
+   *
+   * @param id - Quotation UUID.
+   * @param decision - `accepted` or `rejected`.
+   * @param options - Optional timestamp and rejection reason.
+   * @param options.at - ISO timestamp of the decision, defaults to now.
+   * @param options.reason - Free-text reason, stored with a rejection.
+   */
+  setQuoteDecision(id, decision, options = {}) {
+    var _a, _b;
+    if (decision !== "accepted" && decision !== "rejected") {
+      throw new Error(`Unknown decision: ${String(decision)}`);
+    }
+    const current = this.getInvoice(id);
+    if (!current) {
+      throw new Error(`Invoice not found: ${id}`);
+    }
+    if (!(0, import_invoice_model.isQuote)(current.docType)) {
+      throw new Error("Only a quotation knows a customer decision (R8).");
+    }
+    if (current.status !== "issued") {
+      throw new Error("Issue the quotation before recording a decision.");
+    }
+    if (current.acceptedAt || current.rejectedAt) {
+      throw new Error("The decision on this quotation was already recorded.");
+    }
+    const at = ((_a = options.at) == null ? void 0 : _a.trim()) || nowIso();
+    if (decision === "accepted") {
+      this.db.prepare(`UPDATE invoices SET accepted_at = ?, updated_at = ? WHERE id = ?`).run(at, nowIso(), id);
+    } else {
+      this.db.prepare(`UPDATE invoices SET rejected_at = ?, rejection_reason = ?, updated_at = ? WHERE id = ?`).run(at, ((_b = options.reason) == null ? void 0 : _b.trim()) || null, nowIso(), id);
+    }
+    const updated = this.getInvoice(id);
+    if (!updated) {
+      throw new Error("Decision update failed");
+    }
+    return updated;
+  }
+  /**
+   * Creates an invoice draft from a quotation (R8).
+   *
+   * The quotation itself is never edited (GoBD): the draft copies parties,
+   * lines, terms and cash discount, points back through `source_document_id`
+   * and is then issued as an ordinary invoice with a number from the invoice
+   * circle. Its own issue date defaults to today, because the invoice is
+   * dated when it is written — not when the offer was made.
+   *
+   * @param quoteId - Quotation UUID.
+   * @param patch - Overrides for the new draft (lines, dates, terms …).
+   * @param options - Conversion options.
+   * @param options.requireAccepted - Refuse a quotation the customer has not accepted yet.
+   */
+  convertQuoteToInvoice(quoteId, patch = {}, options = {}) {
+    var _a, _b, _c, _d, _e;
+    const quote = this.getInvoice(quoteId);
+    if (!quote) {
+      throw new Error(`Invoice not found: ${quoteId}`);
+    }
+    if (!(0, import_invoice_model.isQuote)(quote.docType)) {
+      throw new Error("Only a quotation can be turned into an invoice (R8).");
+    }
+    if (quote.status !== "issued") {
+      throw new Error("Issue the quotation before creating an invoice from it.");
+    }
+    if (options.requireAccepted && (0, import_invoice_model.quoteState)(quote) !== "accepted") {
+      throw new Error("The customer has not accepted this quotation yet.");
+    }
+    const openDraft = this.listInvoices({ docType: "invoice", status: "draft", sourceDocumentId: quote.id });
+    if (openDraft.length > 0) {
+      throw new Error(`An invoice draft from this quotation already exists: ${openDraft[0].id}`);
+    }
+    return this.createDraft({
+      ...(0, import_invoice_model.blankDraft)((0, import_invoice_model.todayIso)(), "invoice"),
+      seller: quote.seller,
+      buyer: quote.buyer,
+      lines: quote.lines,
+      deliveryDate: quote.deliveryDate,
+      paymentTerms: (_a = quote.paymentTerms) != null ? _a : void 0,
+      notes: (_b = quote.notes) != null ? _b : void 0,
+      employeeCode: (_c = quote.employeeCode) != null ? _c : void 0,
+      skontoPercent: quote.skontoPercent,
+      skontoDueDate: (_d = quote.skontoDueDate) != null ? _d : void 0,
+      ...patch,
+      // a conversion never produces anything but an invoice
+      docType: "invoice",
+      documentTitle: ((_e = patch.documentTitle) == null ? void 0 : _e.trim()) || (0, import_invoice_model.defaultDocumentTitle)("invoice"),
+      sourceDocumentId: quote.id
+    });
+  }
+  /**
    * Attaches generated artifacts (XML string + file paths) to an issued invoice.
    *
    * @param id - Issued invoice UUID.
    * @param artifacts - Generated output (XML plus file paths).
    */
   attachIssueArtifacts(id, artifacts) {
-    var _a, _b;
+    var _a, _b, _c;
     const current = this.getInvoice(id);
     if (!current) {
       throw new Error(`Invoice not found: ${id}`);
@@ -613,10 +777,10 @@ class InvoiceDatabase {
     this.db.prepare(
       `UPDATE invoices SET xml = ?, pdf_path = ?, xlsx_path = ?, template_id = ?, updated_at = ? WHERE id = ?`
     ).run(
-      artifacts.xml,
+      (_a = artifacts.xml) != null ? _a : null,
       artifacts.pdfPath,
-      (_a = artifacts.xlsxPath) != null ? _a : null,
-      (_b = artifacts.templateId) != null ? _b : null,
+      (_b = artifacts.xlsxPath) != null ? _b : null,
+      (_c = artifacts.templateId) != null ? _c : null,
       nowIso(),
       id
     );
@@ -975,7 +1139,9 @@ class InvoiceDatabase {
    * Exports the full database content for backups.
    */
   exportData() {
-    const counters = this.db.prepare(`SELECT year, employee, last_seq FROM counters ORDER BY year ASC, employee ASC`).all();
+    const counters = this.db.prepare(
+      `SELECT year, employee, doc_type, last_seq FROM counters ORDER BY year ASC, employee ASC, doc_type ASC`
+    ).all();
     const attachments = this.db.prepare(`SELECT * FROM attachments ORDER BY id ASC`).all();
     return {
       formatVersion: 1,
@@ -1017,7 +1183,7 @@ class InvoiceDatabase {
     }
     const has = (key) => Array.isArray(dump[key]);
     const run = this.db.transaction(() => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
       this.db.prepare(`DELETE FROM attachments`).run();
       this.db.prepare(`DELETE FROM invoices`).run();
       this.db.prepare(`DELETE FROM counters`).run();
@@ -1034,14 +1200,20 @@ class InvoiceDatabase {
       const mergedCounters = /* @__PURE__ */ new Map();
       for (const counter of (_a = dump.counters) != null ? _a : []) {
         const employee = (0, import_invoice_model.normalizeEmployeeCode)((_b = counter.employee) != null ? _b : "00");
-        const key = `${counter.year}/${employee}`;
+        const docType = (0, import_invoice_model.normalizeDocumentType)(counter.doc_type);
+        const key = `${counter.year}/${employee}/${docType}`;
         const prev = mergedCounters.get(key);
-        if (!prev || counter.last_seq > prev.lastSeq) {
-          mergedCounters.set(key, { year: counter.year, employee, lastSeq: counter.last_seq });
+        if (!prev || counter.last_seq > prev.last_seq) {
+          mergedCounters.set(key, {
+            year: counter.year,
+            employee,
+            doc_type: docType,
+            last_seq: counter.last_seq
+          });
         }
       }
       for (const counter of mergedCounters.values()) {
-        this.db.prepare(`INSERT INTO counters (year, employee, last_seq) VALUES (?, ?, ?)`).run(counter.year, counter.employee, counter.lastSeq);
+        this.db.prepare(`INSERT INTO counters (year, employee, doc_type, last_seq) VALUES (?, ?, ?, ?)`).run(counter.year, counter.employee, counter.doc_type, counter.last_seq);
       }
       for (const template of dump.templates) {
         this.db.prepare(
@@ -1062,8 +1234,10 @@ class InvoiceDatabase {
           `INSERT INTO invoices
 					(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json,
 					 profile, status, template_id, document_title, notes, payment_terms, employee_code, xml, pdf_path, xlsx_path,
-					 paid, paid_at, storno_of_id, skonto_percent, skonto_due_date, created_at, updated_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					 paid, paid_at, storno_of_id, skonto_percent, skonto_due_date, sent_at, send_channel, payment_check,
+					 payment_checked_at, reminded_at, reminder_level, retain_until, created_at, updated_at, doc_type,
+					 valid_until, source_document_id, accepted_at, rejected_at, rejection_reason)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).run(
           invoice.id,
           invoice.number,
@@ -1089,11 +1263,26 @@ class InvoiceDatabase {
           (_f = invoice.stornoOfId) != null ? _f : null,
           Number(invoice.skontoPercent) || 0,
           (_g = invoice.skontoDueDate) != null ? _g : null,
+          (_h = invoice.sentAt) != null ? _h : null,
+          (_i = invoice.sendChannel) != null ? _i : null,
+          (_j = invoice.paymentCheck) != null ? _j : null,
+          (_k = invoice.paymentCheckedAt) != null ? _k : null,
+          (_l = invoice.remindedAt) != null ? _l : null,
+          (_m = invoice.reminderLevel) != null ? _m : 0,
+          // a dump from before R8 has no retention date: recomputing it
+          // keeps ten years of § 147 AO. A quotation never gets one.
+          (_n = invoice.retainUntil) != null ? _n : (0, import_invoice_model.isQuote)(invoice.docType) ? null : retentionUntil(invoice.issueDate),
           invoice.createdAt,
-          invoice.updatedAt
+          invoice.updatedAt,
+          (0, import_invoice_model.normalizeDocumentType)(invoice.docType),
+          (_o = invoice.validUntil) != null ? _o : null,
+          (_p = invoice.sourceDocumentId) != null ? _p : null,
+          (_q = invoice.acceptedAt) != null ? _q : null,
+          (_r = invoice.rejectedAt) != null ? _r : null,
+          (_s = invoice.rejectionReason) != null ? _s : null
         );
       }
-      for (const company of (_h = dump.companies) != null ? _h : []) {
+      for (const company of (_t = dump.companies) != null ? _t : []) {
         this.db.prepare(
           `INSERT INTO company_profiles (id, name, profile_json, is_default, created_at, updated_at)
 						VALUES (?, ?, ?, ?, ?, ?)`
@@ -1106,7 +1295,7 @@ class InvoiceDatabase {
           company.updatedAt
         );
       }
-      for (const customer of (_i = dump.customers) != null ? _i : []) {
+      for (const customer of (_u = dump.customers) != null ? _u : []) {
         this.db.prepare(
           `INSERT INTO customers (id, name, profile_json, created_at, updated_at)
 						VALUES (?, ?, ?, ?, ?)`
@@ -1118,7 +1307,7 @@ class InvoiceDatabase {
           customer.updatedAt
         );
       }
-      for (const product of (_j = dump.products) != null ? _j : []) {
+      for (const product of (_v = dump.products) != null ? _v : []) {
         this.db.prepare(
           `INSERT INTO products (id, sku, name, details, unit, unit_price_net, vat_rate, created_at, updated_at)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -1134,7 +1323,7 @@ class InvoiceDatabase {
           product.updatedAt
         );
       }
-      for (const attachment of (_k = dump.attachments) != null ? _k : []) {
+      for (const attachment of (_w = dump.attachments) != null ? _w : []) {
         this.db.prepare(
           `INSERT INTO attachments (invoice_id, filename, mime, size, data, created_at)
 						VALUES (?, ?, ?, ?, ?, ?)`

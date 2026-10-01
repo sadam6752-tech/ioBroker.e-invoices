@@ -20,6 +20,7 @@ var pdf_attachments_exports = {};
 __export(pdf_attachments_exports, {
   ATTACHMENT_AF_RELATIONSHIP: () => ATTACHMENT_AF_RELATIONSHIP,
   ATTACHMENT_EMBED_HINT: () => ATTACHMENT_EMBED_HINT,
+  ATTACHMENT_SEPARATE_HINT: () => ATTACHMENT_SEPARATE_HINT,
   attachmentDescription: () => attachmentDescription,
   attachmentTypeLabel: () => attachmentTypeLabel,
   embedPdfAttachments: () => embedPdfAttachments,
@@ -29,6 +30,7 @@ module.exports = __toCommonJS(pdf_attachments_exports);
 var import_pdf_lib = require("pdf-lib");
 const ATTACHMENT_AF_RELATIONSHIP = import_pdf_lib.AFRelationship.Data;
 const ATTACHMENT_EMBED_HINT = "Die Anlagen sind in dieser Datei eingebettet (PDF/A-3) und kein externer Link.";
+const ATTACHMENT_SEPARATE_HINT = "Die Anlagen liegen diesem Dokument separat bei.";
 const ATTACHMENT_TYPE_LABELS = {
   "application/pdf": "PDF",
   "image/png": "PNG",
@@ -65,6 +67,7 @@ async function embedPdfAttachments(pdfBytes, attachments) {
 0 && (module.exports = {
   ATTACHMENT_AF_RELATIONSHIP,
   ATTACHMENT_EMBED_HINT,
+  ATTACHMENT_SEPARATE_HINT,
   attachmentDescription,
   attachmentTypeLabel,
   embedPdfAttachments,

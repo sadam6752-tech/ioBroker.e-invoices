@@ -63,7 +63,7 @@ class EInvoices extends utils.Adapter {
       this.db = new import_db.InvoiceDatabase(dbPath);
       this.db.migrate();
       this.log.info(`Database ready (schema v${this.db.currentVersion()}): ${dbPath}`);
-      this.applyNumberFormat();
+      this.applyNumberFormats();
       const defaultTemplate = this.db.ensureDefaultTemplate();
       this.log.info(`Layout template: ${defaultTemplate.name} v${defaultTemplate.version}`);
       this.syncCompanyFromConfig();
@@ -84,19 +84,35 @@ class EInvoices extends utils.Adapter {
     }
   }
   /**
-   * Validates the configured invoice number format once and warns loudly if
-   * it is unusable, so the fallback to the default is never silent.
+   * Validates the configured number formats once and warns loudly when one is
+   * unusable, so the fallback to the default is never silent. Invoices and
+   * quotations number in separate circles and therefore have separate
+   * formats (R8).
    */
-  applyNumberFormat() {
+  applyNumberFormats() {
     var _a;
-    const raw = typeof this.config.numberFormat === "string" ? this.config.numberFormat : "";
-    const validated = (0, import_invoice_model.normalizeNumberFormat)(raw);
-    if (raw.trim() !== "" && !validated) {
+    const numberFormat = this.readNumberFormat("numberFormat", "Invoice", import_invoice_model.DEFAULT_NUMBER_FORMAT);
+    const quoteNumberFormat = this.readNumberFormat("quoteNumberFormat", "Quotation", import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT);
+    (_a = this.db) == null ? void 0 : _a.applyOptions({ numberFormat, quoteNumberFormat });
+  }
+  /**
+   * Reads one number format from the instance config and reports a broken
+   * value. The raw string is passed on: the database keeps the last valid
+   * format, and an empty value simply means "use the default".
+   *
+   * @param key - Config key (`numberFormat` or `quoteNumberFormat`).
+   * @param label - Document type for the warning text.
+   * @param fallback - Default format quoted in the warning.
+   */
+  readNumberFormat(key, label, fallback) {
+    const value = this.config[key];
+    const raw = typeof value === "string" ? value : "";
+    if (raw.trim() !== "" && !(0, import_invoice_model.normalizeNumberFormat)(raw)) {
       this.log.warn(
-        `Invoice number format "${raw.trim()}" is unusable (needs {SEQ} and may only use {YYYY}, {EMPLOYEE}, {SEQ} plus separators) \u2014 falling back to ${import_invoice_model.DEFAULT_NUMBER_FORMAT}`
+        `${label} number format "${raw.trim()}" is unusable (needs {SEQ} and may only use {YYYY}, {EMPLOYEE}, {SEQ} plus separators) \u2014 falling back to ${fallback}`
       );
     }
-    (_a = this.db) == null ? void 0 : _a.applyOptions({ numberFormat: raw });
+    return raw;
   }
   /**
    * Mirrors the company master data from the instance config into the
@@ -581,7 +597,7 @@ class EInvoices extends utils.Adapter {
    * socket for the PWA — see README for the W5049 reason).
    */
   startApiServer() {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f, _g;
     if (!this.db) {
       return;
     }
@@ -596,8 +612,9 @@ class EInvoices extends utils.Adapter {
           defaultVatRate: Number((_a = this.config.defaultVatRate) != null ? _a : 19),
           defaultPaymentTerms: (_b = this.config.defaultPaymentTerms) != null ? _b : "",
           numberFormat: (_d = (_c = this.db) == null ? void 0 : _c.effectiveNumberFormat()) != null ? _d : import_invoice_model.DEFAULT_NUMBER_FORMAT,
+          quoteNumberFormat: (_f = (_e = this.db) == null ? void 0 : _e.effectiveQuoteNumberFormat()) != null ? _f : import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
           storageMount: this.mountId,
-          backupIntervalMinutes: Number((_e = this.config.backupIntervalMinutes) != null ? _e : 0)
+          backupIntervalMinutes: Number((_g = this.config.backupIntervalMinutes) != null ? _g : 0)
         }
       });
       const wwwDir = (0, import_node_path.join)(__dirname, "../www");

@@ -19,6 +19,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var templates_exports = {};
 __export(templates_exports, {
   ARCHIVE_HINT: () => ARCHIVE_HINT,
+  DEFAULT_QUOTE_INTRO: () => DEFAULT_QUOTE_INTRO,
   DEFAULT_TEMPLATE: () => DEFAULT_TEMPLATE,
   validateTemplate: () => validateTemplate
 });
@@ -45,6 +46,7 @@ const DEFAULT_TEMPLATE = {
   blocks: { title: true, meta: true, parties: true, positions: true, totals: true, payment: true, notes: true }
 };
 const ARCHIVE_HINT = "Hinweis: Diese Rechnung ist vom Leistungsempf\xE4nger zwei Jahre aufzubewahren (\xA7 14b Abs. 1 Satz 5 UStG).";
+const DEFAULT_QUOTE_INTRO = "Gerne unterbreiten wir Ihnen das folgende Angebot.";
 function isHexColor(value) {
   return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
 }
@@ -142,6 +144,7 @@ function validateTemplate(template) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ARCHIVE_HINT,
+  DEFAULT_QUOTE_INTRO,
   DEFAULT_TEMPLATE,
   validateTemplate
 });

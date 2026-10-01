@@ -22,11 +22,17 @@ import type {
 import {
 	blankDraft,
 	calcTotals,
+	defaultDocumentTitle,
+	defaultValidUntil,
+	isQuote,
+	normalizeDocumentType,
+	todayIso,
 	validateInvoiceForIssue,
 	type InvoiceDraftInput,
 	type InvoiceStatus,
 	ALLOWED_VAT_RATES,
 	DEFAULT_NUMBER_FORMAT,
+	DEFAULT_QUOTE_NUMBER_FORMAT,
 } from './invoice-model';
 import {
 	issueInvoiceBatch,
@@ -58,9 +64,13 @@ function filteredInvoices(db: InvoiceDatabase, query: Record<string, unknown>): 
 	const status = typeof query.status === 'string' ? (query.status as InvoiceStatus) : undefined;
 	const year = typeof query.year === 'string' ? Number(query.year) : undefined;
 	const text = typeof query.q === 'string' ? query.q : undefined;
+	// R8: the list can be narrowed to quotations or invoices, so an export
+	// never mixes A-numbers into the booking list by accident.
+	const docType = typeof query.docType === 'string' ? normalizeDocumentType(query.docType) : undefined;
 	return db.listInvoices({
 		status: status && ['draft', 'issued', 'cancelled'].includes(status) ? status : undefined,
 		year: Number.isInteger(year) ? year : undefined,
+		docType,
 		query: text,
 		limit: 500,
 	});
@@ -96,6 +106,7 @@ export interface ApiServerDeps {
 		defaultVatRate: number;
 		defaultPaymentTerms: string;
 		numberFormat: string;
+		quoteNumberFormat: string;
 		storageMount: string;
 		backupIntervalMinutes: number;
 	};
@@ -108,6 +119,9 @@ export interface ApiServerDeps {
  */
 export function previewInvoice(draft: InvoiceDraftInput): StoredInvoice {
 	const stamp = new Date().toISOString();
+	// R8: a preview of a quotation must look like a quotation (title, validity,
+	// no retention), otherwise its PDF check would test the wrong rules.
+	const docType = normalizeDocumentType(draft.docType);
 	return {
 		id: 'preview',
 		number: 'PREVIEW',
@@ -121,12 +135,21 @@ export function previewInvoice(draft: InvoiceDraftInput): StoredInvoice {
 		profile: 'EN16931',
 		status: 'draft',
 		templateId: null,
-		documentTitle: draft.documentTitle ?? 'Rechnung',
+		docType,
+		documentTitle: draft.documentTitle ?? defaultDocumentTitle(docType),
 		notes: draft.notes ?? null,
 		paymentTerms: draft.paymentTerms ?? null,
 		employeeCode: draft.employeeCode ?? null,
 		skontoPercent: Number(draft.skontoPercent) || 0,
 		skontoDueDate: draft.skontoDueDate ?? null,
+		validUntil:
+			docType === 'quote'
+				? draft.validUntil?.trim() || defaultValidUntil(draft.issueDate)
+				: (draft.validUntil ?? null),
+		sourceDocumentId: draft.sourceDocumentId ?? null,
+		acceptedAt: null,
+		rejectedAt: null,
+		rejectionReason: null,
 		sentAt: null,
 		sendChannel: null,
 		paymentCheck: null,
@@ -159,6 +182,13 @@ export function storedToDraft(invoice: StoredInvoice): InvoiceDraftInput {
 		deliveryDate: invoice.deliveryDate,
 		dueDate: invoice.dueDate ?? undefined,
 		currency: 'EUR',
+		// R8: without the type the re-validation would test invoice rules
+		// against a quotation (and vice versa).
+		docType: invoice.docType,
+		validUntil: invoice.validUntil ?? undefined,
+		employeeCode: invoice.employeeCode ?? undefined,
+		skontoPercent: invoice.skontoPercent,
+		skontoDueDate: invoice.skontoDueDate ?? undefined,
 		documentTitle: invoice.documentTitle,
 		notes: invoice.notes ?? undefined,
 		paymentTerms: invoice.paymentTerms ?? undefined,
@@ -308,6 +338,9 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			: 19,
 		defaultPaymentTerms: deps.settings?.defaultPaymentTerms?.trim() ?? '',
 		numberFormat: deps.settings?.numberFormat?.trim() || DEFAULT_NUMBER_FORMAT,
+		// R8: quotations number in their own circle, so the PWA shows the
+		// matching format next to the invoice one.
+		quoteNumberFormat: deps.settings?.quoteNumberFormat?.trim() || DEFAULT_QUOTE_NUMBER_FORMAT,
 		storageMount: deps.settings?.storageMount?.trim() ?? '',
 		backupIntervalMinutes: Math.max(0, Math.round(Number(deps.settings?.backupIntervalMinutes) || 0)),
 	};
@@ -421,7 +454,9 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			const query = typeof req.query.q === 'string' ? req.query.q : undefined;
 			const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined;
 			const offset = typeof req.query.offset === 'string' ? Number(req.query.offset) : undefined;
-			res.json(db.listInvoices({ status, year, query, limit, offset }));
+			const docType =
+				typeof req.query.docType === 'string' ? normalizeDocumentType(req.query.docType) : undefined;
+			res.json(db.listInvoices({ status, year, docType, query, limit, offset }));
 		}),
 	);
 
@@ -438,7 +473,11 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				return;
 			}
 			try {
-				const created = db.createDraft({ ...blankDraft(), ...input });
+				// R8: the type decides number circle, validation and (no)
+				// e-invoice path, so it is normalised before the blank draft is
+				// built — a quotation must start with its own title and validity.
+				const docType = normalizeDocumentType(typeof input.docType === 'string' ? input.docType : undefined);
+				const created = db.createDraft({ ...blankDraft(todayIso(), docType), ...input, docType });
 				log.info(`API draft created: ${created.id}`);
 				res.status(201).json(created);
 			} catch (error) {
@@ -700,6 +739,84 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				const result = db.reverseInvoice(routeParam(req, 'id'), body.reason);
 				log.info(`Storno created for ${result.original.number}: draft ${result.reversal.id}`);
 				res.status(201).json(result);
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	// R8: quotation lifecycle. The routes stay in the invoice collection — the
+	// docType on the record decides whether they make sense, and the database
+	// refuses anything else (a decision on an invoice, a conversion of one).
+	app.post(
+		'/api/invoices/:id/quote-accept',
+		route((req, res) => {
+			const body = (req.body ?? {}) as { at?: unknown };
+			if (body.at !== undefined && typeof body.at !== 'string') {
+				res.status(400).json({ error: 'at must be an ISO timestamp' });
+				return;
+			}
+			try {
+				const updated = db.setQuoteDecision(routeParam(req, 'id'), 'accepted', {
+					at: typeof body.at === 'string' ? body.at : undefined,
+				});
+				log.info(`Quotation accepted: ${updated.number} (${updated.id})`);
+				res.json(updated);
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.post(
+		'/api/invoices/:id/quote-reject',
+		route((req, res) => {
+			const body = (req.body ?? {}) as { at?: unknown; reason?: unknown };
+			if (body.at !== undefined && typeof body.at !== 'string') {
+				res.status(400).json({ error: 'at must be an ISO timestamp' });
+				return;
+			}
+			if (body.reason !== undefined && typeof body.reason !== 'string') {
+				res.status(400).json({ error: 'reason must be a string' });
+				return;
+			}
+			try {
+				const updated = db.setQuoteDecision(routeParam(req, 'id'), 'rejected', {
+					at: typeof body.at === 'string' ? body.at : undefined,
+					reason: typeof body.reason === 'string' ? body.reason : undefined,
+				});
+				log.info(`Quotation rejected: ${updated.number} (${updated.id})`);
+				res.json(updated);
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.post(
+		'/api/invoices/:id/convert',
+		route((req, res) => {
+			const body = (req.body ?? {}) as { requireAccepted?: unknown } & Partial<InvoiceDraftInput>;
+			if (body.requireAccepted !== undefined && typeof body.requireAccepted !== 'boolean') {
+				res.status(400).json({ error: 'requireAccepted must be a boolean' });
+				return;
+			}
+			const bad = findShapeError(body, { seller: 'object', buyer: 'object', lines: 'array' });
+			if (bad) {
+				res.status(400).json({ error: bad });
+				return;
+			}
+			// Accepted by default: the recorded "Ja" of the customer is the
+			// paper trail behind the invoice. An explicit `requireAccepted:
+			// false` covers the deal that was agreed by phone and never
+			// marked in the adapter.
+			const { requireAccepted, ...patch } = body;
+			try {
+				const created = db.convertQuoteToInvoice(routeParam(req, 'id'), patch, {
+					requireAccepted: requireAccepted !== false,
+				});
+				log.info(`Quotation ${routeParam(req, 'id')} converted to draft ${created.id}`);
+				res.status(201).json(created);
 			} catch (error) {
 				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
 			}
@@ -971,6 +1088,11 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				// Nothing to hand to the XSD check yet: the Pflichtangaben are
 				// incomplete, so only the business layer has findings.
 				result = { formatErrors: [], businessErrors };
+			} else if (isQuote(invoice.docType)) {
+				// R8: a quotation is not an e-invoice. There is no CII XML to
+				// check against EN 16931, so the business layer is the whole
+				// validation and the report stays honest about it.
+				result = { formatErrors: [], businessErrors: [] };
 			} else {
 				try {
 					const preview = previewInvoice(draft);

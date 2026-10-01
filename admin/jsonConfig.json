@@ -225,6 +225,18 @@
 					"lg": 5,
 					"xl": 5
 				},
+				"quoteNumberFormat": {
+					"type": "text",
+					"label": "Quotation number format",
+					"help": "Own number circle, used only for quotations. Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.",
+					"default": "A-{YYYY}-{EMPLOYEE}-{SEQ}",
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 6,
+					"lg": 5,
+					"xl": 5
+				},
 				"defaultVatRate": {
 					"type": "select",
 					"label": "Default VAT rate",

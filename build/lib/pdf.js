@@ -67,7 +67,7 @@ function imageHeightForWidth(data, widthPt) {
 const LOGO_MAX_HEIGHT_PT = 220;
 const LOGO_CONTINUATION_HEIGHT_PT = 80;
 async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEMPLATE, logo, context = {}) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   if (!invoice.number) {
     throw new Error("Invoice has no number yet - issue it before rendering");
   }
@@ -85,12 +85,16 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
   const accentFill = usePrimary ? colors.primary : HEADER_GRAY;
   const titleAccent = usePrimary && ((_e = template.titleAccent) != null ? _e : import_templates.DEFAULT_TEMPLATE.titleAccent);
   const headerAccent = usePrimary && ((_f = template.tableHeaderAccent) != null ? _f : import_templates.DEFAULT_TEMPLATE.tableHeaderAccent);
-  const intro = (_g = template.introText) != null ? _g : import_templates.DEFAULT_TEMPLATE.introText;
+  const introText = (_g = template.introText) != null ? _g : import_templates.DEFAULT_TEMPLATE.introText;
   const closing = (_h = template.closingText) != null ? _h : import_templates.DEFAULT_TEMPLATE.closingText;
   const signature = ((_i = template.signatureName) == null ? void 0 : _i.trim()) || "";
   const showTagline = (_j = template.showTagline) != null ? _j : true;
+  const labels = (0, import_invoice_model.documentLabels)(invoice.docType);
+  const quote = (0, import_invoice_model.isQuote)(invoice.docType);
+  const intro = quote && introText === import_templates.DEFAULT_TEMPLATE.introText ? import_templates.DEFAULT_QUOTE_INTRO : introText;
+  const relatedNumbers = ((_k = context.relatedNumbers) != null ? _k : []).filter((number) => number.trim() !== "");
   return new Promise((resolve, reject) => {
-    var _a2, _b2, _c2, _d2, _e2, _f2, _g2, _h2, _i2, _j2;
+    var _a2, _b2, _c2, _d2, _e2, _f2, _g2, _h2, _i2, _j2, _k2, _l;
     const doc = new import_pdfkit.default({
       size: "A4",
       margins: { top: 50, bottom: 36, left: 50, right: 50 },
@@ -98,7 +102,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       info: {
         Title: `${invoice.documentTitle} ${invoice.number}`,
         Author: invoice.seller.name,
-        Subject: "E-Rechnung Sichtkomponente (ZUGFeRD)",
+        Subject: labels.subject,
         Creator: "ioBroker.e-invoices"
       }
     });
@@ -160,11 +164,14 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
     }
     doc.font(import_fonts.FONT_REGULAR).fontSize(10);
     const meta = [
-      ["Rechnungsnr.:", invoiceNumber],
-      ["Rechnungsdatum:", formatDeDate(invoice.issueDate)],
-      ["Lieferdatum:", formatDeDate(invoice.deliveryDate)],
+      [labels.number, invoiceNumber],
+      [labels.date, formatDeDate(invoice.issueDate)],
+      [labels.delivery, formatDeDate(invoice.deliveryDate)],
       ...template.showCustomerNumber && invoice.buyer.customerNumber ? [["Kundennr.:", invoice.buyer.customerNumber]] : [],
-      ...invoice.dueDate ? [["F\xE4llig am:", formatDeDate(invoice.dueDate)]] : []
+      // R8: a quotation states until when it stands, an invoice when it
+      // has to be paid
+      ...quote && invoice.validUntil ? [[labels.validUntil, formatDeDate(invoice.validUntil)]] : [],
+      ...invoice.dueDate ? [[labels.due, formatDeDate(invoice.dueDate)]] : []
     ];
     let my = cursor + 4;
     for (const [label, value] of meta) {
@@ -190,6 +197,20 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       );
       doc.fillColor(colors.text).fontSize(10);
       cursor += 14;
+    }
+    const references = [
+      context.sourceDocumentNumber ? `Zugrunde liegendes Angebot: ${context.sourceDocumentNumber}.` : "",
+      relatedNumbers.length > 0 ? `Daraus hervorgegangene Rechnung(en): ${relatedNumbers.join(", ")}.` : "",
+      (_b2 = (_a2 = context.decisionNote) == null ? void 0 : _a2.trim()) != null ? _b2 : ""
+    ].filter((line) => line !== "");
+    if (references.length > 0) {
+      doc.fillColor(colors.muted).fontSize(9);
+      for (const line of references) {
+        doc.text(line, left, cursor, { width: pageWidth });
+        cursor += 12;
+      }
+      doc.fillColor(colors.text).fontSize(10);
+      cursor += 2;
     }
     if (intro.trim()) {
       doc.text(intro.trim(), left, cursor, { width: pageWidth });
@@ -325,7 +346,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       ensureSpace(16);
       doc.fillColor(colors.muted).fontSize(9);
       doc.text(
-        `Ausgeglichen am ${formatDeDate(((_a2 = invoice.paidAt) != null ? _a2 : "").slice(0, 10)) || "\u2014"}${skonto.percent > 0 ? " (Skonto ber\xFCcksichtigt)" : ""}.`,
+        `Ausgeglichen am ${formatDeDate(((_c2 = invoice.paidAt) != null ? _c2 : "").slice(0, 10)) || "\u2014"}${skonto.percent > 0 ? " (Skonto ber\xFCcksichtigt)" : ""}.`,
         left,
         rowY,
         { width: pageWidth }
@@ -336,7 +357,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       ensureSpace(30);
       doc.fillColor(colors.muted).fontSize(9);
       doc.text(
-        `Bei Zahlung bis ${formatDeDate((_b2 = skonto.dueDate) != null ? _b2 : "")} ${formatEurDe(skonto.payableNow)} je Rechnung (${skonto.percent} % Skonto = ${formatEurDe(skonto.amount)}).`,
+        `Bei Zahlung bis ${formatDeDate((_d2 = skonto.dueDate) != null ? _d2 : "")} ${formatEurDe(skonto.payableNow)} ${labels.perDocument} (${skonto.percent} % Skonto = ${formatEurDe(skonto.amount)}).`,
         left,
         rowY,
         { width: pageWidth }
@@ -361,7 +382,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.text(`Zahlungsbedingungen: ${invoice.paymentTerms}`, left, rowY, { width: pageWidth });
       rowY += 14;
     }
-    if (template.blocks.notes && ((_c2 = invoice.notes) == null ? void 0 : _c2.trim())) {
+    if (template.blocks.notes && ((_e2 = invoice.notes) == null ? void 0 : _e2.trim())) {
       ensureSpace(40);
       doc.text(`Hinweis: ${invoice.notes.trim()}`, left, rowY, { width: pageWidth });
       rowY += 14;
@@ -379,7 +400,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.font(import_fonts.FONT_REGULAR);
       rowY += 20;
     }
-    if ((_d2 = template.showFooterBoxes) != null ? _d2 : true) {
+    if ((_f2 = template.showFooterBoxes) != null ? _f2 : true) {
       const rawBoxes = invoice.seller.footerBoxes;
       const customBoxes = Array.isArray(rawBoxes) && rawBoxes.length === 4 && rawBoxes.some((box) => typeof box === "string" && box.trim() !== "") ? rawBoxes.filter((box) => typeof box === "string") : null;
       const boxes = customBoxes ? customBoxes.map(
@@ -387,13 +408,13 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       ) : [
         [invoice.seller.name, invoice.seller.street, `${invoice.seller.zip} ${invoice.seller.city}`],
         [
-          (_e2 = invoice.seller.phone) != null ? _e2 : "",
-          (_f2 = invoice.seller.website) != null ? _f2 : "",
-          template.showEmail ? (_g2 = invoice.seller.email) != null ? _g2 : "" : ""
+          (_g2 = invoice.seller.phone) != null ? _g2 : "",
+          (_h2 = invoice.seller.website) != null ? _h2 : "",
+          template.showEmail ? (_i2 = invoice.seller.email) != null ? _i2 : "" : ""
         ],
         [
-          (_h2 = invoice.seller.bankName) != null ? _h2 : "",
-          (_i2 = invoice.seller.iban) != null ? _i2 : "",
+          (_j2 = invoice.seller.bankName) != null ? _j2 : "",
+          (_k2 = invoice.seller.iban) != null ? _k2 : "",
           invoice.seller.bic ? `BIC: ${invoice.seller.bic}` : ""
         ],
         [
@@ -434,10 +455,11 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       doc.fontSize(10);
       rowY = footTop + maxLines * lineHeight + 8;
     }
-    const attachments = (_j2 = context.attachments) != null ? _j2 : [];
+    const attachments = (_l = context.attachments) != null ? _l : [];
     if (attachments.length > 0) {
+      const attachHint = quote ? import_pdf_attachments.ATTACHMENT_SEPARATE_HINT : import_pdf_attachments.ATTACHMENT_EMBED_HINT;
       doc.fontSize(9).font(import_fonts.FONT_REGULAR);
-      const hintHeight = doc.heightOfString(import_pdf_attachments.ATTACHMENT_EMBED_HINT, { width: pageWidth });
+      const hintHeight = doc.heightOfString(attachHint, { width: pageWidth });
       ensureSpace(30 + attachments.length * 12 + hintHeight);
       doc.fontSize(10).font(import_fonts.FONT_BOLD).fillColor(colors.text);
       doc.text("Anlagen", left, rowY, { width: pageWidth });
@@ -448,11 +470,11 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
         doc.text(label, left + 8, rowY, { width: pageWidth - 8, height: 12, ellipsis: true });
         rowY += 12;
       });
-      doc.text(import_pdf_attachments.ATTACHMENT_EMBED_HINT, left, rowY, { width: pageWidth });
+      doc.text(attachHint, left, rowY, { width: pageWidth });
       rowY += hintHeight + 8;
       doc.fontSize(10).fillColor(colors.text);
     }
-    if (template.showArchiveHint) {
+    if (template.showArchiveHint && !quote) {
       ensureSpace(36);
       doc.fontSize(9).fillColor(colors.muted).text(import_templates.ARCHIVE_HINT, left, rowY, { width: pageWidth });
       doc.fontSize(10).fillColor(colors.text);

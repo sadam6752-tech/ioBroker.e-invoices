@@ -40,6 +40,12 @@ export const ATTACHMENT_AF_RELATIONSHIP = AFRelationship.Data;
 /** Hint under the attachment directory in the sight component. */
 export const ATTACHMENT_EMBED_HINT = 'Die Anlagen sind in dieser Datei eingebettet (PDF/A-3) und kein externer Link.';
 
+/**
+ * Hint under the attachment directory of a document that is not a PDF/A
+ * container (R8: a quotation ships as a plain PDF, its files travel separately).
+ */
+export const ATTACHMENT_SEPARATE_HINT = 'Die Anlagen liegen diesem Dokument separat bei.';
+
 /** Display label per accepted MIME type. */
 const ATTACHMENT_TYPE_LABELS: Record<string, string> = {
 	'application/pdf': 'PDF',

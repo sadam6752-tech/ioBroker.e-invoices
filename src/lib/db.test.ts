@@ -1,13 +1,18 @@
 /**
  * Unit tests for the SQLite persistence layer (P1).
  * In-memory databases (no files, no Windows locks); one file-based test
- * covers real file creation.
+ * covers the upgrade of a legacy database written by an older adapter.
  */
 import { expect } from 'chai';
-import { InvoiceDatabase } from './db';
-import type { InvoiceDraftInput, Party } from './invoice-model';
-import { calcTotals } from './invoice-model';
+import Database from 'better-sqlite3';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { ATTACHMENT_MAX_BYTES, ATTACHMENT_MAX_COUNT } from './attachments';
+import { InvoiceDatabase } from './db';
+import type { InvoiceDraftInput, Party, QuoteDecision } from './invoice-model';
+import { calcTotals, DEFAULT_NUMBER_FORMAT, DEFAULT_QUOTE_NUMBER_FORMAT, quoteState } from './invoice-model';
+import { LATEST_SCHEMA_VERSION, MIGRATIONS } from './migrations';
 
 const seller: Party = {
 	name: 'Muster GmbH',
@@ -50,12 +55,19 @@ describe('db => migrations', () => {
 	it('migrates a fresh database to the latest version', () => {
 		const db = openMemoryDb();
 		try {
-			expect(db.currentVersion()).to.equal(11);
+			expect(db.currentVersion()).to.equal(LATEST_SCHEMA_VERSION);
 			const columns = db.tableColumns('invoices');
 			expect(columns).to.contain('payment_terms');
 			expect(columns).to.contain('employee_code');
 			expect(columns).to.contain('sent_at');
 			expect(columns).to.contain('retain_until');
+			// R8: document type, validity of a quotation and its lifecycle
+			expect(columns).to.contain('doc_type');
+			expect(columns).to.contain('valid_until');
+			expect(columns).to.contain('source_document_id');
+			expect(columns).to.contain('accepted_at');
+			expect(columns).to.contain('rejected_at');
+			expect(columns).to.contain('rejection_reason');
 			expect(db.tableColumns('customers')).to.contain('profile_json');
 			expect(db.tableColumns('render_history')).to.contain('previous_path');
 			expect(db.tableColumns('invoice_templates')).to.contain('body_json');
@@ -69,9 +81,73 @@ describe('db => migrations', () => {
 		const db = openMemoryDb();
 		try {
 			db.migrate();
-			expect(db.currentVersion()).to.equal(11);
+			expect(db.currentVersion()).to.equal(LATEST_SCHEMA_VERSION);
 		} finally {
 			db.close();
+		}
+	});
+
+	it('upgrades a v11 database without touching its invoice numbers (R8)', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'einv-legacy-'));
+		const file = join(dir, 'invoices.db');
+		const legacy = new Database(file);
+		try {
+			// Rebuild exactly the schema an installed adapter had before R8:
+			// every migration up to v11 is applied, v12 is not.
+			const before = MIGRATIONS.filter(migration => migration.version <= 11);
+			expect(before.length).to.be.greaterThan(0);
+			for (const migration of before) {
+				for (const statement of migration.sql) {
+					legacy.exec(statement);
+				}
+				legacy
+					.prepare(`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`)
+					.run(migration.version, migration.name, '2026-01-01T00:00:00.000Z');
+			}
+			// one issued invoice plus its counter row, as an old version wrote them
+			legacy
+				.prepare(
+					`INSERT INTO invoices
+					 (id, number, issue_date, delivery_date, seller_json, buyer_json, lines_json, totals_json, status, created_at, updated_at)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'issued', ?, ?)`,
+				)
+				.run(
+					'legacy-1',
+					'2026-00-007',
+					'2026-01-05',
+					'2026-01-04',
+					JSON.stringify(seller),
+					JSON.stringify(buyer),
+					JSON.stringify([{ description: 'Alt', quantity: 1, unit: 'Std', unitPriceNet: 10, vatRate: 19 }]),
+					JSON.stringify({ netTotal: 10, taxTotal: 1.9, grossTotal: 11.9, breakdown: [] }),
+					'2026-01-05T08:00:00.000Z',
+					'2026-01-05T08:00:00.000Z',
+				);
+			legacy.prepare(`INSERT INTO counters (year, employee, last_seq) VALUES (2026, '00', 7)`).run();
+		} finally {
+			legacy.close();
+		}
+
+		const db = new InvoiceDatabase(file);
+		try {
+			db.migrate();
+			expect(db.currentVersion()).to.equal(LATEST_SCHEMA_VERSION);
+			const migrated = db.getInvoice('legacy-1');
+			// GoBD: the old record keeps its number and simply becomes an
+			// invoice of the new document model
+			expect(migrated?.number).to.equal('2026-00-007');
+			expect(migrated?.docType).to.equal('invoice');
+			expect(migrated?.validUntil).to.equal(null);
+			expect(migrated?.sourceDocumentId).to.equal(null);
+			// § 14 Abs. 4 Nr. 4 UStG: the invoice circle continues at 8 …
+			expect(db.nextInvoiceNumber(2026)).to.equal('2026-00-008');
+			// … while the quotation circle starts fresh and stays separate (R8)
+			expect(db.nextQuoteNumber(2026)).to.equal('A-2026-00-001');
+			expect(db.nextQuoteNumber(2026)).to.equal('A-2026-00-002');
+			expect(db.nextInvoiceNumber(2026)).to.equal('2026-00-009');
+		} finally {
+			db.close();
+			rmSync(dir, { recursive: true, force: true });
 		}
 	});
 });
@@ -521,6 +597,179 @@ describe('db => attachments (R4)', () => {
 			db.addAttachment(created.id, { filename: 'beleg.png', data: png });
 			db.deleteDraft(created.id);
 			expect(db.countAttachments(created.id)).to.equal(0);
+		} finally {
+			db.close();
+		}
+	});
+});
+
+describe('db => quotations (R8)', () => {
+	it('numbers quotations in a circle of their own', () => {
+		const db = openMemoryDb();
+		try {
+			expect(db.nextInvoiceNumber(2026)).to.equal('2026-00-001');
+			expect(db.nextQuoteNumber(2026)).to.equal('A-2026-00-001');
+			expect(db.nextQuoteNumber(2026, 'k7')).to.equal('A-2026-K7-001');
+			// issuing a quotation never advances the invoice sequence …
+			expect(db.nextInvoiceNumber(2026)).to.equal('2026-00-002');
+			// … and every year keeps its own counter
+			expect(db.nextQuoteNumber(2027)).to.equal('A-2027-00-001');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('honours a custom quotation format and falls back on an unusable one', () => {
+		const db = openMemoryDb();
+		try {
+			expect(db.effectiveQuoteNumberFormat()).to.equal(DEFAULT_QUOTE_NUMBER_FORMAT);
+			db.applyOptions({ quoteNumberFormat: 'ANG-{YYYY}-{SEQ}' });
+			expect(db.effectiveQuoteNumberFormat()).to.equal('ANG-{YYYY}-{SEQ}');
+			expect(db.nextQuoteNumber(2026)).to.equal('ANG-2026-001');
+			// a broken format never breaks the series: the default is used
+			db.applyOptions({ quoteNumberFormat: '{NOPE}' });
+			expect(db.effectiveQuoteNumberFormat()).to.equal(DEFAULT_QUOTE_NUMBER_FORMAT);
+			expect(db.nextQuoteNumber(2026)).to.equal('A-2026-00-002');
+			// the invoice format is untouched by the quotation setting
+			expect(db.effectiveNumberFormat()).to.equal(DEFAULT_NUMBER_FORMAT);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('issues a quotation with the default validity and no retention date', () => {
+		const db = openMemoryDb();
+		try {
+			const created = db.createDraft(draft({ docType: 'quote' }));
+			expect(created.documentTitle).to.equal('Angebot');
+			// "Gültig bis" is only filled once the quotation is issued
+			expect(created.validUntil).to.equal(null);
+
+			const issued = db.issueDraft(created.id);
+			expect(issued.status).to.equal('issued');
+			expect(issued.number).to.match(/^A-2026-00-\d{3}$/);
+			expect(issued.validUntil).to.equal('2026-10-28');
+			// a quotation is no booking record, so § 147 AO does not apply
+			expect(issued.retainUntil).to.equal(null);
+			expect(quoteState(issued, '2026-10-28')).to.equal('open');
+			expect(quoteState(issued, '2026-10-29')).to.equal('expired');
+
+			// the invoice keeps its retention date as a contrast
+			const invoice = db.issueDraft(db.createDraft(draft()).id);
+			expect(invoice.retainUntil).to.match(/^\d{4}-\d{2}-\d{2}$/);
+			expect(invoice.number).to.equal('2026-00-001');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('keeps an explicit validity date and issues without BT-10', () => {
+		const db = openMemoryDb();
+		try {
+			const noCustomerNumber = { ...buyer, customerNumber: undefined };
+			// BT-10 is mandatory for the e-invoice, but not for an offer
+			const invoiceDraft = db.createDraft(draft({ buyer: noCustomerNumber }));
+			expect(() => db.issueDraft(invoiceDraft.id)).to.throw(/customer number/);
+
+			const quote = db.createDraft(
+				draft({ docType: 'quote', buyer: noCustomerNumber, validUntil: '2026-10-05' }),
+			);
+			const issued = db.issueDraft(quote.id);
+			expect(issued.validUntil).to.equal('2026-10-05');
+			expect(issued.buyer.customerNumber).to.equal(undefined);
+
+			// the validity date is checked like every other date
+			const broken = db.createDraft(draft({ docType: 'quote', validUntil: '31.10.2026' }));
+			expect(() => db.issueDraft(broken.id)).to.throw(/Valid-until date/);
+			const before = db.createDraft(draft({ docType: 'quote', validUntil: '2026-09-01' }));
+			expect(() => db.issueDraft(before.id)).to.throw(/must not be before the issue date/);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('records the customer decision once and refuses a second one', () => {
+		const db = openMemoryDb();
+		try {
+			const quote = db.createDraft(draft({ docType: 'quote' }));
+			// a decision belongs to an issued offer
+			expect(() => db.setQuoteDecision(quote.id, 'accepted')).to.throw(/Issue the quotation/);
+
+			const issued = db.issueDraft(quote.id);
+			const accepted = db.setQuoteDecision(issued.id, 'accepted', { at: '2026-10-02T09:00:00.000Z' });
+			expect(accepted.acceptedAt).to.equal('2026-10-02T09:00:00.000Z');
+			expect(accepted.rejectedAt).to.equal(null);
+			// an accepted offer stays accepted, even after its validity ended
+			expect(quoteState(accepted, '2027-01-01')).to.equal('accepted');
+			expect(() => db.setQuoteDecision(issued.id, 'rejected', { reason: 'zu teuer' })).to.throw(
+				/already recorded/,
+			);
+
+			const rejected = db.setQuoteDecision(
+				db.issueDraft(db.createDraft(draft({ docType: 'quote' })).id).id,
+				'rejected',
+				{ reason: '  zu teuer  ' },
+			);
+			expect(rejected.rejectionReason).to.equal('zu teuer');
+			expect(rejected.acceptedAt).to.equal(null);
+			expect(quoteState(rejected, '2026-10-01')).to.equal('rejected');
+			expect(() => db.setQuoteDecision(rejected.id, 'accepted')).to.throw(/already recorded/);
+
+			// documents of the other type never carry a decision
+			const invoice = db.issueDraft(db.createDraft(draft()).id);
+			expect(() => db.setQuoteDecision(invoice.id, 'accepted')).to.throw(/Only a quotation/);
+			// an unknown decision and an unknown id are refused up front
+			expect(() => db.setQuoteDecision(invoice.id, 'maybe' as unknown as QuoteDecision)).to.throw(
+				/Unknown decision/,
+			);
+			expect(() => db.setQuoteDecision('nope', 'accepted')).to.throw(/not found/);
+			expect(() => db.convertQuoteToInvoice(invoice.id)).to.throw(/Only a quotation/);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('turns an accepted quotation into an invoice draft and links both', () => {
+		const db = openMemoryDb();
+		try {
+			const quote = db.issueDraft(db.createDraft(draft({ docType: 'quote' })).id);
+			// the customer's "Ja" is the paper trail behind the invoice; the API
+			// layer asks for it by default, the db only when told to
+			expect(() => db.convertQuoteToInvoice(quote.id, {}, { requireAccepted: true })).to.throw(/not accepted/);
+
+			// an offer that was never issued cannot become an invoice
+			const draftOffer = db.createDraft(draft({ docType: 'quote' }));
+			expect(() => db.convertQuoteToInvoice(draftOffer.id, {}, { requireAccepted: false })).to.throw(
+				/Issue the quotation before creating an invoice/,
+			);
+
+			const invoice = db.convertQuoteToInvoice(quote.id, { dueDate: '2026-11-12' }, { requireAccepted: false });
+			expect(invoice.status).to.equal('draft');
+			expect(invoice.docType).to.equal('invoice');
+			expect(invoice.documentTitle).to.equal('Rechnung');
+			expect(invoice.sourceDocumentId).to.equal(quote.id);
+			expect(invoice.number).to.equal(null);
+			expect(invoice.lines).to.deep.equal(quote.lines);
+			expect(invoice.dueDate).to.equal('2026-11-12');
+			expect(invoice.validUntil).to.equal(null);
+
+			// only one open draft per quotation, further invoices may follow later
+			expect(() => db.convertQuoteToInvoice(quote.id, {}, { requireAccepted: false })).to.throw(/already exists/);
+			const issuedInvoice = db.issueDraft(invoice.id);
+			expect(issuedInvoice.number).to.match(/^\d{4}-00-001$/);
+			expect(db.convertQuoteToInvoice(quote.id, {}, { requireAccepted: false }).id).to.not.equal(invoice.id);
+
+			// the quotation itself is never edited
+			expect(db.getInvoice(quote.id)?.status).to.equal('issued');
+			expect(db.getInvoice(quote.id)?.docType).to.equal('quote');
+			expect(db.getInvoice(quote.id)?.number).to.equal(quote.number);
+
+			// an accepted quotation converts the same way
+			const other = db.issueDraft(db.createDraft(draft({ docType: 'quote' })).id);
+			db.setQuoteDecision(other.id, 'accepted');
+			const fromAccepted = db.convertQuoteToInvoice(other.id);
+			expect(fromAccepted.sourceDocumentId).to.equal(other.id);
+			expect(db.listInvoices({ docType: 'quote' }).map(entry => entry.id)).to.contain(other.id);
 		} finally {
 			db.close();
 		}

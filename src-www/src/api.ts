@@ -309,6 +309,7 @@ export const api = {
 			defaultVatRate: number;
 			defaultPaymentTerms: string;
 			numberFormat: string;
+			quoteNumberFormat: string;
 			storageMount: string;
 			backupIntervalMinutes: number;
 		}>('/api/settings'),
