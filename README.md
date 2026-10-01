@@ -256,6 +256,18 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) The web app sources are linted now (R5.3): `src-www/src/**/*.ts` runs through the
+  same ESLint set as the adapter, with the browser globals and the `src-www` tsconfig, so
+  the PWA is no longer the one corner of the repository that no rule looks at. The first
+  run paid for itself: the wizard read its settings object before declaring it (the same
+  class of temporal-dead-zone bug as the wizard defect of September 2026 — the
+  declaration now sits above its use), the customer-number button printed
+  "[object Object] vergeben." instead of the count, and the two identical `FileReader`
+  copies in the backup and template views became one checked helper (`fileToBase64`),
+  which no longer turns a missing string into `[object ArrayBuffer]`. Only formatting
+  changed beyond that (Prettier, braces). `npm run lint` covers the PWA: 0 errors,
+  remaining warnings are JSDoc wishes, not defects.
+
 ### 0.8.2 (2026-10-01)
 * (alex) The header bar carries the tabs and nothing else now: the "+ Neu" button
   moved to the lists it creates records for (the invoice dashboard and the offers

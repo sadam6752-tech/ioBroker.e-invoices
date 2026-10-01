@@ -1,4 +1,4 @@
-import { apiFetch, esc } from '../api';
+import { apiFetch, esc, fileToBase64 } from '../api';
 
 interface Template {
 	id: string;
@@ -39,7 +39,11 @@ const LOGO_POSITIONS: { value: 'left' | 'center' | 'right'; label: string }[] = 
 	{ value: 'center', label: 'zentriert' },
 ];
 
-/** Layout studio: list, edit, logo upload, PDF preview. */
+/**
+ * Layout studio: list, edit, logo upload, PDF preview.
+ *
+ * @param root
+ */
 export async function templates(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">Lade Vorlagen…</div>`;
 	let items: Template[] = [];
@@ -48,7 +52,9 @@ export async function templates(root: HTMLElement): Promise<void> {
 	let companies: { id: string; name: string }[] = [];
 	try {
 		const res = await apiFetch('/api/company-profiles');
-		if (res.ok) companies = (await res.json()) as { id: string; name: string }[];
+		if (res.ok) {
+			companies = (await res.json()) as { id: string; name: string }[];
+		}
 	} catch {
 		// company link stays optional
 	}
@@ -60,7 +66,9 @@ export async function templates(root: HTMLElement): Promise<void> {
 
 	async function apiList(): Promise<Template[]> {
 		const res = await apiFetch('/api/templates');
-		if (!res.ok) throw new Error('Vorlagen konnten nicht geladen werden');
+		if (!res.ok) {
+			throw new Error('Vorlagen konnten nicht geladen werden');
+		}
 		return (await res.json()) as Template[];
 	}
 
@@ -180,7 +188,9 @@ export async function templates(root: HTMLElement): Promise<void> {
 		root.querySelectorAll('[data-prev]').forEach(b =>
 			b.addEventListener('click', async () => {
 				const t = items.find(x => x.id === (b as HTMLElement).dataset.prev);
-				if (!t) return;
+				if (!t) {
+					return;
+				}
 				try {
 					const res = await apiFetch('/api/templates/preview', {
 						method: 'POST',
@@ -205,7 +215,9 @@ export async function templates(root: HTMLElement): Promise<void> {
 					const res = await apiFetch(`/api/templates/${(b as HTMLElement).dataset.def}/default`, {
 						method: 'POST',
 					});
-					if (!res.ok) throw new Error('Umschalten fehlgeschlagen');
+					if (!res.ok) {
+						throw new Error('Umschalten fehlgeschlagen');
+					}
 					editing = null;
 					await reload();
 				} catch (e) {
@@ -234,7 +246,9 @@ export async function templates(root: HTMLElement): Promise<void> {
 		root.querySelector('#t-save')?.addEventListener('click', () => void save());
 		root.querySelector('#t-preview')?.addEventListener('click', async () => {
 			const collected = collectForm();
-			if (!collected) return;
+			if (!collected) {
+				return;
+			}
 			try {
 				const res = await apiFetch('/api/templates/preview', {
 					method: 'POST',
@@ -255,7 +269,9 @@ export async function templates(root: HTMLElement): Promise<void> {
 
 	/** Reads the edit form into a definition (used by save + draft preview). */
 	function collectForm(): { name: string; definition: Template['definition'] } | null {
-		if (!editing) return null;
+		if (!editing) {
+			return null;
+		}
 		const def = structuredClone(editing.definition);
 		def.name = (root.querySelector<HTMLInputElement>('#t-name')?.value ?? def.name).trim();
 		def.colors.primary = root.querySelector<HTMLInputElement>('#t-c1')?.value ?? def.colors.primary;
@@ -299,8 +315,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 		(def as unknown as Record<string, string>).headerExtra =
 			root.querySelector<HTMLInputElement>('#t-hextra')?.value ?? '';
 		if (def.logo) {
-			def.logo.position = (root.querySelector<HTMLSelectElement>('#t-lpos')?.value ?? 'right') as
-				'left' | 'right' | 'center';
+			def.logo.position = root.querySelector<HTMLSelectElement>('#t-lpos')?.value ?? 'right';
 			def.logo.widthMm = Number(root.querySelector<HTMLInputElement>('#t-lw')?.value ?? 30);
 			def.logo.allPages = root.querySelector<HTMLInputElement>('#t-lall')?.checked === true;
 		}
@@ -309,7 +324,9 @@ export async function templates(root: HTMLElement): Promise<void> {
 
 	async function save(): Promise<void> {
 		const collected = collectForm();
-		if (!collected) return;
+		if (!collected) {
+			return;
+		}
 		const def = collected.definition;
 		try {
 			let id = editing!.id;
@@ -319,11 +336,12 @@ export async function templates(root: HTMLElement): Promise<void> {
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ name: def.name, definition: def }),
 				});
-				if (!res.ok)
+				if (!res.ok) {
 					throw new Error(
 						((await res.json().catch(() => ({}))) as { error?: string }).error ??
 							'Speichern fehlgeschlagen',
 					);
+				}
 				id = ((await res.json()) as Template).id;
 			} else {
 				const res = await apiFetch(`/api/templates/${id}`, {
@@ -331,30 +349,27 @@ export async function templates(root: HTMLElement): Promise<void> {
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ name: def.name, definition: def }),
 				});
-				if (!res.ok)
+				if (!res.ok) {
 					throw new Error(
 						((await res.json().catch(() => ({}))) as { error?: string }).error ??
 							'Speichern fehlgeschlagen',
 					);
+				}
 			}
 			const file = root.querySelector<HTMLInputElement>('#t-logo')?.files?.[0];
 			if (file) {
-				const dataBase64 = await new Promise<string>((resolve, reject) => {
-					const r = new FileReader();
-					r.onload = () => resolve(String(r.result).split(',')[1]);
-					r.onerror = () => reject(new Error('Datei nicht lesbar'));
-					r.readAsDataURL(file);
-				});
+				const dataBase64 = await fileToBase64(file);
 				const res = await apiFetch(`/api/templates/${id}/logo`, {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ filename: file.name, mime: file.type, dataBase64 }),
 				});
-				if (!res.ok)
+				if (!res.ok) {
 					throw new Error(
 						((await res.json().catch(() => ({}))) as { error?: string }).error ??
 							'Logo-Upload fehlgeschlagen',
 					);
+				}
 			}
 			editing = null;
 			error = '';

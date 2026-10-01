@@ -1,4 +1,4 @@
-import { api, apiFetch, downloadUrl, esc, type RestorePreview } from '../api';
+import { api, apiFetch, downloadUrl, esc, fileToBase64, type RestorePreview } from '../api';
 
 interface BackupEntry {
 	id: string;
@@ -17,6 +17,8 @@ function baseName(path: string): string {
  * first. The preview is mandatory: there is no way to skip it.
  *
  * @param source - Stored filename or an uploaded file.
+ * @param source.filename
+ * @param source.dataBase64
  * @returns Whether the user confirmed the restore.
  */
 async function confirmRestore(source: { filename?: string; dataBase64?: string }): Promise<boolean> {
@@ -47,7 +49,11 @@ async function confirmRestore(source: { filename?: string; dataBase64?: string }
 	);
 }
 
-/** Backup page: create, list, download, restore. */
+/**
+ * Backup page: create, list, download, restore.
+ *
+ * @param root
+ */
 export async function backup(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">Lade Backups…</div>`;
 	let items: BackupEntry[] = [];
@@ -56,7 +62,9 @@ export async function backup(root: HTMLElement): Promise<void> {
 
 	async function reload(): Promise<void> {
 		const res = await apiFetch('/api/backups');
-		if (!res.ok) throw new Error('Backups konnten nicht geladen werden');
+		if (!res.ok) {
+			throw new Error('Backups konnten nicht geladen werden');
+		}
 		items = (await res.json()) as BackupEntry[];
 		render();
 	}
@@ -69,16 +77,18 @@ export async function backup(root: HTMLElement): Promise<void> {
 			${message ? `<p class="${isError ? 'error' : ''}">${esc(message)}</p>` : ''}
 		</div>
 		<div class="card"><h3>Gesicherte Backups</h3>
-			${items
-				.map(
-					b => `<div class="row" style="margin-top:8px">
+			${
+				items
+					.map(
+						b => `<div class="row" style="margin-top:8px">
 				<strong>${esc(baseName(b.filename))}</strong>
 				<span class="muted">${esc(b.createdAt.slice(0, 19).replace('T', ' '))} · ${Math.round(b.size / 1024)} KB</span>
 				<button class="secondary" data-dl="${esc(b.filename)}">Download</button>
 				<button class="secondary" data-restore="${esc(b.filename)}">Wiederherstellen</button>
 			</div>`,
-				)
-				.join('') || '<p class="muted">Noch keine Backups.</p>'}
+					)
+					.join('') || '<p class="muted">Noch keine Backups.</p>'
+			}
 		</div>
 		<div class="card"><h3>Backup-Datei hochladen & wiederherstellen</h3>
 			<input id="b-file" type="file" accept=".zip,application/zip" />
@@ -89,7 +99,11 @@ export async function backup(root: HTMLElement): Promise<void> {
 		root.querySelector('#b-now')?.addEventListener('click', async () => {
 			try {
 				const res = await apiFetch('/api/backups', { method: 'POST' });
-				if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Sichern fehlgeschlagen');
+				if (!res.ok) {
+					throw new Error(
+						((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Sichern fehlgeschlagen',
+					);
+				}
 				const created = (await res.json()) as BackupEntry;
 				message = `Gesichert: ${baseName(created.filename)}`;
 				isError = false;
@@ -115,14 +129,21 @@ export async function backup(root: HTMLElement): Promise<void> {
 		root.querySelectorAll('[data-restore]').forEach(btn =>
 			btn.addEventListener('click', async () => {
 				const filename = (btn as HTMLElement).dataset.restore ?? '';
-				if (!(await confirmRestore({ filename }))) return;
+				if (!(await confirmRestore({ filename }))) {
+					return;
+				}
 				try {
 					const res = await apiFetch('/api/restore', {
 						method: 'POST',
 						headers: { 'content-type': 'application/json' },
 						body: JSON.stringify({ filename }),
 					});
-					if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Restore fehlgeschlagen');
+					if (!res.ok) {
+						throw new Error(
+							((await res.json().catch(() => ({}))) as { error?: string }).error ??
+								'Restore fehlgeschlagen',
+						);
+					}
 					const s = (await res.json()) as { invoices: number; templates: number; fileErrors: string[] };
 					message = `Wiederhergestellt: ${s.invoices} Rechnungen, ${s.templates} Vorlagen${s.fileErrors.length > 0 ? ` (${s.fileErrors.length} Dateifehler)` : ''}`;
 					isError = false;
@@ -144,12 +165,7 @@ export async function backup(root: HTMLElement): Promise<void> {
 			}
 			let dataBase64: string;
 			try {
-				dataBase64 = await new Promise<string>((resolve, reject) => {
-					const r = new FileReader();
-					r.onload = () => resolve(String(r.result).split(',')[1]);
-					r.onerror = () => reject(new Error('Datei nicht lesbar'));
-					r.readAsDataURL(file);
-				});
+				dataBase64 = await fileToBase64(file);
 			} catch (e) {
 				message = (e as Error).message;
 				isError = true;
@@ -167,7 +183,11 @@ export async function backup(root: HTMLElement): Promise<void> {
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ dataBase64 }),
 				});
-				if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Restore fehlgeschlagen');
+				if (!res.ok) {
+					throw new Error(
+						((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Restore fehlgeschlagen',
+					);
+				}
 				const s = (await res.json()) as { invoices: number; templates: number };
 				message = `Wiederhergestellt: ${s.invoices} Rechnungen, ${s.templates} Vorlagen`;
 				isError = false;

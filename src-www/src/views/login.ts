@@ -1,6 +1,10 @@
 import { esc, getToken, setToken } from '../api';
 
-/** Login page: stores the API token (from the adapter instance settings). */
+/**
+ * Login page: stores the API token (from the adapter instance settings).
+ *
+ * @param root
+ */
 export function login(root: HTMLElement): void {
 	const current = getToken();
 	root.innerHTML = `<div class="card"><h3>Anmeldung</h3>

@@ -2,20 +2,36 @@ import { api, downloadUrl, esc, eur, openUrl } from '../api';
 import { isQuote, labels, quoteState, quoteStateLabel } from '../labels';
 import { mountAttachments } from './attachments';
 
-/** Rounds to cents without the float trap of a bare Math.round. */
+/**
+ * Rounds to cents without the float trap of a bare Math.round.
+ *
+ * @param value
+ */
 function round2(value: number): number {
 	return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-/** Formats `2026-10-01` or `2026-10-01..2026-10-31` for display. */
+/**
+ * Formats `2026-10-01` or `2026-10-01..2026-10-31` for display.
+ *
+ * @param value
+ */
 function deliveryDe(value: string): string {
 	const raw = (value ?? '').trim();
 	const [start, end] = raw.split('..');
-	const de = (iso: string): string => (/^\d{4}-\d{2}-\d{2}$/.test(iso ?? '') ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : (iso ?? ''));
+	const de = (iso: string): string =>
+		/^\d{4}-\d{2}-\d{2}$/.test(iso ?? '')
+			? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`
+			: (iso ?? '');
 	return end ? `${de(start)} – ${de(end)}` : de(start);
 }
 
-/** Invoice detail: fields, validation, downloads, issue action. */
+/**
+ * Invoice detail: fields, validation, downloads, issue action.
+ *
+ * @param root
+ * @param id
+ */
 export async function detail(root: HTMLElement, id: string): Promise<void> {
 	root.innerHTML = `<div class="card">Lade…</div>`;
 	try {
@@ -59,11 +75,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			)}: ${esc(deliveryDe(inv.deliveryDate))}${inv.dueDate ? ` · Fällig: ${esc(inv.dueDate)}` : ''}${
 				quote && inv.validUntil ? ` · ${esc(lbl.validUntil.replace(/:$/, ''))}: ${esc(inv.validUntil)}` : ''
 			}</p>
-			${
-				quote && inv.acceptedAt
-					? `<p style="color:var(--ok)">Angenommen am ${esc(inv.acceptedAt.slice(0, 10))}.</p>`
-					: ''
-			}
+			${quote && inv.acceptedAt ? `<p style="color:var(--ok)">Angenommen am ${esc(inv.acceptedAt.slice(0, 10))}.</p>` : ''}
 			${
 				quote && inv.rejectedAt
 					? `<p class="error">Abgelehnt am ${esc(inv.rejectedAt.slice(0, 10))}${
@@ -225,7 +237,8 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 		root.querySelectorAll('[data-dl]').forEach(btn =>
 			btn.addEventListener('click', async () => {
 				const kind = (btn as HTMLElement).dataset.dl as 'pdf' | 'xml' | 'xlsx';
-				const url = kind === 'pdf' ? api.pdfUrl(inv.id) : kind === 'xml' ? api.xmlUrl(inv.id) : api.xlsxUrl(inv.id);
+				const url =
+					kind === 'pdf' ? api.pdfUrl(inv.id) : kind === 'xml' ? api.xmlUrl(inv.id) : api.xlsxUrl(inv.id);
 				try {
 					await downloadUrl(url, `${inv.number ?? 'rechnung'}.${kind}`);
 				} catch (e) {
@@ -263,7 +276,10 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 					out.querySelector('#d-report-last')?.addEventListener('click', async event => {
 						event.preventDefault();
 						try {
-							await downloadUrl(api.validationReportUrl(inv.id, report.seq), `validation-${report.seq}.json`);
+							await downloadUrl(
+								api.validationReportUrl(inv.id, report.seq),
+								`validation-${report.seq}.json`,
+							);
 						} catch (e) {
 							fail(e);
 						}
@@ -306,8 +322,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 				fail(e);
 				return;
 			}
-			const href =
-				`mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+			const href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 			// set to empty when the customer has no address: the mail program then
 			// asks for the recipient instead of failing silently
 			window.location.href = href;
@@ -362,34 +377,34 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 						? ` Das Original liegt als <code>${esc(res.archivedPath.split('/').pop() ?? '')}</code> daneben.`
 						: ''
 				}</p>`;
-		await loadHistory();
+				await loadHistory();
 
-		// § 16 Abs. 2 Nr. 2 UStG: the server states whether the payment method
-		// has to be checked. The decision itself stays with the user.
-		const dutyBox = root.querySelector('#d-duty')!;
-		if (inv.status !== 'draft' && !inv.paid) {
-			try {
-				const { duty, checked } = await api.paymentCheck(inv.id);
-				if (duty.required && !checked) {
-					dutyBox.innerHTML = `<p class="error">${esc(duty.reason)}</p>
+				// § 16 Abs. 2 Nr. 2 UStG: the server states whether the payment method
+				// has to be checked. The decision itself stays with the user.
+				const dutyBox = root.querySelector('#d-duty')!;
+				if (inv.status !== 'draft' && !inv.paid) {
+					try {
+						const { duty, checked } = await api.paymentCheck(inv.id);
+						if (duty.required && !checked) {
+							dutyBox.innerHTML = `<p class="error">${esc(duty.reason)}</p>
 						<button class="secondary" id="d-duty-ok">Zahlungsweise geprüft</button>`;
-					root.querySelector('#d-duty-ok')?.addEventListener('click', async () => {
-						try {
-							await api.paymentCheck(inv.id, 'geprüft');
-							dutyBox.innerHTML = `<p style="color:var(--ok)">Zahlungsweise geprüft.</p>`;
-						} catch (e) {
-							fail(e);
+							root.querySelector('#d-duty-ok')?.addEventListener('click', async () => {
+								try {
+									await api.paymentCheck(inv.id, 'geprüft');
+									dutyBox.innerHTML = `<p style="color:var(--ok)">Zahlungsweise geprüft.</p>`;
+								} catch (e) {
+									fail(e);
+								}
+							});
+						} else if (checked) {
+							dutyBox.innerHTML = `<p class="muted">Zahlungsweise geprüft${
+								inv.paymentCheckedAt ? ` am ${esc(inv.paymentCheckedAt.slice(0, 10))}` : ''
+							}.</p>`;
 						}
-					});
-				} else if (checked) {
-					dutyBox.innerHTML = `<p class="muted">Zahlungsweise geprüft${
-						inv.paymentCheckedAt ? ` am ${esc(inv.paymentCheckedAt.slice(0, 10))}` : ''
-					}.</p>`;
+					} catch {
+						// the duty hint is informational, never block the view
+					}
 				}
-			} catch {
-				// the duty hint is informational, never block the view
-			}
-		}
 			} catch (e) {
 				out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
 			}
@@ -415,7 +430,9 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			}
 		});
 		root.querySelector('#d-issue')?.addEventListener('click', async () => {
-			if (!window.confirm(lbl.issueConfirm)) return;
+			if (!window.confirm(lbl.issueConfirm)) {
+				return;
+			}
 			try {
 				const issued = await api.issue(inv.id);
 				location.hash = `#/invoices/${issued.id}`;
@@ -427,7 +444,11 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 		// R8: the two answers of the customer. The first one counts — the second
 		// is refused by the server, so the buttons disappear afterwards.
 		root.querySelector('#d-accept')?.addEventListener('click', async () => {
-			if (!window.confirm('Angebot als angenommen vermerken? Die Entscheidung ist endgültig und steht danach auf dem Angebot.')) {
+			if (
+				!window.confirm(
+					'Angebot als angenommen vermerken? Die Entscheidung ist endgültig und steht danach auf dem Angebot.',
+				)
+			) {
 				return;
 			}
 			try {

@@ -1,8 +1,29 @@
-import { api, esc, eur, type CompanyProfile, type DraftInput, type Invoice, type InvoiceLine, type InvoiceTemplate, type Party, type Product } from '../api';
+import {
+	api,
+	esc,
+	eur,
+	type CompanyProfile,
+	type DraftInput,
+	type Invoice,
+	type InvoiceLine,
+	type InvoiceTemplate,
+	type Party,
+	type Product,
+} from '../api';
 import { defaultTitle, isQuote, labels, normalizeDocType, QUOTE_VALIDITY_DAYS, type DocType } from '../labels';
 import { mountAttachments } from './attachments';
 
+/**
+ * Invoicing defaults from the instance config (see admin/jsonConfig.json).
+ */
+let settings = { defaultVatRate: 19, defaultPaymentTerms: '' };
+
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
+/**
+ * Blank line for a fresh draft. It reads `settings`, so the defaults have to be
+ * declared *above* it — that is the order the lint rule `no-use-before-define`
+ * asks for and the reason the module cannot run into a temporal-dead-zone read.
+ */
 const emptyLine = (): InvoiceLine => ({
 	description: '',
 	quantity: 1,
@@ -10,9 +31,6 @@ const emptyLine = (): InvoiceLine => ({
 	unitPriceNet: 0,
 	vatRate: settings.defaultVatRate,
 });
-
-/** Invoicing defaults from the instance config (see admin/jsonConfig.json). */
-let settings = { defaultVatRate: 19, defaultPaymentTerms: '' };
 
 /**
  * Payment terms offered in the wizard. `days` is the offset from the issue
@@ -27,7 +45,12 @@ const PAYMENT_TERMS_PRESETS = [
 /** Marker for "the user typed their own text". */
 const OWN_TERMS = '__own__';
 
-/** Adds days to an ISO date, returning the input unchanged when it is invalid. */
+/**
+ * Adds days to an ISO date, returning the input unchanged when it is invalid.
+ *
+ * @param iso
+ * @param days
+ */
 function addDays(iso: string, days: number): string {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
 		return iso;
@@ -37,17 +60,29 @@ function addDays(iso: string, days: number): string {
 	return date.toISOString().slice(0, 10);
 }
 
-/** True when the text is not one of the presets (so the own field shows). */
+/**
+ * True when the text is not one of the presets (so the own field shows).
+ *
+ * @param value
+ */
 function isCustomTerms(value?: string | null): boolean {
 	return !!value && !isPreset(value);
 }
 
-/** True when the text is one of the three presets. */
+/**
+ * True when the text is one of the three presets.
+ *
+ * @param value
+ */
 function isPreset(value?: string | null): boolean {
 	return !!value && PAYMENT_TERMS_PRESETS.some(p => p.text === value);
 }
 
-/** The day offset of a preset text, or null for free text. */
+/**
+ * The day offset of a preset text, or null for free text.
+ *
+ * @param value
+ */
 function presetDays(value?: string | null): number | null {
 	return PAYMENT_TERMS_PRESETS.find(p => p.text === value)?.days ?? null;
 }
@@ -86,12 +121,20 @@ function syncValidUntil(state: WizardState, previousIssueDate: string): void {
 	}
 }
 
-/** Rounds to cents without the float trap of a bare Math.round (544 × 19 % = 103,36 → 103). */
+/**
+ * Rounds to cents without the float trap of a bare Math.round (544 × 19 % = 103,36 → 103).
+ *
+ * @param value
+ */
 function round2(value: number): number {
 	return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-/** Line net exactly as the server computes it (one rounding, quantity × price × discount). */
+/**
+ * Line net exactly as the server computes it (one rounding, quantity × price × discount).
+ *
+ * @param line
+ */
 function lineNet(line: InvoiceLine): number {
 	const quantity = Number(line.quantity) || 0;
 	const price = Number(line.unitPriceNet) || 0;
@@ -99,12 +142,20 @@ function lineNet(line: InvoiceLine): number {
 	return round2(quantity * price * (1 - discount / 100));
 }
 
-/** Start day of a stored delivery value (`YYYY-MM-DD` or `from..to`). */
+/**
+ * Start day of a stored delivery value (`YYYY-MM-DD` or `from..to`).
+ *
+ * @param value
+ */
 function deliveryStart(value: string): string {
 	return (value ?? '').trim().split('..')[0] ?? '';
 }
 
-/** End day of a stored delivery value, empty for a single day. */
+/**
+ * End day of a stored delivery value, empty for a single day.
+ *
+ * @param value
+ */
 function deliveryEnd(value: string): string {
 	const parts = (value ?? '').trim().split('..');
 	return parts.length > 1 ? parts[1] : '';
@@ -202,9 +253,13 @@ function hasContent(s: WizardState): boolean {
 function loadSaved(): WizardState | null {
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
-		if (!raw) return null;
+		if (!raw) {
+			return null;
+		}
 		const parsed = JSON.parse(raw) as Partial<WizardState>;
-		if (!parsed || !Array.isArray(parsed.lines) || !parsed.seller || !parsed.buyer) return null;
+		if (!parsed || !Array.isArray(parsed.lines) || !parsed.seller || !parsed.buyer) {
+			return null;
+		}
 		return { ...freshState(), ...parsed, error: '', step: Math.min(Number(parsed.step) || 0, 3) };
 	} catch {
 		return null;
@@ -251,7 +306,13 @@ const EXEMPTION_LABELS: Record<string, string> = {
 	O: 'nicht umkehrbar',
 };
 
-/** Multi-step invoice wizard: seller -> buyer -> lines -> review/issue. */
+/**
+ * Multi-step invoice wizard: seller -> buyer -> lines -> review/issue.
+ *
+ * @param root
+ * @param editId
+ * @param docType
+ */
 export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'invoice'): void {
 	let s = freshState();
 	// R8: the entry point decides the type of a *new* document — an existing one
@@ -277,7 +338,10 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 	void api
 		.settings()
 		.then(cfg => {
-			settings = { defaultVatRate: Number(cfg.defaultVatRate) || 19, defaultPaymentTerms: cfg.defaultPaymentTerms ?? '' };
+			settings = {
+				defaultVatRate: Number(cfg.defaultVatRate) || 19,
+				defaultPaymentTerms: cfg.defaultPaymentTerms ?? '',
+			};
 		})
 		.catch(() => undefined);
 	if (editId) {
@@ -415,11 +479,20 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 			const target = el.dataset.p === 'seller' ? s.seller : s.buyer;
 			(target as unknown as Record<string, string>)[el.dataset.f!] = el.value;
 		});
-		root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input[data-l],select[data-l],textarea[data-l]').forEach(el => {
+		root.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+			'input[data-l],select[data-l],textarea[data-l]',
+		).forEach(el => {
 			const [idx, field] = el.dataset.l!.split('.');
 			const line = s.lines[Number(idx)];
-			if (!line) return;
-			if (field === 'quantity' || field === 'unitPriceNet' || field === 'vatRate' || field === 'discountPercent') {
+			if (!line) {
+				return;
+			}
+			if (
+				field === 'quantity' ||
+				field === 'unitPriceNet' ||
+				field === 'vatRate' ||
+				field === 'discountPercent'
+			) {
 				// NaN/empty must not reach the API, and the discount is clamped here
 				// so the preview and the stored value are the same number
 				const numeric = Number(el.value);
@@ -430,7 +503,8 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 				(line as unknown as Record<string, string>)[field] = el.value;
 			}
 		});
-		const get = (id: string): string => root.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value ?? '';
+		const get = (id: string): string =>
+			root.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value ?? '';
 		const readDelivery = (): void => {
 			const from = get('w-delivery');
 			if (!from) {
@@ -442,21 +516,35 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 		const issueBefore = s.issueDate;
 		s.issueDate = get('w-issue') || s.issueDate;
 		readDelivery();
-		if (root.querySelector('#w-due')) s.dueDate = get('w-due');
+		if (root.querySelector('#w-due')) {
+			s.dueDate = get('w-due');
+		}
 		syncAutoDueDate(s);
-		if (root.querySelector('#w-valid')) s.validUntil = get('w-valid') || s.validUntil;
+		if (root.querySelector('#w-valid')) {
+			s.validUntil = get('w-valid') || s.validUntil;
+		}
 		syncValidUntil(s, issueBefore);
-		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
-		if (root.querySelector('#w-title')) s.documentTitle = get('w-title') || s.documentTitle;
+		if (root.querySelector('#w-employee')) {
+			s.employee = get('w-employee');
+		}
+		if (root.querySelector('#w-title')) {
+			s.documentTitle = get('w-title') || s.documentTitle;
+		}
 		const notesEl = root.querySelector<HTMLTextAreaElement>('#w-notes');
-		if (notesEl) s.notes = notesEl.value;
+		if (notesEl) {
+			s.notes = notesEl.value;
+		}
 		const termsEl = root.querySelector<HTMLTextAreaElement>('#w-terms');
-		if (termsEl) s.paymentTerms = termsEl.value;
+		if (termsEl) {
+			s.paymentTerms = termsEl.value;
+		}
 		if (root.querySelector('#w-skonto')) {
 			const raw = Number(get('w-skonto'));
 			s.skontoPercent = Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 100) : 0;
 		}
-		if (root.querySelector('#w-skonto-due')) s.skontoDueDate = get('w-skonto-due');
+		if (root.querySelector('#w-skonto-due')) {
+			s.skontoDueDate = get('w-skonto-due');
+		}
 		persist();
 	}
 
@@ -466,7 +554,9 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 	}
 
 	function render(preserve = false): void {
-		if (!preserve) collect();
+		if (!preserve) {
+			collect();
+		}
 		let body = '';
 		if (s.step === 0) {
 			body = `<div class="card"><h3>Verkäufer</h3>
@@ -553,12 +643,19 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 						<label>USt %<select data-l="${i}.vatRate">
 							${[19, 7, 0].map(r => `<option ${r === Number(l.vatRate) ? 'selected' : ''}>${r}</option>`).join('')}
 						</select></label>
-						${Number(l.vatRate) === 0 ? `<label>Steuerbefreiung<select data-l="${i}.exemptionCategory">
+						${
+							Number(l.vatRate) === 0
+								? `<label>Steuerbefreiung<select data-l="${i}.exemptionCategory">
 								${(['E', 'AE', 'K', 'G', 'O'] as const)
-									.map(c => `<option ${(l.exemptionCategory ?? 'E') === c ? 'selected' : ''} value="${c}">${c} — ${EXEMPTION_LABELS[c]}</option>`)
+									.map(
+										c =>
+											`<option ${(l.exemptionCategory ?? 'E') === c ? 'selected' : ''} value="${c}">${c} — ${EXEMPTION_LABELS[c]}</option>`,
+									)
 									.join('')}
 							</select></label>
-							<label>Begründung<textarea data-l="${i}.exemptionReason" rows="1" placeholder="z. B. Reverse Charge §13b UStG">${esc(l.exemptionReason)}</textarea></label>` : ''}
+							<label>Begründung<textarea data-l="${i}.exemptionReason" rows="1" placeholder="z. B. Reverse Charge §13b UStG">${esc(l.exemptionReason)}</textarea></label>`
+								: ''
+						}
 					</div>
 					<button class="secondary" data-del="${i}">Position entfernen</button>
 				</div>`,
@@ -611,7 +708,8 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 				<label>Zahlungsbedingungen<select id="w-terms-select">
 					<option value="" ${s.paymentTerms === '' ? 'selected' : ''}>keine</option>
 					${PAYMENT_TERMS_PRESETS.map(
-						p => `<option value="${esc(p.text)}" ${!s.termsCustom && s.paymentTerms === p.text ? 'selected' : ''}>${esc(p.text)}</option>`,
+						p =>
+							`<option value="${esc(p.text)}" ${!s.termsCustom && s.paymentTerms === p.text ? 'selected' : ''}>${esc(p.text)}</option>`,
 					).join('')}
 					<option value="${OWN_TERMS}" ${s.termsCustom ? 'selected' : ''}>eigener Text …</option>
 				</select></label>
@@ -631,11 +729,18 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 			const lines = s.lines
 				.map(l => {
 					const discount = Math.min(Math.max(Number(l.discountPercent) || 0, 0), 100);
-					return { ...l, discount, gross: round2((Number(l.quantity) || 0) * (Number(l.unitPriceNet) || 0)), net: lineNet(l) };
+					return {
+						...l,
+						discount,
+						gross: round2((Number(l.quantity) || 0) * (Number(l.unitPriceNet) || 0)),
+						net: lineNet(l),
+					};
 				})
 				.filter(l => l.description.trim() !== '' || l.gross > 0);
 			const byRate = new Map<number, number>();
-			for (const l of lines) byRate.set(Number(l.vatRate) || 0, round2((byRate.get(Number(l.vatRate) || 0) ?? 0) + l.net));
+			for (const l of lines) {
+				byRate.set(Number(l.vatRate) || 0, round2((byRate.get(Number(l.vatRate) || 0) ?? 0) + l.net));
+			}
 			const breakdown = [...byRate.entries()]
 				.sort(([a], [b]) => a - b)
 				.map(([rate, net]) => ({ rate, net, tax: round2((net * rate) / 100) }));
@@ -841,7 +946,9 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 			render();
 		});
 		root.querySelector('#w-clear')?.addEventListener('click', () => {
-			if (!window.confirm('Eingaben verwerfen und zur Übersicht?')) return;
+			if (!window.confirm('Eingaben verwerfen und zur Übersicht?')) {
+				return;
+			}
 			localStorage.removeItem(STORAGE_KEY);
 			location.hash = '#/';
 		});
@@ -866,7 +973,11 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 					vatRate: found.vatRate,
 				};
 				const pristine = s.lines.findIndex(
-					l => !l.description.trim() && !(l.sku ?? '').trim() && !(l.details ?? '').trim() && l.unitPriceNet === 0,
+					l =>
+						!l.description.trim() &&
+						!(l.sku ?? '').trim() &&
+						!(l.details ?? '').trim() &&
+						l.unitPriceNet === 0,
 				);
 				if (pristine >= 0) {
 					s.lines[pristine] = taken;
@@ -882,13 +993,17 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 				collect();
 				s.dirty = true;
 				s.lines.splice(Number((btn as HTMLElement).dataset.del), 1);
-				if (s.lines.length === 0) s.lines.push(emptyLine());
+				if (s.lines.length === 0) {
+					s.lines.push(emptyLine());
+				}
 				render(true);
 			}),
 		);
 		root.querySelector('#w-save')?.addEventListener('click', () => void save(false));
 		root.querySelector('#w-issue')?.addEventListener('click', () => {
-			if (!window.confirm(labels(s.docType).issueConfirm)) return;
+			if (!window.confirm(labels(s.docType).issueConfirm)) {
+				return;
+			}
 			void save(true);
 		});
 	}
@@ -914,16 +1029,16 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 				// R8: the type travels with every write — it decides the number
 				// circle, the validation rules and the artifacts
 				docType: s.docType,
-			employeeCode: s.employee.trim() || undefined,
-			documentTitle: s.documentTitle,
-			notes: s.notes || undefined,
-			paymentTerms: s.paymentTerms || undefined,
-			skontoPercent: s.skontoPercent || undefined,
-			skontoDueDate: s.skontoDueDate || undefined,
-			// R8: an offer carries a validity; the server fills the 30-day
-			// default when the field is left empty
-			validUntil: isQuote(s.docType) ? s.validUntil || addDays(s.issueDate, QUOTE_VALIDITY_DAYS) : undefined,
-		};
+				employeeCode: s.employee.trim() || undefined,
+				documentTitle: s.documentTitle,
+				notes: s.notes || undefined,
+				paymentTerms: s.paymentTerms || undefined,
+				skontoPercent: s.skontoPercent || undefined,
+				skontoDueDate: s.skontoDueDate || undefined,
+				// R8: an offer carries a validity; the server fills the 30-day
+				// default when the field is left empty
+				validUntil: isQuote(s.docType) ? s.validUntil || addDays(s.issueDate, QUOTE_VALIDITY_DAYS) : undefined,
+			};
 			try {
 				if (s.employee.trim()) {
 					try {
@@ -977,8 +1092,15 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 		).forEach(el => {
 			const [idx, field] = (el as HTMLElement).dataset.l!.split('.');
 			const line = s.lines[Number(idx)];
-			if (!line) return;
-			if (field === 'quantity' || field === 'unitPriceNet' || field === 'vatRate' || field === 'discountPercent') {
+			if (!line) {
+				return;
+			}
+			if (
+				field === 'quantity' ||
+				field === 'unitPriceNet' ||
+				field === 'vatRate' ||
+				field === 'discountPercent'
+			) {
 				(line as unknown as Record<string, number>)[field] = Number((el as HTMLInputElement).value);
 			} else {
 				(line as unknown as Record<string, string>)[field] = (el as HTMLInputElement).value;
@@ -990,20 +1112,34 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 		const issue = get('w-issue');
 		const delivery = get('w-delivery');
 		const deliveryTo = get('w-delivery-to');
-		if (issue) s.issueDate = issue;
-		if (delivery) s.deliveryDate = deliveryTo && deliveryTo !== delivery ? `${delivery}..${deliveryTo}` : delivery;
-		if (root.querySelector('#w-due')) s.dueDate = get('w-due');
+		if (issue) {
+			s.issueDate = issue;
+		}
+		if (delivery) {
+			s.deliveryDate = deliveryTo && deliveryTo !== delivery ? `${delivery}..${deliveryTo}` : delivery;
+		}
+		if (root.querySelector('#w-due')) {
+			s.dueDate = get('w-due');
+		}
 		syncAutoDueDate(s);
-		if (root.querySelector('#w-valid')) s.validUntil = get('w-valid') || s.validUntil;
+		if (root.querySelector('#w-valid')) {
+			s.validUntil = get('w-valid') || s.validUntil;
+		}
 		syncValidUntil(s, issueBefore);
-		if (root.querySelector('#w-employee')) s.employee = get('w-employee');
+		if (root.querySelector('#w-employee')) {
+			s.employee = get('w-employee');
+		}
 		const title = get('w-title');
-		if (title) s.documentTitle = title;
+		if (title) {
+			s.documentTitle = title;
+		}
 		if (root.querySelector('#w-skonto')) {
 			const raw = Number(get('w-skonto'));
 			s.skontoPercent = Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 100) : 0;
 		}
-		if (root.querySelector('#w-skonto-due')) s.skontoDueDate = get('w-skonto-due');
+		if (root.querySelector('#w-skonto-due')) {
+			s.skontoDueDate = get('w-skonto-due');
+		}
 		s.notes = root.querySelector<HTMLTextAreaElement>('#w-notes')?.value ?? s.notes;
 		s.paymentTerms = root.querySelector<HTMLTextAreaElement>('#w-terms')?.value ?? s.paymentTerms;
 		persist();

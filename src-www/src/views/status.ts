@@ -5,6 +5,8 @@ import { api, esc } from '../api';
  *
  * It also carries the app name: the header bar stays for the tabs only, and the
  * version and the schema belong next to that name anyway.
+ *
+ * @param root
  */
 export async function status(root: HTMLElement): Promise<void> {
 	try {

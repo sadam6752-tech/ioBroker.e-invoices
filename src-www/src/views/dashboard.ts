@@ -1,15 +1,23 @@
 import { api, downloadUrl, esc, eur, type Invoice } from '../api';
 
-/** Cash discount amount for an invoice, in EUR. */
+/**
+ * Cash discount amount for an invoice, in EUR.
+ *
+ * @param i
+ */
 function skontoOf(i: Invoice): number {
-	return Math.round((i.totals.grossTotal * (Number(i.skontoPercent) || 0)) / 100 * 100) / 100;
+	return Math.round(((i.totals.grossTotal * (Number(i.skontoPercent) || 0)) / 100) * 100) / 100;
 }
 
 function badge(status: Invoice['status']): string {
 	return `<span class="badge ${status}">${status}</span>`;
 }
 
-/** Dashboard: invoice list with status filter and search. */
+/**
+ * Dashboard: invoice list with status filter and search.
+ *
+ * @param root
+ */
 export async function dashboard(root: HTMLElement): Promise<void> {
 	root.innerHTML = `
 		<div class="card"><div class="row">
@@ -86,9 +94,15 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 		// R8: this is the booking list. Offers are their own document type with
 		// their own number circle and have their own tab (#/offers).
 		params.docType = 'invoice';
-		if (statusEl.value) params.status = statusEl.value;
-		if (qEl.value.trim()) params.q = qEl.value.trim();
-		if (sentEl.value) params.sent = sentEl.value;
+		if (statusEl.value) {
+			params.status = statusEl.value;
+		}
+		if (qEl.value.trim()) {
+			params.q = qEl.value.trim();
+		}
+		if (sentEl.value) {
+			params.sent = sentEl.value;
+		}
 		try {
 			const items = await api.list(params);
 			if (seq !== loadSeq) {
@@ -211,8 +225,12 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 		const params: Record<string, string> = {};
 		// R8: accounting sees invoices only; offers never book.
 		params.docType = 'invoice';
-		if (statusEl.value) params.status = statusEl.value;
-		if (qEl.value.trim()) params.q = qEl.value.trim();
+		if (statusEl.value) {
+			params.status = statusEl.value;
+		}
+		if (qEl.value.trim()) {
+			params.q = qEl.value.trim();
+		}
 		return params;
 	};
 	root.querySelector('#f-export')?.addEventListener('click', async () => {

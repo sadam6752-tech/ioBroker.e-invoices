@@ -10,7 +10,11 @@ interface TemplateLine {
 	discountPercent?: number;
 }
 
-/** Reads the reusable content out of a stored template body. */
+/**
+ * Reads the reusable content out of a stored template body.
+ *
+ * @param body
+ */
 function readBody(body: Record<string, unknown>): {
 	lines: TemplateLine[];
 	paymentTerms: string;
@@ -26,7 +30,11 @@ function readBody(body: Record<string, unknown>): {
 	};
 }
 
-/** Net sum of a template, shown so the user recognises what they saved. */
+/**
+ * Net sum of a template, shown so the user recognises what they saved.
+ *
+ * @param lines
+ */
 function netOf(lines: TemplateLine[]): number {
 	return lines.reduce((sum, l) => {
 		const discount = Math.min(Math.max(Number(l.discountPercent) || 0, 0), 100);
@@ -35,7 +43,13 @@ function netOf(lines: TemplateLine[]): number {
 	}, 0);
 }
 
-/** A line as a form row, so it can be saved back. */
+/**
+ * A line as a form row, so it can be saved back.
+ *
+ * @param l
+ * @param i
+ * @param vatRates
+ */
 function lineRow(l: TemplateLine, i: number, vatRates: number[]): string {
 	return `<div class="card line" style="background:var(--bg)">
 		<div class="line-head"><span class="line-no">${i + 1}</span><strong>Position ${i + 1}</strong>
@@ -63,6 +77,8 @@ const VAT_RATES = [19, 7, 0];
  * Invoice content templates: recurring maintenance, flat fees, subscriptions.
  * They carry positions, terms, notes and cash discount — never the customer
  * and never a date, because those differ per invoice.
+ *
+ * @param root
  */
 export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">Lade Rechnungsvorlagen…</div>`;
@@ -205,7 +221,9 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 		);
 		root.querySelectorAll('[data-tpl-del]').forEach(btn =>
 			btn.addEventListener('click', async () => {
-				if (!window.confirm('Vorlage löschen? Bereits ausgestellte Rechnungen bleiben unverändert.')) return;
+				if (!window.confirm('Vorlage löschen? Bereits ausgestellte Rechnungen bleiben unverändert.')) {
+					return;
+				}
 				try {
 					await api.invoiceTemplates.remove((btn as HTMLElement).dataset.tplDel ?? '');
 					message = 'Vorlage gelöscht.';

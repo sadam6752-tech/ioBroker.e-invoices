@@ -37,7 +37,12 @@ export interface InvoiceTotals {
 	netTotal: number;
 	taxTotal: number;
 	grossTotal: number;
-	breakdown: { vatRate: number; net: number; tax: number; gross: number }[];
+	breakdown: {
+		vatRate: number;
+		net: number;
+		tax: number;
+		gross: number;
+	}[];
 }
 
 export interface Invoice {
@@ -134,7 +139,11 @@ export interface ValidationOutcome {
 	formatErrors: string[];
 	businessErrors: string[];
 	/** Report of this run as stored next to the artifacts, null when the file failed. */
-	report: { seq: number; path: string; createdAt: string } | null;
+	report: {
+		seq: number;
+		path: string;
+		createdAt: string;
+	} | null;
 }
 
 /** One stored validation report (R2). */
@@ -237,8 +246,11 @@ export function getToken(): string | null {
 
 export function setToken(token: string | null): void {
 	try {
-		if (token) localStorage.setItem(TOKEN_KEY, token);
-		else localStorage.removeItem(TOKEN_KEY);
+		if (token) {
+			localStorage.setItem(TOKEN_KEY, token);
+		} else {
+			localStorage.removeItem(TOKEN_KEY);
+		}
 	} catch {
 		// storage blocked — session only
 	}
@@ -266,10 +278,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
 	const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
 	const token = getToken();
-	if (token) headers.authorization = `Bearer ${token}`;
+	if (token) {
+		headers.authorization = `Bearer ${token}`;
+	}
 	const res = await fetch(path, { ...init, headers });
 	if (res.status === 401) {
-		if (!location.hash.startsWith('#/login')) location.hash = '#/login';
+		if (!location.hash.startsWith('#/login')) {
+			location.hash = '#/login';
+		}
 		throw new Error('Nicht angemeldet — bitte Token auf der Login-Seite eintragen');
 	}
 	return res;
@@ -332,7 +348,13 @@ function exportQuery(params: Record<string, string>): string {
 }
 
 export const api = {
-	health: () => request<{ status: string; version: string; schemaVersion: number; counts: Record<string, number> }>('/api/health'),
+	health: () =>
+		request<{
+			status: string;
+			version: string;
+			schemaVersion: number;
+			counts: Record<string, number>;
+		}>('/api/health'),
 	settings: () =>
 		request<{
 			defaultVatRate: number;
@@ -347,19 +369,33 @@ export const api = {
 		return request<Invoice[]>(`/api/invoices${q ? `?${q}` : ''}`);
 	},
 	get: (id: string) => request<Invoice>(`/api/invoices/${id}`),
-	create: (input: DraftInput) =>
-		request<Invoice>('/api/invoices', { method: 'POST', body: JSON.stringify(input) }),
+	create: (input: DraftInput) => request<Invoice>('/api/invoices', { method: 'POST', body: JSON.stringify(input) }),
 	update: (id: string, patch: Partial<DraftInput>) =>
 		request<Invoice>(`/api/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
 	issue: (id: string) => request<Invoice>(`/api/invoices/${id}/issue`, { method: 'POST' }),
 	issueBatch: (ids: string[]) =>
-		request<{ issued: Invoice[]; failed: { id: string; error: string }[] }>('/api/invoices/issue-batch', {
+		request<{
+			issued: Invoice[];
+			failed: {
+				id: string;
+				error: string;
+			}[];
+		}>('/api/invoices/issue-batch', {
 			method: 'POST',
 			body: JSON.stringify({ ids }),
 		}),
-	/** Deletes a draft. Issued invoices must be cancelled with a Storno. */
+	/**
+	 * Deletes a draft. Issued invoices must be cancelled with a Storno.
+	 *
+	 * @param id
+	 */
 	deleteDraft: (id: string) => request<void>(`/api/invoices/${id}`, { method: 'DELETE' }),
-	/** Records the handover of an issued invoice to the customer. */
+	/**
+	 * Records the handover of an issued invoice to the customer.
+	 *
+	 * @param id
+	 * @param channel
+	 */
 	markSent: (id: string, channel?: string) =>
 		request<Invoice>(`/api/invoices/${id}/sent`, {
 			method: 'POST',
@@ -368,12 +404,19 @@ export const api = {
 	/**
 	 * Reports the § 16 Abs. 2 Nr. 2 UStG duty, or stores the outcome when one
 	 * is passed.
+	 *
+	 * @param id
+	 * @param outcome
 	 */
 	paymentCheck: (id: string, outcome?: string) =>
-		request<{ invoice: Invoice; duty: PaymentCheckDuty; checked: boolean }>(
-			`/api/invoices/${id}/payment-check`,
-			{ method: 'POST', body: JSON.stringify({ outcome }) },
-		),
+		request<{
+			invoice: Invoice;
+			duty: PaymentCheckDuty;
+			checked: boolean;
+		}>(`/api/invoices/${id}/payment-check`, {
+			method: 'POST',
+			body: JSON.stringify({ outcome }),
+		}),
 	reminders: () => request<ReminderCandidate[]>('/api/reminders'),
 	reminded: (id: string) => request<Invoice>(`/api/invoices/${id}/reminded`, { method: 'POST' }),
 	invoiceTemplates: {
@@ -383,7 +426,13 @@ export const api = {
 				method: 'POST',
 				body: JSON.stringify({ name, body }),
 			}),
-		update: (id: string, patch: { name?: string; body?: unknown }) =>
+		update: (
+			id: string,
+			patch: {
+				name?: string;
+				body?: unknown;
+			},
+		) =>
 			request<InvoiceTemplate>(`/api/invoice-templates/${id}`, {
 				method: 'PUT',
 				body: JSON.stringify(patch),
@@ -396,18 +445,31 @@ export const api = {
 			body: JSON.stringify({ paid, paidAt }),
 		}),
 	storno: (id: string, reason?: string) =>
-		request<{ reversal: Invoice; original: Invoice }>(`/api/invoices/${id}/storno`, {
+		request<{
+			reversal: Invoice;
+			original: Invoice;
+		}>(`/api/invoices/${id}/storno`, {
 			method: 'POST',
 			body: JSON.stringify({ reason }),
 		}),
 	validate: (id: string) => request<ValidationOutcome>(`/api/invoices/${id}/validate`, { method: 'POST' }),
-	/** R8: records the customer's "yes" — the first decision counts. */
+	/**
+	 * R8: records the customer's "yes" — the first decision counts.
+	 *
+	 * @param id
+	 * @param at
+	 */
 	quoteAccept: (id: string, at?: string) =>
 		request<Invoice>(`/api/invoices/${id}/quote-accept`, {
 			method: 'POST',
 			body: JSON.stringify({ at }),
 		}),
-	/** R8: records the customer's "no", with a free-text reason. */
+	/**
+	 * R8: records the customer's "no", with a free-text reason.
+	 *
+	 * @param id
+	 * @param reason
+	 */
 	quoteReject: (id: string, reason?: string) =>
 		request<Invoice>(`/api/invoices/${id}/quote-reject`, {
 			method: 'POST',
@@ -416,27 +478,47 @@ export const api = {
 	/**
 	 * R8: turns an offer into an invoice *draft* — the number falls on issue.
 	 * `requireAccepted: false` covers the deal agreed by phone.
+	 *
+	 * @param id
+	 * @param requireAccepted
 	 */
 	convert: (id: string, requireAccepted = true) =>
 		request<Invoice>(`/api/invoices/${id}/convert`, {
 			method: 'POST',
 			body: JSON.stringify({ requireAccepted }),
 		}),
-	/** Copies the content of an invoice into a new template (no customer, no dates). */
+	/**
+	 * Copies the content of an invoice into a new template (no customer, no dates).
+	 *
+	 * @param id
+	 * @param name
+	 */
 	asTemplate: (id: string, name: string) =>
 		request<InvoiceTemplate>(`/api/invoices/${id}/as-template`, {
 			method: 'POST',
 			body: JSON.stringify({ name }),
 		}),
 	rerender: (id: string, reason?: string) =>
-		request<{ invoice: Invoice; archivedPath: string | null }>(`/api/invoices/${id}/rerender`, {
+		request<{
+			invoice: Invoice;
+			archivedPath: string | null;
+		}>(`/api/invoices/${id}/rerender`, {
 			method: 'POST',
 			body: JSON.stringify({ reason }),
 		}),
 	renders: (id: string) => request<RenderHistoryEntry[]>(`/api/invoices/${id}/renders`),
-	/** Reports of earlier validation runs, newest first (R2). */
+	/**
+	 * Reports of earlier validation runs, newest first (R2).
+	 *
+	 * @param id
+	 */
 	validationReports: (id: string) => request<ValidationReport[]>(`/api/invoices/${id}/validation`),
-	/** Download URL of one stored validation report. */
+	/**
+	 * Download URL of one stored validation report.
+	 *
+	 * @param id
+	 * @param seq
+	 */
 	validationReportUrl: (id: string, seq: number) => `/api/invoices/${id}/validation/${seq}.json`,
 	/**
 	 * R4: attachments of a draft. Listing never carries the content; the files
@@ -444,7 +526,14 @@ export const api = {
 	 */
 	attachments: {
 		list: (id: string) => request<AttachmentMeta[]>(`/api/invoices/${id}/attachments`),
-		add: (id: string, file: { filename: string; mime: string; dataBase64: string }) =>
+		add: (
+			id: string,
+			file: {
+				filename: string;
+				mime: string;
+				dataBase64: string;
+			},
+		) =>
 			request<AttachmentMeta>(`/api/invoices/${id}/attachments`, {
 				method: 'POST',
 				body: JSON.stringify(file),
@@ -460,34 +549,88 @@ export const api = {
 		list: () => request<CompanyProfile[]>('/api/company-profiles'),
 		getDefault: () => request<CompanyProfile | null>('/api/company-profiles/default'),
 		create: (name: string, profile: Party) =>
-			request<CompanyProfile>('/api/company-profiles', { method: 'POST', body: JSON.stringify({ name, profile }) }),
-		update: (id: string, patch: { name?: string; profile?: Party }) =>
-			request<CompanyProfile>(`/api/company-profiles/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
+			request<CompanyProfile>('/api/company-profiles', {
+				method: 'POST',
+				body: JSON.stringify({ name, profile }),
+			}),
+		update: (
+			id: string,
+			patch: {
+				name?: string;
+				profile?: Party;
+			},
+		) => request<CompanyProfile>(`/api/company-profiles/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
 	},
 	customers: {
-		/** `q` enables the fuzzy search over name, number and city. */
+		/**
+		 * `q` enables the fuzzy search over name, number and city.
+		 *
+		 * @param q
+		 */
 		list: (q?: string) => request<CompanyProfile[]>(`/api/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
 		create: (name: string, profile: Party) =>
 			request<CompanyProfile>('/api/customers', { method: 'POST', body: JSON.stringify({ name, profile }) }),
-		update: (id: string, patch: { name?: string; profile?: Party }) =>
-			request<CompanyProfile>(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
-		remove: (id: string) => request<{ ok: boolean }>(`/api/customers/${id}`, { method: 'DELETE' }),
-		assignNumbers: () => request<{ updated: number }>('/api/customers/number-assign', { method: 'POST' }),
+		update: (
+			id: string,
+			patch: {
+				name?: string;
+				profile?: Party;
+			},
+		) => request<CompanyProfile>(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
+		remove: (id: string) =>
+			request<{
+				ok: boolean;
+			}>(`/api/customers/${id}`, { method: 'DELETE' }),
+		assignNumbers: () =>
+			request<{
+				updated: number;
+			}>('/api/customers/number-assign', { method: 'POST' }),
 	},
 	products: {
 		list: () => request<Product[]>('/api/products'),
-		create: (item: { sku?: string; name: string; details?: string; unit?: string; unitPriceNet?: number; vatRate?: number }) =>
-			request<Product>('/api/products', { method: 'POST', body: JSON.stringify(item) }),
-		update: (id: string, patch: { sku?: string; name?: string; details?: string; unit?: string; unitPriceNet?: number; vatRate?: number }) =>
-			request<Product>(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
-		remove: (id: string) => request<{ ok: boolean }>(`/api/products/${id}`, { method: 'DELETE' }),
+		create: (item: {
+			sku?: string;
+			name: string;
+			details?: string;
+			unit?: string;
+			unitPriceNet?: number;
+			vatRate?: number;
+		}) => request<Product>('/api/products', { method: 'POST', body: JSON.stringify(item) }),
+		update: (
+			id: string,
+			patch: {
+				sku?: string;
+				name?: string;
+				details?: string;
+				unit?: string;
+				unitPriceNet?: number;
+				vatRate?: number;
+			},
+		) => request<Product>(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
+		remove: (id: string) =>
+			request<{
+				ok: boolean;
+			}>(`/api/products/${id}`, { method: 'DELETE' }),
 	},
 	exportUrl: (params: Record<string, string> = {}) => `/api/invoices/export.xlsx?${exportQuery(params)}`,
-	/** Semicolon CSV for the accounting department. */
+	/**
+	 * Semicolon CSV for the accounting department.
+	 *
+	 * @param params
+	 */
 	csvUrl: (params: Record<string, string> = {}) => `/api/invoices/export.csv?${exportQuery(params)}`,
-	/** DATEV booking lines. */
+	/**
+	 * DATEV booking lines.
+	 *
+	 * @param params
+	 */
 	datevUrl: (params: Record<string, string> = {}) => `/api/invoices/export.datev?${exportQuery(params)}`,
-	/** What a restore would change, without writing anything. */
+	/**
+	 * What a restore would change, without writing anything.
+	 *
+	 * @param filename
+	 * @param dataBase64
+	 */
 	restorePreview: (filename?: string, dataBase64?: string) =>
 		request<RestorePreview>('/api/restore/preview', {
 			method: 'POST',
@@ -495,12 +638,49 @@ export const api = {
 		}),
 };
 
-/** Minimal HTML escaping for user data. */
-export function esc(value: string | number | null | undefined): string {
-	return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c));
+/**
+ * Reads a file as base64 — the part after the `data:` prefix.
+ *
+ * The adapter takes attachments and logos as base64 JSON (no multipart), so every
+ * upload path needs this. `FileReader` is the browser's only way to it, and its
+ * `result` is a union type, hence the check instead of a bare `String(...)` cast
+ * (which would silently produce `[object ArrayBuffer]`).
+ *
+ * @param file - File picked in an `<input type="file">`.
+ */
+export function fileToBase64(file: File): Promise<string> {
+	return new Promise<string>((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => {
+			const text = reader.result;
+			if (typeof text !== 'string') {
+				reject(new Error('Datei nicht lesbar'));
+				return;
+			}
+			resolve(text.split(',')[1]);
+		};
+		reader.onerror = () => reject(new Error('Datei nicht lesbar'));
+		reader.readAsDataURL(file);
+	});
 }
 
-/** EUR formatting mirrored from the backend. */
+/**
+ * Minimal HTML escaping for user data.
+ *
+ * @param value
+ */
+export function esc(value: string | number | null | undefined): string {
+	return String(value ?? '').replace(
+		/[&<>"']/g,
+		c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
+	);
+}
+
+/**
+ * EUR formatting mirrored from the backend.
+ *
+ * @param value
+ */
 export function eur(value: number): string {
 	return `${Number(value).toFixed(2)} EUR`;
 }

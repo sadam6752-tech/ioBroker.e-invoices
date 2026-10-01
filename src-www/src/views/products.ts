@@ -1,6 +1,10 @@
 import { api, esc, type Product } from '../api';
 
-/** Products page: catalog of positions, products and services. */
+/**
+ * Products page: catalog of positions, products and services.
+ *
+ * @param root
+ */
 export async function products(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">Lade Positionen…</div>`;
 	let items: Product[] = [];
@@ -36,22 +40,28 @@ export async function products(root: HTMLElement): Promise<void> {
 		<div class="card"><div class="row"><strong>Positionen</strong>
 			<button id="p-new">+ Neu</button></div>
 			<p class="muted">Produkte und Dienstleistungen für die Rechnungsstellung.</p>
-			${items
-				.map(
-					p => `<div class="row" style="margin-top:8px">
+			${
+				items
+					.map(
+						p => `<div class="row" style="margin-top:8px">
 				<strong>${esc(p.sku ? `${p.sku} · ` : '')}${esc(p.name)}</strong>
 				<span class="muted">${esc(p.unit)} · ${Number(p.unitPriceNet).toFixed(2)} EUR · ${p.vatRate} %</span>
 				<button class="secondary" data-edit="${p.id}">Bearbeiten</button>
 				<button class="danger" data-del="${p.id}">Löschen</button>
 			</div>`,
-				)
-				.join('') || '<p class="muted">Noch keine Positionen.</p>'}
+					)
+					.join('') || '<p class="muted">Noch keine Positionen.</p>'
+			}
 		</div>
-		${editing || isNew ? `<div class="card"><h3>${isNew ? 'Neue Position' : esc(editing?.name ?? '')}</h3>
+		${
+			editing || isNew
+				? `<div class="card"><h3>${isNew ? 'Neue Position' : esc(editing?.name ?? '')}</h3>
 			${formHtml(editing ?? {})}
 			${message ? `<p class="${isError ? 'error' : ''}">${esc(message)}</p>` : ''}
 			<div class="row"><button id="p-save">Speichern</button><button class="secondary" id="p-cancel">Abbrechen</button></div>
-		</div>` : ''}`;
+		</div>`
+				: ''
+		}`;
 
 		root.querySelector('#p-new')?.addEventListener('click', () => {
 			editing = null;
@@ -69,7 +79,9 @@ export async function products(root: HTMLElement): Promise<void> {
 		);
 		root.querySelectorAll('[data-del]').forEach(b =>
 			b.addEventListener('click', async () => {
-				if (!window.confirm('Position wirklich löschen?')) return;
+				if (!window.confirm('Position wirklich löschen?')) {
+					return;
+				}
 				try {
 					await api.products.remove((b as HTMLElement).dataset.del ?? '');
 					await reload();
@@ -89,7 +101,14 @@ export async function products(root: HTMLElement): Promise<void> {
 		root.querySelector('#p-save')?.addEventListener('click', () => void save());
 	}
 
-	function readForm(): { sku: string; name: string; details: string; unit: string; unitPriceNet: number; vatRate: number } {
+	function readForm(): {
+		sku: string;
+		name: string;
+		details: string;
+		unit: string;
+		unitPriceNet: number;
+		vatRate: number;
+	} {
 		return {
 			sku: root.querySelector<HTMLInputElement>('#p-sku')?.value.trim() ?? '',
 			name: root.querySelector<HTMLInputElement>('#p-name')?.value.trim() ?? '',

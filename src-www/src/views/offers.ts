@@ -9,6 +9,8 @@ import { labels, quoteState, quoteStateLabel, type QuoteState } from '../labels'
  * and carry the decision and the conversion into an invoice draft. The state is
  * derived from the stored dates by `quoteState()` (the same rules the server
  * applies), so a state filter costs no extra endpoint.
+ *
+ * @param root
  */
 export async function offers(root: HTMLElement): Promise<void> {
 	const lbl = labels('quote');
@@ -53,12 +55,20 @@ export async function offers(root: HTMLElement): Promise<void> {
 	/** Monotonic request counter to discard stale responses. */
 	let loadSeq = 0;
 
-	/** Surfaces an error above the list without throwing the view away. */
+	/**
+	 * Surfaces an error above the list without throwing the view away.
+	 *
+	 * @param e
+	 */
 	function fail(e: unknown): void {
 		errEl.innerHTML = `<div class="card error">${esc((e as Error).message)}</div>`;
 	}
 
-	/** One row: number, state, customer, amount, validity and the actions. */
+	/**
+	 * One row: number, state, customer, amount, validity and the actions.
+	 *
+	 * @param o
+	 */
 	function row(o: Invoice): string {
 		const state = quoteState(o);
 		return `<div class="card"><div class="row">
@@ -84,11 +94,7 @@ export async function offers(root: HTMLElement): Promise<void> {
 						<button class="secondary" data-reject="${esc(o.id)}">Ablehnen</button>`
 					: ''
 			}
-			${
-				state !== 'draft'
-					? `<button class="secondary" data-convert="${esc(o.id)}">In Rechnung umwandeln</button>`
-					: ''
-			}
+			${state !== 'draft' ? `<button class="secondary" data-convert="${esc(o.id)}">In Rechnung umwandeln</button>` : ''}
 			${
 				o.status === 'draft'
 					? `<button class="secondary" data-del="${esc(o.id)}" title="Entwurf endgültig verwerfen">Löschen</button>`
@@ -103,8 +109,12 @@ export async function offers(root: HTMLElement): Promise<void> {
 		const want = stateEl.value as QuoteState | '';
 		const params: Record<string, string> = { docType: 'quote', sort: sortEl.value, order };
 		// the API knows draft/issued/cancelled; the finer states are derived here
-		if (want) params.status = want === 'draft' ? 'draft' : 'issued';
-		if (qEl.value.trim()) params.q = qEl.value.trim();
+		if (want) {
+			params.status = want === 'draft' ? 'draft' : 'issued';
+		}
+		if (qEl.value.trim()) {
+			params.q = qEl.value.trim();
+		}
 		try {
 			const items = (await api.list(params)).filter(o => !want || quoteState(o) === want);
 			if (seq !== loadSeq) {
@@ -124,7 +134,12 @@ export async function offers(root: HTMLElement): Promise<void> {
 		}
 	}
 
-	/** Runs one action, refreshes the list and reports the outcome. */
+	/**
+	 * Runs one action, refreshes the list and reports the outcome.
+	 *
+	 * @param run
+	 * @param done
+	 */
 	async function act(run: () => Promise<unknown>, done: string): Promise<void> {
 		errEl.innerHTML = `<div class="card muted">${esc(done)}</div>`;
 		try {

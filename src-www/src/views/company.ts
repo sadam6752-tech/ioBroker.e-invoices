@@ -8,7 +8,11 @@ function field(obj: Party, key: keyof Party, label: string): string {
 	return `<label>${label}<input data-f="${key}" value="${esc(text)}" /></label>`;
 }
 
-/** Company page: seller master data, used as wizard default. */
+/**
+ * Company page: seller master data, used as wizard default.
+ *
+ * @param root
+ */
 export async function company(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">Lade Firmendaten…</div>`;
 	let current: CompanyProfile | null = null;
@@ -46,7 +50,10 @@ export async function company(root: HTMLElement): Promise<void> {
 					i => `<div class="grid2"><label>Box ${i + 1}<textarea data-fbox="${i}" rows="3">${esc((p.footerBoxes ?? [])[i] ?? '')}</textarea></label>
 				<label>Ausrichtung<select data-falign="${i}">
 					${(['left', 'center', 'right'] as const)
-						.map(v => `<option value="${v}" ${(p.footerAlign ?? [])[i] === v || (!(p.footerAlign ?? [])[i] && v === 'left') ? 'selected' : ''}>${v === 'left' ? 'Links' : v === 'center' ? 'Zentriert' : 'Rechts'}</option>`)
+						.map(
+							v =>
+								`<option value="${v}" ${(p.footerAlign ?? [])[i] === v || (!(p.footerAlign ?? [])[i] && v === 'left') ? 'selected' : ''}>${v === 'left' ? 'Links' : v === 'center' ? 'Zentriert' : 'Rechts'}</option>`,
+						)
 						.join('')}
 				</select></label></div>`,
 				)

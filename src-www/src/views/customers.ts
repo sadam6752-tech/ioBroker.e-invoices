@@ -15,6 +15,9 @@ const SORTS: { value: SortKey; label: string }[] = [
 /**
  * Compares two customer numbers: numerically when both end in digits
  * (K-00002 before K-00010), alphabetically otherwise (KD-4711).
+ *
+ * @param a
+ * @param b
  */
 function compareNumbers(a: string, b: string): number {
 	const na = Number(a.replace(/\D+/g, ''));
@@ -45,7 +48,11 @@ function field(obj: Party, key: keyof Party, label: string): string {
 	return `<label>${label}<input data-f="${key}" value="${esc(text)}" /></label>`;
 }
 
-/** Customers page: buyer master data list, create, edit, delete. */
+/**
+ * Customers page: buyer master data list, create, edit, delete.
+ *
+ * @param root
+ */
 export async function customers(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">Lade Kunden…</div>`;
 	let items: CompanyProfile[] = [];
@@ -85,42 +92,48 @@ export async function customers(root: HTMLElement): Promise<void> {
 			</select></label>
 			${missing > 0 ? `<button class="secondary" id="k-number">${missing} ohne Nummer: automatisch vergeben</button>` : ''}
 		</div>
-			${visible
-				.map(
-					c => `<div class="row" style="margin-top:8px">
+			${
+				visible
+					.map(
+						c => `<div class="row" style="margin-top:8px">
 				<strong>${esc(c.name)}</strong>
 				${c.profile.customerNumber?.trim() ? `<span class="badge">${esc(c.profile.customerNumber)}</span>` : '<span class="badge cancelled">keine Nummer</span>'}
 				<span class="muted">${esc(c.profile.city || '')}</span>
 				<button class="secondary" data-edit="${c.id}">Bearbeiten</button>
 				<button class="danger" data-del="${c.id}">Löschen</button>
 			</div>`,
-				)
-				.join('') || '<p class="muted">Noch keine Kunden.</p>'}
+					)
+					.join('') || '<p class="muted">Noch keine Kunden.</p>'
+			}
 			<p class="muted">${visible.length} Kunden</p>
 		</div>
-		${editing || isNew ? `<div class="card"><h3>${isNew ? 'Neuer Kunde' : esc(editing?.name ?? '')}</h3>
+		${
+			editing || isNew
+				? `<div class="card"><h3>${isNew ? 'Neuer Kunde' : esc(editing?.name ?? '')}</h3>
 			${formHtml(editing?.profile ?? emptyParty(), editing?.name ?? '')}
 			${message ? `<p class="${isError ? 'error' : ''}">${esc(message)}</p>` : ''}
 			<div class="row"><button id="k-save">Speichern</button><button class="secondary" id="k-cancel">Abbrechen</button></div>
-		</div>` : ''}`;
+		</div>`
+				: ''
+		}`;
 
-	root.querySelector('#k-sort')?.addEventListener('change', event => {
-		sort = (event.target as HTMLSelectElement).value as SortKey;
-		render();
-	});
-	// The search runs on the server so typos and case differences still hit.
-	let searchTimer: ReturnType<typeof setTimeout> | undefined;
-	root.querySelector('#k-q')?.addEventListener('input', event => {
-		search = (event.target as HTMLInputElement).value;
-		if (searchTimer !== undefined) {
-			clearTimeout(searchTimer);
-		}
-		searchTimer = setTimeout(() => void reload(), 250);
-	});
+		root.querySelector('#k-sort')?.addEventListener('change', event => {
+			sort = (event.target as HTMLSelectElement).value as SortKey;
+			render();
+		});
+		// The search runs on the server so typos and case differences still hit.
+		let searchTimer: ReturnType<typeof setTimeout> | undefined;
+		root.querySelector('#k-q')?.addEventListener('input', event => {
+			search = (event.target as HTMLInputElement).value;
+			if (searchTimer !== undefined) {
+				clearTimeout(searchTimer);
+			}
+			searchTimer = setTimeout(() => void reload(), 250);
+		});
 		root.querySelector('#k-number')?.addEventListener('click', async () => {
 			try {
 				const result = await api.customers.assignNumbers();
-				message = `${result} Kundennummer(n) vergeben.`;
+				message = `${result.updated} Kundennummer(n) vergeben.`;
 				isError = false;
 				await reload();
 			} catch (e) {
@@ -146,7 +159,9 @@ export async function customers(root: HTMLElement): Promise<void> {
 		);
 		root.querySelectorAll('[data-del]').forEach(b =>
 			b.addEventListener('click', async () => {
-				if (!window.confirm('Kunden wirklich löschen?')) return;
+				if (!window.confirm('Kunden wirklich löschen?')) {
+					return;
+				}
 				try {
 					await api.customers.remove((b as HTMLElement).dataset.del ?? '');
 					await reload();

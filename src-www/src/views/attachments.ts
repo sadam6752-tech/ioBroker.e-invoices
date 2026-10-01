@@ -36,9 +36,15 @@ export function formatSize(bytes: number): string {
  * @param mime - Vom Server gelieferter MIME-Typ.
  */
 export function typeLabel(mime: string): string {
-	if (mime === 'application/pdf') return 'PDF';
-	if (mime === 'image/png') return 'PNG';
-	if (mime === 'image/jpeg') return 'JPEG';
+	if (mime === 'application/pdf') {
+		return 'PDF';
+	}
+	if (mime === 'image/png') {
+		return 'PNG';
+	}
+	if (mime === 'image/jpeg') {
+		return 'JPEG';
+	}
 	return mime;
 }
 
@@ -73,12 +79,9 @@ function toBase64(data: ArrayBuffer): string {
  * @param host - Leerer Container, der den Bereich aufnimmt.
  * @param invoiceId - Rechnungs-UUID (Entwurf oder ausgestellt).
  * @param options - `readOnly` für ausgestellte Rechnungen (GoBD: eingefroren).
+ * @param options.readOnly
  */
-export function mountAttachments(
-	host: HTMLElement,
-	invoiceId: string,
-	options: { readOnly: boolean },
-): void {
+export function mountAttachments(host: HTMLElement, invoiceId: string, options: { readOnly: boolean }): void {
 	let files: AttachmentMeta[] = [];
 	host.innerHTML = `
 		<div class="card att">
