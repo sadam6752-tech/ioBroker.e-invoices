@@ -23,6 +23,9 @@ Features:
 
 - Draft → issue flow with atomic invoice numbers per year and employee
   (`YYYY-EE-NNN`, default format `{YYYY}-{EMPLOYEE}-{SEQ}`, e.g. `2026-01-012`)
+- Offers ("Angebote") as a second document type with an own number circle,
+  validity and life cycle — a plain sight PDF, never an e-invoice, and one
+  conversion into an invoice draft
 - ZUGFeRD profiles BASIC and EN 16931, offline XSD validation
 - Hybrid PDF plus standalone XML for every issued invoice
 - Attachments per invoice (delivery note, proof of work) — uploaded in the PWA,
@@ -74,6 +77,46 @@ On issue, the attachments become part of the e-invoice:
   backup noticeably bigger (a 5 MB file counts once in the PDF, once as base64
   in the XML and once as base64 in the backup dump).
 
+### Offers (Angebote)
+
+An offer is a second document type beside the invoice: it shares the record,
+the lines, the attachments, the render history and the backup with it, but it is
+no e-invoice. Create one with `POST /api/invoices` (`docType: "quote"`) and list
+only offers with `GET /api/invoices?docType=quote`.
+
+- **Own number circle:** offers number as `A-YYYY-EE-NNN`. The pattern is the
+  instance setting "Quotation number format" (`quoteNumberFormat`, default
+  `A-{YYYY}-{EMPLOYEE}-{SEQ}`). Offers never consume an invoice number — the
+  invoice sequence stays continuous (§ 14 Abs. 4 Nr. 4 UStG).
+- **Own validity:** `validUntil` ("Gültig bis") defaults to the issue date plus
+  30 days and is printed on the offer. Offers carry no retention date (§ 147 AO
+  concerns invoices) and no Leitweg-ID.
+- **Plain sight PDF, never an e-invoice:** no CII XML, no PDF/A-3 container, no
+  BG-24 and no `pdfaid` claim. On issue only the PDF is stored; the attachments
+  are listed under "Anlagen" with the note that they travel separately instead
+  of being embedded. `POST /api/invoices/:id/validate` reports business findings
+  only — there is no EN 16931 document to check, so it never reports XSD
+  findings.
+- **Life cycle:** draft → open → accepted or rejected, or expired once the
+  validity date has passed (computed from the date, no timer). The decision is
+  recorded with its timestamp by `POST /api/invoices/:id/quote-accept` or
+  `…/quote-reject` with a free-text reason; the first decision counts and a
+  second one is refused. The sight PDF prints it ("Angenommen am …",
+  "Abgelehnt am …: …", "Das Angebot ist am … verfallen.").
+- **Conversion:** `POST /api/invoices/:id/convert` creates an invoice *draft*
+  (the number is assigned on issue as usual) that copies header and lines,
+  translates the dates and keeps the link back (`sourceDocumentId`, printed as
+  "Zugrunde liegendes Angebot" / "Daraus hervorgegangene Rechnung(en)"). By
+  default the offer must have been accepted — `{ "requireAccepted": false }`
+  overrides that — and a second open converted draft is refused. The offer
+  itself is never touched.
+- **Not revenue:** offers are never dunned and stay out of the accounting
+  exports (`?docType=invoice` on CSV, DATEV and XLSX).
+
+Creating, deciding and converting an offer goes through the API in this
+version; the PWA screens for it follow in the next slice (the wizard's document
+type is the entry point there).
+
 ### States
 
 - `info.connection`, `info.invoiceCount`, `info.draftCount`,
@@ -104,8 +147,9 @@ files in the backup job.
 
 Same-origin JSON API under `/api` (health, invoices CRUD, issue, validate with
 a stored report, XML/PDF/XLSX downloads, attachments of a draft — list, upload
-as base64 JSON, download, delete —, templates with logo upload and PDF preview,
-backups, restore). With an API token configured, every route except
+as base64 JSON, download, delete —, offers (list by document type, accept,
+reject, convert into an invoice draft), templates with logo upload and PDF
+preview, backups, restore). With an API token configured, every route except
 `/api/health` requires an `Authorization: Bearer <token>` header.
 
 ## Security notes
@@ -197,6 +241,48 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	### **WORK IN PROGRESS**
 -->
 ### **WORK IN PROGRESS**
+
+### 0.8.0 (2026-10-01)
+* (alex) The adapter knows a second document type: offers ("Angebote"). The
+  document type is data now (`doc_type`: `invoice` | `quote`, migration v12) —
+  the displayed title stays a label, while numbering, validation, mandatory
+  fields and the PDF wording follow the type. An offer has its own number circle
+  (`A-{YYYY}-{EMPLOYEE}-{SEQ}`, "Quotation number format" in the instance
+  settings), its own validity ("Gültig bis", default issue date + 30 days) and
+  its own life cycle: draft → open, ended by `accepted` or `rejected`, or
+  `expired` once the validity date has passed (computed, without a timer).
+* (alex) An offer is not an e-invoice, and the release says so on every level:
+  no CII XML, no PDF/A-3 container, no BG-24, no `pdfaid` claim, no retention
+  date (§ 147 AO concerns invoices) and no Leitweg-ID. On issue it stores a
+  plain sight PDF (labels "Angebotsnr.", "Angebotsdatum", "Leistungszeitraum",
+  "Gültig bis") whose attachments are listed under "Anlagen" with the note that
+  they travel separately instead of being embedded. `POST
+  /api/invoices/:id/validate` answers with business findings only — it never
+  reports XSD findings that would pretend an EN 16931 document exists.
+* (alex) An offer has a documented outcome: `POST
+  /api/invoices/:id/quote-accept` and `…/quote-reject` (with a free-text reason)
+  store the decision with its timestamp. The first decision counts — a second
+  one is refused — and the sight PDF prints it ("Angenommen am …", "Abgelehnt
+  am …: …", "Das Angebot ist am … verfallen.").
+* (alex) An accepted offer becomes an invoice without retyping: `POST
+  /api/invoices/:id/convert` creates an invoice draft (the number falls on
+  issue, as usual) that copies header and lines, translates the dates and keeps
+  the link back (`sourceDocumentId`, printed as "Zugrunde liegendes Angebot" /
+  "Daraus hervorgegangene Rechnung(en)"). By default the offer must have been
+  accepted — `{ "requireAccepted": false }` overrides that — and a second open
+  converted draft is refused. The offer itself is never touched.
+* (alex) Offers stay out of the accounting: they are never dunned (a reminder
+  candidate is always an invoice), `GET /api/invoices` filters by `docType` and
+  the CSV/DATEV/XLSX exports take `?docType=invoice|quote`. The invoice number
+  sequence is untouched by all of this — migration v12 moves the existing
+  counters over unchanged and lets the offer counter start at 1 (§ 14 Abs. 4
+  Nr. 4 UStG, no renumbering).
+* (alex) The PWA screens for offers are not part of this version: creating,
+  deciding and converting an offer goes through the API. Backend, API and admin
+  (plus its eleven translations) are in place; coverage comes from the unit
+  tests of the database, the invoice model and the issue service and from a new
+  API suite for quotations — `npm run test:ts` 181 tests, `npm run test:api` 41
+  tests, lint and `tsc` clean.
 
 ### 0.0.7 (2026-09-30)
 * (alex) The admin translations are proper UTF-8 again: all eleven
