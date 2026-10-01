@@ -256,6 +256,24 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+### 0.8.2 (2026-10-01)
+* (alex) The header bar carries the tabs and nothing else now: the "+ Neu" button
+  moved to the lists it creates records for (the invoice dashboard and the offers
+  tab own theirs), and the app names itself on the status page, next to the
+  version and the schema, instead of in the navigation.
+* (alex) The accounting exports decide the document type themselves: CSV, DATEV
+  and XLSX are pinned to invoices even when the caller sends no `docType` at all
+  (the dashboard buttons keep sending `docType=invoice`), `?docType=all` exports
+  both types and `?docType=quote` only the offers. One helper (`docTypeFilter()`)
+  carries the rule; the invoice list route shares it without a fallback of its own.
+* (alex) The offer suite of the browser tests covers the rest of the life cycle:
+  the "no" of a customer together with the sent mark, the batch issue of the
+  drafts a search shows, the accepted offer that becomes two invoices (a second
+  draft is refused while the first is open and allowed once it is issued) and the
+  offer that ran out of time ("Verfallen", which can still be accepted). Coverage:
+  `npm run test:ts` 181, `npm run test:api` 41, `npm run test:pwa` 21,
+  `npm run test:e2e` 17, lint and `tsc` clean.
+
 ### 0.8.1 (2026-10-01)
 * (alex) Offers are part of the PWA now: the new tab "Angebote" lists them with
   their state (open, accepted, rejected, expired), records the answer of the
