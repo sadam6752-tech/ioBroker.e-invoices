@@ -49,10 +49,10 @@ network.
 
 ### PWA
 
-Open `http://<iobroker-host>:8093/` for the invoice dashboard, the
-multi-step wizard (seller → buyer → lines → review), invoice details with
-validation, attachments and downloads, layout templates with PDF preview,
-backups and a status page.
+Open `http://<iobroker-host>:8093/` for the invoice dashboard, the offers tab
+("Angebote"), the multi-step wizard (seller → buyer → lines → review), invoice
+details with validation, attachments and downloads, layout templates with PDF
+preview, backups and a status page.
 
 ### Attachments (Anlagen)
 
@@ -113,9 +113,18 @@ only offers with `GET /api/invoices?docType=quote`.
 - **Not revenue:** offers are never dunned and stay out of the accounting
   exports (`?docType=invoice` on CSV, DATEV and XLSX).
 
-Creating, deciding and converting an offer goes through the API in this
-version; the PWA screens for it follow in the next slice (the wizard's document
-type is the entry point there).
+In the PWA, offers have their own tab (**Angebote**): the list shows the state
+(open, accepted, rejected, expired), records the customer's answer and turns an
+accepted offer into an invoice draft in one click ("In Rechnung umwandeln").
+"+ Neues Angebot" opens the wizard with the document type preselected — the same
+wizard as for invoices, without the invoice-only fields: no "Fällig am", no
+Skonto, no payment terms, but a "Gültig bis" date that follows the issue date
+(30 days) while it stays untouched. An invoice draft made from an offer links
+back ("Zugrunde liegendes Angebot"), and the offer lists the invoices it became.
+The wording of every screen comes from one table per document type
+(`src-www/src/labels.ts`), which mirrors the server's `documentLabels()` — no
+offer screen says "Rechnung". The booking list and the three accounting exports
+stay pinned to `docType=invoice`, so the two document types never mix.
 
 ### States
 
@@ -241,6 +250,29 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	### **WORK IN PROGRESS**
 -->
 ### **WORK IN PROGRESS**
+
+### 0.8.1 (2026-10-01)
+* (alex) Offers are part of the PWA now: the new tab "Angebote" lists them with
+  their state (open, accepted, rejected, expired), records the answer of the
+  customer with a reason and turns an accepted offer into an invoice draft in one
+  click. "+ Neues Angebot" opens the wizard with the document type preselected —
+  the same steps as an invoice, only the payment due date, the cash discount and
+  the payment terms are replaced by the validity date ("Gültig bis"), which
+  follows the issue date (30 days) while it has not been touched.
+* (alex) The interface speaks the language of the document it shows: one table
+  per document type (`src-www/src/labels.ts`, mirroring `documentLabels()` and
+  the quotation life cycle of the server) replaces the hard-wired "Rechnung", the
+  detail page carries accept, reject and convert and prints the decision the way
+  the sight PDF does. Offer and invoice link to each other in both directions
+  ("Zugrunde liegendes Angebot" / "Daraus hervorgegangene Rechnung(en)"; the
+  invoice list gained a `sourceDocumentId` filter for that).
+* (alex) The booking list and the accounting exports never carry an offer: the
+  dashboard and its XLSX/CSV/DATEV buttons pin `docType=invoice`, so the document
+  type is no longer left to the caller. Coverage: a browser test walks the whole
+  chain (wizard → issue → accept → convert → export) and checks that the
+  A-number stays out of the list and out of the CSV — `npm run test:ts` 181,
+  `npm run test:api` 41, `npm run test:pwa` 18, `npm run test:e2e` 13, lint and
+  `tsc` clean.
 
 ### 0.8.0 (2026-10-01)
 * (alex) The adapter knows a second document type: offers ("Angebote"). The
