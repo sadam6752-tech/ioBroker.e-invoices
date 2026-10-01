@@ -1208,18 +1208,34 @@ describe('api => quotations (R8)', function () {
 		const refused = await request(app).post(`/api/invoices/${expired}/issue`).expect(400);
 		expect(String(refused.body.error)).to.contain('Valid-until date');
 
-		// the accounting exports separate the two document types
+		// the accounting exports separate the two document types: without a
+		// parameter they are invoices only, so an offer number can never end up
+		// in a booking list by accident (§11.8). `docType=all` is the explicit
+		// single-query answer for both kinds.
 		const csv = await request(app).get('/api/invoices/export.csv').expect(200);
-		expect(csv.text).to.contain('A-2026-00-001');
-		expect(csv.text).to.contain('Angebot');
+		expect(csv.text).to.not.contain('A-2026-00-001');
+		const bothCsv = await request(app).get('/api/invoices/export.csv?docType=all').expect(200);
+		expect(bothCsv.text).to.contain('A-2026-00-001');
+		expect(bothCsv.text).to.contain('Angebot');
 		const onlyInvoices = await request(app).get('/api/invoices/export.csv?docType=invoice').expect(200);
 		expect(onlyInvoices.text).to.not.contain('A-2026-00-001');
+		// the default is exactly the invoice view, not a third variant
+		expect(csv.text).to.equal(onlyInvoices.text);
 		const onlyQuotes = await request(app).get('/api/invoices/export.csv?docType=quote').expect(200);
 		expect(onlyQuotes.text).to.contain('A-2026-00-001');
+		const datev = await request(app).get('/api/invoices/export.datev').expect(200);
+		expect(datev.text).to.contain('EXTF');
+		expect(datev.text).to.not.contain('A-2026-00-001');
 		const datevInvoices = await request(app).get('/api/invoices/export.datev?docType=invoice').expect(200);
-		expect(datevInvoices.text).to.contain('EXTF');
-		expect(datevInvoices.text).to.not.contain('A-2026-00-001');
+		expect(datev.text).to.equal(datevInvoices.text);
 		const datevQuotes = await request(app).get('/api/invoices/export.datev?docType=quote').expect(200);
 		expect(datevQuotes.text).to.contain('A-2026-00-001');
+		const xlsx = await request(app).get('/api/invoices/export.xlsx').expect(200);
+		expect(xlsx.headers['content-type']).to.contain('spreadsheetml');
+		await request(app).get('/api/invoices/export.xlsx?docType=all').expect(200);
+		// an unknown word is not a document type: it falls back to the export
+		// default instead of silently exporting everything
+		const nonsense = await request(app).get('/api/invoices/export.csv?docType=Auftrag').expect(200);
+		expect(nonsense.text).to.equal(csv.text);
 	});
 });

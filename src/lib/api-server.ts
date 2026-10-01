@@ -28,6 +28,7 @@ import {
 	normalizeDocumentType,
 	todayIso,
 	validateInvoiceForIssue,
+	type DocumentType,
 	type InvoiceDraftInput,
 	type InvoiceStatus,
 	ALLOWED_VAT_RATES,
@@ -53,20 +54,47 @@ import { validateArtifacts, type ArtifactValidation } from './validation';
 import { generateInvoiceXml } from './zugferd';
 
 /**
+ * Reads the `docType` filter out of a query object.
+ *
+ * Three cases matter: a concrete type narrows the result, `all` is the explicit
+ * counter-word to a fallback ("both kinds, please") and a missing parameter
+ * falls back to what the caller considers the natural view. The accounting
+ * exports pass `'invoice'` there, so an export never carries an offer number by
+ * accident (R8, §11.8).
+ *
+ * @param query - Express query object.
+ * @param fallback - Type to use when the request carries no `docType`.
+ * @returns Document type to filter by, or `undefined` for both kinds.
+ */
+function docTypeFilter(query: Record<string, unknown>, fallback?: DocumentType): DocumentType | undefined {
+	const raw = (typeof query.docType === 'string' ? query.docType : '').trim().toLowerCase();
+	if (raw === 'all') {
+		return undefined;
+	}
+	return raw ? normalizeDocumentType(raw) : fallback;
+}
+
+/**
  * Applies the shared list filter of the API to a query object, so the list
  * view and every export (xlsx, csv, datev) show the same invoices.
  *
  * @param db - Open invoice database.
  * @param query - Express query object.
+ * @param fallbackDocType - Type to use when the request carries no `docType`.
  * @returns Matching invoices, capped at the export limit.
  */
-function filteredInvoices(db: InvoiceDatabase, query: Record<string, unknown>): StoredInvoice[] {
+function filteredInvoices(
+	db: InvoiceDatabase,
+	query: Record<string, unknown>,
+	fallbackDocType?: DocumentType,
+): StoredInvoice[] {
 	const status = typeof query.status === 'string' ? (query.status as InvoiceStatus) : undefined;
 	const year = typeof query.year === 'string' ? Number(query.year) : undefined;
 	const text = typeof query.q === 'string' ? query.q : undefined;
-	// R8: the list can be narrowed to quotations or invoices, so an export
-	// never mixes A-numbers into the booking list by accident.
-	const docType = typeof query.docType === 'string' ? normalizeDocumentType(query.docType) : undefined;
+	// R8: the list can be narrowed to quotations or invoices; the export routes
+	// pass 'invoice' as fallback, `docType=all` is the explicit way to export
+	// both kinds.
+	const docType = docTypeFilter(query, fallbackDocType);
 	return db.listInvoices({
 		status: status && ['draft', 'issued', 'cancelled'].includes(status) ? status : undefined,
 		year: Number.isInteger(year) ? year : undefined,
@@ -454,8 +482,9 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			const query = typeof req.query.q === 'string' ? req.query.q : undefined;
 			const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined;
 			const offset = typeof req.query.offset === 'string' ? Number(req.query.offset) : undefined;
-			const docType =
-				typeof req.query.docType === 'string' ? normalizeDocumentType(req.query.docType) : undefined;
+			// no fallback: without a parameter the list shows both kinds, the
+			// PWA asks for what its tab needs (`docType=invoice|quote`)
+			const docType = docTypeFilter(req.query);
 			// R8: the invoices an offer was converted into, so the chain stays
 			// visible on both sides (the offer lists them, the invoice links back).
 			const sourceDocumentId =
@@ -490,14 +519,15 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		}),
 	);
 
-	// Sammel-Export BEFORE /:id — Express :id also matches dots (export.xlsx).
 	// Sammel-Exporte BEFORE /:id — Express :id also matches dots, so
 	// /api/invoices/export.csv would otherwise be looked up as the invoice
 	// "export.csv" and answer 404.
+	// R8: all three are accounting exports and therefore default to invoices —
+	// an offer only shows up when it is asked for (`docType=quote|all`).
 	app.get('/api/invoices/export.csv', (req, res) => {
 		res.type('text/csv; charset=utf-8');
 		res.set('Content-Disposition', 'attachment; filename="rechnungen.csv"');
-		res.send(renderInvoiceListCsv(filteredInvoices(db, req.query)));
+		res.send(renderInvoiceListCsv(filteredInvoices(db, req.query, 'invoice')));
 	});
 
 	app.get('/api/invoices/export.datev', (req, res) => {
@@ -505,11 +535,11 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		const head = renderDatevHead(company?.name ?? 'Firma', company?.taxNumber ?? '');
 		res.type('text/plain; charset=iso-8859-1');
 		res.set('Content-Disposition', 'attachment; filename="rechnungen.datev"');
-		res.send(`${head}\n${renderDatevRows(filteredInvoices(db, req.query))}`);
+		res.send(`${head}\n${renderDatevRows(filteredInvoices(db, req.query, 'invoice'))}`);
 	});
 
 	app.get('/api/invoices/export.xlsx', (req, res) => {
-		const invoices = filteredInvoices(db, req.query);
+		const invoices = filteredInvoices(db, req.query, 'invoice');
 		const stamp = new Date().toISOString().slice(0, 10);
 		void renderInvoiceListWorkbook(invoices, `Rechnungsübersicht ${stamp}`).then(
 			buffer => {

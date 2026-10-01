@@ -52,7 +52,9 @@ network.
 Open `http://<iobroker-host>:8093/` for the invoice dashboard, the offers tab
 ("Angebote"), the multi-step wizard (seller → buyer → lines → review), invoice
 details with validation, attachments and downloads, layout templates with PDF
-preview, backups and a status page.
+preview, backups and a status page. The header bar carries the tabs only — the
+"+ Neu" buttons sit where their lists are, and the status page names the app
+next to the version and the schema.
 
 ### Attachments (Anlagen)
 
@@ -111,7 +113,10 @@ only offers with `GET /api/invoices?docType=quote`.
   overrides that — and a second open converted draft is refused. The offer
   itself is never touched.
 - **Not revenue:** offers are never dunned and stay out of the accounting
-  exports (`?docType=invoice` on CSV, DATEV and XLSX).
+  exports. CSV, DATEV and XLSX only export invoices unless the caller asks
+  otherwise: without a `docType` parameter they are pinned to invoices, the
+  explicit counter-word is `?docType=all` (and `?docType=quote` exports the
+  offers alone).
 
 In the PWA, offers have their own tab (**Angebote**): the list shows the state
 (open, accepted, rejected, expired), records the customer's answer and turns an
