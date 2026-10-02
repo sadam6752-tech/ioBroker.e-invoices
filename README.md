@@ -264,6 +264,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) The toolbar of the invoice and offer lists sits on two lines now: the filters above, the search and the buttons below, so it no longer wraps into a ragged shape on narrow screens.
 * (alex) Three safeguards from the code review of 2 October 2026:
   **Re-render** never overwrites an archive any more — every run keeps its own
   `<number>.orig-<n>.pdf`, so the delivered original stays retrievable however often the
