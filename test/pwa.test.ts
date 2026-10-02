@@ -262,6 +262,22 @@ describe('pwa => offers (R8)', () => {
 	});
 });
 
+describe('pwa => liability clause', () => {
+	it('carries the disclaimer in the README (English and German) and on the status page', () => {
+		const readme = readFileSync('README.md', 'utf8');
+		expect(readme).to.contain('## Disclaimer');
+		expect(readme).to.contain('without warranty of any kind');
+		expect(readme).to.contain('**Haftungsausschluss.**');
+		// the duties that matter for invoices: correctness, the rules, backups
+		for (const duty of ['VAT law, GoBD', 'UStG, GoBD', 'regular backups', 'Datensicherungen']) {
+			expect(readme, duty).to.contain(duty);
+		}
+		const status = readFileSync('src-www/src/views/status.ts', 'utf8');
+		expect(status).to.contain('id="s-disclaimer"');
+		expect(status).to.contain("t('Haftungsausschluss:");
+	});
+});
+
 describe('pwa => list toolbars stay readable', () => {
 	it('splits the list toolbar into a filter line and an action line', () => {
 		// One single row grew too crowded and wrapped into a ragged shape; both

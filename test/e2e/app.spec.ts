@@ -61,6 +61,8 @@ test('reports the health of the API on the status page', async ({ page }) => {
 	await page.goto('/#/status');
 
 	await expect(page.getByText('Version: 0.0.1-e2e')).toBeVisible();
+	// the liability clause sits on the status page
+	await expect(page.locator('#s-disclaimer')).toContainText('Haftungsausschluss');
 	// the counters come from the database of this run
 	await expect(page.locator('pre.dump')).toContainText('draft');
 });

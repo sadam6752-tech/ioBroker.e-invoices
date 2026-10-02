@@ -192,6 +192,8 @@ export const en: Record<string, string> = {
 	'Gültig bis:': 'Valid until:',
 	'Gültig: keine Fehler.': 'Valid: no errors.',
 	'Gültig: keine offenen Pflichtangaben.': 'Valid: no open mandatory fields.',
+	'Haftungsausschluss: Das Programm wird unentgeltlich und ohne Gewähr bereitgestellt und ersetzt keine Steuer- oder Rechtsberatung. Für die Richtigkeit der Rechnungen, die Einhaltung der Vorschriften und die Datensicherung bist du selbst verantwortlich. Details im README.':
+		'Disclaimer: this software is provided free of charge and without warranty and is not tax or legal advice. You are responsible for the correctness of your invoices, for compliance with the rules that apply to you and for your backups. See the README for details.',
 	'Hinweis: der Bericht konnte nicht gespeichert werden (Adapter-Log).':
 		'Note: the report could not be saved (adapter log).',
 	Hochladen: 'Upload',

@@ -14,7 +14,8 @@ export async function status(root: HTMLElement): Promise<void> {
 		const h = await api.health();
 		root.innerHTML = `<div class="card"><h3>${t('Status')}</h3>
 			<p><strong>E-Invoices</strong> - ${t('Version')}: ${esc(h.version)} · ${t('Schema')}: ${esc(String(h.schemaVersion))}</p>
-			<pre class="dump">${esc(JSON.stringify(h.counts, null, 2))}</pre></div>`;
+			<pre class="dump">${esc(JSON.stringify(h.counts, null, 2))}</pre>
+			<p class="muted" id="s-disclaimer">${t('Haftungsausschluss: Das Programm wird unentgeltlich und ohne Gewähr bereitgestellt und ersetzt keine Steuer- oder Rechtsberatung. Für die Richtigkeit der Rechnungen, die Einhaltung der Vorschriften und die Datensicherung bist du selbst verantwortlich. Details im README.')}</p></div>`;
 	} catch (e) {
 		root.innerHTML = `<div class="card error">${t('API nicht erreichbar')}: ${esc((e as Error).message)}</div>`;
 	}

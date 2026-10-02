@@ -267,6 +267,20 @@ so it cannot share the compact process.
 - Only EUR, domestic B2B invoices and the BASIC/EN 16931 profiles are
   supported in this version.
 
+## Disclaimer
+
+**Disclaimer.** This software is provided free of charge and "as is", without warranty of any kind and without any assurance of fitness for a particular purpose. It is not tax or legal advice. To the extent permitted by law, liability is excluded; liability for intent and gross negligence, for injury to life, body or health, and under mandatory law remains unaffected. You are responsible for:
+
+- the correctness of your invoices and offers and for checking the results (e.g. with a validator or your tax advisor),
+- compliance with the rules that apply to you (e.g. VAT law, GoBD, retention periods, GDPR),
+- regular backups – also outside the adapter – and testing that they can be restored.
+
+**Haftungsausschluss.** Dieses Programm wird unentgeltlich und so bereitgestellt, wie es ist – ohne Gewähr und ohne Zusicherung einer bestimmten Beschaffenheit oder Eignung. Es ersetzt keine Steuer- oder Rechtsberatung. Soweit gesetzlich zulässig, ist die Haftung ausgeschlossen; unberührt bleibt die Haftung für Vorsatz und grobe Fahrlässigkeit sowie für Schäden an Leben, Körper und Gesundheit und nach zwingendem Recht. Du bist selbst verantwortlich für:
+
+- die inhaltliche und rechnerische Richtigkeit deiner Rechnungen und Angebote sowie die Prüfung der Ergebnisse (z. B. mit einem Validator oder deinem Steuerberater),
+- die Einhaltung der geltenden Vorschriften (u. a. UStG, GoBD, Aufbewahrungsfristen, DSGVO),
+- regelmäßige Datensicherungen – auch außerhalb des Adapters – und deren Wiederherstellungstest.
+
 ## Standards and references
 
 This adapter is built around an invoice *format*, not a device, so the
@@ -300,6 +314,8 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	### **WORK IN PROGRESS**
 -->
 ### **WORK IN PROGRESS**
+
+* (alex) Disclaimer: the README carries a liability clause (English and German) and the status page of the web app points to it.
 
 * (alex) Open items (R6.2): the new tab *Offene Posten* and a tile on the dashboard show the unpaid invoices with an aging list (not due, 1–30, 31–60, 61–90, over 90 days overdue), the sums per bucket and per customer, an overdue filter and a reference day; the same list is available as CSV and Excel and all three formats come from one calculation. Offers, drafts, Storno credit notes and cancelled originals are not part of it.
 
