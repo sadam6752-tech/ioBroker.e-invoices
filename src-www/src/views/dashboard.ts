@@ -19,35 +19,41 @@ function badge(status: Invoice['status']): string {
  * @param root
  */
 export async function dashboard(root: HTMLElement): Promise<void> {
+	// Two lines instead of one crowded row: the filters read as one group, the
+	// search and the buttons as another (the same shape the offer list uses).
 	root.innerHTML = `
-		<div class="card"><div class="row">
-			<strong>Rechnungen</strong>
-			<select id="f-status">
-				<option value="">alle</option>
-				<option value="draft">draft</option>
-				<option value="issued">issued</option>
-				<option value="cancelled">cancelled</option>
-			</select>
-			<input id="f-q" placeholder="Suche (Nr, Kunde, Position)…" style="max-width:260px" />
-			<select id="f-sort" title="Sortierung">
-				<option value="date">Datum</option>
-				<option value="number">Nummer</option>
-				<option value="amount">Betrag</option>
-				<option value="customer">Kunde</option>
-				<option value="due">Fällig</option>
-			</select>
-			<button class="btn secondary" id="f-order" title="Umschalten aufsteigend/absteigend">↓ absteigend</button>
-			<select id="f-sent" title="Versandstatus">
-				<option value="">alle</option>
-				<option value="1">versendet</option>
-				<option value="0">nicht versendet</option>
-			</select>
-			<a class="btn" href="#/new">+ Neu</a>
-			<button class="btn secondary" id="f-export" title="Excel-Liste">Excel</button>
-			<button class="btn secondary" id="f-csv" title="CSV für die Buchhaltung">CSV</button>
-			<button class="btn secondary" id="f-datev" title="DATEV-Buchungssätze">DATEV</button>
-			<button class="btn secondary" id="f-issue-all" title="Alle sichtbaren Entwürfe ausstellen" hidden>Ausstellen (0)</button>
-		</div></div>
+		<div class="card">
+			<div class="row"><strong>Rechnungen</strong></div>
+			<div class="row filters">
+				<select id="f-status">
+					<option value="">alle</option>
+					<option value="draft">draft</option>
+					<option value="issued">issued</option>
+					<option value="cancelled">cancelled</option>
+				</select>
+				<select id="f-sort" title="Sortierung">
+					<option value="date">Datum</option>
+					<option value="number">Nummer</option>
+					<option value="amount">Betrag</option>
+					<option value="customer">Kunde</option>
+					<option value="due">Fällig</option>
+				</select>
+				<select id="f-sent" title="Versandstatus">
+					<option value="">alle</option>
+					<option value="1">versendet</option>
+					<option value="0">nicht versendet</option>
+				</select>
+			</div>
+			<div class="row actions">
+				<input id="f-q" placeholder="Suche (Nr, Kunde, Position)…" />
+				<button class="btn secondary" id="f-order" title="Umschalten aufsteigend/absteigend">↓ absteigend</button>
+				<a class="btn" href="#/new">+ Neu</a>
+				<button class="btn secondary" id="f-export" title="Excel-Liste">Excel</button>
+				<button class="btn secondary" id="f-csv" title="CSV für die Buchhaltung">CSV</button>
+				<button class="btn secondary" id="f-datev" title="DATEV-Buchungssätze">DATEV</button>
+				<button class="btn secondary" id="f-issue-all" title="Alle sichtbaren Entwürfe ausstellen" hidden>Ausstellen (0)</button>
+			</div>
+		</div>
 		<div id="reminders"></div>
 		<div id="list-err"></div>
 		<div id="list"></div>`;

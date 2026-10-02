@@ -261,3 +261,19 @@ describe('pwa => offers (R8)', () => {
 		expect(bundle).to.contain('In Rechnung umwandeln');
 	});
 });
+
+describe('pwa => list toolbars stay readable', () => {
+	it('splits the list toolbar into a filter line and an action line', () => {
+		// One single row grew too crowded and wrapped into a ragged shape; both
+		// lists now pair the filters on the first line with the search and the
+		// buttons on the second.
+		for (const file of ['src-www/src/views/dashboard.ts', 'src-www/src/views/offers.ts']) {
+			const src = readFileSync(file, 'utf8');
+			expect(src, file).to.contain('<div class="row filters">');
+			expect(src, file).to.contain('<div class="row actions">');
+		}
+		const css = readFileSync('src-www/src/styles.css', 'utf8');
+		expect(css).to.contain('.row.filters');
+		expect(css).to.contain('.row.actions input');
+	});
+});

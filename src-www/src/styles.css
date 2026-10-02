@@ -62,6 +62,20 @@ main {
 	flex-wrap: wrap;
 	align-items: center;
 }
+/* List toolbars (invoices, offers): the filters read as one group on the first
+   line, the search and the actions on the second. One single row grew too
+   crowded and wrapped into a ragged shape on a narrow screen. */
+.row.filters {
+	margin: 10px 0;
+}
+.row.filters select {
+	flex: 1 1 180px;
+	min-width: 0;
+}
+.row.actions input {
+	flex: 1 1 220px;
+	max-width: 360px;
+}
 .badge {
 	display: inline-block;
 	padding: 2px 10px;

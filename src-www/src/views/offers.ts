@@ -15,28 +15,32 @@ import { labels, quoteState, quoteStateLabel, type QuoteState } from '../labels'
 export async function offers(root: HTMLElement): Promise<void> {
 	const lbl = labels('quote');
 	root.innerHTML = `
-		<div class="card"><div class="row">
-			<strong>${esc(lbl.plural)}</strong>
-			<select id="o-state" title="Zustand">
-				<option value="">alle</option>
-				<option value="draft">Entwurf</option>
-				<option value="open">Offen</option>
-				<option value="accepted">Angenommen</option>
-				<option value="rejected">Abgelehnt</option>
-				<option value="expired">Verfallen</option>
-			</select>
-			<input id="o-q" placeholder="Suche (Nr, Kunde, Position)…" style="max-width:260px" />
-			<select id="o-sort" title="Sortierung">
-				<option value="date">Datum</option>
-				<option value="number">Nummer</option>
-				<option value="amount">Betrag</option>
-				<option value="customer">Kunde</option>
-			</select>
-			<button class="btn secondary" id="o-order" title="Umschalten aufsteigend/absteigend">↓ absteigend</button>
-			<a class="btn" href="#/new/quote">${esc(lbl.newOne)}</a>
-			<button class="btn secondary" id="o-issue-all" title="Alle sichtbaren Entwürfe ausstellen" hidden>Ausstellen (0)</button>
+		<div class="card">
+			<div class="row"><strong>${esc(lbl.plural)}</strong></div>
+			<div class="row filters">
+				<select id="o-state" title="Zustand">
+					<option value="">alle</option>
+					<option value="draft">Entwurf</option>
+					<option value="open">Offen</option>
+					<option value="accepted">Angenommen</option>
+					<option value="rejected">Abgelehnt</option>
+					<option value="expired">Verfallen</option>
+				</select>
+				<select id="o-sort" title="Sortierung">
+					<option value="date">Datum</option>
+					<option value="number">Nummer</option>
+					<option value="amount">Betrag</option>
+					<option value="customer">Kunde</option>
+				</select>
+			</div>
+			<div class="row actions">
+				<input id="o-q" placeholder="Suche (Nr, Kunde, Position)…" />
+				<button class="btn secondary" id="o-order" title="Umschalten aufsteigend/absteigend">↓ absteigend</button>
+				<a class="btn" href="#/new/quote">${esc(lbl.newOne)}</a>
+				<button class="btn secondary" id="o-issue-all" title="Alle sichtbaren Entwürfe ausstellen" hidden>Ausstellen (0)</button>
+			</div>
+			<p class="muted">${esc(lbl.hint)}</p>
 		</div>
-		<p class="muted">${esc(lbl.hint)}</p></div>
 		<div id="o-err"></div>
 		<div id="o-list"></div>`;
 
