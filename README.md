@@ -262,7 +262,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.8.3 (2026-10-02)
 
 * (alex) The toolbar of the invoice and offer lists sits on two lines now: the filters above, the search and the buttons below, so it no longer wraps into a ragged shape on narrow screens.
 * (alex) Three safeguards from the code review of 2 October 2026:
