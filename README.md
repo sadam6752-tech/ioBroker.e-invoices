@@ -281,7 +281,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.8.4 (2026-10-02)
 
 * (alex) The toolbar of the invoice and offer lists lays out as a grid now: the filters share the first line in equal parts, the search takes the free width of the second line and the buttons keep their size.
 * (alex) The web app speaks English now (R7.2): the instance setting `Web app language`
