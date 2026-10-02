@@ -36,6 +36,7 @@ __export(api_server_exports, {
 });
 module.exports = __toCommonJS(api_server_exports);
 var import_node_crypto = require("node:crypto");
+var import_node_net = require("node:net");
 var import_express = __toESM(require("express"));
 var import_node_fs = require("node:fs");
 var import_node_path = require("node:path");
@@ -52,11 +53,18 @@ var import_pdf = require("./pdf");
 var import_templates = require("./templates");
 var import_validation = require("./validation");
 var import_zugferd = require("./zugferd");
-function filteredInvoices(db, query) {
+function docTypeFilter(query, fallback) {
+  const raw = (typeof query.docType === "string" ? query.docType : "").trim().toLowerCase();
+  if (raw === "all") {
+    return void 0;
+  }
+  return raw ? (0, import_invoice_model.normalizeDocumentType)(raw) : fallback;
+}
+function filteredInvoices(db, query, fallbackDocType) {
   const status = typeof query.status === "string" ? query.status : void 0;
   const year = typeof query.year === "string" ? Number(query.year) : void 0;
   const text = typeof query.q === "string" ? query.q : void 0;
-  const docType = typeof query.docType === "string" ? (0, import_invoice_model.normalizeDocumentType)(query.docType) : void 0;
+  const docType = docTypeFilter(query, fallbackDocType);
   return db.listInvoices({
     status: status && ["draft", "issued", "cancelled"].includes(status) ? status : void 0,
     year: Number.isInteger(year) ? year : void 0,
@@ -197,6 +205,38 @@ async function storeValidationReport(db, storage, log, invoice, result) {
     return null;
   }
 }
+function hostNameOf(host) {
+  const trimmed = host.trim().toLowerCase();
+  if (trimmed.startsWith("[")) {
+    return trimmed.slice(1, trimmed.indexOf("]"));
+  }
+  return trimmed.split(":")[0];
+}
+function untrustedRequestReason(req) {
+  var _a;
+  const host = (_a = req.headers.host) != null ? _a : "";
+  const name = hostNameOf(host);
+  if (!name || (0, import_node_net.isIP)(name) === 0 && name !== "localhost" && !name.endsWith(".localhost")) {
+    return "Host name not allowed without an API token - open the PWA by IP address or set an API token";
+  }
+  if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    const origin = req.headers.origin;
+    if (origin !== void 0) {
+      let originHost = "";
+      try {
+        originHost = new URL(origin).host.toLowerCase();
+      } catch {
+      }
+      if (originHost !== host.trim().toLowerCase()) {
+        return "Cross-origin request refused";
+      }
+    }
+    if (req.headers["sec-fetch-site"] === "cross-site") {
+      return "Cross-site request refused";
+    }
+  }
+  return void 0;
+}
 function secretEquals(provided, expected) {
   const a = (0, import_node_crypto.createHash)("sha256").update(provided, "utf8").digest();
   const b = (0, import_node_crypto.createHash)("sha256").update(expected, "utf8").digest();
@@ -272,6 +312,18 @@ function createApiServer(deps) {
     res.set("Pragma", "no-cache");
     next();
   });
+  if (!authToken) {
+    app.use("/api", (req, res, next) => {
+      var _a2;
+      const reason = untrustedRequestReason(req);
+      if (reason) {
+        (_a2 = log.warn) == null ? void 0 : _a2.call(log, `Request refused: ${req.method} ${req.path} (${reason})`);
+        res.status(403).json({ error: reason });
+        return;
+      }
+      next();
+    });
+  }
   if (authToken) {
     app.use("/api", (req, res, next) => {
       if (req.path === "/health") {
@@ -309,7 +361,7 @@ function createApiServer(deps) {
       const query = typeof req.query.q === "string" ? req.query.q : void 0;
       const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : void 0;
       const offset = typeof req.query.offset === "string" ? Number(req.query.offset) : void 0;
-      const docType = typeof req.query.docType === "string" ? (0, import_invoice_model.normalizeDocumentType)(req.query.docType) : void 0;
+      const docType = docTypeFilter(req.query);
       const sourceDocumentId = typeof req.query.sourceDocumentId === "string" ? req.query.sourceDocumentId : void 0;
       res.json(db.listInvoices({ status, year, docType, sourceDocumentId, query, limit, offset }));
     })
@@ -340,7 +392,7 @@ function createApiServer(deps) {
   app.get("/api/invoices/export.csv", (req, res) => {
     res.type("text/csv; charset=utf-8");
     res.set("Content-Disposition", 'attachment; filename="rechnungen.csv"');
-    res.send((0, import_csv.renderInvoiceListCsv)(filteredInvoices(db, req.query)));
+    res.send((0, import_csv.renderInvoiceListCsv)(filteredInvoices(db, req.query, "invoice")));
   });
   app.get("/api/invoices/export.datev", (req, res) => {
     var _a2, _b2, _c2;
@@ -349,10 +401,10 @@ function createApiServer(deps) {
     res.type("text/plain; charset=iso-8859-1");
     res.set("Content-Disposition", 'attachment; filename="rechnungen.datev"');
     res.send(`${head}
-${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query))}`);
+${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`);
   });
   app.get("/api/invoices/export.xlsx", (req, res) => {
-    const invoices = filteredInvoices(db, req.query);
+    const invoices = filteredInvoices(db, req.query, "invoice");
     const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     void (0, import_excel.renderInvoiceListWorkbook)(invoices, `Rechnungs\xFCbersicht ${stamp}`).then(
       (buffer) => {
@@ -1188,7 +1240,9 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query))}`);
         return;
       }
       try {
-        res.json(await (0, import_backup.restoreBackup)(db, storage, data, log));
+        res.json(
+          await (0, import_backup.restoreBackup)(db, storage, data, log, void 0, { adapterVersion: version, source: "api" })
+        );
       } catch (error) {
         res.status(400).json({ error: error.message });
       }

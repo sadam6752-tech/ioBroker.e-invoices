@@ -40,9 +40,10 @@ async function confirmRestore(source: { filename?: string; dataBase64?: string }
 			`  Neu dazu:    ${preview.added.length} Nummern`,
 			`  Überschrieben: ${overwritten} Nummern ${overwritten ? `(${preview.overwritten.slice(0, 5).join(', ')}${preview.overwritten.length > 5 ? ' …' : ''})` : ''}`,
 			``,
-			overwritten > 0
-				? 'ACHTUNG: Rechnungen, die nur hier existieren, gehen unwiederbringlich verloren.'
+			preview.onlyHere.length > 0
+				? `ACHTUNG: ${preview.onlyHere.length} Rechnungen, die nur hier existieren, verschwinden aus der Datenbank (${preview.onlyHere.slice(0, 5).join(', ')}${preview.onlyHere.length > 5 ? ' …' : ''}). Ihre Nummern werden nicht erneut vergeben.`
 				: 'Die aktuelle Datenbank wird durch das Backup ersetzt.',
+			'Vor dem Wiederherstellen wird der aktuelle Stand automatisch als "prerestore"-Backup gesichert.',
 			``,
 			'Trotzdem wiederherstellen?',
 		].join('\n'),

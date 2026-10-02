@@ -548,6 +548,39 @@ describe('api => auth', () => {
 		await request(closedApp).get('/api/invoices').set('Authorization', 'Bearer wrong').expect(401);
 		await request(closedApp).get('/api/invoices').set('Authorization', 'Bearer s3cret').expect(200);
 	});
+
+	it('refuses a foreign host name without a token (DNS rebinding, H2)', async () => {
+		await request(openApp).get('/api/invoices').set('Host', 'evil.example:8093').expect(403);
+		await request(openApp).get('/api/invoices').set('Host', 'localhost:8093').expect(200);
+		await request(openApp).get('/api/invoices').set('Host', '192.168.1.20:8093').expect(200);
+		await request(openApp).get('/api/invoices').set('Host', '[::1]:8093').expect(200);
+		// with a token the bearer header is the protection, any host name works
+		await request(closedApp)
+			.get('/api/invoices')
+			.set('Host', 'iobroker.local:8093')
+			.set('Authorization', 'Bearer s3cret')
+			.expect(200);
+	});
+
+	it('refuses cross-origin writes without a token (CSRF, H2)', async () => {
+		await request(openApp)
+			.post('/api/backups')
+			.set('Host', '127.0.0.1:8093')
+			.set('Origin', 'https://evil.example')
+			.expect(403);
+		await request(openApp).post('/api/backups').set('Host', '127.0.0.1:8093').set('Origin', 'null').expect(403);
+		await request(openApp)
+			.post('/api/backups')
+			.set('Host', '127.0.0.1:8093')
+			.set('Sec-Fetch-Site', 'cross-site')
+			.expect(403);
+		// the PWA itself: same origin as the host header
+		await request(openApp)
+			.get('/api/invoices')
+			.set('Host', '127.0.0.1:8093')
+			.set('Origin', 'http://127.0.0.1:8093')
+			.expect(200);
+	});
 });
 
 describe('api => backup', function () {

@@ -6,6 +6,7 @@
  * v1 has no auth (LAN trust); token auth follows with the admin config (P6).
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { isIP } from 'node:net';
 import express, { type Express, type Request, type Response } from 'express';
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -347,6 +348,57 @@ async function storeValidationReport(
  * @param provided - Value from the request.
  * @param expected - Configured token including its scheme prefix.
  */
+/**
+ * Host name of a `Host` header value without port and IPv6 brackets.
+ *
+ * @param host - Raw header value, e.g. `127.0.0.1:8093` or `[::1]:8093`.
+ */
+function hostNameOf(host: string): string {
+	const trimmed = host.trim().toLowerCase();
+	if (trimmed.startsWith('[')) {
+		return trimmed.slice(1, trimmed.indexOf(']'));
+	}
+	return trimmed.split(':')[0];
+}
+
+/**
+ * Guard for an API without token (H2). A page on another site can steer the
+ * browser to `http://127.0.0.1:<port>` by DNS rebinding (the request then
+ * carries the attacker's host name) or fire a cross-site POST that needs no
+ * preflight. Both are refused here: without a token only IP literals and
+ * `localhost` are valid host names, and a state-changing request must come from
+ * the origin that serves the PWA. With a token set this is not needed - the
+ * bearer header cannot be sent by a foreign page.
+ *
+ * @param req - Express request.
+ * @returns A refusal text, or undefined when the request is acceptable.
+ */
+function untrustedRequestReason(req: Request): string | undefined {
+	const host = req.headers.host ?? '';
+	const name = hostNameOf(host);
+	if (!name || (isIP(name) === 0 && name !== 'localhost' && !name.endsWith('.localhost'))) {
+		return 'Host name not allowed without an API token - open the PWA by IP address or set an API token';
+	}
+	if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+		const origin = req.headers.origin;
+		if (origin !== undefined) {
+			let originHost = '';
+			try {
+				originHost = new URL(origin).host.toLowerCase();
+			} catch {
+				// 'null' or garbage: handled as foreign below
+			}
+			if (originHost !== host.trim().toLowerCase()) {
+				return 'Cross-origin request refused';
+			}
+		}
+		if (req.headers['sec-fetch-site'] === 'cross-site') {
+			return 'Cross-site request refused';
+		}
+	}
+	return undefined;
+}
+
 function secretEquals(provided: string, expected: string): boolean {
 	const a = createHash('sha256').update(provided, 'utf8').digest();
 	const b = createHash('sha256').update(expected, 'utf8').digest();
@@ -437,6 +489,18 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		res.set('Pragma', 'no-cache');
 		next();
 	});
+
+	if (!authToken) {
+		app.use('/api', (req, res, next) => {
+			const reason = untrustedRequestReason(req);
+			if (reason) {
+				log.warn?.(`Request refused: ${req.method} ${req.path} (${reason})`);
+				res.status(403).json({ error: reason });
+				return;
+			}
+			next();
+		});
+	}
 
 	if (authToken) {
 		app.use('/api', (req, res, next) => {
@@ -1433,7 +1497,9 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				return;
 			}
 			try {
-				res.json(await restoreBackup(db, storage, data, log));
+				res.json(
+					await restoreBackup(db, storage, data, log, undefined, { adapterVersion: version, source: 'api' }),
+				);
 			} catch (error) {
 				res.status(400).json({ error: (error as Error).message });
 			}

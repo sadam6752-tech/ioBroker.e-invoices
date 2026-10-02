@@ -96,6 +96,77 @@ describe('backup => roundtrip', function () {
 		}
 	});
 
+	it('restoring an older backup keeps the counters, saves the current state and logs the restore (H3)', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const store = memoryStorage();
+			const firstId = await seedIssued(db, store);
+			const first = db.getInvoice(firstId)!;
+			const older = await createBackup(db, store, quiet, '0.0.0-test');
+
+			// a second invoice is issued after the backup was taken
+			const secondId = await seedIssued(db, store);
+			const second = db.getInvoice(secondId)!;
+			const secondPdf = Buffer.from(store.files.get(second.pdfPath!)!);
+			expect(second.number).to.not.equal(first.number);
+
+			const preview = await previewRestore(db, older.data);
+			expect(preview.onlyHere).to.deep.equal([second.number]);
+			expect(preview.counterAhead.length).to.equal(1);
+
+			const summary = await restoreBackup(db, store, older.data, quiet, undefined, { source: 'test' });
+
+			// the current state was saved before anything was replaced
+			expect(summary.safetyBackup).to.match(/^backups\/e-invoices-prerestore-.*\.zip$/);
+			expect(store.files.has(summary.safetyBackup!)).to.equal(true);
+			const safetyZip = await JSZip.loadAsync(store.files.get(summary.safetyBackup!)!);
+			const safetyManifest = JSON.parse(await safetyZip.file('manifest.json')!.async('string'));
+			expect(safetyManifest.counts.invoices).to.equal(2);
+			expect(db.listBackups().some(b => b.filename === summary.safetyBackup)).to.equal(true);
+
+			// the database is back at one invoice, but its number is not handed out again
+			expect(db.allInvoices()).to.have.lengthOf(1);
+			expect(summary.countersKept.length).to.equal(1);
+			const thirdId = await seedIssued(db, store);
+			const third = db.getInvoice(thirdId)!;
+			expect(third.number).to.not.equal(first.number);
+			expect(third.number).to.not.equal(second.number);
+			// and the file of the vanished invoice was not overwritten
+			expect(store.files.get(second.pdfPath!)!.equals(secondPdf)).to.equal(true);
+
+			const log = store.files
+				.get('backups/restore-log.jsonl')!
+				.toString('utf8')
+				.trim()
+				.split(String.fromCharCode(10));
+			expect(log).to.have.lengthOf(1);
+			expect(JSON.parse(log[0]).source).to.equal('test');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('refuses the restore when the safety backup cannot be written (H3)', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const store = memoryStorage();
+			await seedIssued(db, store);
+			const backup = await createBackup(db, store, quiet, '0.0.0-test');
+			const broken: BackupStorage = {
+				read: store.read,
+				write: () => Promise.reject(new Error('disk full')),
+			};
+			let message = '';
+			await restoreBackup(db, broken, backup.data, quiet).catch(e => (message = (e as Error).message));
+			expect(message).to.contain('safety backup');
+			expect(db.allInvoices()).to.have.lengthOf(1);
+		} finally {
+			db.close();
+		}
+	});
+
 	it('merges counters that differ only by employee-code normalization', async () => {
 		const dbA = new InvoiceDatabase(':memory:');
 		dbA.migrate();

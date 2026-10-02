@@ -162,8 +162,30 @@ async function previewRestore(db, zipData, limits) {
     currentInvoices: db.allInvoices().length,
     overwritten: numbers.filter((n) => currentNumbers.has(n)),
     added: numbers.filter((n) => !currentNumbers.has(n)),
-    filesWritten: ((_a = manifest.files) != null ? _a : []).length
+    filesWritten: ((_a = manifest.files) != null ? _a : []).length,
+    onlyHere: [...currentNumbers].filter((n) => !numbers.includes(n)),
+    counterAhead: mergeCounters(dump.counters, db.exportData().counters).raised
   };
+}
+function mergeCounters(fromBackup, current) {
+  var _a;
+  const key = (c) => {
+    var _a2, _b;
+    return `${c.year}/${(_a2 = c.employee) != null ? _a2 : "00"}/${(_b = c.doc_type) != null ? _b : "invoice"}`;
+  };
+  const merged = /* @__PURE__ */ new Map();
+  for (const counter of fromBackup != null ? fromBackup : []) {
+    merged.set(key(counter), counter);
+  }
+  const raised = [];
+  for (const counter of current) {
+    const existing = merged.get(key(counter));
+    if (!existing || existing.last_seq < counter.last_seq) {
+      merged.set(key(counter), counter);
+      raised.push(`${key(counter)} (backup ${(_a = existing == null ? void 0 : existing.last_seq) != null ? _a : 0}, kept ${counter.last_seq})`);
+    }
+  }
+  return { counters: [...merged.values()], raised };
 }
 async function readAndVerifyBackup(zipData, limits) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
@@ -264,8 +286,29 @@ async function readAndVerifyBackup(zipData, limits) {
   };
   return { manifest, dump, files };
 }
-async function restoreBackup(db, storage, zipData, log, limits) {
+async function restoreBackup(db, storage, zipData, log, limits, options = {}) {
+  var _a, _b;
   const { manifest, dump, files } = await readAndVerifyBackup(zipData, limits);
+  let safetyBackup = null;
+  try {
+    const safety = await createBackup(db, storage, log, (_a = options.adapterVersion) != null ? _a : "unknown");
+    safetyBackup = safety.filename.replace("-backup-", "-prerestore-");
+    await storage.write(safetyBackup, safety.data);
+    db.logBackup({
+      filename: safetyBackup,
+      size: safety.size,
+      sha256: safety.sha256,
+      manifestJson: JSON.stringify(safety.manifest)
+    });
+    log.info(`Safety backup before restore: ${safetyBackup}`);
+  } catch (error) {
+    throw new Error(`Restore aborted: the safety backup of the current state failed (${error.message})`);
+  }
+  const { counters, raised } = mergeCounters(dump.counters, db.exportData().counters);
+  dump.counters = counters;
+  if (raised.length > 0) {
+    log.info(`Restore keeps ${raised.length} counter(s) ahead of the backup: ${raised.join("; ")}`);
+  }
   db.importData(dump);
   if (!db.getDefaultTemplate()) {
     db.ensureDefaultTemplate();
@@ -283,7 +326,34 @@ async function restoreBackup(db, storage, zipData, log, limits) {
       log.error(`Restore cannot write ${message}`);
     }
   }
-  return { manifest, invoices: dump.invoices.length, templates: dump.templates.length, filesWritten, fileErrors };
+  try {
+    let previous = "";
+    try {
+      previous = (await storage.read("backups/restore-log.jsonl")).toString("utf8");
+    } catch {
+    }
+    const entry = JSON.stringify({
+      at: (/* @__PURE__ */ new Date()).toISOString(),
+      source: (_b = options.source) != null ? _b : "api",
+      backupCreatedAt: manifest.createdAt,
+      invoices: dump.invoices.length,
+      safetyBackup,
+      countersKept: raised
+    });
+    await storage.write("backups/restore-log.jsonl", `${previous}${entry}
+`);
+  } catch (error) {
+    log.error(`Cannot write the restore log: ${error.message}`);
+  }
+  return {
+    manifest,
+    invoices: dump.invoices.length,
+    templates: dump.templates.length,
+    filesWritten,
+    fileErrors,
+    safetyBackup,
+    countersKept: raised
+  };
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

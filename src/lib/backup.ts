@@ -77,6 +77,10 @@ export interface RestoreSummary {
 	filesWritten: string[];
 	/** Files that failed with reasons. */
 	fileErrors: string[];
+	/** Backup of the state before the restore (mountpoint path). */
+	safetyBackup: string | null;
+	/** Counters that stayed higher than in the backup, so no number is issued twice. */
+	countersKept: string[];
 }
 
 /** Minimal logger shape (adapter log compatible). */
@@ -293,6 +297,10 @@ export interface RestorePreview {
 	overwritten: string[];
 	/** Numbers that only exist here and would be new. */
 	added: string[];
+	/** Numbers that exist only in the current database and would be removed from it. */
+	onlyHere: string[];
+	/** Counters that are ahead of the backup (they are kept, numbers are never reused). */
+	counterAhead: string[];
 	/** Files that would be written. */
 	filesWritten: number;
 }
@@ -337,7 +345,41 @@ export async function previewRestore(
 		overwritten: numbers.filter(n => currentNumbers.has(n)),
 		added: numbers.filter(n => !currentNumbers.has(n)),
 		filesWritten: (manifest.files ?? []).length,
+		onlyHere: [...currentNumbers].filter(n => !numbers.includes(n)),
+		counterAhead: mergeCounters(dump.counters, db.exportData().counters).raised,
 	};
+}
+
+/**
+ * Raises the counters of a backup to the current ones where those are higher.
+ *
+ * A restore may bring back an older state, but a number that was handed out
+ * once must never be handed out again (§ 14 Abs. 4 Nr. 4 UStG, GoBD): its
+ * PDF/XML may still lie on the mountpoint and would be overwritten.
+ *
+ * @param fromBackup - Counters of the backup dump.
+ * @param current - Counters of the running database.
+ * @returns The merged counters and a readable list of those that were raised.
+ */
+function mergeCounters(
+	fromBackup: DatabaseDump['counters'],
+	current: DatabaseDump['counters'],
+): { counters: DatabaseDump['counters']; raised: string[] } {
+	const key = (c: { year: number; employee?: string; doc_type?: string }): string =>
+		`${c.year}/${c.employee ?? '00'}/${c.doc_type ?? 'invoice'}`;
+	const merged = new Map<string, DatabaseDump['counters'][number]>();
+	for (const counter of fromBackup ?? []) {
+		merged.set(key(counter), counter);
+	}
+	const raised: string[] = [];
+	for (const counter of current) {
+		const existing = merged.get(key(counter));
+		if (!existing || existing.last_seq < counter.last_seq) {
+			merged.set(key(counter), counter);
+			raised.push(`${key(counter)} (backup ${existing?.last_seq ?? 0}, kept ${counter.last_seq})`);
+		}
+	}
+	return { counters: [...merged.values()], raised };
 }
 
 /**
@@ -464,6 +506,9 @@ async function readAndVerifyBackup(
  * @param zipData - Backup ZIP bytes.
  * @param log - Logger.
  * @param limits - Optional ZIP limits (defaults to the production caps).
+ * @param options - Adapter version for the safety backup and the source for the restore log.
+ * @param options.adapterVersion - Adapter version written into the safety backup.
+ * @param options.source - Where the restore came from (`api`, `state`, ...).
  */
 export async function restoreBackup(
 	db: InvoiceDatabase,
@@ -471,8 +516,35 @@ export async function restoreBackup(
 	zipData: Buffer,
 	log: BackupLogger,
 	limits?: Partial<BackupLimits>,
+	options: { adapterVersion?: string; source?: string } = {},
 ): Promise<RestoreSummary> {
 	const { manifest, dump, files } = await readAndVerifyBackup(zipData, limits);
+
+	// H3: a restore replaces everything, so the current state is saved first.
+	// Without that copy the restore is not started.
+	let safetyBackup: string | null = null;
+	try {
+		const safety = await createBackup(db, storage, log, options.adapterVersion ?? 'unknown');
+		safetyBackup = safety.filename.replace('-backup-', '-prerestore-');
+		await storage.write(safetyBackup, safety.data);
+		db.logBackup({
+			filename: safetyBackup,
+			size: safety.size,
+			sha256: safety.sha256,
+			manifestJson: JSON.stringify(safety.manifest),
+		});
+		log.info(`Safety backup before restore: ${safetyBackup}`);
+	} catch (error) {
+		throw new Error(`Restore aborted: the safety backup of the current state failed (${(error as Error).message})`);
+	}
+
+	// H3: counters never move backwards, so no issued number is reused.
+	const { counters, raised } = mergeCounters(dump.counters, db.exportData().counters);
+	dump.counters = counters;
+	if (raised.length > 0) {
+		log.info(`Restore keeps ${raised.length} counter(s) ahead of the backup: ${raised.join('; ')}`);
+	}
+
 	db.importData(dump);
 	if (!db.getDefaultTemplate()) {
 		db.ensureDefaultTemplate();
@@ -491,5 +563,34 @@ export async function restoreBackup(
 			log.error(`Restore cannot write ${message}`);
 		}
 	}
-	return { manifest, invoices: dump.invoices.length, templates: dump.templates.length, filesWritten, fileErrors };
+
+	// audit trail: who restored what and when stays readable outside the database
+	try {
+		let previous = '';
+		try {
+			previous = (await storage.read('backups/restore-log.jsonl')).toString('utf8');
+		} catch {
+			// first entry
+		}
+		const entry = JSON.stringify({
+			at: new Date().toISOString(),
+			source: options.source ?? 'api',
+			backupCreatedAt: manifest.createdAt,
+			invoices: dump.invoices.length,
+			safetyBackup,
+			countersKept: raised,
+		});
+		await storage.write('backups/restore-log.jsonl', `${previous}${entry}\n`);
+	} catch (error) {
+		log.error(`Cannot write the restore log: ${(error as Error).message}`);
+	}
+	return {
+		manifest,
+		invoices: dump.invoices.length,
+		templates: dump.templates.length,
+		filesWritten,
+		fileErrors,
+		safetyBackup,
+		countersKept: raised,
+	};
 }

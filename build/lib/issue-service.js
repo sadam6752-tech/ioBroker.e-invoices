@@ -181,8 +181,19 @@ function collectReminderCandidates(db, today = (0, import_invoice_model.todayIso
   }
   return out.sort((a, b) => b.overdueDays - a.overdueDays);
 }
+async function nextArchivePath(storage, base, start) {
+  for (let n = Math.max(1, start); n < start + 1e3; n++) {
+    const candidate = `${base}.orig-${n}.pdf`;
+    try {
+      await storage.read(candidate);
+    } catch {
+      return candidate;
+    }
+  }
+  throw new Error(`No free archive slot for ${base}`);
+}
 async function rerenderInvoicePdf(db, log, invoiceId, storage, reason) {
-  var _a, _b, _c;
+  var _a;
   const invoice = db.getInvoice(invoiceId);
   if (!invoice) {
     throw new Error(`Invoice not found: ${invoiceId}`);
@@ -196,9 +207,17 @@ async function rerenderInvoicePdf(db, log, invoiceId, storage, reason) {
   const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
   const attachments = db.listAttachments(invoiceId);
   const quote = (0, import_invoice_model.isQuote)(invoice.docType);
-  const generated = quote ? null : await (0, import_zugferd.generateInvoiceXml)(invoice, attachments);
-  const xml = (_a = generated == null ? void 0 : generated.xml) != null ? _a : null;
-  const attachmentDocuments = (_b = generated == null ? void 0 : generated.attachmentDocuments) != null ? _b : 0;
+  let xml = null;
+  let xmlRegenerated = false;
+  if (!quote) {
+    if (invoice.xml) {
+      xml = invoice.xml;
+    } else {
+      const generated = await (0, import_zugferd.generateInvoiceXml)(invoice, attachments);
+      xml = generated.xml;
+      xmlRegenerated = true;
+    }
+  }
   const sight = await (0, import_pdf.renderInvoicePdf)(invoice, template, logo, buildRenderContext(db, invoice, attachments));
   const hybrid = xml ? await (0, import_zugferd.embedHybridPdf)(
     await (0, import_pdf_attachments.embedPdfAttachments)(sight, attachments),
@@ -208,14 +227,14 @@ async function rerenderInvoicePdf(db, log, invoiceId, storage, reason) {
   ) : sight;
   if (attachments.length > 0) {
     log.info(
-      quote ? `Attachments re-listed: ${attachments.length} in the quotation PDF (R8)` : `Attachments re-embedded: ${attachments.length} in the PDF, ${attachmentDocuments} in the XML (BG-24)`
+      quote ? `Attachments re-listed: ${attachments.length} in the quotation PDF (R8)` : `Attachments re-embedded: ${attachments.length} in the PDF, XML (BG-24) kept as issued`
     );
   }
   const base = `invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}`;
   const newPath = `${base}.pdf`;
   let archivedPath = null;
   if (invoice.pdfPath) {
-    archivedPath = `${base}.orig-1.pdf`;
+    archivedPath = await nextArchivePath(storage, base, db.listRenderHistory(invoiceId).length + 1);
     try {
       const original = await storage.read(invoice.pdfPath);
       await storage.write(archivedPath, original);
@@ -227,10 +246,14 @@ async function rerenderInvoicePdf(db, log, invoiceId, storage, reason) {
   }
   await storage.write(newPath, Buffer.from(hybrid));
   log.info(`PDF re-rendered: ${newPath} (${invoice.number})`);
+  if (xmlRegenerated && xml) {
+    await storage.write(`${base}.xml`, xml);
+    log.info(`XML was missing and has been created: ${base}.xml`);
+  }
   const updated = db.attachIssueArtifacts(invoiceId, {
     xml: xml != null ? xml : void 0,
     pdfPath: newPath,
-    xlsxPath: (_c = invoice.xlsxPath) != null ? _c : void 0,
+    xlsxPath: (_a = invoice.xlsxPath) != null ? _a : void 0,
     templateId: templateId != null ? templateId : invoice.templateId
   });
   db.logRender(invoiceId, "pdf", archivedPath, newPath, reason);

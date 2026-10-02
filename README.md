@@ -170,7 +170,11 @@ preview, backups, restore). With an API token configured, every route except
 
 - **Token:** set `authToken` in the instance configuration. Every API route except
   `/api/health` then requires `Authorization: Bearer <token>`; without a token the
-  API trusts every client that can reach the port.
+  API trusts every client that can reach the port. In that case it only answers
+  requests whose host name is an IP address or `localhost` (so a web page cannot
+  steer your browser to the adapter by DNS rebinding) and refuses writes that carry a
+  foreign `Origin`; reach the PWA by IP address, or set a token to use a host name.
+  Use a long random token (the adapter warns below 16 characters).
 - **Bind address:** `bind` defaults to `127.0.0.1`, so only the host running the
   adapter can reach the API. An unauthenticated bind to another interface is
   logged as a warning on startup — use a token in that case.
@@ -183,6 +187,10 @@ preview, backups, restore). With an API token configured, every route except
   `X-Forwarded-*` headers are not trusted (`trust proxy` disabled) — the adapter
   is meant to be reached directly; put it behind a reverse proxy only with HTTPS
   and a token.
+- **Restore safety:** before a restore replaces the database, the current state is
+  written to `backups/e-invoices-prerestore-<time>.zip`; if that fails, nothing is
+  restored. Number counters are never lowered, and every restore is appended to
+  `backups/restore-log.jsonl`.
 - **Restore limits:** a backup ZIP may be at most 512 MB and expand to at most
   1 GB (`dump.json` at most 256 MB); a crafted archive is rejected before it is
   unpacked. Entry paths, per-file checksums and the manifest are verified.
@@ -256,6 +264,17 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) Three safeguards from the code review of 2 October 2026:
+  **Re-render** never overwrites an archive any more — every run keeps its own
+  `<number>.orig-<n>.pdf`, so the delivered original stays retrievable however often the
+  sight PDF is rendered again — and it embeds the XML as issued instead of generating it
+  anew, so database, `.xml` file and the XML inside the PDF cannot drift apart.
+  **Without an API token** the API now accepts only IP addresses and `localhost` as host
+  name and refuses cross-origin writes (DNS rebinding, CSRF); with a token nothing
+  changes. **Restore** saves the current state as `backups/e-invoices-prerestore-<time>.zip`
+  first (no safety copy, no restore), never moves a number counter backwards — an
+  invoice number is not issued twice after restoring an older backup — and appends
+  every restore to `backups/restore-log.jsonl`.
 * (alex) The web app sources are linted now (R5.3): `src-www/src/**/*.ts` runs through the
   same ESLint set as the adapter, with the browser globals and the `src-www` tsconfig, so
   the PWA is no longer the one corner of the repository that no rule looks at. The first
@@ -267,6 +286,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
   which no longer turns a missing string into `[object ArrayBuffer]`. Only formatting
   changed beyond that (Prettier, braces). `npm run lint` covers the PWA: 0 errors,
   remaining warnings are JSDoc wishes, not defects.
+* (alex) The invoice and offer lists lay their controls on two lines: the filters
+  (status, sort, sent) share the first line and the search sits on the second next
+  to the buttons ("+ Neu", Excel, CSV, DATEV, "Ausstellen"). One single row had
+  grown too crowded and wrapped into a ragged shape on a narrow screen.
 
 ### 0.8.2 (2026-10-01)
 * (alex) The header bar carries the tabs and nothing else now: the "+ Neu" button

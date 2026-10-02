@@ -471,6 +471,8 @@ class EInvoices extends utils.Adapter {
 					{ write: this.storageWriter, read: this.storageReader },
 					data,
 					this.log,
+					undefined,
+					{ adapterVersion, source: 'state' },
 				);
 				this.log.info(`Restore finished: ${summary.invoices} invoices, ${summary.filesWritten.length} files`);
 				await this.refreshStats();
@@ -670,6 +672,9 @@ class EInvoices extends utils.Adapter {
 					this.log.warn(
 						`No API token set — every client that can reach ${bind}:${port} may read, issue and RESTORE invoices. Set authToken in the instance config or bind to 127.0.0.1.`,
 					);
+				}
+				if (this.config.authToken && this.config.authToken.length < 16) {
+					this.log.warn('The API token is shorter than 16 characters - use a long random value.');
 				}
 				if (bind !== '127.0.0.1' && bind !== 'localhost' && !this.config.authToken) {
 					this.log.warn(`Unauthenticated API is bound to ${bind} (reachable from the network).`);

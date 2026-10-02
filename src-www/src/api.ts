@@ -199,6 +199,10 @@ export interface RestorePreview {
 	overwritten: string[];
 	/** Numbers that only exist here and would be new. */
 	added: string[];
+	/** Numbers that exist only in the current database and would be removed from it. */
+	onlyHere: string[];
+	/** Counters that are ahead of the backup; they are kept, so no number is reused. */
+	counterAhead: string[];
 	/** Files that would be written. */
 	filesWritten: number;
 }

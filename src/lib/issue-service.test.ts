@@ -183,6 +183,32 @@ describe('issue => re-render', function () {
 		}
 	});
 
+	it('never overwrites an archive and keeps the issued XML (H1)', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const files = new Map<string, Buffer>();
+		try {
+			const created = db.createDraft(draft);
+			const issued = await issueInvoiceWithArtifacts(db, logger, created.id, memStorage(files));
+			const original = Buffer.from(files.get(issued.pdfPath)!);
+			const xmlBefore = db.getInvoice(issued.invoice.id)!.xml;
+			const xmlFile = Buffer.from(files.get(issued.xmlPath!)!);
+
+			const first = await rerenderInvoicePdf(db, logger, issued.invoice.id, memStorage(files), 'eins');
+			const second = await rerenderInvoicePdf(db, logger, issued.invoice.id, memStorage(files), 'zwei');
+
+			expect(first.archivedPath).to.match(/\.orig-1\.pdf$/);
+			expect(second.archivedPath).to.match(/\.orig-2\.pdf$/);
+			// the delivered original survives the second run
+			expect(files.get(first.archivedPath!)!.equals(original)).to.equal(true);
+			// XML in DB and on disk stays exactly as issued
+			expect(db.getInvoice(issued.invoice.id)!.xml).to.equal(xmlBefore);
+			expect(files.get(issued.xmlPath!)!.equals(xmlFile)).to.equal(true);
+		} finally {
+			db.close();
+		}
+	});
+
 	it('never touches the invoice content', async () => {
 		const db = new InvoiceDatabase(':memory:');
 		db.migrate();

@@ -302,11 +302,31 @@ export function collectReminderCandidates(db: InvoiceDatabase, today: string = t
 }
 
 /**
+ * First free archive path `<base>.orig-<n>.pdf`, counting up from `start`.
+ *
+ * @param storage - Artifact file backend.
+ * @param base - Artifact path without extension.
+ * @param start - First sequence number to try.
+ */
+async function nextArchivePath(storage: IssueStorage, base: string, start: number): Promise<string> {
+	for (let n = Math.max(1, start); n < start + 1000; n++) {
+		const candidate = `${base}.orig-${n}.pdf`;
+		try {
+			await storage.read(candidate);
+		} catch {
+			return candidate;
+		}
+	}
+	throw new Error(`No free archive slot for ${base}`);
+}
+
+/**
  * Re-renders the PDF of an already issued invoice.
  *
  * GoBD: the delivered file must stay reproducible. The original is therefore
- * copied to an archive path first, the fresh rendering is written next to it
- * and the DB keeps pointing at the new file. The invoice content itself is
+ * copied to a fresh, never reused archive path first (`orig-<n>`), the new
+ * rendering is written next to it and the DB keeps pointing at the new file.
+ * The XML is not regenerated. The invoice content itself is
  * never touched — only the visual rendering of an unchanged document.
  *
  * @param db - Open invoice database.
@@ -342,9 +362,21 @@ export async function rerenderInvoicePdf(
 	const attachments = db.listAttachments(invoiceId);
 	// R8: a quotation stays a sight PDF — re-rendering must not invent an XML.
 	const quote = isQuote(invoice.docType);
-	const generated = quote ? null : await generateInvoiceXml(invoice, attachments);
-	const xml = generated?.xml ?? null;
-	const attachmentDocuments = generated?.attachmentDocuments ?? 0;
+	// GoBD: the XML is the leading document of an e-invoice and is never
+	// regenerated. Only a record whose XML was lost at issue time gets a fresh
+	// one (written below); otherwise the stored XML is embedded unchanged, so DB,
+	// `.xml` file and the XML inside the PDF cannot drift apart.
+	let xml: string | null = null;
+	let xmlRegenerated = false;
+	if (!quote) {
+		if (invoice.xml) {
+			xml = invoice.xml;
+		} else {
+			const generated = await generateInvoiceXml(invoice, attachments);
+			xml = generated.xml;
+			xmlRegenerated = true;
+		}
+	}
 	const sight = await renderInvoicePdf(invoice, template, logo, buildRenderContext(db, invoice, attachments));
 	const hybrid = xml
 		? await embedHybridPdf(
@@ -358,7 +390,7 @@ export async function rerenderInvoicePdf(
 		log.info(
 			quote
 				? `Attachments re-listed: ${attachments.length} in the quotation PDF (R8)`
-				: `Attachments re-embedded: ${attachments.length} in the PDF, ${attachmentDocuments} in the XML (BG-24)`,
+				: `Attachments re-embedded: ${attachments.length} in the PDF, XML (BG-24) kept as issued`,
 		);
 	}
 
@@ -369,7 +401,10 @@ export async function rerenderInvoicePdf(
 	// not an error: it just means the file was never stored (write failure).
 	let archivedPath: string | null = null;
 	if (invoice.pdfPath) {
-		archivedPath = `${base}.orig-1.pdf`;
+		// every re-render keeps its own archive step (`orig-1`, `orig-2`, …); an
+		// existing archive file is never overwritten, so the delivered original
+		// stays retrievable however often the sight PDF is rendered again
+		archivedPath = await nextArchivePath(storage, base, db.listRenderHistory(invoiceId).length + 1);
 		try {
 			const original = await storage.read(invoice.pdfPath);
 			await storage.write(archivedPath, original);
@@ -382,6 +417,10 @@ export async function rerenderInvoicePdf(
 
 	await storage.write(newPath, Buffer.from(hybrid));
 	log.info(`PDF re-rendered: ${newPath} (${invoice.number})`);
+	if (xmlRegenerated && xml) {
+		await storage.write(`${base}.xml`, xml);
+		log.info(`XML was missing and has been created: ${base}.xml`);
+	}
 
 	const updated = db.attachIssueArtifacts(invoiceId, {
 		xml: xml ?? undefined,

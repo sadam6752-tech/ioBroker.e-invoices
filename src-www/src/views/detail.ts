@@ -363,7 +363,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			}
 			if (
 				!window.confirm(
-					'Die PDF wird aus den unveränderten Rechnungsdaten neu erzeugt. Nummer, Beträge und Daten der Rechnung ändern sich nicht. Das bisherige Dokument wird als .orig-1.pdf archiviert. Fortfahren?',
+					'Die PDF wird aus den unveränderten Rechnungsdaten neu erzeugt. Nummer, Beträge und Daten der Rechnung ändern sich nicht. Das bisherige Dokument wird als .orig-<n>.pdf archiviert (nie überschrieben), das XML bleibt unverändert. Fortfahren?',
 				)
 			) {
 				return;
