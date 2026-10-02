@@ -313,7 +313,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.8.5 (2026-10-02)
 
 * (alex) Disclaimer: the README carries a liability clause (English and German) and the status page of the web app points to it.
 
