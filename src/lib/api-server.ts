@@ -123,6 +123,11 @@ export interface ApiServerDeps {
 	log: IssueLogger;
 	/** Adapter version for /api/health. */
 	version: string;
+	/**
+	 * Called after every request that changed something (a non-GET answered below 400),
+	 * so the adapter can refresh its info states without polling.
+	 */
+	onChange?: () => void;
 	/** Bearer token; when empty, the API trusts the LAN (documented). */
 	authToken?: string;
 	/**
@@ -487,6 +492,21 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		});
 	app.use('/api', limiter(limits.api, 'api'));
 	app.use('/api/restore', limiter(limits.restore, 'restore'));
+	if (deps.onChange) {
+		const notify = deps.onChange;
+		app.use('/api', (req, res, next) => {
+			res.on('finish', () => {
+				if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && res.statusCode < 400) {
+					try {
+						notify();
+					} catch (error) {
+						log.warn?.(`onChange failed: ${(error as Error).message}`);
+					}
+				}
+			});
+			next();
+		});
+	}
 	// Invoice data and rendered artifacts must never be reused from a cache:
 	// a stored PDF keeps the layout it had when it was issued, and a cached
 	// preview would hide a corrected rendering until the cache expired.

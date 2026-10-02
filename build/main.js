@@ -34,6 +34,8 @@ const MOUNT_POINT = "storage";
 const STATUS_FILE = "status.json";
 const DEFAULT_API_PORT = 8093;
 const DEFAULT_API_BIND = "127.0.0.1";
+const BUTTON_STATES = /* @__PURE__ */ new Set(["createDraft", "issue", "refresh", "backup", "restore"]);
+const STATS_REFRESH_DELAY_MS = 500;
 class EInvoices extends utils.Adapter {
   db = null;
   mountId = "";
@@ -43,6 +45,8 @@ class EInvoices extends utils.Adapter {
   backupTimer;
   /** Pending automatic dunning check, cancelled on unload. */
   reminderTimer;
+  /** Pending refresh of the info states after a change through the API, cancelled on unload. */
+  statsTimer;
   constructor(options = {}) {
     super({
       ...options,
@@ -538,6 +542,29 @@ class EInvoices extends utils.Adapter {
     this.log.info(`Dunning check every ${Math.round(delay / 36e5)} h.`);
     schedule();
   }
+  /**
+   * Refreshes the info states and the status file shortly after the PWA or an
+   * API client changed something. Without it `info.issuedCount`, `info.lastNumber`
+   * and the others only moved when a control button was pressed, so a dashboard
+   * built on the states showed stale numbers while invoices were issued in the PWA.
+   */
+  scheduleStatsRefresh() {
+    if (this.statsTimer || !this.db) {
+      return;
+    }
+    this.statsTimer = this.setTimeout(() => {
+      this.statsTimer = void 0;
+      void (async () => {
+        try {
+          await this.refreshStats();
+          await this.publishStatusFile();
+          await this.refreshOverdue();
+        } catch (error) {
+          this.log.warn(`Cannot refresh the info states: ${error.message}`);
+        }
+      })();
+    }, STATS_REFRESH_DELAY_MS);
+  }
   /** Cancels a pending dunning check. */
   stopReminderTimer() {
     if (this.reminderTimer) {
@@ -610,6 +637,7 @@ class EInvoices extends utils.Adapter {
         log: this.log,
         version: import_package.version,
         authToken: this.config.authToken || void 0,
+        onChange: () => this.scheduleStatsRefresh(),
         settings: {
           defaultVatRate: Number((_a = this.config.defaultVatRate) != null ? _a : 19),
           defaultPaymentTerms: (_b = this.config.defaultPaymentTerms) != null ? _b : "",
@@ -660,6 +688,10 @@ class EInvoices extends utils.Adapter {
     try {
       this.stopBackupTimer();
       this.stopReminderTimer();
+      if (this.statsTimer) {
+        this.clearTimeout(this.statsTimer);
+        this.statsTimer = void 0;
+      }
       try {
         (_a = this.server) == null ? void 0 : _a.close();
       } catch (error) {
@@ -700,7 +732,8 @@ class EInvoices extends utils.Adapter {
    * @param state - State object
    */
   onStateChange(id, state) {
-    if (state && state.ack === false && id.startsWith(`${this.namespace}.control.`)) {
+    const prefix = `${this.namespace}.control.`;
+    if (state && state.ack === false && id.startsWith(prefix) && BUTTON_STATES.has(id.slice(prefix.length))) {
       void this.handleCommand(id);
     }
   }

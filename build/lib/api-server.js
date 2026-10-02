@@ -309,6 +309,22 @@ function createApiServer(deps) {
   });
   app.use("/api", limiter(limits.api, "api"));
   app.use("/api/restore", limiter(limits.restore, "restore"));
+  if (deps.onChange) {
+    const notify = deps.onChange;
+    app.use("/api", (req, res, next) => {
+      res.on("finish", () => {
+        var _a2;
+        if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && res.statusCode < 400) {
+          try {
+            notify();
+          } catch (error) {
+            (_a2 = log.warn) == null ? void 0 : _a2.call(log, `onChange failed: ${error.message}`);
+          }
+        }
+      });
+      next();
+    });
+  }
   app.use("/api", (_req, res, next) => {
     res.set("Cache-Control", "no-store, no-cache, must-revalidate");
     res.set("Pragma", "no-cache");

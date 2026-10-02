@@ -210,6 +210,41 @@ describe('pdf => embedded attachments (R4)', function () {
 		expect(await associatedFileCount(hybrid)).to.equal(files.length);
 	});
 
+	it('embeds the files and links to none of them (R5.1)', async () => {
+		// PROMPT §2: an attachment is part of the document — embedded, never a link
+		// the recipient would have to follow (or could no longer reach in ten years).
+		const { hybrid } = await hybridWith([
+			{ filename: 'Lieferschein.pdf', mime: 'application/pdf', data: pdfData },
+			{ filename: 'Foto.png', mime: 'image/png', data: pngData },
+		]);
+		const doc = await PDFDocument.load(hybrid, { updateMetadata: false });
+
+		const links: string[] = [];
+		for (const [, object] of doc.context.enumerateIndirectObjects()) {
+			if (!(object instanceof PDFDict)) {
+				continue;
+			}
+			const subtype = textOf(object.get(PDFName.of('Subtype')));
+			const action = textOf(object.get(PDFName.of('S')));
+			// a link annotation, or an action that leaves the file (web address, other file, program)
+			if (subtype === 'Link' || ['URI', 'GoToR', 'Launch', 'GoToE'].includes(action)) {
+				links.push(`${subtype || action}`);
+			}
+		}
+		expect(links, 'link annotations or external actions in the PDF').to.deep.equal([]);
+
+		// every file specification carries its bytes (/EF) and points to no URL (/FS /URL)
+		const files = await readEmbeddedFiles(hybrid);
+		expect(files.map(file => file.name)).to.include.members(['Lieferschein.pdf', 'Foto.png']);
+		const names = doc.catalog.lookup(PDFName.of('Names'), PDFDict);
+		const list = names?.lookup(PDFName.of('EmbeddedFiles'), PDFDict)?.lookup(PDFName.of('Names'), PDFArray);
+		for (let index = 1; list && index < list.size(); index += 2) {
+			const spec = list.lookup(index, PDFDict);
+			expect(textOf(spec.get(PDFName.of('FS'))), 'file system of the specification').to.not.equal('URL');
+			expect(spec.get(PDFName.of('EF')), 'embedded stream of the specification').to.not.equal(undefined);
+		}
+	});
+
 	it('keeps an umlaut filename intact in the name tree', async () => {
 		const { hybrid } = await hybridWith([
 			{ filename: 'Pruefbericht Größe.pdf', mime: 'application/pdf', data: pdfData },

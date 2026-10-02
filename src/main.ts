@@ -26,6 +26,14 @@ const STATUS_FILE = 'status.json';
 const DEFAULT_API_PORT = 8093;
 /** Fallback bind address (loopback: the API is unauthenticated by default). */
 const DEFAULT_API_BIND = '127.0.0.1';
+/**
+ * The control states that are buttons. `control.issueId` and `control.restoreId`
+ * hold text and are only read by the buttons; writing them must not run a command
+ * (it used to, and the acknowledgement then tried to store `true` in a text state).
+ */
+const BUTTON_STATES = new Set(['createDraft', 'issue', 'refresh', 'backup', 'restore']);
+/** Pause that collects a burst of API writes into one refresh of the info states. */
+const STATS_REFRESH_DELAY_MS = 500;
 
 class EInvoices extends utils.Adapter {
 	private db: InvoiceDatabase | null = null;
@@ -36,6 +44,8 @@ class EInvoices extends utils.Adapter {
 	private backupTimer: ReturnType<EInvoices['setTimeout']> | undefined;
 	/** Pending automatic dunning check, cancelled on unload. */
 	private reminderTimer: ReturnType<EInvoices['setTimeout']> | undefined;
+	/** Pending refresh of the info states after a change through the API, cancelled on unload. */
+	private statsTimer: ReturnType<EInvoices['setTimeout']> | undefined;
 
 	public constructor(options: Partial<utils.AdapterOptions> = {}) {
 		super({
@@ -564,6 +574,30 @@ class EInvoices extends utils.Adapter {
 		schedule();
 	}
 
+	/**
+	 * Refreshes the info states and the status file shortly after the PWA or an
+	 * API client changed something. Without it `info.issuedCount`, `info.lastNumber`
+	 * and the others only moved when a control button was pressed, so a dashboard
+	 * built on the states showed stale numbers while invoices were issued in the PWA.
+	 */
+	private scheduleStatsRefresh(): void {
+		if (this.statsTimer || !this.db) {
+			return;
+		}
+		this.statsTimer = this.setTimeout(() => {
+			this.statsTimer = undefined;
+			void (async () => {
+				try {
+					await this.refreshStats();
+					await this.publishStatusFile();
+					await this.refreshOverdue();
+				} catch (error) {
+					this.log.warn(`Cannot refresh the info states: ${(error as Error).message}`);
+				}
+			})();
+		}, STATS_REFRESH_DELAY_MS);
+	}
+
 	/** Cancels a pending dunning check. */
 	private stopReminderTimer(): void {
 		if (this.reminderTimer) {
@@ -645,6 +679,7 @@ class EInvoices extends utils.Adapter {
 				log: this.log,
 				version: adapterVersion,
 				authToken: this.config.authToken || undefined,
+				onChange: () => this.scheduleStatsRefresh(),
 				settings: {
 					defaultVatRate: Number(this.config.defaultVatRate ?? 19),
 					defaultPaymentTerms: this.config.defaultPaymentTerms ?? '',
@@ -695,6 +730,10 @@ class EInvoices extends utils.Adapter {
 		try {
 			this.stopBackupTimer();
 			this.stopReminderTimer();
+			if (this.statsTimer) {
+				this.clearTimeout(this.statsTimer);
+				this.statsTimer = undefined;
+			}
 			try {
 				this.server?.close();
 			} catch (error) {
@@ -738,7 +777,8 @@ class EInvoices extends utils.Adapter {
 	 * @param state - State object
 	 */
 	private onStateChange(id: string, state: ioBroker.State | null | undefined): void {
-		if (state && state.ack === false && id.startsWith(`${this.namespace}.control.`)) {
+		const prefix = `${this.namespace}.control.`;
+		if (state && state.ack === false && id.startsWith(prefix) && BUTTON_STATES.has(id.slice(prefix.length))) {
 			void this.handleCommand(id);
 		}
 	}

@@ -583,6 +583,49 @@ describe('api => auth', () => {
 	});
 });
 
+describe('api => change notification (R5.2)', () => {
+	it('tells the adapter after a successful write, never after a read or a refusal', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			let calls = 0;
+			const app = createApiServer({
+				db,
+				storage: {
+					write: (): Promise<void> => Promise.resolve(),
+					read: (): Promise<Buffer> => Promise.reject(new Error('empty')),
+				},
+				log: { info: (): void => undefined, error: (): void => undefined },
+				version: 'x',
+				onChange: () => {
+					calls += 1;
+				},
+			});
+			const settle = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 20));
+
+			await request(app).get('/api/invoices').expect(200);
+			await request(app).get('/api/health').expect(200);
+			await settle();
+			expect(calls, 'reads do not notify').to.equal(0);
+
+			// a refused write changed nothing
+			await request(app).post('/api/invoices').send({}).expect(400);
+			await settle();
+			expect(calls, 'a 400 does not notify').to.equal(0);
+
+			const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
+			await settle();
+			expect(calls, 'a created draft notifies once').to.equal(1);
+
+			await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
+			await settle();
+			expect(calls, 'an issue notifies again').to.equal(2);
+		} finally {
+			db.close();
+		}
+	});
+});
+
 describe('api => web app language (R7.2)', () => {
 	const quiet = { info: (): void => undefined, error: (): void => undefined };
 	const stubStorage = {
@@ -1004,6 +1047,80 @@ describe('api => attachments (R4)', function () {
 			.expect(400);
 		expect(String(tooBig.body.error)).to.match(/5 MB/);
 		expect((await request(app).get(`/api/invoices/${id}/attachments`).expect(200)).body).to.deep.equal([]);
+	});
+
+	it('does not take an attachment for a mandatory field (R5.1)', async () => {
+		// The customer number (BT-10) must stand in the structured data. A delivery
+		// note that mentions it does not help: the recipient's system reads the XML.
+		const created = await request(app)
+			.post('/api/invoices')
+			.send({ ...draftBody, buyer: { ...buyer, customerNumber: '' } })
+			.expect(201);
+		const id = created.body.id as string;
+		const pdf = Buffer.from('%PDF-1.4\nKundennummer: K-4711\n%%EOF\n', 'latin1');
+		await request(app)
+			.post(`/api/invoices/${id}/attachments`)
+			.send({
+				filename: 'Bestellung mit Kundennummer.pdf',
+				mime: 'application/pdf',
+				dataBase64: pdf.toString('base64'),
+			})
+			.expect(201);
+
+		const countersBefore = db.exportData().counters;
+		const refused = await request(app).post(`/api/invoices/${id}/issue`).expect(400);
+		expect(String(refused.body.error)).to.contain('customer number');
+
+		// nothing was booked: still a draft, no number, no counter moved, attachment untouched
+		const after = await request(app).get(`/api/invoices/${id}`).expect(200);
+		expect(after.body.status).to.equal('draft');
+		expect(after.body.number).to.equal(null);
+		expect(db.exportData().counters).to.deep.equal(countersBefore);
+		expect((await request(app).get(`/api/invoices/${id}/attachments`).expect(200)).body).to.have.lengthOf(1);
+
+		// the validation reports the same gap instead of reading the attachment
+		const validation = await request(app).post(`/api/invoices/${id}/validate`).expect(200);
+		expect(validation.body.businessErrors.join(' ')).to.contain('customer number');
+	});
+
+	it('validates a draft without booking it (R5.1)', async () => {
+		// A draft may be checked as often as the user likes: the answer is the list of
+		// findings, never a number, a file or a changed record. (An earlier plan was to
+		// refuse drafts with 409; the detail page offers the check on drafts and R2 keeps
+		// a report per run, so the behaviour is fixed as it is.)
+		const complete = (await request(app).post('/api/invoices').send(draftBody).expect(201)).body.id as string;
+		const incomplete = (
+			await request(app)
+				.post('/api/invoices')
+				.send({ ...draftBody, lines: [] })
+				.expect(201)
+		).body.id as string;
+		const countersBefore = db.exportData().counters;
+		const countsBefore = (await request(app).get('/api/health').expect(200)).body.counts;
+
+		const ok = await request(app).post(`/api/invoices/${complete}/validate`).expect(200);
+		expect(ok.body.formatErrors).to.deep.equal([]);
+		expect(ok.body.businessErrors).to.deep.equal([]);
+		// the report is kept under the id of the draft, there is no number yet
+		expect(String(ok.body.report.path)).to.contain(`${complete}.validation-`);
+
+		const broken = await request(app).post(`/api/invoices/${incomplete}/validate`).expect(200);
+		expect(broken.body.businessErrors).to.not.deep.equal([]);
+		expect(broken.body.formatErrors).to.deep.equal([]);
+
+		for (const id of [complete, incomplete]) {
+			const draft = await request(app).get(`/api/invoices/${id}`).expect(200);
+			expect(draft.body.status).to.equal('draft');
+			expect(draft.body.number).to.equal(null);
+			expect(draft.body.xml).to.equal(null);
+			expect(draft.body.pdfPath).to.equal(null);
+		}
+		// no number was used up and nothing changed state
+		expect(db.exportData().counters).to.deep.equal(countersBefore);
+		expect((await request(app).get('/api/health').expect(200)).body.counts).to.deep.equal(countsBefore);
+		// every run is a report of its own
+		const again = await request(app).post(`/api/invoices/${complete}/validate`).expect(200);
+		expect(again.body.report.seq).to.equal(ok.body.report.seq + 1);
 	});
 
 	it('limits the count and freezes the attachments with the issued invoice', async () => {
