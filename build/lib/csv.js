@@ -22,9 +22,11 @@ __export(csv_exports, {
   renderDatevHead: () => renderDatevHead,
   renderDatevRows: () => renderDatevRows,
   renderInvoiceListCsv: () => renderInvoiceListCsv,
+  renderOpenItemsCsv: () => renderOpenItemsCsv,
   toCsvRow: () => toCsvRow
 });
 module.exports = __toCommonJS(csv_exports);
+var import_open_items = require("./open-items");
 const CSV_COPY_NOTICE = "KOPIE \u2013 kein Steuerdokument. Ma\xDFgeblich ist das eingebettete XML der ZUGFeRD-Rechnung.";
 const UTF8_BOM = String.fromCharCode(65279);
 function csvField(value) {
@@ -150,12 +152,59 @@ function renderDatevRows(invoices) {
   }
   return lines.join("\n");
 }
+function renderOpenItemsCsv(report) {
+  const lines = [];
+  lines.push(csvField(CSV_COPY_NOTICE));
+  lines.push(csvField(`Offene Posten zum ${report.asOf}${report.onlyOverdue ? " (nur \xFCberf\xE4llige)" : ""}`));
+  lines.push(
+    [
+      "Rechnungsnummer",
+      "Kunde",
+      "Kundennummer",
+      "Rechnungsdatum",
+      "Faellig am",
+      "Tage ueberfaellig",
+      "Alterung",
+      "Offener Betrag EUR",
+      "Skonto Prozent",
+      "Mahnstufe"
+    ].map(csvField).join(";")
+  );
+  for (const item of report.items) {
+    lines.push(
+      [
+        item.number,
+        item.customer,
+        item.customerNumber,
+        item.issueDate,
+        item.dueDate,
+        String(item.overdueDays),
+        import_open_items.AGE_BUCKET_LABELS[item.bucket],
+        de(item.amount),
+        de(item.skontoPercent),
+        String(item.reminderLevel)
+      ].map(csvField).join(";")
+    );
+  }
+  lines.push("");
+  for (const bucket of import_open_items.AGE_BUCKETS) {
+    const sub = report.buckets[bucket];
+    lines.push(["Summe", import_open_items.AGE_BUCKET_LABELS[bucket], String(sub.count), de(sub.amount)].map(csvField).join(";"));
+  }
+  lines.push(["Summe", "gesamt", String(report.total.count), de(report.total.amount)].map(csvField).join(";"));
+  lines.push(
+    ["Summe", "davon \xFCberf\xE4llig", String(report.overdue.count), de(report.overdue.amount)].map(csvField).join(";")
+  );
+  return `${UTF8_BOM}${lines.join("\r\n")}\r
+`;
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   CSV_COPY_NOTICE,
   renderDatevHead,
   renderDatevRows,
   renderInvoiceListCsv,
+  renderOpenItemsCsv,
   toCsvRow
 });
 //# sourceMappingURL=csv.js.map

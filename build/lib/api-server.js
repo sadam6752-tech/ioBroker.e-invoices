@@ -48,6 +48,7 @@ var import_backup = require("./backup");
 var import_attachments = require("./attachments");
 var import_csv = require("./csv");
 var import_excel = require("./excel");
+var import_open_items = require("./open-items");
 var import_invoice_model2 = require("./invoice-model");
 var import_pdf = require("./pdf");
 var import_templates = require("./templates");
@@ -72,6 +73,18 @@ function filteredInvoices(db, query, fallbackDocType) {
     query: text,
     limit: 500
   });
+}
+function openItemsOptions(query) {
+  const options = {
+    onlyOverdue: query.onlyOverdue === "1" || query.onlyOverdue === "true"
+  };
+  if (query.asOf !== void 0) {
+    if (typeof query.asOf !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(query.asOf)) {
+      return "asOf must be an ISO date (YYYY-MM-DD)";
+    }
+    options.asOf = query.asOf;
+  }
+  return options;
 }
 function previewInvoice(draft) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i;
@@ -441,6 +454,44 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
       }
     );
   });
+  app.get(
+    "/api/open-items",
+    route((req, res) => {
+      const options = openItemsOptions(req.query);
+      if (typeof options === "string") {
+        res.status(400).json({ error: options });
+        return;
+      }
+      res.json((0, import_open_items.evaluateOpenItems)(db.allInvoices(), options));
+    })
+  );
+  app.get(
+    "/api/open-items.csv",
+    route((req, res) => {
+      const options = openItemsOptions(req.query);
+      if (typeof options === "string") {
+        res.status(400).json({ error: options });
+        return;
+      }
+      res.type("text/csv; charset=utf-8");
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("offene-posten.csv"));
+      res.send((0, import_csv.renderOpenItemsCsv)((0, import_open_items.evaluateOpenItems)(db.allInvoices(), options)));
+    })
+  );
+  app.get(
+    "/api/open-items.xlsx",
+    route(async (req, res) => {
+      const options = openItemsOptions(req.query);
+      if (typeof options === "string") {
+        res.status(400).json({ error: options });
+        return;
+      }
+      const buffer = await (0, import_excel.renderOpenItemsWorkbook)((0, import_open_items.evaluateOpenItems)(db.allInvoices(), options));
+      res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("offene-posten.xlsx"));
+      res.send(buffer);
+    })
+  );
   app.get(
     "/api/invoices/:id.xml",
     route((req, res) => {

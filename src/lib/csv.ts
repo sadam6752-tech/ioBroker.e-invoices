@@ -10,6 +10,7 @@
  * ZUGFeRD hybrid PDF with its embedded XML stays the leading artefact.
  */
 import type { StoredInvoice } from './db';
+import { AGE_BUCKET_LABELS, AGE_BUCKETS, type OpenItemsReport } from './open-items';
 
 /** Notice printed as the first comment line of every CSV export. */
 export const CSV_COPY_NOTICE = 'KOPIE – kein Steuerdokument. Maßgeblich ist das eingebettete XML der ZUGFeRD-Rechnung.';
@@ -239,4 +240,64 @@ export function renderDatevRows(invoices: StoredInvoice[]): string {
 		);
 	}
 	return lines.join('\n');
+}
+
+/**
+ * Renders the open items (R6.2) as a semicolon-separated CSV.
+ *
+ * The rows come from `evaluateOpenItems`, the same calculation as the JSON view
+ * and the Excel list, followed by one line per age bucket and the total — so the
+ * three formats show the same sums by construction.
+ *
+ * @param report - Result of `evaluateOpenItems`.
+ * @returns CSV text including the BOM.
+ */
+export function renderOpenItemsCsv(report: OpenItemsReport): string {
+	const lines: string[] = [];
+	lines.push(csvField(CSV_COPY_NOTICE));
+	lines.push(csvField(`Offene Posten zum ${report.asOf}${report.onlyOverdue ? ' (nur überfällige)' : ''}`));
+	lines.push(
+		[
+			'Rechnungsnummer',
+			'Kunde',
+			'Kundennummer',
+			'Rechnungsdatum',
+			'Faellig am',
+			'Tage ueberfaellig',
+			'Alterung',
+			'Offener Betrag EUR',
+			'Skonto Prozent',
+			'Mahnstufe',
+		]
+			.map(csvField)
+			.join(';'),
+	);
+	for (const item of report.items) {
+		lines.push(
+			[
+				item.number,
+				item.customer,
+				item.customerNumber,
+				item.issueDate,
+				item.dueDate,
+				String(item.overdueDays),
+				AGE_BUCKET_LABELS[item.bucket],
+				de(item.amount),
+				de(item.skontoPercent),
+				String(item.reminderLevel),
+			]
+				.map(csvField)
+				.join(';'),
+		);
+	}
+	lines.push('');
+	for (const bucket of AGE_BUCKETS) {
+		const sub = report.buckets[bucket];
+		lines.push(['Summe', AGE_BUCKET_LABELS[bucket], String(sub.count), de(sub.amount)].map(csvField).join(';'));
+	}
+	lines.push(['Summe', 'gesamt', String(report.total.count), de(report.total.amount)].map(csvField).join(';'));
+	lines.push(
+		['Summe', 'davon überfällig', String(report.overdue.count), de(report.overdue.amount)].map(csvField).join(';'),
+	);
+	return `${UTF8_BOM}${lines.join('\r\n')}\r\n`;
 }

@@ -150,6 +150,24 @@ The wording of every screen comes from one table per document type
 offer screen says "Rechnung". The booking list and the three accounting exports
 stay pinned to `docType=invoice`, so the two document types never mix.
 
+### Open items (Offene Posten)
+
+The tab *Offene Posten* lists the unpaid, issued invoices with their age and adds
+them up: per age bucket (not due · 1–30 · 31–60 · 61–90 · over 90 days overdue),
+per customer and in total, with a switch for the overdue part and a reference day
+(*Stichtag*). The dashboard carries a one-line tile with the same sums. The list
+is also available as CSV and Excel (`GET /api/open-items`, `.csv`, `.xlsx`, filters
+`asOf=YYYY-MM-DD` and `onlyOverdue=1`); all three come from one calculation, so
+their sums are identical.
+
+What counts: issued **invoices** that are **not marked as paid**. Offers, drafts,
+cancelled originals, Storno credit notes and documents titled *Gutschrift* do not
+count — the record has no allocation of a credit note to the invoice it settles, so
+they are left out instead of guessed. The record has no part payments either, so
+the open amount of an invoice is its gross total. An invoice without a due date is
+listed as *not due*. The reminder list (`info.overdue*`) is the narrower one: it
+starts five days after the due date and stays quiet for a day after a reminder.
+
 ### States
 
 - `info.connection`, `info.invoiceCount`, `info.draftCount`,
@@ -182,7 +200,7 @@ Same-origin JSON API under `/api` (health, invoices CRUD, issue, validate with
 a stored report, XML/PDF/XLSX downloads, attachments of a draft — list, upload
 as base64 JSON, download, delete —, offers (list by document type, accept,
 reject, convert into an invoice draft), templates with logo upload and PDF
-preview, backups, restore). With an API token configured, every route except
+preview, backups, restore, open items as JSON, CSV and Excel). With an API token configured, every route except
 `/api/health` requires an `Authorization: Bearer <token>` header.
 
 ## Security notes
@@ -282,6 +300,8 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	### **WORK IN PROGRESS**
 -->
 ### **WORK IN PROGRESS**
+
+* (alex) Open items (R6.2): the new tab *Offene Posten* and a tile on the dashboard show the unpaid invoices with an aging list (not due, 1–30, 31–60, 61–90, over 90 days overdue), the sums per bucket and per customer, an overdue filter and a reference day; the same list is available as CSV and Excel and all three formats come from one calculation. Offers, drafts, Storno credit notes and cancelled originals are not part of it.
 
 * (alex) Hardening from the code review (M4/M5): every download builds its `Content-Disposition` through one function (ASCII fallback plus RFC 5987 name, quotes and line breaks cannot leave the header), the PDF and Excel routes refuse a stored path that points out of the storage, and a restore rejects a backup whose document numbers or artifact paths do not look like what the adapter writes itself — even when its checksums match.
 * (alex) Two defects found by the new integration test on a real js-controller: writing the text states `control.issueId` or `control.restoreId` ran a command by itself and then tried to acknowledge it with `true` (a text state refused it and logged it) — only the buttons (`createDraft`, `issue`, `refresh`, `backup`, `restore`) react now; and the info states (`info.issuedCount`, `info.invoiceCount`, …) only moved when a control button was pressed, so invoices issued in the web app left them stale — every successful change through the API refreshes them now (collected over half a second).

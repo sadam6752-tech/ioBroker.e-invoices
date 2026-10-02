@@ -166,6 +166,65 @@ export interface PaymentCheckDuty {
 	overdueDays: number;
 }
 
+/** Age bucket of an open item (R6.2). */
+export type AgeBucket = 'notDue' | 'd1to30' | 'd31to60' | 'd61to90' | 'over90';
+
+/** One unpaid invoice with its age. */
+export interface OpenItem {
+	id: string;
+	number: string;
+	customer: string;
+	customerNumber: string;
+	issueDate: string;
+	dueDate: string;
+	amount: number;
+	overdueDays: number;
+	bucket: AgeBucket;
+	skontoPercent: number;
+	reminderLevel: number;
+	sent: boolean;
+}
+
+/** Count and sum of a group. */
+export interface OpenSubtotal {
+	count: number;
+	amount: number;
+}
+
+/** The evaluation of `GET /api/open-items`. */
+export interface OpenItemsReport {
+	asOf: string;
+	onlyOverdue: boolean;
+	items: OpenItem[];
+	buckets: Record<AgeBucket, OpenSubtotal>;
+	total: OpenSubtotal;
+	overdue: OpenSubtotal;
+	customers: (OpenSubtotal & { customer: string; customerNumber: string })[];
+}
+
+/** Filters of the open-items routes. */
+export interface OpenItemsParams {
+	asOf?: string;
+	onlyOverdue?: boolean;
+}
+
+/**
+ * Query string of an open-items request.
+ *
+ * @param params - Filters.
+ */
+function openItemsQuery(params: OpenItemsParams): string {
+	const query = new URLSearchParams();
+	if (params.asOf) {
+		query.set('asOf', params.asOf);
+	}
+	if (params.onlyOverdue) {
+		query.set('onlyOverdue', '1');
+	}
+	const text = query.toString();
+	return text ? `?${text}` : '';
+}
+
 /** One issued invoice that is overdue and due for a dunning reminder. */
 export interface ReminderCandidate {
 	/** The invoice itself. */
@@ -425,6 +484,14 @@ export const api = {
 			method: 'POST',
 			body: JSON.stringify({ outcome }),
 		}),
+	/**
+	 * Open items (OPOS) with age buckets and sums.
+	 *
+	 * @param params - Reference day and the overdue filter.
+	 */
+	openItems: (params: OpenItemsParams = {}) => request<OpenItemsReport>(`/api/open-items${openItemsQuery(params)}`),
+	openItemsCsvUrl: (params: OpenItemsParams = {}) => `/api/open-items.csv${openItemsQuery(params)}`,
+	openItemsXlsxUrl: (params: OpenItemsParams = {}) => `/api/open-items.xlsx${openItemsQuery(params)}`,
 	reminders: () => request<ReminderCandidate[]>('/api/reminders'),
 	reminded: (id: string) => request<Invoice>(`/api/invoices/${id}/reminded`, { method: 'POST' }),
 	invoiceTemplates: {

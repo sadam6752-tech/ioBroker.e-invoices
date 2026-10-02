@@ -9,6 +9,7 @@
 import ExcelJS from 'exceljs';
 import { calcSkonto, calcTotals, formatDeliveryDateDe, lineNetAmount, lineNetUnitPrice } from './invoice-model';
 import type { StoredInvoice } from './db';
+import { AGE_BUCKET_LABELS, AGE_BUCKETS, type OpenItemsReport } from './open-items';
 
 /** Copy notice printed on every Excel sheet (German). */
 export const EXCEL_COPY_NOTICE =
@@ -189,6 +190,92 @@ export async function renderInvoiceListWorkbook(invoices: StoredInvoice[], title
 		r.getCell(7).value = safeCellText(invoice.status);
 		r.commit();
 	});
+
+	const buffer = await book.xlsx.writeBuffer();
+	return Buffer.from(buffer);
+}
+
+/**
+ * Renders the open items (R6.2) as an xlsx workbook: the item list, then one
+ * row per age bucket and the totals. The sums are the ones `evaluateOpenItems`
+ * computed — the sheet does not add anything up on its own.
+ *
+ * @param report - Result of `evaluateOpenItems`.
+ */
+export async function renderOpenItemsWorkbook(report: OpenItemsReport): Promise<Buffer> {
+	const book = new ExcelJS.Workbook();
+	book.creator = 'ioBroker.e-invoices';
+	book.created = new Date();
+	const sheet = book.addWorksheet('Offene Posten');
+	sheet.columns = [
+		{ width: 16 },
+		{ width: 30 },
+		{ width: 14 },
+		{ width: 14 },
+		{ width: 14 },
+		{ width: 12 },
+		{ width: 26 },
+		{ width: 18 },
+		{ width: 10 },
+		{ width: 10 },
+	];
+	sheet.getCell('A1').value = safeCellText(
+		`Offene Posten zum ${report.asOf}${report.onlyOverdue ? ' (nur überfällige)' : ''}`,
+	);
+	sheet.getCell('A1').font = { bold: true, size: 14 };
+	sheet.getCell('A2').value = EXCEL_COPY_NOTICE;
+	sheet.getCell('A2').font = { italic: true, color: { argb: 'FFB91C1C' } };
+
+	headRow(sheet, 4, [
+		'Rechnungsnummer',
+		'Kunde',
+		'Kundennummer',
+		'Rechnungsdatum',
+		'Fällig am',
+		'Tage überfällig',
+		'Alterung',
+		'Offener Betrag',
+		'Skonto %',
+		'Mahnstufe',
+	]);
+	report.items.forEach((item, index) => {
+		const r = sheet.getRow(5 + index);
+		r.getCell(1).value = safeCellText(item.number);
+		r.getCell(2).value = safeCellText(item.customer);
+		r.getCell(3).value = safeCellText(item.customerNumber);
+		r.getCell(4).value = item.issueDate;
+		r.getCell(5).value = item.dueDate;
+		r.getCell(6).value = item.overdueDays;
+		r.getCell(7).value = AGE_BUCKET_LABELS[item.bucket];
+		r.getCell(8).value = item.amount;
+		r.getCell(8).numFmt = '#,##0.00 "EUR"';
+		r.getCell(9).value = item.skontoPercent;
+		r.getCell(10).value = item.reminderLevel;
+		r.commit();
+	});
+
+	let row = 5 + report.items.length + 1;
+	headRow(sheet, row, ['Summe', 'Alterung', 'Anzahl', '', '', '', '', 'Betrag']);
+	row += 1;
+	const sums: [string, { count: number; amount: number }][] = [
+		...AGE_BUCKETS.map((bucket): [string, { count: number; amount: number }] => [
+			AGE_BUCKET_LABELS[bucket],
+			report.buckets[bucket],
+		]),
+		['gesamt', report.total],
+		['davon überfällig', report.overdue],
+	];
+	for (const [label, sub] of sums) {
+		const r = sheet.getRow(row);
+		r.getCell(1).value = 'Summe';
+		r.getCell(2).value = label;
+		r.getCell(3).value = sub.count;
+		r.getCell(8).value = sub.amount;
+		r.getCell(8).numFmt = '#,##0.00 "EUR"';
+		r.getCell(1).font = { bold: true };
+		r.commit();
+		row += 1;
+	}
 
 	const buffer = await book.xlsx.writeBuffer();
 	return Buffer.from(buffer);

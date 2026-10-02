@@ -7,6 +7,7 @@ import { expect } from 'chai';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import ExcelJS from 'exceljs';
 import request from 'supertest';
 import { attachStatic, createApiServer } from '../src/lib/api-server';
 import { ATTACHMENT_MAX_BYTES, ATTACHMENT_MAX_COUNT } from '../src/lib/attachments';
@@ -580,6 +581,183 @@ describe('api => auth', () => {
 			.set('Host', '127.0.0.1:8093')
 			.set('Origin', 'http://127.0.0.1:8093')
 			.expect(200);
+	});
+});
+
+describe('api => open items (R6.2)', function () {
+	this.timeout(60000);
+	let db: InvoiceDatabase;
+	let app: ReturnType<typeof createApiServer>;
+	const AS_OF = '2026-10-01';
+
+	/**
+	 * Issues an invoice through the API.
+	 *
+	 * @param customer - Buyer name.
+	 * @param net - Net price of the single line (19 % VAT).
+	 * @param dueDate - ISO due date.
+	 * @param extra - Further body fields.
+	 */
+	const issueVia = async (
+		customer: string,
+		net: number,
+		dueDate: string | undefined,
+		extra: Record<string, unknown> = {},
+	): Promise<string> => {
+		const created = await request(app)
+			.post('/api/invoices')
+			.send({
+				...draftBody,
+				buyer: { ...buyer, name: customer },
+				lines: [{ description: 'Leistung', quantity: 1, unit: 'Stk', unitPriceNet: net, vatRate: 19 }],
+				dueDate,
+				...extra,
+			})
+			.expect(201);
+		await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
+		return created.body.id as string;
+	};
+
+	before(async () => {
+		db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		app = createApiServer({
+			db,
+			storage: {
+				write: (): Promise<void> => Promise.resolve(),
+				read: (): Promise<Buffer> => Promise.reject(new Error('empty')),
+			},
+			log: { info: (): void => undefined, error: (): void => undefined },
+			version: 'x',
+		});
+		await issueVia('Alt AG', 1000, '2026-06-01'); // over 90 days
+		await issueVia('Mittel GmbH', 500, '2026-09-10'); // 21 days
+		await issueVia('Frisch KG', 100, '2026-10-20'); // not due
+		const paid = await issueVia('Bezahlt AG', 300, '2026-09-01');
+		await request(app).post(`/api/invoices/${paid}/paid`).send({ paid: true }).expect(200);
+		// an offer carries a validity, never a claim
+		await issueVia('Angebot AG', 800, undefined, { docType: 'quote', documentTitle: 'Angebot' });
+		// a draft is not booked
+		await request(app)
+			.post('/api/invoices')
+			.send({ ...draftBody, buyer: { ...buyer, name: 'Entwurf AG' } })
+			.expect(201);
+	});
+
+	after(() => {
+		db.close();
+	});
+
+	it('lists the open invoices with their age and the sums', async () => {
+		const res = await request(app).get(`/api/open-items?asOf=${AS_OF}`).expect(200);
+		expect(res.body.asOf).to.equal(AS_OF);
+		expect(res.body.items.map((item: { customer: string }) => item.customer)).to.deep.equal([
+			'Alt AG',
+			'Mittel GmbH',
+			'Frisch KG',
+		]);
+		expect(res.body.buckets.over90).to.deep.equal({ count: 1, amount: 1190 });
+		expect(res.body.buckets.d1to30).to.deep.equal({ count: 1, amount: 595 });
+		expect(res.body.buckets.notDue).to.deep.equal({ count: 1, amount: 119 });
+		expect(res.body.total).to.deep.equal({ count: 3, amount: 1904 });
+		expect(res.body.overdue).to.deep.equal({ count: 2, amount: 1785 });
+
+		const overdueOnly = await request(app).get(`/api/open-items?asOf=${AS_OF}&onlyOverdue=1`).expect(200);
+		expect(overdueOnly.body.total).to.deep.equal({ count: 2, amount: 1785 });
+		expect(overdueOnly.body.onlyOverdue).to.equal(true);
+	});
+
+	it('keeps offers and drafts out, whatever the filter says', async () => {
+		const all = await request(app).get(`/api/open-items?asOf=${AS_OF}`).expect(200);
+		const names = all.body.items.map((item: { customer: string }) => item.customer);
+		expect(names).to.not.include('Angebot AG');
+		expect(names).to.not.include('Entwurf AG');
+		expect(names).to.not.include('Bezahlt AG');
+		// the document type is not a parameter of this route
+		const forced = await request(app).get(`/api/open-items?asOf=${AS_OF}&docType=quote`).expect(200);
+		expect(forced.body.items.map((item: { customer: string }) => item.customer)).to.not.include('Angebot AG');
+	});
+
+	it('carries the same sums in the JSON, the CSV and the Excel list', async () => {
+		const json = (await request(app).get(`/api/open-items?asOf=${AS_OF}`).expect(200)).body;
+
+		const csv = await request(app).get(`/api/open-items.csv?asOf=${AS_OF}`).buffer(true).expect(200);
+		expect(String(csv.headers['content-type'])).to.contain('text/csv');
+		expect(String(csv.headers['content-disposition'])).to.contain('offene-posten.csv');
+		const lines = csv.text.split('\r\n');
+		const csvRow = (label: string): string[] =>
+			lines.map(line => line.split(';')).find(cols => cols[0] === 'Summe' && cols[1] === label)!;
+		const german = (value: number): string => value.toFixed(2).replace('.', ',');
+		expect(csvRow('gesamt').slice(2)).to.deep.equal([String(json.total.count), german(json.total.amount)]);
+		expect(csvRow('davon überfällig').slice(2)).to.deep.equal([
+			String(json.overdue.count),
+			german(json.overdue.amount),
+		]);
+		expect(csvRow('über 90 Tage überfällig').slice(2)).to.deep.equal([
+			String(json.buckets.over90.count),
+			german(json.buckets.over90.amount),
+		]);
+		// one line per item, and the amounts of the lines add up to the total
+		const itemLines = lines.filter(line => /^20\d\d-/.test(line));
+		expect(itemLines).to.have.lengthOf(json.items.length);
+		const csvSum = itemLines.reduce((sum, line) => sum + Number(line.split(';')[7].replace(',', '.')), 0);
+		expect(Math.round(csvSum * 100) / 100).to.equal(json.total.amount);
+
+		const xlsx = await request(app)
+			.get(`/api/open-items.xlsx?asOf=${AS_OF}`)
+			.buffer(true)
+			.parse((res, callback) => {
+				const chunks: Buffer[] = [];
+				res.on('data', (chunk: Buffer) => chunks.push(chunk));
+				res.on('end', () => callback(null, Buffer.concat(chunks)));
+			})
+			.expect(200);
+		const book = new ExcelJS.Workbook();
+		await book.xlsx.load(xlsx.body);
+		const sheet = book.getWorksheet('Offene Posten');
+		expect(sheet, 'sheet Offene Posten').to.not.equal(undefined);
+		const sums = new Map<string, { count: number; amount: number }>();
+		let itemAmount = 0;
+		let itemRows = 0;
+		sheet!.eachRow(row => {
+			const first = row.getCell(1).value;
+			if (first === 'Summe') {
+				sums.set(String(row.getCell(2).text), {
+					count: Number(row.getCell(3).value),
+					amount: Number(row.getCell(8).value),
+				});
+			} else if (typeof first === 'string' && /^20\d\d-/.test(first)) {
+				itemRows += 1;
+				itemAmount += Number(row.getCell(8).value);
+			}
+		});
+		expect(sums.get('gesamt')).to.deep.equal(json.total);
+		expect(sums.get('davon überfällig')).to.deep.equal(json.overdue);
+		expect(sums.get('über 90 Tage überfällig')).to.deep.equal(json.buckets.over90);
+		expect(itemRows).to.equal(json.items.length);
+		expect(Math.round(itemAmount * 100) / 100).to.equal(json.total.amount);
+	});
+
+	it('refuses a malformed reference day', async () => {
+		for (const route of ['/api/open-items', '/api/open-items.csv', '/api/open-items.xlsx']) {
+			await request(app).get(`${route}?asOf=morgen`).expect(400);
+		}
+	});
+
+	it('is as closed as the rest of the API when a token is set', async () => {
+		const closed = createApiServer({
+			db,
+			storage: {
+				write: (): Promise<void> => Promise.resolve(),
+				read: (): Promise<Buffer> => Promise.reject(new Error('empty')),
+			},
+			log: { info: (): void => undefined, error: (): void => undefined },
+			version: 'x',
+			authToken: 's3cret',
+		});
+		await request(closed).get('/api/open-items').expect(401);
+		await request(closed).get('/api/open-items.csv').expect(401);
+		await request(closed).get('/api/open-items').set('Authorization', 'Bearer s3cret').expect(200);
 	});
 });
 

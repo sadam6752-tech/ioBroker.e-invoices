@@ -56,6 +56,7 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 				<button class="btn secondary" id="f-issue-all" title="${t('Alle sichtbaren Entwürfe ausstellen')}" hidden>${t('Ausstellen')} (0)</button>
 			</div>
 		</div>
+		<div id="open-tile"></div>
 		<div id="reminders"></div>
 		<div id="list-err"></div>
 		<div id="list"></div>`;
@@ -66,6 +67,7 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	const orderBtn = root.querySelector<HTMLButtonElement>('#f-order')!;
 	const sentEl = root.querySelector<HTMLSelectElement>('#f-sent')!;
 	const remindersEl = root.querySelector('#reminders')!;
+	const openTileEl = root.querySelector('#open-tile')!;
 	/** Current sort direction, toggled by the order button. */
 	let order: 'asc' | 'desc' = 'desc';
 	/** Draft ids currently visible, for the batch issue. */
@@ -271,6 +273,25 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 		}
 	});
 
+	// Open items (R6.2): one line with the claim and its overdue part, linking to the aging list.
+	async function loadOpenTile(): Promise<void> {
+		try {
+			const report = await api.openItems();
+			if (report.total.count === 0) {
+				openTileEl.innerHTML = '';
+				return;
+			}
+			openTileEl.innerHTML = `<div class="card"><div class="row">
+				<strong>${t('Offene Posten')}</strong>
+				<span>${t('{n} offen', { n: report.total.count })} · ${eur(report.total.amount)}</span>
+				<span class="${report.overdue.count > 0 ? 'error' : 'muted'}">${t('davon überfällig')}: ${report.overdue.count} · ${eur(report.overdue.amount)}</span>
+				<a href="#/open-items">${t('Alterungsliste')}</a>
+			</div></div>`;
+		} catch {
+			// the tile is informational, never block the list
+		}
+	}
+
 	// Overdue invoices: the adapter reminds, the user decides and sends.
 	async function loadReminders(): Promise<void> {
 		try {
@@ -304,5 +325,6 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	}
 
 	await load();
+	await loadOpenTile();
 	await loadReminders();
 }

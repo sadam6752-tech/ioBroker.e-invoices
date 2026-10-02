@@ -9,6 +9,7 @@ import { detail } from './views/detail';
 import { invoiceTemplates } from './views/invoice-templates';
 import { login, logout } from './views/login';
 import { offers } from './views/offers';
+import { openItems } from './views/open-items';
 import { products } from './views/products';
 import { status } from './views/status';
 import { templates } from './views/templates';
@@ -24,6 +25,7 @@ function shell(route: string): void {
 	const links: [string, string][] = [
 		['#/', t('Rechnungen')],
 		['#/offers', t('Angebote')],
+		['#/open-items', t('Offene Posten')],
 		['#/templates', t('Druckvorlagen')],
 		['#/company', t('Firma')],
 		['#/customers', t('Kunden')],
@@ -46,6 +48,8 @@ async function route(): Promise<void> {
 		await dashboard(v);
 	} else if (hash === '#/offers') {
 		await offers(v);
+	} else if (hash === '#/open-items') {
+		await openItems(v);
 	} else if (hash === '#/new' || hash === '#/new/quote') {
 		wizard(v, undefined, hash === '#/new/quote' ? 'quote' : 'invoice');
 	} else if (hash.startsWith('#/edit/')) {

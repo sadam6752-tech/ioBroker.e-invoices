@@ -46,8 +46,9 @@ import {
 } from './issue-service';
 import { createBackup, previewRestore, restoreBackup } from './backup';
 import { attachmentDisposition } from './attachments';
-import { renderDatevHead, renderDatevRows, renderInvoiceListCsv } from './csv';
-import { renderInvoiceListWorkbook } from './excel';
+import { renderDatevHead, renderDatevRows, renderInvoiceListCsv, renderOpenItemsCsv } from './csv';
+import { renderInvoiceListWorkbook, renderOpenItemsWorkbook } from './excel';
+import { evaluateOpenItems, type OpenItemsOptions } from './open-items';
 import { paymentCheckDuty } from './invoice-model';
 import { renderInvoicePdf } from './pdf';
 import { validateTemplate, type LayoutTemplate } from './templates';
@@ -103,6 +104,25 @@ function filteredInvoices(
 		query: text,
 		limit: 500,
 	});
+}
+
+/**
+ * Reads the filters of the open-items routes (R6.2).
+ *
+ * @param query - Express query object.
+ * @returns The options, or an error text for a malformed `asOf`.
+ */
+function openItemsOptions(query: Record<string, unknown>): OpenItemsOptions | string {
+	const options: OpenItemsOptions = {
+		onlyOverdue: query.onlyOverdue === '1' || query.onlyOverdue === 'true',
+	};
+	if (query.asOf !== undefined) {
+		if (typeof query.asOf !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(query.asOf)) {
+			return 'asOf must be an ISO date (YYYY-MM-DD)';
+		}
+		options.asOf = query.asOf;
+	}
+	return options;
 }
 
 /** File backend behind the API (mountpoint in prod, memory in tests). */
@@ -650,6 +670,49 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			},
 		);
 	});
+
+	// R6.2: open items (OPOS). One calculation (`evaluateOpenItems`) behind the JSON view,
+	// the CSV and the Excel list, so the sums cannot differ between them.
+	app.get(
+		'/api/open-items',
+		route((req, res) => {
+			const options = openItemsOptions(req.query);
+			if (typeof options === 'string') {
+				res.status(400).json({ error: options });
+				return;
+			}
+			res.json(evaluateOpenItems(db.allInvoices(), options));
+		}),
+	);
+
+	app.get(
+		'/api/open-items.csv',
+		route((req, res) => {
+			const options = openItemsOptions(req.query);
+			if (typeof options === 'string') {
+				res.status(400).json({ error: options });
+				return;
+			}
+			res.type('text/csv; charset=utf-8');
+			res.set('Content-Disposition', attachmentDisposition('offene-posten.csv'));
+			res.send(renderOpenItemsCsv(evaluateOpenItems(db.allInvoices(), options)));
+		}),
+	);
+
+	app.get(
+		'/api/open-items.xlsx',
+		route(async (req, res) => {
+			const options = openItemsOptions(req.query);
+			if (typeof options === 'string') {
+				res.status(400).json({ error: options });
+				return;
+			}
+			const buffer = await renderOpenItemsWorkbook(evaluateOpenItems(db.allInvoices(), options));
+			res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+			res.set('Content-Disposition', attachmentDisposition('offene-posten.xlsx'));
+			res.send(buffer);
+		}),
+	);
 
 	// Download routes BEFORE /:id — Express :id also matches dots (x.pdf).
 	app.get(

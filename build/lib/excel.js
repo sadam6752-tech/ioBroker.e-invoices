@@ -30,11 +30,13 @@ var excel_exports = {};
 __export(excel_exports, {
   EXCEL_COPY_NOTICE: () => EXCEL_COPY_NOTICE,
   renderInvoiceListWorkbook: () => renderInvoiceListWorkbook,
-  renderInvoiceWorkbook: () => renderInvoiceWorkbook
+  renderInvoiceWorkbook: () => renderInvoiceWorkbook,
+  renderOpenItemsWorkbook: () => renderOpenItemsWorkbook
 });
 module.exports = __toCommonJS(excel_exports);
 var import_exceljs = __toESM(require("exceljs"));
 var import_invoice_model = require("./invoice-model");
+var import_open_items = require("./open-items");
 const EXCEL_COPY_NOTICE = "KOPIE \u2013 kein Steuerdokument. Ma\xDFgeblich ist das eingebettete XML der ZUGFeRD-Rechnung.";
 function safeCellText(value) {
   return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
@@ -185,10 +187,86 @@ async function renderInvoiceListWorkbook(invoices, title) {
   const buffer = await book.xlsx.writeBuffer();
   return Buffer.from(buffer);
 }
+async function renderOpenItemsWorkbook(report) {
+  const book = new import_exceljs.default.Workbook();
+  book.creator = "ioBroker.e-invoices";
+  book.created = /* @__PURE__ */ new Date();
+  const sheet = book.addWorksheet("Offene Posten");
+  sheet.columns = [
+    { width: 16 },
+    { width: 30 },
+    { width: 14 },
+    { width: 14 },
+    { width: 14 },
+    { width: 12 },
+    { width: 26 },
+    { width: 18 },
+    { width: 10 },
+    { width: 10 }
+  ];
+  sheet.getCell("A1").value = safeCellText(
+    `Offene Posten zum ${report.asOf}${report.onlyOverdue ? " (nur \xFCberf\xE4llige)" : ""}`
+  );
+  sheet.getCell("A1").font = { bold: true, size: 14 };
+  sheet.getCell("A2").value = EXCEL_COPY_NOTICE;
+  sheet.getCell("A2").font = { italic: true, color: { argb: "FFB91C1C" } };
+  headRow(sheet, 4, [
+    "Rechnungsnummer",
+    "Kunde",
+    "Kundennummer",
+    "Rechnungsdatum",
+    "F\xE4llig am",
+    "Tage \xFCberf\xE4llig",
+    "Alterung",
+    "Offener Betrag",
+    "Skonto %",
+    "Mahnstufe"
+  ]);
+  report.items.forEach((item, index) => {
+    const r = sheet.getRow(5 + index);
+    r.getCell(1).value = safeCellText(item.number);
+    r.getCell(2).value = safeCellText(item.customer);
+    r.getCell(3).value = safeCellText(item.customerNumber);
+    r.getCell(4).value = item.issueDate;
+    r.getCell(5).value = item.dueDate;
+    r.getCell(6).value = item.overdueDays;
+    r.getCell(7).value = import_open_items.AGE_BUCKET_LABELS[item.bucket];
+    r.getCell(8).value = item.amount;
+    r.getCell(8).numFmt = '#,##0.00 "EUR"';
+    r.getCell(9).value = item.skontoPercent;
+    r.getCell(10).value = item.reminderLevel;
+    r.commit();
+  });
+  let row = 5 + report.items.length + 1;
+  headRow(sheet, row, ["Summe", "Alterung", "Anzahl", "", "", "", "", "Betrag"]);
+  row += 1;
+  const sums = [
+    ...import_open_items.AGE_BUCKETS.map((bucket) => [
+      import_open_items.AGE_BUCKET_LABELS[bucket],
+      report.buckets[bucket]
+    ]),
+    ["gesamt", report.total],
+    ["davon \xFCberf\xE4llig", report.overdue]
+  ];
+  for (const [label, sub] of sums) {
+    const r = sheet.getRow(row);
+    r.getCell(1).value = "Summe";
+    r.getCell(2).value = label;
+    r.getCell(3).value = sub.count;
+    r.getCell(8).value = sub.amount;
+    r.getCell(8).numFmt = '#,##0.00 "EUR"';
+    r.getCell(1).font = { bold: true };
+    r.commit();
+    row += 1;
+  }
+  const buffer = await book.xlsx.writeBuffer();
+  return Buffer.from(buffer);
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   EXCEL_COPY_NOTICE,
   renderInvoiceListWorkbook,
-  renderInvoiceWorkbook
+  renderInvoiceWorkbook,
+  renderOpenItemsWorkbook
 });
 //# sourceMappingURL=excel.js.map
