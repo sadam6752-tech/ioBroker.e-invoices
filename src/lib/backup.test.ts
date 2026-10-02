@@ -282,6 +282,75 @@ describe('backup => corrupt input', () => {
 		}
 	});
 
+	it('refuses crafted numbers and stored paths in an otherwise valid backup (M4/M5)', async () => {
+		const dbA = new InvoiceDatabase(':memory:');
+		dbA.migrate();
+		try {
+			const storeA = memoryStorage();
+			await seedIssued(dbA, storeA);
+			const backup = await createBackup(dbA, storeA, quiet, '0.0.0-test');
+
+			/** The same backup with one record field changed and every checksum matching. */
+			const craft = async (change: (dump: { invoices: Record<string, unknown>[] }) => void): Promise<Buffer> => {
+				const zip = await JSZip.loadAsync(backup.data);
+				const dump = JSON.parse(await zip.file('dump.json')!.async('string'));
+				change(dump);
+				const dumpText = JSON.stringify(dump);
+				zip.file('dump.json', dumpText);
+				const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
+				manifest.dumpSha256 = createHash('sha256').update(dumpText).digest('hex');
+				zip.file('manifest.json', JSON.stringify(manifest));
+				return zip.generateAsync({ type: 'nodebuffer' });
+			};
+			const attempts: [string, (dump: { invoices: Record<string, unknown>[] }) => void, RegExp][] = [
+				['a quote in the number', dump => (dump.invoices[0].number = 'A"; x=1'), /unsafe document number/],
+				[
+					'a line break in the number',
+					dump => (dump.invoices[0].number = '2026-1\r\nSet-Cookie: a=b'),
+					/unsafe document number/,
+				],
+				[
+					'a traversal in the PDF path',
+					dump => (dump.invoices[0].pdfPath = '../../etc/passwd'),
+					/unsafe file path/,
+				],
+				['an absolute Excel path', dump => (dump.invoices[0].xlsxPath = '/etc/passwd'), /unsafe file path/],
+				[
+					'an artifact outside invoices/',
+					dump => (dump.invoices[0].pdfPath = 'backups/other.zip'),
+					/outside invoices/,
+				],
+			];
+			for (const [what, change, expected] of attempts) {
+				const dbB = new InvoiceDatabase(':memory:');
+				dbB.migrate();
+				try {
+					await previewRestore(dbB, await craft(change)).then(
+						() => {
+							throw new Error(`${what} was accepted`);
+						},
+						(error: Error) => {
+							expect(error.message, what).to.match(expected);
+						},
+					);
+					await restoreBackup(dbB, memoryStorage(), await craft(change), quiet).then(
+						() => {
+							throw new Error(`${what} was restored`);
+						},
+						(error: Error) => {
+							expect(error.message, what).to.match(expected);
+						},
+					);
+					expect(dbB.listInvoices(), what).to.have.lengthOf(0);
+				} finally {
+					dbB.close();
+				}
+			}
+		} finally {
+			dbA.close();
+		}
+	});
+
 	it('rejects a tampered dump.json before touching the database', async () => {
 		const dbA = new InvoiceDatabase(':memory:');
 		dbA.migrate();

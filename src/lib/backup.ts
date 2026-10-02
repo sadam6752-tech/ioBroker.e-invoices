@@ -123,6 +123,42 @@ function assertSafeEntryPath(relPath: unknown): asserts relPath is string {
 	}
 }
 
+/** Shape of a document number the adapter can have issued (see `normalizeNumberFormat`). */
+const SAFE_NUMBER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+/**
+ * A backup is data from outside: what ends up in a path or in a download header
+ * has to look like what the adapter itself writes. The archive checksums only
+ * tell that nothing was damaged, not that nothing was crafted.
+ *
+ * @param dump - Parsed database content of the backup.
+ * @throws {Error} When a number or a stored path could leave its place.
+ */
+function assertSafeRecords(dump: DatabaseDump): void {
+	for (const invoice of dump.invoices) {
+		if (invoice.number != null && !SAFE_NUMBER.test(invoice.number)) {
+			throw new Error(`Backup contains an unsafe document number: ${String(invoice.number).slice(0, 40)}`);
+		}
+		for (const stored of [invoice.pdfPath, invoice.xlsxPath]) {
+			if (stored != null) {
+				assertSafeEntryPath(stored);
+				if (!stored.startsWith('invoices/')) {
+					throw new Error(`Backup contains an artifact path outside invoices/: ${stored}`);
+				}
+			}
+		}
+	}
+	for (const template of dump.templates) {
+		const logo = template.definition?.logo?.path;
+		if (logo != null) {
+			assertSafeEntryPath(logo);
+			if (!logo.startsWith('logos/')) {
+				throw new Error(`Backup contains a logo path outside logos/: ${logo}`);
+			}
+		}
+	}
+}
+
 /** Hard limits for restore input, so a crafted ZIP cannot exhaust memory (R3). */
 export interface BackupLimits {
 	/** Maximum size of the incoming ZIP in bytes. */
@@ -494,6 +530,7 @@ async function readAndVerifyBackup(
 			createdAt: attachment.createdAt,
 		})),
 	};
+	assertSafeRecords(dump);
 	return { manifest, dump, files };
 }
 

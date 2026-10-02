@@ -283,6 +283,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) Hardening from the code review (M4/M5): every download builds its `Content-Disposition` through one function (ASCII fallback plus RFC 5987 name, quotes and line breaks cannot leave the header), the PDF and Excel routes refuse a stored path that points out of the storage, and a restore rejects a backup whose document numbers or artifact paths do not look like what the adapter writes itself — even when its checksums match.
 * (alex) Two defects found by the new integration test on a real js-controller: writing the text states `control.issueId` or `control.restoreId` ran a command by itself and then tried to acknowledge it with `true` (a text state refused it and logged it) — only the buttons (`createDraft`, `issue`, `refresh`, `backup`, `restore`) react now; and the info states (`info.issuedCount`, `info.invoiceCount`, …) only moved when a control button was pressed, so invoices issued in the web app left them stale — every successful change through the API refreshes them now (collected over half a second).
 * (alex) More tests, no change of behaviour: the Excel copy is proven to carry the same net, VAT and gross amounts as the stored record and the XML (BT-109/110/112 and the tax breakdown per rate), attachments are proven to be embedded and never linked, an attachment cannot stand in for a mandatory field, checking a draft consumes no number, and the integration test covers states, issue flow, backup and restore, restart and the released port.
 

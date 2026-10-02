@@ -624,7 +624,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	// an offer only shows up when it is asked for (`docType=quote|all`).
 	app.get('/api/invoices/export.csv', (req, res) => {
 		res.type('text/csv; charset=utf-8');
-		res.set('Content-Disposition', 'attachment; filename="rechnungen.csv"');
+		res.set('Content-Disposition', attachmentDisposition('rechnungen.csv'));
 		res.send(renderInvoiceListCsv(filteredInvoices(db, req.query, 'invoice')));
 	});
 
@@ -632,7 +632,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		const company = db.getDefaultCompanyProfile()?.profile;
 		const head = renderDatevHead(company?.name ?? 'Firma', company?.taxNumber ?? '');
 		res.type('text/plain; charset=iso-8859-1');
-		res.set('Content-Disposition', 'attachment; filename="rechnungen.datev"');
+		res.set('Content-Disposition', attachmentDisposition('rechnungen.datev'));
 		res.send(`${head}\n${renderDatevRows(filteredInvoices(db, req.query, 'invoice'))}`);
 	});
 
@@ -642,7 +642,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		void renderInvoiceListWorkbook(invoices, `Rechnungsübersicht ${stamp}`).then(
 			buffer => {
 				res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-				res.set('Content-Disposition', `attachment; filename="export-${stamp}.xlsx"`);
+				res.set('Content-Disposition', attachmentDisposition(`export-${stamp}.xlsx`));
 				res.send(buffer);
 			},
 			(error: Error) => {
@@ -661,7 +661,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				return;
 			}
 			res.type('application/xml');
-			res.set('Content-Disposition', `attachment; filename="${invoice.number ?? invoice.id}.xml"`);
+			res.set('Content-Disposition', attachmentDisposition(`${invoice.number ?? invoice.id}.xml`));
 			res.send(invoice.xml);
 		}),
 	);
@@ -674,10 +674,15 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				res.status(404).json({ error: 'No PDF for this invoice (not issued yet?)' });
 				return;
 			}
+			// the path comes from the database (or from a restored backup): never trust it blindly
+			if (!isContainedRelPath(invoice.pdfPath)) {
+				res.status(404).json({ error: 'Stored PDF path is invalid' });
+				return;
+			}
 			try {
 				const data = await storage.read(invoice.pdfPath);
 				res.type('application/pdf');
-				res.set('Content-Disposition', `inline; filename="${invoice.number ?? invoice.id}.pdf"`);
+				res.set('Content-Disposition', attachmentDisposition(`${invoice.number ?? invoice.id}.pdf`, 'inline'));
 				res.send(data);
 			} catch {
 				res.status(404).json({ error: `Artifact file missing: ${invoice.pdfPath}` });
@@ -693,10 +698,14 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				res.status(404).json({ error: 'No Excel copy for this invoice (not issued yet?)' });
 				return;
 			}
+			if (!isContainedRelPath(invoice.xlsxPath)) {
+				res.status(404).json({ error: 'Stored Excel path is invalid' });
+				return;
+			}
 			try {
 				const data = await storage.read(invoice.xlsxPath);
 				res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-				res.set('Content-Disposition', `attachment; filename="${invoice.number ?? invoice.id}.xlsx"`);
+				res.set('Content-Disposition', attachmentDisposition(`${invoice.number ?? invoice.id}.xlsx`));
 				res.send(data);
 			} catch {
 				res.status(404).json({ error: `Artifact file missing: ${invoice.xlsxPath}` });
@@ -735,7 +744,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			try {
 				const data = await storage.read(report.reportPath);
 				res.type('application/json');
-				res.set('Content-Disposition', `attachment; filename="validation-${seq}.json"`);
+				res.set('Content-Disposition', attachmentDisposition(`validation-${seq}.json`));
 				res.send(data);
 			} catch {
 				res.status(404).json({ error: `Artifact file missing: ${report.reportPath}` });
@@ -1469,7 +1478,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			try {
 				const data = await storage.read(`backups/${name}`);
 				res.type('application/zip');
-				res.set('Content-Disposition', `attachment; filename="${name}"`);
+				res.set('Content-Disposition', attachmentDisposition(name));
 				res.send(data);
 			} catch {
 				res.status(404).json({ error: 'Backup file not found' });

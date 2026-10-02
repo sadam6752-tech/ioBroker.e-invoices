@@ -58,6 +58,32 @@ function assertSafeEntryPath(relPath) {
     }
   }
 }
+const SAFE_NUMBER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+function assertSafeRecords(dump) {
+  var _a, _b;
+  for (const invoice of dump.invoices) {
+    if (invoice.number != null && !SAFE_NUMBER.test(invoice.number)) {
+      throw new Error(`Backup contains an unsafe document number: ${String(invoice.number).slice(0, 40)}`);
+    }
+    for (const stored of [invoice.pdfPath, invoice.xlsxPath]) {
+      if (stored != null) {
+        assertSafeEntryPath(stored);
+        if (!stored.startsWith("invoices/")) {
+          throw new Error(`Backup contains an artifact path outside invoices/: ${stored}`);
+        }
+      }
+    }
+  }
+  for (const template of dump.templates) {
+    const logo = (_b = (_a = template.definition) == null ? void 0 : _a.logo) == null ? void 0 : _b.path;
+    if (logo != null) {
+      assertSafeEntryPath(logo);
+      if (!logo.startsWith("logos/")) {
+        throw new Error(`Backup contains a logo path outside logos/: ${logo}`);
+      }
+    }
+  }
+}
 const DEFAULT_BACKUP_LIMITS = {
   zipBytes: 512 * 1024 * 1024,
   unpackedBytes: 1024 * 1024 * 1024,
@@ -284,6 +310,7 @@ async function readAndVerifyBackup(zipData, limits) {
       };
     })
   };
+  assertSafeRecords(dump);
   return { manifest, dump, files };
 }
 async function restoreBackup(db, storage, zipData, log, limits, options = {}) {

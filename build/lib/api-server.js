@@ -415,7 +415,7 @@ function createApiServer(deps) {
   );
   app.get("/api/invoices/export.csv", (req, res) => {
     res.type("text/csv; charset=utf-8");
-    res.set("Content-Disposition", 'attachment; filename="rechnungen.csv"');
+    res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("rechnungen.csv"));
     res.send((0, import_csv.renderInvoiceListCsv)(filteredInvoices(db, req.query, "invoice")));
   });
   app.get("/api/invoices/export.datev", (req, res) => {
@@ -423,7 +423,7 @@ function createApiServer(deps) {
     const company = (_a2 = db.getDefaultCompanyProfile()) == null ? void 0 : _a2.profile;
     const head = (0, import_csv.renderDatevHead)((_b2 = company == null ? void 0 : company.name) != null ? _b2 : "Firma", (_c2 = company == null ? void 0 : company.taxNumber) != null ? _c2 : "");
     res.type("text/plain; charset=iso-8859-1");
-    res.set("Content-Disposition", 'attachment; filename="rechnungen.datev"');
+    res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("rechnungen.datev"));
     res.send(`${head}
 ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`);
   });
@@ -433,7 +433,7 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
     void (0, import_excel.renderInvoiceListWorkbook)(invoices, `Rechnungs\xFCbersicht ${stamp}`).then(
       (buffer) => {
         res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.set("Content-Disposition", `attachment; filename="export-${stamp}.xlsx"`);
+        res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`export-${stamp}.xlsx`));
         res.send(buffer);
       },
       (error) => {
@@ -451,7 +451,7 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
         return;
       }
       res.type("application/xml");
-      res.set("Content-Disposition", `attachment; filename="${(_a2 = invoice.number) != null ? _a2 : invoice.id}.xml"`);
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`${(_a2 = invoice.number) != null ? _a2 : invoice.id}.xml`));
       res.send(invoice.xml);
     })
   );
@@ -464,10 +464,14 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
         res.status(404).json({ error: "No PDF for this invoice (not issued yet?)" });
         return;
       }
+      if (!isContainedRelPath(invoice.pdfPath)) {
+        res.status(404).json({ error: "Stored PDF path is invalid" });
+        return;
+      }
       try {
         const data = await storage.read(invoice.pdfPath);
         res.type("application/pdf");
-        res.set("Content-Disposition", `inline; filename="${(_a2 = invoice.number) != null ? _a2 : invoice.id}.pdf"`);
+        res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`${(_a2 = invoice.number) != null ? _a2 : invoice.id}.pdf`, "inline"));
         res.send(data);
       } catch {
         res.status(404).json({ error: `Artifact file missing: ${invoice.pdfPath}` });
@@ -483,10 +487,14 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
         res.status(404).json({ error: "No Excel copy for this invoice (not issued yet?)" });
         return;
       }
+      if (!isContainedRelPath(invoice.xlsxPath)) {
+        res.status(404).json({ error: "Stored Excel path is invalid" });
+        return;
+      }
       try {
         const data = await storage.read(invoice.xlsxPath);
         res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.set("Content-Disposition", `attachment; filename="${(_a2 = invoice.number) != null ? _a2 : invoice.id}.xlsx"`);
+        res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`${(_a2 = invoice.number) != null ? _a2 : invoice.id}.xlsx`));
         res.send(data);
       } catch {
         res.status(404).json({ error: `Artifact file missing: ${invoice.xlsxPath}` });
@@ -521,7 +529,7 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
       try {
         const data = await storage.read(report.reportPath);
         res.type("application/json");
-        res.set("Content-Disposition", `attachment; filename="validation-${seq}.json"`);
+        res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`validation-${seq}.json`));
         res.send(data);
       } catch {
         res.status(404).json({ error: `Artifact file missing: ${report.reportPath}` });
@@ -1204,7 +1212,7 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
       try {
         const data = await storage.read(`backups/${name}`);
         res.type("application/zip");
-        res.set("Content-Disposition", `attachment; filename="${name}"`);
+        res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(name));
         res.send(data);
       } catch {
         res.status(404).json({ error: "Backup file not found" });

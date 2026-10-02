@@ -583,6 +583,51 @@ describe('api => auth', () => {
 	});
 });
 
+describe('api => stored paths and download headers (M4/M5)', () => {
+	it('never reads a path outside the storage and escapes the name in the header', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const reads: string[] = [];
+			const app = createApiServer({
+				db,
+				storage: {
+					write: (): Promise<void> => Promise.resolve(),
+					read: (path: string): Promise<Buffer> => {
+						reads.push(path);
+						return Promise.resolve(Buffer.from('%PDF-1.4'));
+					},
+				},
+				log: { info: (): void => undefined, error: (): void => undefined },
+				version: 'x',
+			});
+			const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
+			const issued = await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
+			const id = issued.body.id as string;
+
+			// a restored or damaged record that points out of the storage
+			const dump = db.exportData();
+			dump.invoices[0].pdfPath = '../../outside.pdf';
+			dump.invoices[0].xlsxPath = '/etc/passwd';
+			dump.invoices[0].number = 'A"; x=1\r\nX-Evil: 1';
+			db.importData(dump);
+
+			reads.length = 0;
+			await request(app).get(`/api/invoices/${id}.pdf`).expect(404);
+			await request(app).get(`/api/invoices/${id}.xlsx`).expect(404);
+			expect(reads, 'nothing was read from the invalid paths').to.deep.equal([]);
+
+			// the name in the header cannot break out of its quotes or add a header
+			const xml = await request(app).get(`/api/invoices/${id}.xml`).expect(200);
+			const disposition = String(xml.headers['content-disposition']);
+			expect(disposition).to.match(/^attachment; filename="[^"\r\n]*"; filename\*=UTF-8''/);
+			expect(xml.headers['x-evil']).to.equal(undefined);
+		} finally {
+			db.close();
+		}
+	});
+});
+
 describe('api => change notification (R5.2)', () => {
 	it('tells the adapter after a successful write, never after a read or a refusal', async () => {
 		const db = new InvoiceDatabase(':memory:');
