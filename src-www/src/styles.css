@@ -68,13 +68,20 @@ main {
 .row.filters {
 	margin: 10px 0;
 }
+/* The selects share the line in equal parts (two selects = two halves). */
 .row.filters select {
-	flex: 1 1 180px;
-	min-width: 0;
+	flex: 1 1 0;
+	min-width: 140px;
 }
+/* The search takes whatever the buttons leave free; the buttons keep their size. */
 .row.actions input {
 	flex: 1 1 220px;
-	max-width: 360px;
+	min-width: 0;
+}
+.row.actions .btn,
+.row.actions button {
+	flex: 0 0 auto;
+	white-space: nowrap;
 }
 .badge {
 	display: inline-block;
