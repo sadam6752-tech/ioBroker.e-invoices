@@ -1,5 +1,6 @@
 import './styles.css';
 import { getToken } from './api';
+import { initLanguage, t } from './i18n';
 import { backup } from './views/backup';
 import { company } from './views/company';
 import { customers } from './views/customers';
@@ -21,19 +22,19 @@ function shell(route: string): void {
 	// "+ Neu" buttons sit where their lists are (invoices, offers) and the app name
 	// moved to the status page — `#/new` stays routable for those buttons.
 	const links: [string, string][] = [
-		['#/', 'Rechnungen'],
-		['#/offers', 'Angebote'],
-		['#/templates', 'Druckvorlagen'],
-		['#/company', 'Firma'],
-		['#/customers', 'Kunden'],
-		['#/products', 'Positionen'],
-		['#/invoice-templates', 'Rechnungsvorlagen'],
-		['#/backup', 'Backup'],
-		['#/status', 'Status'],
-		[logged ? '#/logout' : '#/login', logged ? 'Logout' : 'Login'],
+		['#/', t('Rechnungen')],
+		['#/offers', t('Angebote')],
+		['#/templates', t('Druckvorlagen')],
+		['#/company', t('Firma')],
+		['#/customers', t('Kunden')],
+		['#/products', t('Positionen')],
+		['#/invoice-templates', t('Rechnungsvorlagen')],
+		['#/backup', t('Backup')],
+		['#/status', t('Status')],
+		[logged ? '#/logout' : '#/login', logged ? t('Logout') : t('Login')],
 	];
 	app.innerHTML = `<header class="top"><nav>
-		${links.map(([h, t]) => `<a href="${h}" class="${route === h || (h === '#/' && route.startsWith('#/invoices')) ? 'active' : ''}">${t}</a>`).join('')}
+		${links.map(([h, label]) => `<a href="${h}" class="${route === h || (h === '#/' && route.startsWith('#/invoices')) ? 'active' : ''}">${label}</a>`).join('')}
 	</nav></header><main id="view"></main>`;
 }
 
@@ -70,9 +71,28 @@ async function route(): Promise<void> {
 	} else if (hash === '#/status') {
 		await status(v);
 	} else {
-		v.innerHTML = `<div class="card">Unbekannte Route.</div>`;
+		v.innerHTML = `<div class="card">${t('Unbekannte Route.')}</div>`;
 	}
 }
 
-window.addEventListener('hashchange', () => void route());
-void route();
+/**
+ * Reads the start language the admin chose. The health route is open on purpose,
+ * so the login page already speaks the right language before a token exists.
+ */
+async function adminLanguage(): Promise<string | null> {
+	try {
+		const res = await fetch('/api/health');
+		if (!res.ok) {
+			return null;
+		}
+		return ((await res.json()) as { pwaLanguage?: string }).pwaLanguage ?? null;
+	} catch {
+		return null;
+	}
+}
+
+void adminLanguage().then(admin => {
+	initLanguage(admin);
+	window.addEventListener('hashchange', () => void route());
+	void route();
+});

@@ -648,6 +648,7 @@ class EInvoices extends utils.Adapter {
 				settings: {
 					defaultVatRate: Number(this.config.defaultVatRate ?? 19),
 					defaultPaymentTerms: this.config.defaultPaymentTerms ?? '',
+					pwaLanguage: this.config.pwaLanguage ?? 'auto',
 					numberFormat: this.db?.effectiveNumberFormat() ?? DEFAULT_NUMBER_FORMAT,
 					quoteNumberFormat: this.db?.effectiveQuoteNumberFormat() ?? DEFAULT_QUOTE_NUMBER_FORMAT,
 					storageMount: this.mountId,

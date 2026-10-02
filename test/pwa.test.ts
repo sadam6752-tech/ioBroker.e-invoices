@@ -60,8 +60,8 @@ describe('pwa => shell and identity', () => {
 		const shell = readFileSync('src-www/src/main.ts', 'utf8');
 		expect(shell).to.not.contain('<strong>E-Invoices</strong>');
 		const status = readFileSync('src-www/src/views/status.ts', 'utf8');
-		expect(status).to.contain('<strong>E-Invoices</strong> - Version:');
-		expect(status).to.contain('Schema: ');
+		expect(status).to.contain("<strong>E-Invoices</strong> - ${t('Version')}:");
+		expect(status).to.contain("${t('Schema')}: ");
 	});
 
 	it('ships the built bundle with the identity on the status page', function () {
@@ -74,7 +74,7 @@ describe('pwa => shell and identity', () => {
 		}
 		const bundle = readFileSync(`www/assets/${asset}`, 'utf8');
 		// the name is written next to the version and the schema
-		expect(bundle).to.contain('E-Invoices</strong> - Version:');
+		expect(bundle).to.match(/E-Invoices<\/strong> - \$\{\w+\("Version"\)\}:/);
 		expect(bundle.match(/E-Invoices/g)?.length).to.equal(1);
 	});
 });
@@ -206,7 +206,7 @@ describe('pwa => offers (R8)', () => {
 
 	it('gives offers their own tab, view and wizard entry point', () => {
 		const main = readFileSync('src-www/src/main.ts', 'utf8');
-		expect(main).to.contain("['#/offers', 'Angebote']");
+		expect(main).to.contain("['#/offers', t('Angebote')]");
 		expect(main).to.contain("hash === '#/offers'");
 		expect(main).to.contain("'#/new/quote'");
 		const view = readFileSync('src-www/src/views/offers.ts', 'utf8');

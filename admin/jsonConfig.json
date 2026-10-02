@@ -67,6 +67,22 @@
 					"lg": 4,
 					"xl": 4
 				},
+				"pwaLanguage": {
+					"type": "select",
+					"label": "Web app language",
+					"help": "auto = language of the browser; German and English are available",
+					"options": [
+						{ "label": "auto", "value": "auto" },
+						{ "label": "Deutsch", "value": "de" },
+						{ "label": "English", "value": "en" }
+					],
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 6,
+					"lg": 4,
+					"xl": 4
+				},
 				"authToken": {
 					"type": "password",
 					"label": "API token (optional)",

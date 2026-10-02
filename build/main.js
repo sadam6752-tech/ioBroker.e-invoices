@@ -599,7 +599,7 @@ class EInvoices extends utils.Adapter {
    * socket for the PWA — see README for the W5049 reason).
    */
   startApiServer() {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     if (!this.db) {
       return;
     }
@@ -613,10 +613,11 @@ class EInvoices extends utils.Adapter {
         settings: {
           defaultVatRate: Number((_a = this.config.defaultVatRate) != null ? _a : 19),
           defaultPaymentTerms: (_b = this.config.defaultPaymentTerms) != null ? _b : "",
-          numberFormat: (_d = (_c = this.db) == null ? void 0 : _c.effectiveNumberFormat()) != null ? _d : import_invoice_model.DEFAULT_NUMBER_FORMAT,
-          quoteNumberFormat: (_f = (_e = this.db) == null ? void 0 : _e.effectiveQuoteNumberFormat()) != null ? _f : import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
+          pwaLanguage: (_c = this.config.pwaLanguage) != null ? _c : "auto",
+          numberFormat: (_e = (_d = this.db) == null ? void 0 : _d.effectiveNumberFormat()) != null ? _e : import_invoice_model.DEFAULT_NUMBER_FORMAT,
+          quoteNumberFormat: (_g = (_f = this.db) == null ? void 0 : _f.effectiveQuoteNumberFormat()) != null ? _g : import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
           storageMount: this.mountId,
-          backupIntervalMinutes: Number((_g = this.config.backupIntervalMinutes) != null ? _g : 0)
+          backupIntervalMinutes: Number((_h = this.config.backupIntervalMinutes) != null ? _h : 0)
         }
       });
       const wwwDir = (0, import_node_path.join)(__dirname, "../www");

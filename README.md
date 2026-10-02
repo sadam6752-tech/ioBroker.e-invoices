@@ -56,6 +56,25 @@ preview, backups and a status page. The header bar carries the tabs only — the
 "+ Neu" buttons sit where their lists are, and the status page names the app
 next to the version and the schema.
 
+### Language of the web app
+
+The web app speaks German and English. The language is chosen in the instance
+settings (`Web app language`: `auto`, `Deutsch`, `English`, tab *Server*) and the
+app starts in it. The first match wins:
+
+1. `?lang=de` / `?lang=en` in the address bar (remembered on that device),
+2. the choice remembered on that device,
+3. the instance setting — `auto` means "ask the browser",
+4. the language of the browser (German or English),
+5. English.
+
+The login page already speaks the language of the instance: `GET /api/health`
+(the one open route) carries the setting as `pwaLanguage`. What is **document
+content** stays German whatever the screen language is: the invoice and offer
+PDFs, the XML, the document titles (`Rechnung`, `Angebot`, …), the payment-term
+presets and the text of the customer mail. Only their labels in the dropdowns
+follow the language of the page.
+
 ### Attachments (Anlagen)
 
 A draft can carry up to 10 files (PDF, PNG or JPEG, 5 MB each) — delivery
@@ -262,6 +281,19 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) The toolbar of the invoice and offer lists lays out as a grid now: the filters share the first line in equal parts, the search takes the free width of the second line and the buttons keep their size.
+* (alex) The web app speaks English now (R7.2): the instance setting `Web app language`
+  (`auto`, `Deutsch`, `English`) decides the start language, `?lang=de|en` overrides it on a
+  device, `auto` follows the browser, and the login page already uses the language of the
+  instance (`/api/health` carries `pwaLanguage`). The German sentence is the key of the
+  translation, so a missing English entry shows German instead of a hole; a test keeps
+  both languages in step. PDFs, XML, document titles and payment-term presets are document
+  content and stay German. The status badges of the lists read `Entwurf` / `ausgestellt` /
+  `storniert` (German) or `draft` / `issued` / `cancelled` (English) instead of the raw
+  API words, and the wizard names the invoice number format `JJJJ-EE-LLL` like the docs.
+
 ### 0.8.3 (2026-10-02)
 
 * (alex) The toolbar of the invoice and offer lists sits on two lines now: the filters above, the search and the buttons below, so it no longer wraps into a ragged shape on narrow screens.

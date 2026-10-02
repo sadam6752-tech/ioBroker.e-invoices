@@ -32,5 +32,7 @@
     "VAT ID (USt-IdNr.)":  "Btw-identificatienummer",
     "Website":  "Website",
     "Dunning check interval in hours":  "Herinneringsinterval in uren",
-    "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = uit. De adapter telt alleen vervallen facturen in info.overdue*, hij verzendt zelf geen e-mails."
+    "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = uit. De adapter telt alleen vervallen facturen in info.overdue*, hij verzendt zelf geen e-mails.",
+    "Web app language":  "Taal van de web-app",
+    "auto = language of the browser; German and English are available":  "auto = taal van de browser; Duits en Engels beschikbaar"
 }

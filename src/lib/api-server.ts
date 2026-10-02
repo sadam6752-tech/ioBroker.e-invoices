@@ -134,6 +134,8 @@ export interface ApiServerDeps {
 	settings?: {
 		defaultVatRate: number;
 		defaultPaymentTerms: string;
+		/** Start language of the web app (`auto`, `de`, `en`). */
+		pwaLanguage?: string;
 		numberFormat: string;
 		quoteNumberFormat: string;
 		storageMount: string;
@@ -417,6 +419,10 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			? Number(deps.settings?.defaultVatRate)
 			: 19,
 		defaultPaymentTerms: deps.settings?.defaultPaymentTerms?.trim() ?? '',
+		// only languages the web app really ships; anything else means "decide in the browser"
+		pwaLanguage: ['de', 'en'].includes(String(deps.settings?.pwaLanguage))
+			? String(deps.settings?.pwaLanguage)
+			: 'auto',
 		numberFormat: deps.settings?.numberFormat?.trim() || DEFAULT_NUMBER_FORMAT,
 		// R8: quotations number in their own circle, so the PWA shows the
 		// matching format next to the invoice one.
@@ -530,7 +536,15 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		};
 
 	app.get('/api/health', (_req, res) => {
-		res.json({ status: 'ok', version, schemaVersion: db.currentVersion(), counts: db.countByStatus() });
+		// pwaLanguage is public on purpose: the login page has no token yet and still
+		// has to start in the language chosen in the admin
+		res.json({
+			status: 'ok',
+			version,
+			schemaVersion: db.currentVersion(),
+			counts: db.countByStatus(),
+			pwaLanguage: settings.pwaLanguage,
+		});
 	});
 
 	// Defaults from the instance config so the wizard can prefill sensibly

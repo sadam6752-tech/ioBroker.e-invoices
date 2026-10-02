@@ -10,7 +10,16 @@ import {
 	type Party,
 	type Product,
 } from '../api';
-import { defaultTitle, isQuote, labels, normalizeDocType, QUOTE_VALIDITY_DAYS, type DocType } from '../labels';
+import { t } from '../i18n';
+import {
+	defaultTitle,
+	isQuote,
+	labels,
+	normalizeDocType,
+	QUOTE_VALIDITY_DAYS,
+	statusLabel,
+	type DocType,
+} from '../labels';
 import { mountAttachments } from './attachments';
 
 /**
@@ -34,7 +43,9 @@ const emptyLine = (): InvoiceLine => ({
 
 /**
  * Payment terms offered in the wizard. `days` is the offset from the issue
- * date, so picking a text also maintains the due date.
+ * date, so picking a text also maintains the due date. The texts are document
+ * content: they are stored and printed in German, only their label in the
+ * dropdown follows the language of the page.
  */
 const PAYMENT_TERMS_PRESETS = [
 	{ text: 'Der Rechnungsbetrag ist sofort ohne Abzug fällig.', days: 0 },
@@ -268,43 +279,43 @@ function loadSaved(): WizardState | null {
 
 function partyFields(prefix: string, p: Party, withTax: boolean): string {
 	return `
-		<label>Name<input data-p="${prefix}" data-f="name" value="${esc(p.name)}" /></label>
-		<label>Straße<input data-p="${prefix}" data-f="street" value="${esc(p.street)}" /></label>
+		<label>${t('Name')}<input data-p="${prefix}" data-f="name" value="${esc(p.name)}" /></label>
+		<label>${t('Straße')}<input data-p="${prefix}" data-f="street" value="${esc(p.street)}" /></label>
 		<div class="grid2">
-			<label>PLZ<input data-p="${prefix}" data-f="zip" value="${esc(p.zip)}" /></label>
-			<label>Ort<input data-p="${prefix}" data-f="city" value="${esc(p.city)}" /></label>
+			<label>${t('PLZ')}<input data-p="${prefix}" data-f="zip" value="${esc(p.zip)}" /></label>
+			<label>${t('Ort')}<input data-p="${prefix}" data-f="city" value="${esc(p.city)}" /></label>
 		</div>
 		<div class="grid2">
-			<label>Land<input data-p="${prefix}" data-f="country" value="${esc(p.country)}" /></label>
-			<label>E-Mail<input data-p="${prefix}" data-f="email" value="${esc(p.email)}" /></label>
+			<label>${t('Land')}<input data-p="${prefix}" data-f="country" value="${esc(p.country)}" /></label>
+			<label>${t('E-Mail')}<input data-p="${prefix}" data-f="email" value="${esc(p.email)}" /></label>
 		</div>
 		<div class="grid2">
-			<label>Telefon<input data-p="${prefix}" data-f="phone" value="${esc(p.phone)}" /></label>
+			<label>${t('Telefon')}<input data-p="${prefix}" data-f="phone" value="${esc(p.phone)}" /></label>
 			${
 				withTax
-					? `<label>Webseite<input data-p="${prefix}" data-f="website" value="${esc(p.website)}" /></label>`
-					: `<label>Ansprechpartner<input data-p="${prefix}" data-f="contactName" value="${esc(p.contactName)}" /></label>`
+					? `<label>${t('Webseite')}<input data-p="${prefix}" data-f="website" value="${esc(p.website)}" /></label>`
+					: `<label>${t('Ansprechpartner')}<input data-p="${prefix}" data-f="contactName" value="${esc(p.contactName)}" /></label>`
 			}
 		</div>
 		${
 			withTax
 				? `<div class="grid2">
-			<label>USt-IdNr.<input data-p="${prefix}" data-f="vatId" value="${esc(p.vatId)}" /></label>
-			<label>Steuernummer<input data-p="${prefix}" data-f="taxNumber" value="${esc(p.taxNumber)}" /></label>
+			<label>${t('USt-IdNr.')}<input data-p="${prefix}" data-f="vatId" value="${esc(p.vatId)}" /></label>
+			<label>${t('Steuernummer')}<input data-p="${prefix}" data-f="taxNumber" value="${esc(p.taxNumber)}" /></label>
 		</div>
 		<label>IBAN<input data-p="${prefix}" data-f="iban" value="${esc(p.iban)}" /></label>`
-				: `<label class="req">Kundennummer (BT-10) *<input data-p="${prefix}" data-f="customerNumber" value="${esc(p.customerNumber)}" placeholder="Pflicht im deutschen E-Rechnungs-Profil" /></label>`
+				: `<label class="req">${t('Kundennummer (BT-10) *')}<input data-p="${prefix}" data-f="customerNumber" value="${esc(p.customerNumber)}" placeholder="${t('Pflicht im deutschen E-Rechnungs-Profil')}" /></label>`
 		}`;
 }
 
-/** German labels for the EN 16931 VAT category codes used on 0 % lines. */
-const EXEMPTION_LABELS: Record<string, string> = {
-	E: 'steuerfrei',
-	AE: 'Reverse Charge (§13b UStG)',
-	K: 'Kraftfahrzeug (§4 Nr. 1b UStG)',
-	G: 'Gold (§4 Nr. 1a UStG)',
-	O: 'nicht umkehrbar',
-};
+/** Labels for the EN 16931 VAT category codes used on 0 % lines, in the language in use. */
+const exemptionLabels = (): Record<string, string> => ({
+	E: t('steuerfrei'),
+	AE: t('Reverse Charge (§13b UStG)'),
+	K: t('Kraftfahrzeug (§4 Nr. 1b UStG)'),
+	G: t('Gold (§4 Nr. 1a UStG)'),
+	O: t('nicht umkehrbar'),
+});
 
 /**
  * Multi-step invoice wizard: seller -> buyer -> lines -> review/issue.
@@ -345,12 +356,12 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 		})
 		.catch(() => undefined);
 	if (editId) {
-		root.innerHTML = `<div class="card">Lade Entwurf…</div>`;
+		root.innerHTML = `<div class="card">${t('Lade Entwurf…')}</div>`;
 		void api
 			.get(editId)
 			.then(inv => {
 				if (inv.status !== 'draft') {
-					root.innerHTML = `<div class="card error">Nur Entwürfe sind änderbar (diese Rechnung ist ${esc(inv.status)}).</div>`;
+					root.innerHTML = `<div class="card error">${t('Nur Entwürfe sind änderbar (diese Rechnung ist {status}).', { status: esc(statusLabel(inv.status)) })}</div>`;
 					return;
 				}
 				s = {
@@ -385,11 +396,12 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 	// resume an invoice draft that happens to be in the browser.
 	const resumable = saved && hasContent(saved) && (docType !== 'quote' || isQuote(saved.docType)) ? saved : null;
 	if (resumable && !resumable.draftId) {
-		root.innerHTML = `<div class="card"><h3>Weiter bearbeiten?</h3>
-			<p class="muted">Ungesendeter ${esc(labels(resumable.docType).one)}-Entwurf vom ${esc(
-				resumable.savedAt.slice(0, 16).replace('T', ' '),
-			)} gefunden.</p>
-			<div class="row"><button id="w-resume">Fortsetzen</button><button class="secondary" id="w-discard">Verwerfen</button></div>
+		root.innerHTML = `<div class="card"><h3>${t('Weiter bearbeiten?')}</h3>
+			<p class="muted">${t('Ungesendeter {type}-Entwurf vom {date} gefunden.', {
+				type: esc(labels(resumable.docType).one),
+				date: esc(resumable.savedAt.slice(0, 16).replace('T', ' ')),
+			})}</p>
+			<div class="row"><button id="w-resume">${t('Fortsetzen')}</button><button class="secondary" id="w-discard">${t('Verwerfen')}</button></div>
 		</div>`;
 		root.querySelector('#w-resume')?.addEventListener('click', () => {
 			s = resumable;
@@ -549,7 +561,7 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 	}
 
 	function stepsBar(): string {
-		const names = ['Verkäufer', 'Käufer', 'Positionen', 'Prüfen'];
+		const names = [t('Verkäufer'), t('Käufer'), t('Positionen'), t('Prüfen')];
 		return `<div class="steps">${names.map((n, i) => `<span class="${i === s.step ? 'on' : ''}">${i + 1}. ${n}</span>`).join('')}</div>`;
 	}
 
@@ -559,168 +571,170 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 		}
 		let body = '';
 		if (s.step === 0) {
-			body = `<div class="card"><h3>Verkäufer</h3>
+			body = `<div class="card"><h3>${t('Verkäufer')}</h3>
 				${
 					isEdit
-						? `<p class="muted">Belegart: <strong>${esc(
+						? `<p class="muted">${t('Belegart')}: <strong>${esc(
 								labels(s.docType).one,
-							)}</strong> — bleibt beim Bearbeiten erhalten, der Nummernkreis hängt an ihr.</p>`
-						: `<label>Belegart<select id="w-doctype">
-							<option value="invoice" ${s.docType === 'invoice' ? 'selected' : ''}>Rechnung — E-Rechnung mit XML, Mahnwesen, Export</option>
-							<option value="quote" ${s.docType === 'quote' ? 'selected' : ''}>Angebot — Sicht-PDF ohne XML, eigene Nummer</option>
+							)}</strong> — ${t('bleibt beim Bearbeiten erhalten, der Nummernkreis hängt an ihr.')}</p>`
+						: `<label>${t('Belegart')}<select id="w-doctype">
+							<option value="invoice" ${s.docType === 'invoice' ? 'selected' : ''}>${t('Rechnung — E-Rechnung mit XML, Mahnwesen, Export')}</option>
+							<option value="quote" ${s.docType === 'quote' ? 'selected' : ''}>${t('Angebot — Sicht-PDF ohne XML, eigene Nummer')}</option>
 						</select></label>`
 				}
 				${
 					companies.length > 0
-						? `<label>Aus Firma übernehmen<select id="w-company">
-							<option value="">– manuell eingeben –</option>
-							${companies.map(c => `<option value="${esc(c.id)}" ${s.selectedCompany === c.id ? 'selected' : ''}>${esc(c.name)}${c.isDefault ? ' (Standard)' : ''}</option>`).join('')}
+						? `<label>${t('Aus Firma übernehmen')}<select id="w-company">
+							<option value="">${t('– manuell eingeben –')}</option>
+							${companies.map(c => `<option value="${esc(c.id)}" ${s.selectedCompany === c.id ? 'selected' : ''}>${esc(c.name)}${c.isDefault ? ` (${t('Standard')})` : ''}</option>`).join('')}
 						</select></label>`
-						: `<p class="muted">Tipp: Unter <a href="#/company">Firma</a> einmal anlegen, dann hier auswählbar.</p>`
+						: `<p class="muted">${t('Tipp: Unter {link} einmal anlegen, dann hier auswählbar.', { link: `<a href="#/company">${t('Firma')}</a>` })}</p>`
 				}
 				${partyFields('seller', s.seller, true)}</div>`;
 		}
 		if (s.step === 1) {
-			body = `<div class="card"><h3>Käufer</h3>
+			body = `<div class="card"><h3>${t('Käufer')}</h3>
 				${
 					customers.length > 0
-						? `<label>Aus Kunden wählen<select id="w-customer">
-							<option value="">– manuell eingeben –</option>
+						? `<label>${t('Aus Kunden wählen')}<select id="w-customer">
+							<option value="">${t('– manuell eingeben –')}</option>
 							${customers
 								.map(
 									c =>
-										`<option value="${esc(c.id)}" ${s.selectedCustomer === c.id ? 'selected' : ''}>${esc(c.name)}${c.profile.customerNumber?.trim() ? '' : ' (ohne Kundennr.)'}</option>`,
+										`<option value="${esc(c.id)}" ${s.selectedCustomer === c.id ? 'selected' : ''}>${esc(c.name)}${c.profile.customerNumber?.trim() ? '' : ` (${t('ohne Kundennr.')})`}</option>`,
 								)
 								.join('')}
 						</select></label>
-						<p class="muted">Fehlt die Kundennummer (BT-10), trage sie unten ein — ohne sie ist die Rechnung nicht ausstellbar.</p>`
-						: `<p class="muted">Tipp: Unter <a href="#/customers">Kunden</a> einmal anlegen, dann hier auswählbar.</p>`
+						<p class="muted">${t('Fehlt die Kundennummer (BT-10), trage sie unten ein — ohne sie ist die Rechnung nicht ausstellbar.')}</p>`
+						: `<p class="muted">${t('Tipp: Unter {link} einmal anlegen, dann hier auswählbar.', { link: `<a href="#/customers">${t('Kunden')}</a>` })}</p>`
 				}
 				${partyFields('buyer', s.buyer, false)}</div>`;
 		}
 		if (s.step === 2) {
-			body = `<div class="card"><h3>Positionen & Termine</h3>
-				<label>Dokumenttyp<select id="w-title">
+			body = `<div class="card"><h3>${t('Positionen & Termine')}</h3>
+				<label>${t('Dokumenttyp')}<select id="w-title">
 					${labels(s.docType)
-						.titles.map(t => `<option ${t === s.documentTitle ? 'selected' : ''}>${t}</option>`)
+						.titles.map(
+							title =>
+								`<option value="${esc(title)}" ${title === s.documentTitle ? 'selected' : ''}>${t(title)}</option>`,
+						)
 						.join('')}
 				</select></label>
 				${
 					invoiceTemplates.length > 0
-						? `<label>Wiederkehrende Rechnung<select id="w-inv-tpl">
-							<option value="">– eigene Positionen –</option>
-							${invoiceTemplates.map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}
+						? `<label>${t('Wiederkehrende Rechnung')}<select id="w-inv-tpl">
+							<option value="">${t('– eigene Positionen –')}</option>
+							${invoiceTemplates.map(tpl => `<option value="${esc(tpl.id)}">${esc(tpl.name)}</option>`).join('')}
 						</select></label>
-						<p class="muted">Übernimmt Positionen, Termine, Zahlungsbedingungen und Skonto. Käufer und Datum bleiben deine Angaben.</p>`
-						: `<p class="muted">Tipp: Unter <a href="#/invoice-templates">Rechnungsvorlagen</a> eine Vorlage anlegen, um wiederkehrende Rechnungen nicht jedes Mal neu einzutippen.</p>`
+						<p class="muted">${t('Übernimmt Positionen, Termine, Zahlungsbedingungen und Skonto. Käufer und Datum bleiben deine Angaben.')}</p>`
+						: `<p class="muted">${t('Tipp: Unter {link} eine Vorlage anlegen, um wiederkehrende Rechnungen nicht jedes Mal neu einzutippen.', { link: `<a href="#/invoice-templates">${t('Rechnungsvorlagen')}</a>` })}</p>`
 				}
 				${
 					catalog.length > 0
-						? `<div class="row"><label style="flex:1">Aus Positionen übernehmen<select id="w-catalog">
+						? `<div class="row"><label style="flex:1">${t('Aus Positionen übernehmen')}<select id="w-catalog">
 							${catalog.map(p => `<option value="${esc(p.id)}">${esc(p.sku ? `${p.sku} · ` : '')}${esc(p.name)}</option>`).join('')}
-						</select></label><button class="secondary" id="w-take" style="align-self:end">Übernehmen</button></div>`
+						</select></label><button class="secondary" id="w-take" style="align-self:end">${t('Übernehmen')}</button></div>`
 						: ''
 				}
 				${s.lines
 					.map(
 						(l, i) => `<div class="card line" style="background:var(--bg)">
-					<div class="line-head"><span class="line-no">${i + 1}</span><strong>Position ${i + 1}</strong>
+					<div class="line-head"><span class="line-no">${i + 1}</span><strong>${t('Position {n}', { n: i + 1 })}</strong>
 						<span class="line-sum">${eur(lineNet(l))}</span></div>
 					<div class="grid2">
-						<label>Bezeichnung<input data-l="${i}.description" value="${esc(l.description)}" /></label>
-						<label>Art.Nr.<input data-l="${i}.sku" value="${esc(l.sku)}" /></label>
+						<label>${t('Bezeichnung')}<input data-l="${i}.description" value="${esc(l.description)}" /></label>
+						<label>${t('Art.Nr.')}<input data-l="${i}.sku" value="${esc(l.sku)}" /></label>
 					</div>
-					<label>Detailzeile<textarea data-l="${i}.details" rows="1">${esc(l.details)}</textarea></label>
+					<label>${t('Detailzeile')}<textarea data-l="${i}.details" rows="1">${esc(l.details)}</textarea></label>
 					<div class="grid2">
-						<label>Menge<input data-l="${i}.quantity" type="number" min="0" step="any" value="${esc(l.quantity)}" /></label>
-						<label>Einheit<input data-l="${i}.unit" value="${esc(l.unit)}" /></label>
-					</div>
-					<div class="grid2">
-						<label>Preis netto<input data-l="${i}.unitPriceNet" type="number" min="0" step="0.01" value="${esc(l.unitPriceNet)}" /></label>
-						<label>Rabatt %<input data-l="${i}.discountPercent" type="number" min="0" max="100" step="0.1" value="${esc(l.discountPercent ?? 0)}" /></label>
+						<label>${t('Menge')}<input data-l="${i}.quantity" type="number" min="0" step="any" value="${esc(l.quantity)}" /></label>
+						<label>${t('Einheit')}<input data-l="${i}.unit" value="${esc(l.unit)}" /></label>
 					</div>
 					<div class="grid2">
-						<label>USt %<select data-l="${i}.vatRate">
+						<label>${t('Preis netto')}<input data-l="${i}.unitPriceNet" type="number" min="0" step="0.01" value="${esc(l.unitPriceNet)}" /></label>
+						<label>${t('Rabatt %')}<input data-l="${i}.discountPercent" type="number" min="0" max="100" step="0.1" value="${esc(l.discountPercent ?? 0)}" /></label>
+					</div>
+					<div class="grid2">
+						<label>${t('USt %')}<select data-l="${i}.vatRate">
 							${[19, 7, 0].map(r => `<option ${r === Number(l.vatRate) ? 'selected' : ''}>${r}</option>`).join('')}
 						</select></label>
 						${
 							Number(l.vatRate) === 0
-								? `<label>Steuerbefreiung<select data-l="${i}.exemptionCategory">
+								? `<label>${t('Steuerbefreiung')}<select data-l="${i}.exemptionCategory">
 								${(['E', 'AE', 'K', 'G', 'O'] as const)
 									.map(
 										c =>
-											`<option ${(l.exemptionCategory ?? 'E') === c ? 'selected' : ''} value="${c}">${c} — ${EXEMPTION_LABELS[c]}</option>`,
+											`<option ${(l.exemptionCategory ?? 'E') === c ? 'selected' : ''} value="${c}">${c} — ${exemptionLabels()[c]}</option>`,
 									)
 									.join('')}
 							</select></label>
-							<label>Begründung<textarea data-l="${i}.exemptionReason" rows="1" placeholder="z. B. Reverse Charge §13b UStG">${esc(l.exemptionReason)}</textarea></label>`
+							<label>${t('Begründung')}<textarea data-l="${i}.exemptionReason" rows="1" placeholder="${t('z. B. Reverse Charge §13b UStG')}">${esc(l.exemptionReason)}</textarea></label>`
 								: ''
 						}
 					</div>
-					<button class="secondary" data-del="${i}">Position entfernen</button>
+					<button class="secondary" data-del="${i}">${t('Position entfernen')}</button>
 				</div>`,
 					)
 					.join('')}
-				<p><button class="secondary" id="w-add">+ Position</button></p>
+				<p><button class="secondary" id="w-add">${t('+ Position')}</button></p>
 				<div class="grid2">
-					<label>Ausstellungsdatum<input id="w-issue" type="date" value="${esc(s.issueDate)}" /></label>
+					<label>${t('Ausstellungsdatum')}<input id="w-issue" type="date" value="${esc(s.issueDate)}" /></label>
 					${
 						isQuote(s.docType)
 							? `<label>${esc(labels(s.docType).validUntil.replace(/:$/, ''))}<input id="w-valid" type="date" value="${esc(
 									s.validUntil,
 								)}" />${
 									s.validUntil === addDays(s.issueDate, QUOTE_VALIDITY_DAYS)
-										? ' <span class="muted">(30 Tage)</span>'
+										? ` <span class="muted">(${t('30 Tage')})</span>`
 										: ''
 								}</label>`
-							: `<label>Fällig am<input id="w-due" type="date" value="${esc(s.dueDate)}" />${
-									s.dueAuto ? ' <span class="muted">(aus Zahlungsbedingung)</span>' : ''
+							: `<label>${t('Fällig am')}<input id="w-due" type="date" value="${esc(s.dueDate)}" />${
+									s.dueAuto ? ` <span class="muted">(${t('aus Zahlungsbedingung')})</span>` : ''
 								}</label>`
 					}
 				</div>
 				<fieldset class="period">
-					<legend>Leistungszeitraum</legend>
+					<legend>${t('Leistungszeitraum')}</legend>
 					<div class="grid2">
-						<label>von<input id="w-delivery" type="date" value="${esc(deliveryStart(s.deliveryDate))}" /></label>
-						<label>bis (optional)<input id="w-delivery-to" type="date" value="${esc(deliveryEnd(s.deliveryDate))}" /></label>
+						<label>${t('von')}<input id="w-delivery" type="date" value="${esc(deliveryStart(s.deliveryDate))}" /></label>
+						<label>${t('bis (optional)')}<input id="w-delivery-to" type="date" value="${esc(deliveryEnd(s.deliveryDate))}" /></label>
 					</div>
-					<p class="muted">Nur „von" angeben, wenn die Leistung an einem Tag erbracht wurde. ${
+					<p class="muted">${t('Nur „von" angeben, wenn die Leistung an einem Tag erbracht wurde.')} ${
 						isQuote(s.docType)
-							? 'Mit „bis" steht der Zeitraum als Leistungszeitraum auf dem Angebot.'
-							: 'Mit „bis" wird der Zeitraum als BT-74/BT-75 in die Rechnung geschrieben.'
+							? t('Mit „bis" steht der Zeitraum als Leistungszeitraum auf dem Angebot.')
+							: t('Mit „bis" wird der Zeitraum als BT-74/BT-75 in die Rechnung geschrieben.')
 					}</p>
 				</fieldset>
-				<label>Mitarbeiter-Kürzel (für Nr. ${
-					isQuote(s.docType) ? 'A-JJJJ-KK-LLL' : 'JJJJ-KK-LLL'
-				})<input id="w-employee" maxlength="8" placeholder="z.B. 01" value="${esc(s.employee)}" /></label>
+				<label>${t('Mitarbeiter-Kürzel (für Nr. {format})', {
+					format: isQuote(s.docType) ? 'A-JJJJ-EE-LLL' : 'JJJJ-EE-LLL',
+				})}<input id="w-employee" maxlength="8" placeholder="${t('z.B. 01')}" value="${esc(s.employee)}" /></label>
 				${
 					isQuote(s.docType)
-						? `<p class="muted">Ein Angebot kennt kein Zahlungsziel, keinen Skonto und keine Zahlungsbedingungen —
-							es gilt bis zum Datum „Gültig bis".</p>`
+						? `<p class="muted">${t('Ein Angebot kennt kein Zahlungsziel, keinen Skonto und keine Zahlungsbedingungen — es gilt bis zum Datum „Gültig bis".')}</p>`
 						: `<fieldset class="period">
-					<legend>Skonto (Rabatt bei früher Zahlung)</legend>
+					<legend>${t('Skonto (Rabatt bei früher Zahlung)')}</legend>
 					<div class="grid2">
-						<label>Skonto %<input id="w-skonto" type="number" min="0" max="100" step="0.01" value="${esc(s.skontoPercent)}" /></label>
-						<label>Skonto bis<input id="w-skonto-due" type="date" value="${esc(s.skontoDueDate)}" /></label>
+						<label>${t('Skonto %')}<input id="w-skonto" type="number" min="0" max="100" step="0.01" value="${esc(s.skontoPercent)}" /></label>
+						<label>${t('Skonto bis')}<input id="w-skonto-due" type="date" value="${esc(s.skontoDueDate)}" /></label>
 					</div>
-					<p class="muted">Bei 0 % kein Skonto. Ohne eigenes Datum gilt das Fälligkeitsdatum. Der Skonto mindert den Zahlbetrag (BT-9) und steht als Bedingung mit Subject-Code AAK im XML.</p>
+					<p class="muted">${t('Bei 0 % kein Skonto. Ohne eigenes Datum gilt das Fälligkeitsdatum. Der Skonto mindert den Zahlbetrag (BT-9) und steht als Bedingung mit Subject-Code AAK im XML.')}</p>
 				</fieldset>
-				<label>Zahlungsbedingungen<select id="w-terms-select">
-					<option value="" ${s.paymentTerms === '' ? 'selected' : ''}>keine</option>
+				<label>${t('Zahlungsbedingungen')}<select id="w-terms-select">
+					<option value="" ${s.paymentTerms === '' ? 'selected' : ''}>${t('keine')}</option>
 					${PAYMENT_TERMS_PRESETS.map(
 						p =>
-							`<option value="${esc(p.text)}" ${!s.termsCustom && s.paymentTerms === p.text ? 'selected' : ''}>${esc(p.text)}</option>`,
+							`<option value="${esc(p.text)}" ${!s.termsCustom && s.paymentTerms === p.text ? 'selected' : ''}>${esc(t(p.text))}</option>`,
 					).join('')}
-					<option value="${OWN_TERMS}" ${s.termsCustom ? 'selected' : ''}>eigener Text …</option>
+					<option value="${OWN_TERMS}" ${s.termsCustom ? 'selected' : ''}>${t('eigener Text …')}</option>
 				</select></label>
-				<p class="muted">Ein Preset pflegt das Fälligkeitsdatum automatisch (0 / 14 / 30 Tage nach Rechnungsdatum). Eigenes Datum im Feld „Fällig am" überschreibt das.</p>
+				<p class="muted">${t('Ein Preset pflegt das Fälligkeitsdatum automatisch (0 / 14 / 30 Tage nach Rechnungsdatum). Eigenes Datum im Feld „Fällig am" überschreibt das.')}</p>
 				${
 					s.termsCustom
-						? `<label>eigener Zahlungstext<textarea id="w-terms" rows="3" placeholder="z. B. Zahlbar innerhalb 14 Tagen ohne Abzug">${esc(s.paymentTerms)}</textarea></label>`
+						? `<label>${t('eigener Zahlungstext')}<textarea id="w-terms" rows="3" placeholder="${t('z. B. Zahlbar innerhalb 14 Tagen ohne Abzug')}">${esc(s.paymentTerms)}</textarea></label>`
 						: ''
 				}`
 				}
-				<label>Notizen<textarea id="w-notes">${esc(s.notes)}</textarea></label>
+				<label>${t('Notizen')}<textarea id="w-notes">${esc(s.notes)}</textarea></label>
 			</div>`;
 		}
 		if (s.step === 3) {
@@ -749,13 +763,13 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 			const grossTotal = round2(netTotal + taxTotal);
 			const skontoAmount = round2((grossTotal * (Number(s.skontoPercent) || 0)) / 100);
 			const hasDiscount = lines.some(l => l.discount > 0);
-			body = `<div class="card"><h3>Prüfen &amp; Ausstellen</h3>
-				<p><strong>${esc(s.documentTitle)}</strong> · ${esc(s.seller.name || '—')} → ${esc(s.buyer.name || '—')} · ${lines.length} Positionen</p>
+			body = `<div class="card"><h3>${t('Prüfen &amp; Ausstellen')}</h3>
+				<p><strong>${esc(t(s.documentTitle))}</strong> · ${esc(s.seller.name || '—')} → ${esc(s.buyer.name || '—')} · ${t('{n} Positionen', { n: lines.length })}</p>
 				<table class="ovw">
 					<thead><tr>
-						<th>Bezeichnung</th><th class="r">Menge</th><th class="r">Preis netto</th>
-						${hasDiscount ? '<th class="r">Rabatt</th><th class="r">Rabatt €</th>' : ''}
-						<th class="r">USt</th><th class="r">Netto</th>
+						<th>${t('Bezeichnung')}</th><th class="r">${t('Menge')}</th><th class="r">${t('Preis netto')}</th>
+						${hasDiscount ? `<th class="r">${t('Rabatt')}</th><th class="r">${t('Rabatt €')}</th>` : ''}
+						<th class="r">${t('USt')}</th><th class="r">${t('Netto')}</th>
 					</tr></thead>
 					<tbody>${lines
 						.map(
@@ -771,13 +785,13 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 				</table>
 				<table class="ovw sums">
 					<tbody>
-						<tr><td class="lbl">Netto</td><td class="r">${eur(netTotal)}</td></tr>
-						${breakdown.map(b => `<tr class="sub"><td class="lbl">USt ${esc(b.rate)} % auf ${eur(b.net)}</td><td class="r">${eur(b.tax)}</td></tr>`).join('')}
-						<tr class="sum total"><td class="lbl">Gesamtbetrag</td><td class="r">${eur(grossTotal)}</td></tr>
+						<tr><td class="lbl">${t('Netto')}</td><td class="r">${eur(netTotal)}</td></tr>
+						${breakdown.map(b => `<tr class="sub"><td class="lbl">${t('USt {rate} % auf {net}', { rate: esc(b.rate), net: eur(b.net) })}</td><td class="r">${eur(b.tax)}</td></tr>`).join('')}
+						<tr class="sum total"><td class="lbl">${t('Gesamtbetrag')}</td><td class="r">${eur(grossTotal)}</td></tr>
 						${
 							!isQuote(s.docType) && s.skontoPercent > 0
-								? `<tr class="sub"><td class="lbl">${esc(s.skontoPercent)} % Skonto bis ${esc(s.skontoDueDate || s.dueDate || '—')}</td><td class="r">−${eur(skontoAmount)}</td></tr>
-							<tr class="sum total"><td class="lbl">Zahlbetrag bei Skonto</td><td class="r">${eur(grossTotal - skontoAmount)}</td></tr>`
+								? `<tr class="sub"><td class="lbl">${t('{percent} % Skonto bis {date}', { percent: esc(s.skontoPercent), date: esc(s.skontoDueDate || s.dueDate || '—') })}</td><td class="r">−${eur(skontoAmount)}</td></tr>
+							<tr class="sum total"><td class="lbl">${t('Zahlbetrag bei Skonto')}</td><td class="r">${eur(grossTotal - skontoAmount)}</td></tr>`
 								: ''
 						}
 					</tbody>
@@ -786,10 +800,10 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 					isQuote(s.docType)
 						? `<p class="muted">${esc(labels(s.docType).validUntil)} ${esc(
 								s.validUntil || addDays(s.issueDate, QUOTE_VALIDITY_DAYS),
-							)} — ein Angebot ist keine E-Rechnung: es gibt kein XML und keine XSD-Prüfung.</p>
-					<p class="muted">Ausstellen vergibt endgültig die Angebotsnummer aus dem eigenen Nummernkreis — die Rechnungsnummern bleiben davon unberührt.</p>`
-						: `<p class="muted">Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.</p>
-					<p class="muted">Ausstellen vergibt endgültig die Rechnungsnummer — danach ist keine Änderung mehr möglich (GoBD).</p>`
+							)} — ${t('ein Angebot ist keine E-Rechnung: es gibt kein XML und keine XSD-Prüfung.')}</p>
+					<p class="muted">${t('Ausstellen vergibt endgültig die Angebotsnummer aus dem eigenen Nummernkreis — die Rechnungsnummern bleiben davon unberührt.')}</p>`
+						: `<p class="muted">${t('Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.')}</p>
+					<p class="muted">${t('Ausstellen vergibt endgültig die Rechnungsnummer — danach ist keine Änderung mehr möglich (GoBD).')}</p>`
 				}
 			</div>`;
 		}
@@ -797,9 +811,9 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 			${s.error ? `<div class="card error">${esc(s.error)}</div>` : ''}
 			${s.step === 3 ? `<div id="w-attachments"></div>` : ''}
 			<div class="row">
-				${s.step > 0 ? `<button class="secondary" id="w-back">Zurück</button>` : ''}
-				${s.step < 3 ? `<button id="w-next">Weiter</button>` : `<button id="w-save">Entwurf speichern</button><button id="w-issue">${esc(labels(s.docType).issue)}</button>`}
-				<button class="secondary" id="w-clear">Verwerfen</button>
+				${s.step > 0 ? `<button class="secondary" id="w-back">${t('Zurück')}</button>` : ''}
+				${s.step < 3 ? `<button id="w-next">${t('Weiter')}</button>` : `<button id="w-save">${t('Entwurf speichern')}</button><button id="w-issue">${esc(labels(s.docType).issue)}</button>`}
+				<button class="secondary" id="w-clear">${t('Verwerfen')}</button>
 			</div>`;
 
 		// R4: Anlagen gehören zum gespeicherten Entwurf. Der Bereich erscheint im
@@ -809,10 +823,8 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 			if (s.draftId) {
 				mountAttachments(attachmentHost, s.draftId, { readOnly: false });
 			} else {
-				attachmentHost.innerHTML = `<div class="card"><h3 style="margin:0">Anlagen</h3>
-					<p class="muted">Belege wie Lieferschein oder Nachweis lassen sich nach dem Speichern des
-					Entwurfs anhängen: erst „Entwurf speichern“, dann hier hochladen. Beim Ausstellen wandern die
-					Anlagen in PDF und XML.</p></div>`;
+				attachmentHost.innerHTML = `<div class="card"><h3 style="margin:0">${t('Anlagen')}</h3>
+					<p class="muted">${t('Belege wie Lieferschein oder Nachweis lassen sich nach dem Speichern des Entwurfs anhängen: erst „Entwurf speichern“, dann hier hochladen. Beim Ausstellen wandern die Anlagen in PDF und XML.')}</p></div>`;
 			}
 		}
 
@@ -909,11 +921,11 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 		});
 		root.querySelector('#w-inv-tpl')?.addEventListener('change', event => {
 			const id = (event.target as HTMLSelectElement).value;
-			const tpl = invoiceTemplates.find(t => t.id === id);
+			const tpl = invoiceTemplates.find(item => item.id === id);
 			if (!tpl) {
 				return;
 			}
-			if (s.lines.length > 0 && !window.confirm(`Positionen durch "${tpl.name}" ersetzen?`)) {
+			if (s.lines.length > 0 && !window.confirm(t('Positionen durch "{name}" ersetzen?', { name: tpl.name }))) {
 				return;
 			}
 			// Content comes from the template, parties and dates stay the user's.
@@ -946,7 +958,7 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 			render();
 		});
 		root.querySelector('#w-clear')?.addEventListener('click', () => {
-			if (!window.confirm('Eingaben verwerfen und zur Übersicht?')) {
+			if (!window.confirm(t('Eingaben verwerfen und zur Übersicht?'))) {
 				return;
 			}
 			localStorage.removeItem(STORAGE_KEY);

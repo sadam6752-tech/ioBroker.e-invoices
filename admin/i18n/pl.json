@@ -32,5 +32,7 @@
     "VAT ID (USt-IdNr.)":  "NIP (VAT)",
     "Website":  "Strona internetowa",
     "Dunning check interval in hours":  "Interwał przypomnień w godzinach",
-    "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = wyłączone. Adapter liczy tylko zaległe faktury w info.overdue*, sam nie wysyła e-maili."
+    "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = wyłączone. Adapter liczy tylko zaległe faktury w info.overdue*, sam nie wysyła e-maili.",
+    "Web app language":  "Język aplikacji webowej",
+    "auto = language of the browser; German and English are available":  "auto = język przeglądarki; dostępne niemiecki i angielski"
 }

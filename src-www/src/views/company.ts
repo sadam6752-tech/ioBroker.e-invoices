@@ -1,4 +1,5 @@
 import { api, esc, type CompanyProfile, type Party } from '../api';
+import { t } from '../i18n';
 
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
 
@@ -14,7 +15,7 @@ function field(obj: Party, key: keyof Party, label: string): string {
  * @param root
  */
 export async function company(root: HTMLElement): Promise<void> {
-	root.innerHTML = `<div class="card">Lade Firmendaten…</div>`;
+	root.innerHTML = `<div class="card">${t('Lade Firmendaten…')}</div>`;
 	let current: CompanyProfile | null = null;
 	let message = '';
 	let isError = false;
@@ -32,34 +33,34 @@ export async function company(root: HTMLElement): Promise<void> {
 
 	function render(): void {
 		const p = current?.profile ?? emptyParty();
-		root.innerHTML = `<div class="card"><h3>Firma (Verkäufer-Stammdaten)</h3>
-			<p class="muted">Einmal anlegen — neue Rechnungen übernehmen diese Daten automatisch.</p>
-			<label>Profilname<input id="c-name" value="${esc(current?.name ?? 'Meine Firma')}" /></label>
-			${field(p, 'name', 'Firmenname')}
-			${field(p, 'street', 'Straße')}
-			<div class="grid2">${field(p, 'zip', 'PLZ')}${field(p, 'city', 'Ort')}</div>
-			<div class="grid2">${field(p, 'country', 'Land')}${field(p, 'email', 'E-Mail')}</div>
-			<div class="grid2">${field(p, 'phone', 'Telefon')}${field(p, 'website', 'Webseite')}</div>
-			<div class="grid2">${field(p, 'vatId', 'USt-IdNr.')}${field(p, 'taxNumber', 'Steuernummer')}</div>
-			<div class="grid2">${field(p, 'bankName', 'Bankname')}${field(p, 'iban', 'IBAN')}</div>
+		root.innerHTML = `<div class="card"><h3>${t('Firma (Verkäufer-Stammdaten)')}</h3>
+			<p class="muted">${t('Einmal anlegen — neue Rechnungen übernehmen diese Daten automatisch.')}</p>
+			<label>${t('Profilname')}<input id="c-name" value="${esc(current?.name ?? 'Meine Firma')}" /></label>
+			${field(p, 'name', t('Firmenname'))}
+			${field(p, 'street', t('Straße'))}
+			<div class="grid2">${field(p, 'zip', t('PLZ'))}${field(p, 'city', t('Ort'))}</div>
+			<div class="grid2">${field(p, 'country', t('Land'))}${field(p, 'email', t('E-Mail'))}</div>
+			<div class="grid2">${field(p, 'phone', t('Telefon'))}${field(p, 'website', t('Webseite'))}</div>
+			<div class="grid2">${field(p, 'vatId', t('USt-IdNr.'))}${field(p, 'taxNumber', t('Steuernummer'))}</div>
+			<div class="grid2">${field(p, 'bankName', t('Bankname'))}${field(p, 'iban', 'IBAN')}</div>
 			<label>BIC<input data-f="bic" value="${esc(p.bic ?? '')}" /></label>
-			<h3>Fußzeilen-Boxen (Rechnung unten)</h3>
-			<p class="muted">Leer lassen = automatisch aus den Firmendaten (Adresse, Kontakt, Bank, Steuer). Je Box eine Zeile pro Zeile, Ausrichtung pro Box.</p>
+			<h3>${t('Fußzeilen-Boxen (Rechnung unten)')}</h3>
+			<p class="muted">${t('Leer lassen = automatisch aus den Firmendaten (Adresse, Kontakt, Bank, Steuer). Je Box eine Zeile pro Zeile, Ausrichtung pro Box.')}</p>
 			${[0, 1, 2, 3]
 				.map(
-					i => `<div class="grid2"><label>Box ${i + 1}<textarea data-fbox="${i}" rows="3">${esc((p.footerBoxes ?? [])[i] ?? '')}</textarea></label>
-				<label>Ausrichtung<select data-falign="${i}">
+					i => `<div class="grid2"><label>${t('Box {n}', { n: i + 1 })}<textarea data-fbox="${i}" rows="3">${esc((p.footerBoxes ?? [])[i] ?? '')}</textarea></label>
+				<label>${t('Ausrichtung')}<select data-falign="${i}">
 					${(['left', 'center', 'right'] as const)
 						.map(
 							v =>
-								`<option value="${v}" ${(p.footerAlign ?? [])[i] === v || (!(p.footerAlign ?? [])[i] && v === 'left') ? 'selected' : ''}>${v === 'left' ? 'Links' : v === 'center' ? 'Zentriert' : 'Rechts'}</option>`,
+								`<option value="${v}" ${(p.footerAlign ?? [])[i] === v || (!(p.footerAlign ?? [])[i] && v === 'left') ? 'selected' : ''}>${v === 'left' ? t('Links') : v === 'center' ? t('Zentriert') : t('Rechts')}</option>`,
 						)
 						.join('')}
 				</select></label></div>`,
 				)
 				.join('')}
 			${message ? `<p class="${isError ? 'error' : ''}">${esc(message)}</p>` : ''}
-			<div class="row"><button id="c-save">Speichern</button></div>
+			<div class="row"><button id="c-save">${t('Speichern')}</button></div>
 		</div>`;
 
 		root.querySelector('#c-save')?.addEventListener('click', async () => {
@@ -87,7 +88,7 @@ export async function company(root: HTMLElement): Promise<void> {
 				} else {
 					current = await api.company.create(name, profile);
 				}
-				message = 'Gespeichert.';
+				message = t('Gespeichert.');
 				isError = false;
 				render();
 			} catch (e) {

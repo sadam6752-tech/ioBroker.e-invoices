@@ -583,6 +583,73 @@ describe('api => auth', () => {
 	});
 });
 
+describe('api => web app language (R7.2)', () => {
+	const quiet = { info: (): void => undefined, error: (): void => undefined };
+	const stubStorage = {
+		write: (): Promise<void> => Promise.resolve(),
+		read: (): Promise<Buffer> => Promise.reject(new Error('empty')),
+	};
+	const settingsOf = (pwaLanguage?: string): NonNullable<Parameters<typeof createApiServer>[0]['settings']> => ({
+		defaultVatRate: 19,
+		defaultPaymentTerms: '',
+		numberFormat: '{YYYY}-{EMPLOYEE}-{SEQ}',
+		quoteNumberFormat: 'A-{YYYY}-{EMPLOYEE}-{SEQ}',
+		storageMount: '',
+		backupIntervalMinutes: 0,
+		pwaLanguage,
+	});
+
+	it('hands the language chosen in the admin to the web app', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			for (const [configured, expected] of [
+				['en', 'en'],
+				['de', 'de'],
+				['auto', 'auto'],
+				// a language the web app does not ship must not leak through
+				['fr', 'auto'],
+				[undefined, 'auto'],
+			] as const) {
+				const app = createApiServer({
+					db,
+					storage: stubStorage,
+					log: quiet,
+					version: 'x',
+					settings: settingsOf(configured),
+				});
+				const settings = await request(app).get('/api/settings').expect(200);
+				expect(settings.body.pwaLanguage, `configured ${String(configured)}`).to.equal(expected);
+				const health = await request(app).get('/api/health').expect(200);
+				expect(health.body.pwaLanguage).to.equal(expected);
+			}
+		} finally {
+			db.close();
+		}
+	});
+
+	it('keeps the language readable on the login page, where no token exists yet', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const app = createApiServer({
+				db,
+				storage: stubStorage,
+				log: quiet,
+				version: 'x',
+				authToken: 's3cret',
+				settings: settingsOf('en'),
+			});
+			// health is the one open route, the settings need the token
+			const health = await request(app).get('/api/health').expect(200);
+			expect(health.body.pwaLanguage).to.equal('en');
+			await request(app).get('/api/settings').expect(401);
+		} finally {
+			db.close();
+		}
+	});
+});
+
 describe('api => backup', function () {
 	this.timeout(60000);
 	let db: InvoiceDatabase;

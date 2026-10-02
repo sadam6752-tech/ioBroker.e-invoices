@@ -8,6 +8,7 @@
  * erfährt, dass eine Datei zu groß ist. Der Server bleibt die Instanz.
  */
 import { api, downloadUrl, esc, type AttachmentMeta } from '../api';
+import { locale, t } from '../i18n';
 
 /** Maximale Dateigröße (gespiegelt von `ATTACHMENT_MAX_BYTES`). */
 export const ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
@@ -25,7 +26,7 @@ export const ATTACHMENT_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg'];
  */
 export function formatSize(bytes: number): string {
 	if (bytes >= 1024 * 1024) {
-		return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
+		return `${(bytes / (1024 * 1024)).toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`;
 	}
 	return `${Math.max(1, Math.round(bytes / 1024))} kB`;
 }
@@ -85,20 +86,18 @@ export function mountAttachments(host: HTMLElement, invoiceId: string, options: 
 	let files: AttachmentMeta[] = [];
 	host.innerHTML = `
 		<div class="card att">
-			<div class="row"><h3 style="margin:0">Anlagen</h3><span class="muted" id="att-count"></span></div>
-			<p class="muted">Belege zum Vorgang (Lieferschein, Nachweis, Bestellbestätigung) — PDF, PNG oder JPEG,
-				höchstens ${ATTACHMENT_MAX_COUNT} Dateien mit je ${formatSize(ATTACHMENT_MAX_BYTES)}. Beim Ausstellen
-				werden sie in die Rechnung eingebettet (PDF/A-3, im XML als BG-24).</p>
+			<div class="row"><h3 style="margin:0">${t('Anlagen')}</h3><span class="muted" id="att-count"></span></div>
+			<p class="muted">${t('Belege zum Vorgang (Lieferschein, Nachweis, Bestellbestätigung) — PDF, PNG oder JPEG, höchstens {max} Dateien mit je {size}. Beim Ausstellen werden sie in die Rechnung eingebettet (PDF/A-3, im XML als BG-24).', { max: ATTACHMENT_MAX_COUNT, size: formatSize(ATTACHMENT_MAX_BYTES) })}</p>
 			${
 				options.readOnly
-					? `<p class="muted">Diese Rechnung ist ausgestellt: die Anlagen bleiben abrufbar, lassen sich aber nicht mehr ändern (GoBD).</p>`
+					? `<p class="muted">${t('Diese Rechnung ist ausgestellt: die Anlagen bleiben abrufbar, lassen sich aber nicht mehr ändern (GoBD).')}</p>`
 					: `<div class="row att-upload">
 						<input type="file" id="att-file" multiple accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" />
-						<button id="att-add">Hochladen</button>
+						<button id="att-add">${t('Hochladen')}</button>
 					</div>
 					<progress id="att-progress" max="100" value="0" hidden></progress>`
 			}
-			<div id="att-list" class="muted">Lade …</div>
+			<div id="att-list" class="muted">${t('Lade …')}</div>
 			<p id="att-out" class="muted"></p>
 		</div>`;
 
@@ -108,15 +107,15 @@ export function mountAttachments(host: HTMLElement, invoiceId: string, options: 
 
 	/** Zeichnet die Liste neu. */
 	function draw(): void {
-		count.textContent = files.length > 0 ? `${files.length} von ${ATTACHMENT_MAX_COUNT}` : '';
+		count.textContent = files.length > 0 ? t('{n} von {max}', { n: files.length, max: ATTACHMENT_MAX_COUNT }) : '';
 		if (files.length === 0) {
 			list.className = 'muted';
-			list.textContent = options.readOnly ? 'Keine Anlagen an dieser Rechnung.' : 'Noch keine Anlagen.';
+			list.textContent = options.readOnly ? t('Keine Anlagen an dieser Rechnung.') : t('Noch keine Anlagen.');
 			return;
 		}
 		list.className = '';
 		list.innerHTML = `<table class="ovw att-table"><thead><tr>
-				<th>Datei</th><th>Typ</th><th class="r">Größe</th><th class="r">Aktion</th>
+				<th>${t('Datei')}</th><th>${t('Typ')}</th><th class="r">${t('Größe')}</th><th class="r">${t('Aktion')}</th>
 			</tr></thead><tbody>${files
 				.map(
 					file => `<tr>
@@ -124,8 +123,8 @@ export function mountAttachments(host: HTMLElement, invoiceId: string, options: 
 						<td>${esc(typeLabel(file.mime))}</td>
 						<td class="r">${esc(formatSize(file.size))}</td>
 						<td class="r">
-							<button class="secondary" data-download="${file.id}">Download</button>
-							${options.readOnly ? '' : `<button class="danger" data-delete="${file.id}">Löschen</button>`}
+							<button class="secondary" data-download="${file.id}">${t('Download')}</button>
+							${options.readOnly ? '' : `<button class="danger" data-delete="${file.id}">${t('Löschen')}</button>`}
 						</td>
 					</tr>`,
 				)
@@ -145,7 +144,7 @@ export function mountAttachments(host: HTMLElement, invoiceId: string, options: 
 			button.addEventListener('click', () => {
 				const id = Number(button.dataset.delete);
 				const file = files.find(entry => entry.id === id);
-				if (!window.confirm(`Anlage „${file?.filename ?? id}" wirklich löschen?`)) {
+				if (!window.confirm(t('Anlage „{name}" wirklich löschen?', { name: file?.filename ?? id }))) {
 					return;
 				}
 				void (async () => {
@@ -154,7 +153,7 @@ export function mountAttachments(host: HTMLElement, invoiceId: string, options: 
 						files = await api.attachments.list(invoiceId);
 						draw();
 						out.className = 'muted';
-						out.textContent = 'Anlage gelöscht.';
+						out.textContent = t('Anlage gelöscht.');
 					} catch (error) {
 						out.className = 'error';
 						out.textContent = (error as Error).message;
@@ -171,13 +170,13 @@ export function mountAttachments(host: HTMLElement, invoiceId: string, options: 
 	 */
 	function check(file: File): string | null {
 		if (file.size === 0) {
-			return `${file.name}: leere Datei`;
+			return t('{name}: leere Datei', { name: file.name });
 		}
 		if (file.size > ATTACHMENT_MAX_BYTES) {
-			return `${file.name}: größer als ${formatSize(ATTACHMENT_MAX_BYTES)}`;
+			return t('{name}: größer als {size}', { name: file.name, size: formatSize(ATTACHMENT_MAX_BYTES) });
 		}
 		if (!ATTACHMENT_EXTENSIONS.includes(extensionOf(file.name))) {
-			return `${file.name}: nur PDF, PNG und JPEG`;
+			return t('{name}: nur PDF, PNG und JPEG', { name: file.name });
 		}
 		return null;
 	}
@@ -191,12 +190,15 @@ export function mountAttachments(host: HTMLElement, invoiceId: string, options: 
 			out.textContent = '';
 			if (chosen.length === 0) {
 				out.className = 'error';
-				out.textContent = 'Bitte zuerst eine Datei auswählen.';
+				out.textContent = t('Bitte zuerst eine Datei auswählen.');
 				return;
 			}
 			if (files.length + chosen.length > ATTACHMENT_MAX_COUNT) {
 				out.className = 'error';
-				out.textContent = `Höchstens ${ATTACHMENT_MAX_COUNT} Anlagen je Rechnung (bisher ${files.length}).`;
+				out.textContent = t('Höchstens {max} Anlagen je Rechnung (bisher {n}).', {
+					max: ATTACHMENT_MAX_COUNT,
+					n: files.length,
+				});
 				return;
 			}
 			const rejected = chosen.map(check).filter((message): message is string => message !== null);
@@ -223,7 +225,7 @@ export function mountAttachments(host: HTMLElement, invoiceId: string, options: 
 					input.value = '';
 				}
 				out.className = 'muted';
-				out.textContent = `${chosen.length} Anlage(n) gespeichert.`;
+				out.textContent = t('{n} Anlage(n) gespeichert.', { n: chosen.length });
 			} catch (error) {
 				out.className = 'error';
 				out.textContent = (error as Error).message;

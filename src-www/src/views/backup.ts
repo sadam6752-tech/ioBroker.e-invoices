@@ -1,4 +1,5 @@
 import { api, apiFetch, downloadUrl, esc, fileToBase64, type RestorePreview } from '../api';
+import { t } from '../i18n';
 
 interface BackupEntry {
 	id: string;
@@ -26,26 +27,34 @@ async function confirmRestore(source: { filename?: string; dataBase64?: string }
 	try {
 		preview = await api.restorePreview(source.filename, source.dataBase64);
 	} catch (e) {
-		alert(`Backup kann nicht gelesen werden: ${(e as Error).message}`);
+		alert(t('Backup kann nicht gelesen werden: {message}', { message: (e as Error).message }));
 		return false;
 	}
 	const overwritten = preview.overwritten.length;
 	return window.confirm(
 		[
-			`Vorschau für ${source.filename ? baseName(source.filename) : 'der hochgeladenen Datei'}:`,
+			t('Vorschau für {name}:', {
+				name: source.filename ? baseName(source.filename) : t('der hochgeladenen Datei'),
+			}),
 			``,
-			`  Im Backup:   ${preview.invoices} Rechnungen (davon ${preview.issued} ausgestellt)`,
-			`  Aktuell:     ${preview.currentInvoices} Rechnungen`,
-			`  Dateien:     ${preview.filesWritten}`,
-			`  Neu dazu:    ${preview.added.length} Nummern`,
-			`  Überschrieben: ${overwritten} Nummern ${overwritten ? `(${preview.overwritten.slice(0, 5).join(', ')}${preview.overwritten.length > 5 ? ' …' : ''})` : ''}`,
+			`  ${t('Im Backup:')}   ${t('{n} Rechnungen (davon {issued} ausgestellt)', { n: preview.invoices, issued: preview.issued })}`,
+			`  ${t('Aktuell:')}     ${t('{n} Rechnungen', { n: preview.currentInvoices })}`,
+			`  ${t('Dateien:')}     ${preview.filesWritten}`,
+			`  ${t('Neu dazu:')}    ${t('{n} Nummern', { n: preview.added.length })}`,
+			`  ${t('Überschrieben:')} ${t('{n} Nummern', { n: overwritten })} ${overwritten ? `(${preview.overwritten.slice(0, 5).join(', ')}${preview.overwritten.length > 5 ? ' …' : ''})` : ''}`,
 			``,
 			preview.onlyHere.length > 0
-				? `ACHTUNG: ${preview.onlyHere.length} Rechnungen, die nur hier existieren, verschwinden aus der Datenbank (${preview.onlyHere.slice(0, 5).join(', ')}${preview.onlyHere.length > 5 ? ' …' : ''}). Ihre Nummern werden nicht erneut vergeben.`
-				: 'Die aktuelle Datenbank wird durch das Backup ersetzt.',
-			'Vor dem Wiederherstellen wird der aktuelle Stand automatisch als "prerestore"-Backup gesichert.',
+				? t(
+						'ACHTUNG: {n} Rechnungen, die nur hier existieren, verschwinden aus der Datenbank ({list}). Ihre Nummern werden nicht erneut vergeben.',
+						{
+							n: preview.onlyHere.length,
+							list: `${preview.onlyHere.slice(0, 5).join(', ')}${preview.onlyHere.length > 5 ? ' …' : ''}`,
+						},
+					)
+				: t('Die aktuelle Datenbank wird durch das Backup ersetzt.'),
+			t('Vor dem Wiederherstellen wird der aktuelle Stand automatisch als "prerestore"-Backup gesichert.'),
 			``,
-			'Trotzdem wiederherstellen?',
+			t('Trotzdem wiederherstellen?'),
 		].join('\n'),
 	);
 }
@@ -56,7 +65,7 @@ async function confirmRestore(source: { filename?: string; dataBase64?: string }
  * @param root
  */
 export async function backup(root: HTMLElement): Promise<void> {
-	root.innerHTML = `<div class="card">Lade Backups…</div>`;
+	root.innerHTML = `<div class="card">${t('Lade Backups…')}</div>`;
 	let items: BackupEntry[] = [];
 	let message = '';
 	let isError = false;
@@ -64,7 +73,7 @@ export async function backup(root: HTMLElement): Promise<void> {
 	async function reload(): Promise<void> {
 		const res = await apiFetch('/api/backups');
 		if (!res.ok) {
-			throw new Error('Backups konnten nicht geladen werden');
+			throw new Error(t('Backups konnten nicht geladen werden'));
 		}
 		items = (await res.json()) as BackupEntry[];
 		render();
@@ -72,29 +81,29 @@ export async function backup(root: HTMLElement): Promise<void> {
 
 	function render(): void {
 		root.innerHTML = `
-		<div class="card"><div class="row"><strong>Backup & Wiederherstellung</strong>
-			<button id="b-now">Jetzt sichern</button></div>
-			<p class="muted">ZIP mit Datenbank (dump.json), allen PDFs/XML/XLSX/Logos und Manifest mit SHA-256-Prüfsummen.</p>
+		<div class="card"><div class="row"><strong>${t('Backup & Wiederherstellung')}</strong>
+			<button id="b-now">${t('Jetzt sichern')}</button></div>
+			<p class="muted">${t('ZIP mit Datenbank (dump.json), allen PDFs/XML/XLSX/Logos und Manifest mit SHA-256-Prüfsummen.')}</p>
 			${message ? `<p class="${isError ? 'error' : ''}">${esc(message)}</p>` : ''}
 		</div>
-		<div class="card"><h3>Gesicherte Backups</h3>
+		<div class="card"><h3>${t('Gesicherte Backups')}</h3>
 			${
 				items
 					.map(
 						b => `<div class="row" style="margin-top:8px">
 				<strong>${esc(baseName(b.filename))}</strong>
 				<span class="muted">${esc(b.createdAt.slice(0, 19).replace('T', ' '))} · ${Math.round(b.size / 1024)} KB</span>
-				<button class="secondary" data-dl="${esc(b.filename)}">Download</button>
-				<button class="secondary" data-restore="${esc(b.filename)}">Wiederherstellen</button>
+				<button class="secondary" data-dl="${esc(b.filename)}">${t('Download')}</button>
+				<button class="secondary" data-restore="${esc(b.filename)}">${t('Wiederherstellen')}</button>
 			</div>`,
 					)
-					.join('') || '<p class="muted">Noch keine Backups.</p>'
+					.join('') || `<p class="muted">${t('Noch keine Backups.')}</p>`
 			}
 		</div>
-		<div class="card"><h3>Backup-Datei hochladen & wiederherstellen</h3>
+		<div class="card"><h3>${t('Backup-Datei hochladen & wiederherstellen')}</h3>
 			<input id="b-file" type="file" accept=".zip,application/zip" />
-			<p><button id="b-upload">Hochladen & wiederherstellen</button></p>
-			<p class="muted">Achtung: Wiederherstellen ersetzt die gesamte Datenbank.</p>
+			<p><button id="b-upload">${t('Hochladen & wiederherstellen')}</button></p>
+			<p class="muted">${t('Achtung: Wiederherstellen ersetzt die gesamte Datenbank.')}</p>
 		</div>`;
 
 		root.querySelector('#b-now')?.addEventListener('click', async () => {
@@ -102,11 +111,12 @@ export async function backup(root: HTMLElement): Promise<void> {
 				const res = await apiFetch('/api/backups', { method: 'POST' });
 				if (!res.ok) {
 					throw new Error(
-						((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Sichern fehlgeschlagen',
+						((await res.json().catch(() => ({}))) as { error?: string }).error ??
+							t('Sichern fehlgeschlagen'),
 					);
 				}
 				const created = (await res.json()) as BackupEntry;
-				message = `Gesichert: ${baseName(created.filename)}`;
+				message = t('Gesichert: {name}', { name: baseName(created.filename) });
 				isError = false;
 				await reload();
 			} catch (e) {
@@ -142,11 +152,11 @@ export async function backup(root: HTMLElement): Promise<void> {
 					if (!res.ok) {
 						throw new Error(
 							((await res.json().catch(() => ({}))) as { error?: string }).error ??
-								'Restore fehlgeschlagen',
+								t('Restore fehlgeschlagen'),
 						);
 					}
 					const s = (await res.json()) as { invoices: number; templates: number; fileErrors: string[] };
-					message = `Wiederhergestellt: ${s.invoices} Rechnungen, ${s.templates} Vorlagen${s.fileErrors.length > 0 ? ` (${s.fileErrors.length} Dateifehler)` : ''}`;
+					message = `${t('Wiederhergestellt: {n} Rechnungen, {templates} Vorlagen', { n: s.invoices, templates: s.templates })}${s.fileErrors.length > 0 ? ` (${t('{n} Dateifehler', { n: s.fileErrors.length })})` : ''}`;
 					isError = false;
 					await reload();
 				} catch (e) {
@@ -159,7 +169,7 @@ export async function backup(root: HTMLElement): Promise<void> {
 		root.querySelector('#b-upload')?.addEventListener('click', async () => {
 			const file = root.querySelector<HTMLInputElement>('#b-file')?.files?.[0];
 			if (!file) {
-				message = 'Bitte zuerst eine ZIP-Datei wählen';
+				message = t('Bitte zuerst eine ZIP-Datei wählen');
 				isError = true;
 				render();
 				return;
@@ -186,11 +196,15 @@ export async function backup(root: HTMLElement): Promise<void> {
 				});
 				if (!res.ok) {
 					throw new Error(
-						((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Restore fehlgeschlagen',
+						((await res.json().catch(() => ({}))) as { error?: string }).error ??
+							t('Restore fehlgeschlagen'),
 					);
 				}
 				const s = (await res.json()) as { invoices: number; templates: number };
-				message = `Wiederhergestellt: ${s.invoices} Rechnungen, ${s.templates} Vorlagen`;
+				message = t('Wiederhergestellt: {n} Rechnungen, {templates} Vorlagen', {
+					n: s.invoices,
+					templates: s.templates,
+				});
 				isError = false;
 				await reload();
 			} catch (e) {

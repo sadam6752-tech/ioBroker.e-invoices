@@ -187,6 +187,7 @@
   "native": {
     "port": 8093,
     "bind": "127.0.0.1",
+    "pwaLanguage": "auto",
     "storageMount": "",
     "backupIntervalMinutes": 0,
     "reminderCheckHours": 6,

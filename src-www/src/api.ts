@@ -1,4 +1,5 @@
 /** Typed client for the adapter /api (same origin, served on :8093). */
+import { t } from './i18n';
 
 export interface Party {
 	name: string;
@@ -290,7 +291,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 		if (!location.hash.startsWith('#/login')) {
 			location.hash = '#/login';
 		}
-		throw new Error('Nicht angemeldet — bitte Token auf der Login-Seite eintragen');
+		throw new Error(t('Nicht angemeldet — bitte Token auf der Login-Seite eintragen'));
 	}
 	return res;
 }
@@ -307,7 +308,7 @@ export async function downloadUrl(url: string, fallbackName: string): Promise<vo
 	const res = await apiFetch(url);
 	if (!res.ok) {
 		const body = (await res.json().catch(() => ({}))) as { error?: string };
-		throw new Error(body.error ?? `Download fehlgeschlagen (HTTP ${res.status})`);
+		throw new Error(body.error ?? t('Download fehlgeschlagen (HTTP {status})', { status: res.status }));
 	}
 	const blob = await res.blob();
 	const match = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '');
@@ -330,7 +331,7 @@ export async function openUrl(url: string): Promise<void> {
 	const res = await apiFetch(url);
 	if (!res.ok) {
 		const body = (await res.json().catch(() => ({}))) as { error?: string };
-		throw new Error(body.error ?? `Öffnen fehlgeschlagen (HTTP ${res.status})`);
+		throw new Error(body.error ?? t('Öffnen fehlgeschlagen (HTTP {status})', { status: res.status }));
 	}
 	const blob = await res.blob();
 	const obj = URL.createObjectURL(blob);
@@ -358,6 +359,8 @@ export const api = {
 			version: string;
 			schemaVersion: number;
 			counts: Record<string, number>;
+			/** Start language chosen in the admin (`auto`, `de`, `en`); public so the login page can use it. */
+			pwaLanguage?: string;
 		}>('/api/health'),
 	settings: () =>
 		request<{
@@ -367,6 +370,7 @@ export const api = {
 			quoteNumberFormat: string;
 			storageMount: string;
 			backupIntervalMinutes: number;
+			pwaLanguage: string;
 		}>('/api/settings'),
 	list: (params: Record<string, string> = {}) => {
 		const q = new URLSearchParams(params).toString();
@@ -658,12 +662,12 @@ export function fileToBase64(file: File): Promise<string> {
 		reader.onload = () => {
 			const text = reader.result;
 			if (typeof text !== 'string') {
-				reject(new Error('Datei nicht lesbar'));
+				reject(new Error(t('Datei nicht lesbar')));
 				return;
 			}
 			resolve(text.split(',')[1]);
 		};
-		reader.onerror = () => reject(new Error('Datei nicht lesbar'));
+		reader.onerror = () => reject(new Error(t('Datei nicht lesbar')));
 		reader.readAsDataURL(file);
 	});
 }

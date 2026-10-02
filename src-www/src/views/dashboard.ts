@@ -1,4 +1,6 @@
 import { api, downloadUrl, esc, eur, type Invoice } from '../api';
+import { t } from '../i18n';
+import { statusLabel } from '../labels';
 
 /**
  * Cash discount amount for an invoice, in EUR.
@@ -10,7 +12,7 @@ function skontoOf(i: Invoice): number {
 }
 
 function badge(status: Invoice['status']): string {
-	return `<span class="badge ${status}">${status}</span>`;
+	return `<span class="badge ${status}">${statusLabel(status)}</span>`;
 }
 
 /**
@@ -23,35 +25,35 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	// search and the buttons as another (the same shape the offer list uses).
 	root.innerHTML = `
 		<div class="card">
-			<div class="row"><strong>Rechnungen</strong></div>
+			<div class="row"><strong>${t('Rechnungen')}</strong></div>
 			<div class="row filters">
 				<select id="f-status">
-					<option value="">alle</option>
-					<option value="draft">draft</option>
-					<option value="issued">issued</option>
-					<option value="cancelled">cancelled</option>
+					<option value="">${t('alle')}</option>
+					<option value="draft">${statusLabel('draft')}</option>
+					<option value="issued">${statusLabel('issued')}</option>
+					<option value="cancelled">${statusLabel('cancelled')}</option>
 				</select>
-				<select id="f-sort" title="Sortierung">
-					<option value="date">Datum</option>
-					<option value="number">Nummer</option>
-					<option value="amount">Betrag</option>
-					<option value="customer">Kunde</option>
-					<option value="due">Fällig</option>
+				<select id="f-sort" title="${t('Sortierung')}">
+					<option value="date">${t('Datum')}</option>
+					<option value="number">${t('Nummer')}</option>
+					<option value="amount">${t('Betrag')}</option>
+					<option value="customer">${t('Kunde')}</option>
+					<option value="due">${t('Fällig')}</option>
 				</select>
-				<select id="f-sent" title="Versandstatus">
-					<option value="">alle</option>
-					<option value="1">versendet</option>
-					<option value="0">nicht versendet</option>
+				<select id="f-sent" title="${t('Versandstatus')}">
+					<option value="">${t('alle')}</option>
+					<option value="1">${t('versendet')}</option>
+					<option value="0">${t('nicht versendet')}</option>
 				</select>
 			</div>
 			<div class="row actions">
-				<input id="f-q" placeholder="Suche (Nr, Kunde, Position)…" />
-				<button class="btn secondary" id="f-order" title="Umschalten aufsteigend/absteigend">↓ absteigend</button>
-				<a class="btn" href="#/new">+ Neu</a>
-				<button class="btn secondary" id="f-export" title="Excel-Liste">Excel</button>
-				<button class="btn secondary" id="f-csv" title="CSV für die Buchhaltung">CSV</button>
-				<button class="btn secondary" id="f-datev" title="DATEV-Buchungssätze">DATEV</button>
-				<button class="btn secondary" id="f-issue-all" title="Alle sichtbaren Entwürfe ausstellen" hidden>Ausstellen (0)</button>
+				<input id="f-q" placeholder="${t('Suche (Nr, Kunde, Position)…')}" />
+				<button class="btn secondary" id="f-order" title="${t('Umschalten aufsteigend/absteigend')}">↓ ${t('absteigend')}</button>
+				<a class="btn" href="#/new">${t('+ Neu')}</a>
+				<button class="btn secondary" id="f-export" title="${t('Excel-Liste')}">Excel</button>
+				<button class="btn secondary" id="f-csv" title="${t('CSV für die Buchhaltung')}">CSV</button>
+				<button class="btn secondary" id="f-datev" title="${t('DATEV-Buchungssätze')}">DATEV</button>
+				<button class="btn secondary" id="f-issue-all" title="${t('Alle sichtbaren Entwürfe ausstellen')}" hidden>${t('Ausstellen')} (0)</button>
 			</div>
 		</div>
 		<div id="reminders"></div>
@@ -83,7 +85,7 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 		box.disabled = true;
 		try {
 			await api.setPaid(id, want);
-			errEl.innerHTML = `<div class="card muted">${want ? 'Als bezahlt markiert.' : 'Zahlung zurückgenommen.'}</div>`;
+			errEl.innerHTML = `<div class="card muted">${want ? t('Als bezahlt markiert.') : t('Zahlung zurückgenommen.')}</div>`;
 			await load();
 		} catch (e) {
 			box.checked = !want;
@@ -117,41 +119,42 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 			visibleDrafts = items.filter(i => i.status === 'draft').map(i => i.id);
 			const issueAll = root.querySelector<HTMLButtonElement>('#f-issue-all')!;
 			issueAll.hidden = visibleDrafts.length === 0;
-			issueAll.textContent = `Ausstellen (${visibleDrafts.length})`;
+			issueAll.textContent = `${t('Ausstellen')} (${visibleDrafts.length})`;
 			listEl.innerHTML =
 				items
 					.map(
 						i => `<div class="card"><div class="row">
 					${
 						i.status === 'draft'
-							? '<span class="pay-box" title="Entwurf kann nicht als bezahlt markiert werden"></span>'
-							: `<label class="pay" title="${i.paid ? `Ausgeglichen am ${esc((i.paidAt ?? '').slice(0, 10))}` : 'Als bezahlt markieren'}">
-								<input type="checkbox" data-paid="${esc(i.id)}" ${i.paid ? 'checked' : ''} /><span>bezahlt</span></label>`
+							? `<span class="pay-box" title="${t('Entwurf kann nicht als bezahlt markiert werden')}"></span>`
+							: `<label class="pay" title="${i.paid ? t('Ausgeglichen am {date}', { date: esc((i.paidAt ?? '').slice(0, 10)) }) : t('Als bezahlt markieren')}">
+								<input type="checkbox" data-paid="${esc(i.id)}" ${i.paid ? 'checked' : ''} /><span>${t('bezahlt')}</span></label>`
 					}
-					<strong>${esc(i.number ?? '(Entwurf)')}</strong>${badge(i.status)}
+					<strong>${esc(i.number ?? t('(Entwurf)'))}</strong>${badge(i.status)}
 					<span>${esc(i.buyer.name || '—')}</span>
 					<span>${eur(i.totals.grossTotal)}</span>
-					${i.skontoPercent > 0 && !i.paid ? `<span class="muted">${eur(i.totals.grossTotal - skontoOf(i))} bei ${esc(i.skontoPercent)} % Skonto</span>` : ''}
-					${i.stornoOfId ? '<span class="badge cancelled">Storno</span>' : ''}
+					${i.skontoPercent > 0 && !i.paid ? `<span class="muted">${t('{amount} bei {percent} % Skonto', { amount: eur(i.totals.grossTotal - skontoOf(i)), percent: esc(i.skontoPercent) })}</span>` : ''}
+					${i.stornoOfId ? `<span class="badge cancelled">${t('Storno')}</span>` : ''}
 					${
 						i.status === 'issued'
 							? i.sentAt
-								? `<span class="badge issued" title="Über ${esc(
-										i.sendChannel ?? 'E-Mail',
-									)} versendet am ${esc(i.sentAt.slice(0, 10))}">versendet</span>`
-								: `<button class="secondary" data-sent="${esc(i.id)}" title="Als versendet markieren">nicht versendet</button>`
+								? `<span class="badge issued" title="${t('Über {channel} versendet am {date}', {
+										channel: esc(i.sendChannel ?? 'E-Mail'),
+										date: esc(i.sentAt.slice(0, 10)),
+									})}">${t('versendet')}</span>`
+								: `<button class="secondary" data-sent="${esc(i.id)}" title="${t('Als versendet markieren')}">${t('nicht versendet')}</button>`
 							: ''
 					}
-					<a href="#/invoices/${esc(i.id)}">Ansehen</a>
-					${i.status === 'draft' ? `<a href="#/edit/${esc(i.id)}">Bearbeiten</a>` : ''}
+					<a href="#/invoices/${esc(i.id)}">${t('Ansehen')}</a>
+					${i.status === 'draft' ? `<a href="#/edit/${esc(i.id)}">${t('Bearbeiten')}</a>` : ''}
 					${
 						i.status === 'draft'
-							? `<button class="secondary" data-del="${esc(i.id)}" title="Entwurf endgültig verwerfen">Löschen</button>`
+							? `<button class="secondary" data-del="${esc(i.id)}" title="${t('Entwurf endgültig verwerfen')}">${t('Löschen')}</button>`
 							: ''
 					}
 				</div></div>`,
 					)
-					.join('') || `<div class="card muted">Keine Rechnungen gefunden.</div>`;
+					.join('') || `<div class="card muted">${t('Keine Rechnungen gefunden.')}</div>`;
 			listEl.querySelectorAll<HTMLInputElement>('[data-paid]').forEach(box =>
 				box.addEventListener('change', () => {
 					void togglePaid(box);
@@ -169,12 +172,12 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 			);
 			listEl.querySelectorAll('[data-del]').forEach(btn =>
 				btn.addEventListener('click', async () => {
-					if (!window.confirm('Entwurf endgültig verwerfen? Das lässt sich nicht rückgängig machen.')) {
+					if (!window.confirm(t('Entwurf endgültig verwerfen? Das lässt sich nicht rückgängig machen.'))) {
 						return;
 					}
 					try {
 						await api.deleteDraft((btn as HTMLElement).dataset.del ?? '');
-						errEl.innerHTML = `<div class="card muted">Entwurf gelöscht.</div>`;
+						errEl.innerHTML = `<div class="card muted">${t('Entwurf gelöscht.')}</div>`;
 						await load();
 					} catch (e) {
 						fail(e);
@@ -193,7 +196,7 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	sentEl.onchange = () => void load();
 	orderBtn.onclick = () => {
 		order = order === 'desc' ? 'asc' : 'desc';
-		orderBtn.textContent = order === 'desc' ? '↓ absteigend' : '↑ aufsteigend';
+		orderBtn.textContent = order === 'desc' ? `↓ ${t('absteigend')}` : `↑ ${t('aufsteigend')}`;
 		void load();
 	};
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -208,7 +211,12 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	root.querySelector('#f-issue-all')?.addEventListener('click', async () => {
 		if (
 			!window.confirm(
-				`${visibleDrafts.length} Entwurf/Entwürfe ausstellen? Jede bekommt eine eigene Nummer und PDF. Danach ist keine Änderung mehr möglich.`,
+				t(
+					'{n} Entwurf/Entwürfe ausstellen? Jede bekommt eine eigene Nummer und PDF. Danach ist keine Änderung mehr möglich.',
+					{
+						n: visibleDrafts.length,
+					},
+				),
 			)
 		) {
 			return;
@@ -217,8 +225,10 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 			const res = await api.issueBatch(visibleDrafts);
 			errEl.innerHTML = `<div class="card ${
 				res.failed.length ? 'error' : 'muted'
-			}">${res.issued.length} ausgestellt${
-				res.failed.length ? `, ${res.failed.length} fehlgeschlagen: ${esc(res.failed[0].error ?? '')}` : ''
+			}">${t('{n} ausgestellt', { n: res.issued.length })}${
+				res.failed.length
+					? `, ${t('{n} fehlgeschlagen', { n: res.failed.length })}: ${esc(res.failed[0].error ?? '')}`
+					: ''
 			}.</div>`;
 			await load();
 		} catch (e) {
@@ -270,20 +280,21 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 				return;
 			}
 			remindersEl.innerHTML = `<div class="card"><div class="row">
-				<strong>Überfällig: ${due.length}</strong>
-				<span class="muted">Zahlungserinnerung – der Versand bleibt eine bewusste Handlung.</span>
+				<strong>${t('Überfällig')}: ${due.length}</strong>
+				<span class="muted">${t('Zahlungserinnerung – der Versand bleibt eine bewusste Handlung.')}</span>
 			</div><div class="row">${due
 				.map(
 					c => `<div class="card" style="flex:1">
 						<strong>${esc(c.invoice.number ?? '')}</strong> ${esc(c.invoice.buyer.name)}
-						<br /><span class="muted">${c.overdueDays} Tage überfällig · Stufe ${c.level}${
+						<br /><span class="muted">${t('{days} Tage überfällig · Stufe {level}', { days: c.overdueDays, level: c.level })}${
 							c.skontoActive
-								? ` · Skonto ${esc(c.invoice.skontoPercent)} % noch möglich bis ${esc(
-										c.invoice.skontoDueDate ?? '',
-									)}`
+								? ` · ${t('Skonto {percent} % noch möglich bis {date}', {
+										percent: esc(c.invoice.skontoPercent),
+										date: esc(c.invoice.skontoDueDate ?? ''),
+									})}`
 								: ''
 						}</span>
-						<br /><a href="#/invoices/${esc(c.invoice.id)}">Ansehen</a>
+						<br /><a href="#/invoices/${esc(c.invoice.id)}">${t('Ansehen')}</a>
 					</div>`,
 				)
 				.join('')}</div></div>`;

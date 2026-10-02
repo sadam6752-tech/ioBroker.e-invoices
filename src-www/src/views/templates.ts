@@ -1,4 +1,5 @@
 import { apiFetch, esc, fileToBase64 } from '../api';
+import { t } from '../i18n';
 
 interface Template {
 	id: string;
@@ -32,11 +33,11 @@ interface Template {
 const LOCKED = ['title', 'meta', 'parties', 'positions', 'totals'];
 const FREE = ['payment', 'notes'];
 
-/** Logo placement options with German labels. */
-const LOGO_POSITIONS: { value: 'left' | 'center' | 'right'; label: string }[] = [
-	{ value: 'right', label: 'rechts' },
-	{ value: 'left', label: 'links' },
-	{ value: 'center', label: 'zentriert' },
+/** Logo placement options, labelled in the language in use. */
+const logoPositions = (): { value: 'left' | 'center' | 'right'; label: string }[] => [
+	{ value: 'right', label: t('rechts') },
+	{ value: 'left', label: t('links') },
+	{ value: 'center', label: t('zentriert') },
 ];
 
 /**
@@ -45,7 +46,7 @@ const LOGO_POSITIONS: { value: 'left' | 'center' | 'right'; label: string }[] = 
  * @param root
  */
 export async function templates(root: HTMLElement): Promise<void> {
-	root.innerHTML = `<div class="card">Lade Vorlagen…</div>`;
+	root.innerHTML = `<div class="card">${t('Lade Vorlagen…')}</div>`;
 	let items: Template[] = [];
 	let editing: Template | null = null;
 	let error = '';
@@ -67,92 +68,101 @@ export async function templates(root: HTMLElement): Promise<void> {
 	async function apiList(): Promise<Template[]> {
 		const res = await apiFetch('/api/templates');
 		if (!res.ok) {
-			throw new Error('Vorlagen konnten nicht geladen werden');
+			throw new Error(t('Vorlagen konnten nicht geladen werden'));
 		}
 		return (await res.json()) as Template[];
 	}
 
-	function formHtml(t: Template): string {
-		const d = t.definition;
+	function formHtml(tpl: Template): string {
+		const d = tpl.definition;
 		const check = (key: string, label: string, locked: boolean): string =>
 			`<label><input type="checkbox" data-f="blocks.${key}" ${d.blocks[key] ? 'checked' : ''} ${
 				locked ? 'disabled' : ''
-			} style="width:auto" /> ${label}${locked ? ' (Pflicht)' : ''}</label>`;
+			} style="width:auto" /> ${label}${locked ? ` (${t('Pflicht')})` : ''}</label>`;
 		return `
-		<label>Name<input id="t-name" value="${esc(t.name)}" /></label>
-		<label>Verknüpfte Firma (für Vorschau)<select id="t-company">
-			<option value="">– Musterfirma –</option>
-			${companies.map(c => `<option value="${esc(c.id)}" ${t.definition.companyId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+		<label>${t('Name')}<input id="t-name" value="${esc(tpl.name)}" /></label>
+		<label>${t('Verknüpfte Firma (für Vorschau)')}<select id="t-company">
+			<option value="">${t('– Musterfirma –')}</option>
+			${companies.map(c => `<option value="${esc(c.id)}" ${tpl.definition.companyId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
 		</select></label>
 		<div class="grid2">
-			<label>Primärfarbe<input id="t-c1" type="color" value="${esc(d.colors.primary)}" /></label>
-			<label>Textfarbe<input id="t-c2" type="color" value="${esc(d.colors.text)}" /></label>
+			<label>${t('Primärfarbe')}<input id="t-c1" type="color" value="${esc(d.colors.primary)}" /></label>
+			<label>${t('Textfarbe')}<input id="t-c2" type="color" value="${esc(d.colors.text)}" /></label>
 		</div>
-		<label class="pay" title="Aus: das Dokument bleibt schwarz/weiß, die Primärfarbe wird nirgends verwendet">
-			<input type="checkbox" data-f="usePrimaryColor" ${d.usePrimaryColor !== false ? 'checked' : ''} /><span>Primärfarbe verwenden</span>
+		<label class="pay" title="${t('Aus: das Dokument bleibt schwarz/weiß, die Primärfarbe wird nirgends verwendet')}">
+			<input type="checkbox" data-f="usePrimaryColor" ${d.usePrimaryColor !== false ? 'checked' : ''} /><span>${t('Primärfarbe verwenden')}</span>
 		</label>
-		<label class="pay" title="Ohne Haken: der Titel wird in der Textfarbe gesetzt">
-			<input type="checkbox" data-f="titleAccent" ${d.titleAccent !== false ? 'checked' : ''} /><span>Rechnungstitel in Akzentfarbe</span>
+		<label class="pay" title="${t('Ohne Haken: der Titel wird in der Textfarbe gesetzt')}">
+			<input type="checkbox" data-f="titleAccent" ${d.titleAccent !== false ? 'checked' : ''} /><span>${t('Rechnungstitel in Akzentfarbe')}</span>
 		</label>
-		<label class="pay" title="Ohne Haken: nur die linke Hälfte der Kopfzeile ist eingefärbt, die rechte bleibt grau">
-			<input type="checkbox" data-f="tableHeaderAccent" ${d.tableHeaderAccent === true ? 'checked' : ''} /><span>Tabellenkopf komplett in Akzentfarbe</span>
+		<label class="pay" title="${t('Ohne Haken: nur die linke Hälfte der Kopfzeile ist eingefärbt, die rechte bleibt grau')}">
+			<input type="checkbox" data-f="tableHeaderAccent" ${d.tableHeaderAccent === true ? 'checked' : ''} /><span>${t('Tabellenkopf komplett in Akzentfarbe')}</span>
 		</label>
-		${LOCKED.map(k => check(k, `Block ${k}`, true)).join('')}
-		${FREE.map(k => check(k, `Block ${k}`, false)).join('')}
-		<label><input type="checkbox" data-f="showEmail" ${d.showEmail ? 'checked' : ''} style="width:auto" /> E-Mail im Kopf</label>
-		<label><input type="checkbox" data-f="showCustomerNumber" ${d.showCustomerNumber ? 'checked' : ''} style="width:auto" /> Kundennr. (BT-10)</label>
-		<label><input type="checkbox" data-f="showPaymentTerms" ${d.showPaymentTerms ? 'checked' : ''} style="width:auto" /> Zahlungsbedingungen</label>
-		<label><input type="checkbox" data-f="showArchiveHint" ${d.showArchiveHint ? 'checked' : ''} style="width:auto" /> §14b-Archivhinweis</label>
-		<label><input type="checkbox" data-f="showFooterBoxes" ${d.showFooterBoxes !== false ? 'checked' : ''} style="width:auto" /> Firmen-Fußzeile (4 Boxen)</label>
-		<label><input type="checkbox" data-f="showPageNumbers" ${d.showPageNumbers ? 'checked' : ''} style="width:auto" /> Seitenzahlen (ab 2 Seiten)</label>
-		<label><input type="checkbox" data-f="showTagline" ${d.showTagline !== false ? 'checked' : ''} style="width:auto" /> Adress-Tagline</label>
-		<label>Einleitungssatz<textarea id="t-intro">${esc(d.introText ?? '')}</textarea></label>
-		<label>Schlusssatz<textarea id="t-closing">${esc(d.closingText ?? '')}</textarea></label>
+		${LOCKED.map(k => check(k, t('Block {name}', { name: k }), true)).join('')}
+		${FREE.map(k => check(k, t('Block {name}', { name: k }), false)).join('')}
+		<label><input type="checkbox" data-f="showEmail" ${d.showEmail ? 'checked' : ''} style="width:auto" /> ${t('E-Mail im Kopf')}</label>
+		<label><input type="checkbox" data-f="showCustomerNumber" ${d.showCustomerNumber ? 'checked' : ''} style="width:auto" /> ${t('Kundennr. (BT-10)')}</label>
+		<label><input type="checkbox" data-f="showPaymentTerms" ${d.showPaymentTerms ? 'checked' : ''} style="width:auto" /> ${t('Zahlungsbedingungen')}</label>
+		<label><input type="checkbox" data-f="showArchiveHint" ${d.showArchiveHint ? 'checked' : ''} style="width:auto" /> ${t('§14b-Archivhinweis')}</label>
+		<label><input type="checkbox" data-f="showFooterBoxes" ${d.showFooterBoxes !== false ? 'checked' : ''} style="width:auto" /> ${t('Firmen-Fußzeile (4 Boxen)')}</label>
+		<label><input type="checkbox" data-f="showPageNumbers" ${d.showPageNumbers ? 'checked' : ''} style="width:auto" /> ${t('Seitenzahlen (ab 2 Seiten)')}</label>
+		<label><input type="checkbox" data-f="showTagline" ${d.showTagline !== false ? 'checked' : ''} style="width:auto" /> ${t('Adress-Tagline')}</label>
+		<label>${t('Einleitungssatz')}<textarea id="t-intro">${esc(d.introText ?? '')}</textarea></label>
+		<label>${t('Schlusssatz')}<textarea id="t-closing">${esc(d.closingText ?? '')}</textarea></label>
 		<div class="grid2">
-			<label title="Leer lassen: es wird kein Name gedruckt">Unterschrift (Name, optional)<input id="t-sign" value="${esc(d.signatureName ?? '')}" /></label>
-			<label>Kopfzusatz (z.B. Geschäftsführer)<input id="t-hextra" value="${esc(d.headerExtra ?? '')}" /></label>
+			<label title="${t('Leer lassen: es wird kein Name gedruckt')}">${t('Unterschrift (Name, optional)')}<input id="t-sign" value="${esc(d.signatureName ?? '')}" /></label>
+			<label>${t('Kopfzusatz (z.B. Geschäftsführer)')}<input id="t-hextra" value="${esc(d.headerExtra ?? '')}" /></label>
 		</div>
-		<label>Fußzeile<textarea id="t-footer">${esc(d.footerText)}</textarea></label>
+		<label>${t('Fußzeile')}<textarea id="t-footer">${esc(d.footerText)}</textarea></label>
 		<div class="grid2">
-			<label>Logo-Position<select id="t-lpos">
-				${LOGO_POSITIONS.map(p => `<option value="${p.value}" ${d.logo?.position === p.value ? 'selected' : ''}>${p.label}</option>`).join('')}
+			<label>${t('Logo-Position')}<select id="t-lpos">
+				${logoPositions()
+					.map(
+						p =>
+							`<option value="${p.value}" ${d.logo?.position === p.value ? 'selected' : ''}>${p.label}</option>`,
+					)
+					.join('')}
 			</select></label>
-			<label>Logo-Breite (mm)<input id="t-lw" type="number" min="10" max="500" value="${d.logo?.widthMm ?? 30}" /></label>
+			<label>${t('Logo-Breite (mm)')}<input id="t-lw" type="number" min="10" max="500" value="${d.logo?.widthMm ?? 30}" /></label>
 		</div>
-		<label class="pay" title="Ohne Haken erscheint das Logo nur auf der ersten Seite">
-			<input type="checkbox" id="t-lall" ${d.logo?.allPages ? 'checked' : ''} /><span>Logo auf allen Seiten anzeigen</span>
+		<label class="pay" title="${t('Ohne Haken erscheint das Logo nur auf der ersten Seite')}">
+			<input type="checkbox" id="t-lall" ${d.logo?.allPages ? 'checked' : ''} /><span>${t('Logo auf allen Seiten anzeigen')}</span>
 		</label>
-		<label>Logo (PNG/JPEG, max. 2 MB)<input id="t-logo" type="file" accept="image/png,image/jpeg" /></label>
-		${d.logo ? `<p class="muted">Aktuell: ${esc(d.logo.path)}</p>` : ''}`;
+		<label>${t('Logo (PNG/JPEG, max. 2 MB)')}<input id="t-logo" type="file" accept="image/png,image/jpeg" /></label>
+		${d.logo ? `<p class="muted">${t('Aktuell')}: ${esc(d.logo.path)}</p>` : ''}`;
 	}
 
 	function render(): void {
 		root.innerHTML = `
-		<div class="card"><div class="row"><strong>Druckvorlagen</strong>
-			<button id="t-new">+ Neu</button></div>
-			<p class="muted">Aussehen der PDF-Rechnung: Logo, Farben, Kopf- und Fußzeilen. Die inhaltlichen
-				Positionen legst du unter <a href="#/invoice-templates">Rechnungsvorlagen</a> oder
-				<a href="#/products">Positionen</a> fest.</p>
+		<div class="card"><div class="row"><strong>${t('Druckvorlagen')}</strong>
+			<button id="t-new">${t('+ Neu')}</button></div>
+			<p class="muted">${t(
+				'Aussehen der PDF-Rechnung: Logo, Farben, Kopf- und Fußzeilen. Die inhaltlichen Positionen legst du unter {templates} oder {items} fest.',
+				{
+					templates: `<a href="#/invoice-templates">${t('Rechnungsvorlagen')}</a>`,
+					items: `<a href="#/products">${t('Positionen')}</a>`,
+				},
+			)}</p>
 			${
 				items
 					.map(
-						t => `<div class="row" style="margin-top:8px">
-				<strong>${esc(t.name)}</strong><span class="muted">v${t.version}</span>
-				${t.isDefault ? `<span class="badge issued">Standard</span>` : ''}
-				<button class="secondary" data-edit="${t.id}">Bearbeiten</button>
-				<button class="secondary" data-prev="${t.id}">Vorschau</button>
-				${t.isDefault ? '' : `<button class="secondary" data-def="${t.id}">Standard</button>`}
-				${t.isDefault ? '' : `<button class="danger" data-del="${t.id}">Löschen</button>`}
+						tpl => `<div class="row" style="margin-top:8px">
+				<strong>${esc(tpl.name)}</strong><span class="muted">v${tpl.version}</span>
+				${tpl.isDefault ? `<span class="badge issued">${t('Standard')}</span>` : ''}
+				<button class="secondary" data-edit="${tpl.id}">${t('Bearbeiten')}</button>
+				<button class="secondary" data-prev="${tpl.id}">${t('Vorschau')}</button>
+				${tpl.isDefault ? '' : `<button class="secondary" data-def="${tpl.id}">${t('Standard')}</button>`}
+				${tpl.isDefault ? '' : `<button class="danger" data-del="${tpl.id}">${t('Löschen')}</button>`}
 			</div>`,
 					)
-					.join('') || '<p class="muted">Noch keine Vorlagen.</p>'
+					.join('') || `<p class="muted">${t('Noch keine Vorlagen.')}</p>`
 			}
 		</div>
 		${
 			editing
-				? `<div class="card"><h3>${esc(editing.id === 'neu' ? 'Neue Vorlage' : editing.name)}</h3>${formHtml(editing)}
+				? `<div class="card"><h3>${esc(editing.id === 'neu' ? t('Neue Vorlage') : editing.name)}</h3>${formHtml(editing)}
 			${error ? `<p class="error">${esc(error)}</p>` : ''}
-			<div class="row"><button id="t-save">Speichern</button><button class="secondary" id="t-preview">Vorschau (Entwurf)</button><button class="secondary" id="t-cancel">Abbrechen</button></div>
+			<div class="row"><button id="t-save">${t('Speichern')}</button><button class="secondary" id="t-preview">${t('Vorschau (Entwurf)')}</button><button class="secondary" id="t-cancel">${t('Abbrechen')}</button></div>
 		</div>`
 				: ''
 		}`;
@@ -163,7 +173,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 				const list = (await res.json()) as Template[];
 				const first = list[0];
 				if (!first) {
-					error = 'Keine Basisvorlage vorhanden';
+					error = t('Keine Basisvorlage vorhanden');
 					render();
 					return;
 				}
@@ -177,9 +187,9 @@ export async function templates(root: HTMLElement): Promise<void> {
 		});
 		root.querySelectorAll('[data-edit]').forEach(b =>
 			b.addEventListener('click', () => {
-				const t = items.find(x => x.id === (b as HTMLElement).dataset.edit);
-				if (t) {
-					editing = structuredClone(t);
+				const tpl = items.find(x => x.id === (b as HTMLElement).dataset.edit);
+				if (tpl) {
+					editing = structuredClone(tpl);
 					error = '';
 					render();
 				}
@@ -187,19 +197,19 @@ export async function templates(root: HTMLElement): Promise<void> {
 		);
 		root.querySelectorAll('[data-prev]').forEach(b =>
 			b.addEventListener('click', async () => {
-				const t = items.find(x => x.id === (b as HTMLElement).dataset.prev);
-				if (!t) {
+				const tpl = items.find(x => x.id === (b as HTMLElement).dataset.prev);
+				if (!tpl) {
 					return;
 				}
 				try {
 					const res = await apiFetch('/api/templates/preview', {
 						method: 'POST',
 						headers: { 'content-type': 'application/json' },
-						body: JSON.stringify({ definition: t.definition }),
+						body: JSON.stringify({ definition: tpl.definition }),
 					});
 					if (!res.ok) {
 						const j = (await res.json().catch(() => ({}))) as { error?: string };
-						throw new Error(j.error ?? 'Vorschau fehlgeschlagen');
+						throw new Error(j.error ?? t('Vorschau fehlgeschlagen'));
 					}
 					const blob = await res.blob();
 					window.open(URL.createObjectURL(blob), '_blank');
@@ -216,7 +226,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 						method: 'POST',
 					});
 					if (!res.ok) {
-						throw new Error('Umschalten fehlgeschlagen');
+						throw new Error(t('Umschalten fehlgeschlagen'));
 					}
 					editing = null;
 					await reload();
@@ -231,7 +241,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 				const res = await apiFetch(`/api/templates/${(b as HTMLElement).dataset.del}`, { method: 'DELETE' });
 				if (!res.ok) {
 					const j = (await res.json().catch(() => ({}))) as { error?: string };
-					error = j.error ?? 'Löschen fehlgeschlagen';
+					error = j.error ?? t('Löschen fehlgeschlagen');
 					render();
 					return;
 				}
@@ -257,7 +267,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 				});
 				if (!res.ok) {
 					const j = (await res.json().catch(() => ({}))) as { error?: string };
-					throw new Error(j.error ?? 'Vorschau fehlgeschlagen');
+					throw new Error(j.error ?? t('Vorschau fehlgeschlagen'));
 				}
 				window.open(URL.createObjectURL(await res.blob()), '_blank');
 			} catch (e) {
@@ -339,7 +349,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 				if (!res.ok) {
 					throw new Error(
 						((await res.json().catch(() => ({}))) as { error?: string }).error ??
-							'Speichern fehlgeschlagen',
+							t('Speichern fehlgeschlagen'),
 					);
 				}
 				id = ((await res.json()) as Template).id;
@@ -352,7 +362,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 				if (!res.ok) {
 					throw new Error(
 						((await res.json().catch(() => ({}))) as { error?: string }).error ??
-							'Speichern fehlgeschlagen',
+							t('Speichern fehlgeschlagen'),
 					);
 				}
 			}
@@ -367,7 +377,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 				if (!res.ok) {
 					throw new Error(
 						((await res.json().catch(() => ({}))) as { error?: string }).error ??
-							'Logo-Upload fehlgeschlagen',
+							t('Logo-Upload fehlgeschlagen'),
 					);
 				}
 			}

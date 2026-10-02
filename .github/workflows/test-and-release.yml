@@ -61,7 +61,7 @@ jobs:
           # be green without running one of the 225 tests. The package tests belong
           # here as well; the repo checker expects them in the test run.
           unit-test-check-pattern: "test:ts"
-          unit-test-command: "npm run test:ts && npm run test:api && npm run test:pwa && npm run test:i18n && npm run test:package"
+          unit-test-command: "npm run test:ts && npm run test:api && npm run test:pwa && npm run test:i18n && npm run test:pwa-i18n && npm run test:package"
 
 # Deploys the final package to npm — only on a pushed version tag (e.g. v0.0.1),
 # never on a branch push.

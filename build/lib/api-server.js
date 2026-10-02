@@ -243,21 +243,23 @@ function secretEquals(provided, expected) {
   return (0, import_node_crypto.timingSafeEqual)(a, b);
 }
 function createApiServer(deps) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
   const { db, storage, log, version, authToken } = deps;
   const settings = {
     defaultVatRate: import_invoice_model.ALLOWED_VAT_RATES.includes(Number((_a = deps.settings) == null ? void 0 : _a.defaultVatRate)) ? Number((_b = deps.settings) == null ? void 0 : _b.defaultVatRate) : 19,
     defaultPaymentTerms: (_e = (_d = (_c = deps.settings) == null ? void 0 : _c.defaultPaymentTerms) == null ? void 0 : _d.trim()) != null ? _e : "",
-    numberFormat: ((_g = (_f = deps.settings) == null ? void 0 : _f.numberFormat) == null ? void 0 : _g.trim()) || import_invoice_model.DEFAULT_NUMBER_FORMAT,
+    // only languages the web app really ships; anything else means "decide in the browser"
+    pwaLanguage: ["de", "en"].includes(String((_f = deps.settings) == null ? void 0 : _f.pwaLanguage)) ? String((_g = deps.settings) == null ? void 0 : _g.pwaLanguage) : "auto",
+    numberFormat: ((_i = (_h = deps.settings) == null ? void 0 : _h.numberFormat) == null ? void 0 : _i.trim()) || import_invoice_model.DEFAULT_NUMBER_FORMAT,
     // R8: quotations number in their own circle, so the PWA shows the
     // matching format next to the invoice one.
-    quoteNumberFormat: ((_i = (_h = deps.settings) == null ? void 0 : _h.quoteNumberFormat) == null ? void 0 : _i.trim()) || import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
-    storageMount: (_l = (_k = (_j = deps.settings) == null ? void 0 : _j.storageMount) == null ? void 0 : _k.trim()) != null ? _l : "",
-    backupIntervalMinutes: Math.max(0, Math.round(Number((_m = deps.settings) == null ? void 0 : _m.backupIntervalMinutes) || 0))
+    quoteNumberFormat: ((_k = (_j = deps.settings) == null ? void 0 : _j.quoteNumberFormat) == null ? void 0 : _k.trim()) || import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
+    storageMount: (_n = (_m = (_l = deps.settings) == null ? void 0 : _l.storageMount) == null ? void 0 : _m.trim()) != null ? _n : "",
+    backupIntervalMinutes: Math.max(0, Math.round(Number((_o = deps.settings) == null ? void 0 : _o.backupIntervalMinutes) || 0))
   };
   const limits = {
-    api: Math.max(1, Math.round((_o = (_n = deps.limits) == null ? void 0 : _n.api) != null ? _o : 600)),
-    restore: Math.max(1, Math.round((_q = (_p = deps.limits) == null ? void 0 : _p.restore) != null ? _q : 10))
+    api: Math.max(1, Math.round((_q = (_p = deps.limits) == null ? void 0 : _p.api) != null ? _q : 600)),
+    restore: Math.max(1, Math.round((_s = (_r = deps.limits) == null ? void 0 : _r.restore) != null ? _s : 10))
   };
   const app = (0, import_express.default)();
   app.disable("x-powered-by");
@@ -348,7 +350,13 @@ function createApiServer(deps) {
     }
   };
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", version, schemaVersion: db.currentVersion(), counts: db.countByStatus() });
+    res.json({
+      status: "ok",
+      version,
+      schemaVersion: db.currentVersion(),
+      counts: db.countByStatus(),
+      pwaLanguage: settings.pwaLanguage
+    });
   });
   app.get("/api/settings", (_req, res) => {
     res.json(settings);

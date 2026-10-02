@@ -7,6 +7,7 @@
  * below is display only; number circle, validation and the artifacts stay the
  * server's decision.
  */
+import { t } from './i18n';
 
 /** Document types the adapter stores. */
 export type DocType = 'invoice' | 'quote';
@@ -54,49 +55,58 @@ export const QUOTE_TITLES: string[] = ['Angebot', 'Kostenvoranschlag'];
 /** Default validity of an offer in days (mirrors QUOTE_VALIDITY_DAYS). */
 export const QUOTE_VALIDITY_DAYS = 30;
 
-/** Wording of an invoice: a booked e-invoice. */
-const INVOICE_LABELS: DocLabels = {
-	one: 'Rechnung',
-	plural: 'Rechnungen',
-	number: 'Rechnungsnr.:',
-	date: 'Rechnungsdatum:',
-	delivery: 'Lieferdatum:',
-	due: 'Fällig am:',
-	validUntil: 'Gültig bis:',
-	perDocument: 'je Rechnung',
-	defaultTitle: 'Rechnung',
-	titles: INVOICE_TITLES,
-	newOne: '+ Neue Rechnung',
-	issue: 'Ausstellen',
-	issueConfirm: 'Wirklich ausstellen? Danach ist keine Änderung mehr möglich (GoBD).',
-	hint:
-		'Eine ausgestellte Rechnung ist eine E-Rechnung: PDF/A-3 mit XML, eigenes Mahnwesen und ' +
-		'Buchhaltungsexport.',
-	offer: false,
-};
+/**
+ * Wording of an invoice: a booked e-invoice.
+ *
+ * Built per call because the language of the page is chosen at start-up (R7.2);
+ * the German sentences are the keys of `t()` and stay the wording of the PDF.
+ */
+function invoiceLabels(): DocLabels {
+	return {
+		one: t('Rechnung'),
+		plural: t('Rechnungen'),
+		number: t('Rechnungsnr.:'),
+		date: t('Rechnungsdatum:'),
+		delivery: t('Lieferdatum:'),
+		due: t('Fällig am:'),
+		validUntil: t('Gültig bis:'),
+		perDocument: t('je Rechnung'),
+		defaultTitle: 'Rechnung',
+		titles: INVOICE_TITLES,
+		newOne: t('+ Neue Rechnung'),
+		issue: t('Ausstellen'),
+		issueConfirm: t('Wirklich ausstellen? Danach ist keine Änderung mehr möglich (GoBD).'),
+		hint: t(
+			'Eine ausgestellte Rechnung ist eine E-Rechnung: PDF/A-3 mit XML, eigenes Mahnwesen und Buchhaltungsexport.',
+		),
+		offer: false,
+	};
+}
 
 /** Wording of an offer: a plain sight PDF, never an e-invoice. */
-const QUOTE_LABELS: DocLabels = {
-	one: 'Angebot',
-	plural: 'Angebote',
-	number: 'Angebotsnr.:',
-	date: 'Angebotsdatum:',
-	delivery: 'Leistungszeitraum:',
-	due: 'Zahlungsziel:',
-	validUntil: 'Gültig bis:',
-	perDocument: 'je Angebot',
-	defaultTitle: 'Angebot',
-	titles: QUOTE_TITLES,
-	newOne: '+ Neues Angebot',
-	issue: 'Ausstellen',
-	issueConfirm:
-		'Wirklich ausstellen? Das Angebot bekommt seine Nummer aus dem Angebotsnummernkreis und die ' +
-		'PDF wird geschrieben. Danach ist keine Änderung mehr möglich.',
-	hint:
-		'Ein Angebot ist keine E-Rechnung: gespeichert wird ein Sicht-PDF ohne XML, gemahnt wird nie und ' +
-		'in den Buchhaltungsexporten taucht es nicht auf.',
-	offer: true,
-};
+function quoteLabels(): DocLabels {
+	return {
+		one: t('Angebot'),
+		plural: t('Angebote'),
+		number: t('Angebotsnr.:'),
+		date: t('Angebotsdatum:'),
+		delivery: t('Leistungszeitraum:'),
+		due: t('Zahlungsziel:'),
+		validUntil: t('Gültig bis:'),
+		perDocument: t('je Angebot'),
+		defaultTitle: 'Angebot',
+		titles: QUOTE_TITLES,
+		newOne: t('+ Neues Angebot'),
+		issue: t('Ausstellen'),
+		issueConfirm: t(
+			'Wirklich ausstellen? Das Angebot bekommt seine Nummer aus dem Angebotsnummernkreis und die PDF wird geschrieben. Danach ist keine Änderung mehr möglich.',
+		),
+		hint: t(
+			'Ein Angebot ist keine E-Rechnung: gespeichert wird ein Sicht-PDF ohne XML, gemahnt wird nie und in den Buchhaltungsexporten taucht es nicht auf.',
+		),
+		offer: true,
+	};
+}
 
 /**
  * Narrows an unknown value to a supported document type (default invoice).
@@ -122,7 +132,7 @@ export function isQuote(docType?: string | null): boolean {
  * @param docType - Document type, defaults to invoice.
  */
 export function labels(docType?: string | null): DocLabels {
-	return isQuote(docType) ? QUOTE_LABELS : INVOICE_LABELS;
+	return isQuote(docType) ? quoteLabels() : invoiceLabels();
 }
 
 /**
@@ -200,21 +210,39 @@ export function quoteState(quote: QuoteLifecycle, today: string = new Date().toI
 }
 
 /**
- * German label of an offer state (mirrors quoteStateLabel).
+ * Label of an offer state (German on the sight PDF — mirrors quoteStateLabel).
  *
  * @param state - Derived state.
  */
 export function quoteStateLabel(state: QuoteState): string {
 	switch (state) {
 		case 'draft':
-			return 'Entwurf';
+			return t('Entwurf');
 		case 'open':
-			return 'Offen';
+			return t('Offen');
 		case 'accepted':
-			return 'Angenommen';
+			return t('Angenommen');
 		case 'rejected':
-			return 'Abgelehnt';
+			return t('Abgelehnt');
 		default:
-			return 'Verfallen';
+			return t('Verfallen');
+	}
+}
+
+/**
+ * Label of the lifecycle status of a record (`draft`, `issued`, `cancelled`).
+ *
+ * @param status - Status as the API sends it.
+ */
+export function statusLabel(status: string): string {
+	switch (status) {
+		case 'draft':
+			return t('Entwurf');
+		case 'issued':
+			return t('ausgestellt');
+		case 'cancelled':
+			return t('storniert');
+		default:
+			return status;
 	}
 }

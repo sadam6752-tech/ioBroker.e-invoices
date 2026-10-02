@@ -32,5 +32,7 @@
     "VAT ID (USt-IdNr.)":  "Номер ПДВ",
     "Website":  "Вебсайт",
     "Dunning check interval in hours":  "Інтервал нагадувань у годинах",
-    "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = вимкнено. Адаптер лише рахує прострочені рахунки в info.overdue*, сам листа не надсилає."
+    "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = вимкнено. Адаптер лише рахує прострочені рахунки в info.overdue*, сам листа не надсилає.",
+    "Web app language":  "Мова веб-застосунку",
+    "auto = language of the browser; German and English are available":  "auto = мова браузера; доступні німецька та англійська"
 }

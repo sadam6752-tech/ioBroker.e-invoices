@@ -32,5 +32,7 @@
     "VAT ID (USt-IdNr.)":  "N° de TVA",
     "Website":  "Site web",
     "Dunning check interval in hours":  "Intervalle de relance en heures",
-    "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = désactivé. L\u0027adaptateur ne compte que les factures échues dans info.overdue*, il n\u0027envoie aucun e-mail lui-même."
+    "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = désactivé. L\u0027adaptateur ne compte que les factures échues dans info.overdue*, il n\u0027envoie aucun e-mail lui-même.",
+    "Web app language":  "Langue de l'application web",
+    "auto = language of the browser; German and English are available":  "auto = langue du navigateur ; allemand et anglais disponibles"
 }

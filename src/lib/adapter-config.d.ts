@@ -7,6 +7,8 @@ declare global {
 			port: number;
 			bind: string;
 			authToken: string;
+			/** Start language of the web app: `auto` (browser), `de` or `en`. */
+			pwaLanguage?: string;
 			/** ioBroker file mount for the artifacts, empty = own data directory. */
 			storageMount?: string;
 			/** Automatic backup interval in minutes, 0 = off. */

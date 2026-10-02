@@ -1,4 +1,5 @@
 import { api, esc, eur, type Product, type InvoiceTemplate } from '../api';
+import { t } from '../i18n';
 
 /** One line of a template preview. */
 interface TemplateLine {
@@ -52,19 +53,19 @@ function netOf(lines: TemplateLine[]): number {
  */
 function lineRow(l: TemplateLine, i: number, vatRates: number[]): string {
 	return `<div class="card line" style="background:var(--bg)">
-		<div class="line-head"><span class="line-no">${i + 1}</span><strong>Position ${i + 1}</strong>
-			<button class="secondary" data-tpl-del-line="${i}">Entfernen</button></div>
+		<div class="line-head"><span class="line-no">${i + 1}</span><strong>${t('Position {n}', { n: i + 1 })}</strong>
+			<button class="secondary" data-tpl-del-line="${i}">${t('Entfernen')}</button></div>
 		<div class="grid2">
-			<label>Bezeichnung<input data-tpl-line="${i}.description" value="${esc(l.description)}" /></label>
-			<label>Art.Nr.<input data-tpl-line="${i}.sku" value="${esc((l as { sku?: string }).sku ?? '')}" /></label>
+			<label>${t('Bezeichnung')}<input data-tpl-line="${i}.description" value="${esc(l.description)}" /></label>
+			<label>${t('Art.Nr.')}<input data-tpl-line="${i}.sku" value="${esc((l as { sku?: string }).sku ?? '')}" /></label>
 		</div>
 		<div class="grid2">
-			<label>Menge<input data-tpl-line="${i}.quantity" type="number" min="0" step="any" value="${esc(l.quantity)}" /></label>
-			<label>Einheit<input data-tpl-line="${i}.unit" value="${esc(l.unit)}" /></label>
+			<label>${t('Menge')}<input data-tpl-line="${i}.quantity" type="number" min="0" step="any" value="${esc(l.quantity)}" /></label>
+			<label>${t('Einheit')}<input data-tpl-line="${i}.unit" value="${esc(l.unit)}" /></label>
 		</div>
 		<div class="grid2">
-			<label>Preis netto<input data-tpl-line="${i}.unitPriceNet" type="number" min="0" step="0.01" value="${esc(l.unitPriceNet)}" /></label>
-			<label>USt %<select data-tpl-line="${i}.vatRate">
+			<label>${t('Preis netto')}<input data-tpl-line="${i}.unitPriceNet" type="number" min="0" step="0.01" value="${esc(l.unitPriceNet)}" /></label>
+			<label>${t('USt %')}<select data-tpl-line="${i}.vatRate">
 				${vatRates.map(r => `<option ${Number(r) === Number(l.vatRate) ? 'selected' : ''}>${r}</option>`).join('')}
 			</select></label>
 		</div>
@@ -81,7 +82,7 @@ const VAT_RATES = [19, 7, 0];
  * @param root
  */
 export async function invoiceTemplates(root: HTMLElement): Promise<void> {
-	root.innerHTML = `<div class="card">Lade Rechnungsvorlagen…</div>`;
+	root.innerHTML = `<div class="card">${t('Lade Rechnungsvorlagen…')}</div>`;
 	let items: InvoiceTemplate[] = [];
 	/** Catalog lines offered next to "add position". */
 	let catalog: Product[] = [];
@@ -154,41 +155,40 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 	function render(): void {
 		const net = netOf(collectLines());
 		root.innerHTML = `
-		<div class="card"><div class="row"><strong>Rechnungsvorlagen</strong>
-			<button id="t-new">+ Neue Vorlage</button>
+		<div class="card"><div class="row"><strong>${t('Rechnungsvorlagen')}</strong>
+			<button id="t-new">${t('+ Neue Vorlage')}</button>
 			${message ? `<span class="${isError ? 'error' : 'muted'}">${esc(message)}</span>` : ''}</div>
-			<p class="muted">Wiederkehrende Rechnungen (Wartung, Honorar, Abo) einmal anlegen und im Assistenten
-				übernehmen. Käufer und Datum werden bewusst nicht gespeichert.</p>
+			<p class="muted">${t('Wiederkehrende Rechnungen (Wartung, Honorar, Abo) einmal anlegen und im Assistenten übernehmen. Käufer und Datum werden bewusst nicht gespeichert.')}</p>
 			${
 				items
-					.map(t => {
-						const b = readBody(t.body);
+					.map(tpl => {
+						const b = readBody(tpl.body);
 						return `<div class="row" style="margin-top:8px">
-						<strong>${esc(t.name)}</strong>
-						<span class="muted">${b.lines.length} Position(en) · ${eur(netOf(b.lines))}${b.skontoPercent ? ` · ${b.skontoPercent} % Skonto` : ''}</span>
-						<button class="secondary" data-tpl-edit="${esc(t.id)}">Bearbeiten</button>
-						<button class="danger" data-tpl-del="${esc(t.id)}">Löschen</button>
+						<strong>${esc(tpl.name)}</strong>
+						<span class="muted">${t('{n} Position(en)', { n: b.lines.length })} · ${eur(netOf(b.lines))}${b.skontoPercent ? ` · ${t('{percent} % Skonto', { percent: b.skontoPercent })}` : ''}</span>
+						<button class="secondary" data-tpl-edit="${esc(tpl.id)}">${t('Bearbeiten')}</button>
+						<button class="danger" data-tpl-del="${esc(tpl.id)}">${t('Löschen')}</button>
 					</div>`;
 					})
-					.join('') || '<p class="muted">Noch keine Vorlagen.</p>'
+					.join('') || `<p class="muted">${t('Noch keine Vorlagen.')}</p>`
 			}
 		</div>
 		${
 			formOpen
-				? `<div class="card"><h3>${editing ? esc(editing.name) : 'Neue Vorlage'}</h3>
-					<label>Name<input id="t-name" value="${esc(editing?.name ?? '')}" placeholder="z. B. Monatliche Wartung" /></label>
-					<label>Zahlungsbedingungen<input id="t-terms" value="${esc(draftTerms)}" placeholder="Zahlbar innerhalb von 14 Tagen" /></label>
+				? `<div class="card"><h3>${editing ? esc(editing.name) : t('Neue Vorlage')}</h3>
+					<label>${t('Name')}<input id="t-name" value="${esc(editing?.name ?? '')}" placeholder="${t('z. B. Monatliche Wartung')}" /></label>
+					<label>${t('Zahlungsbedingungen')}<input id="t-terms" value="${esc(draftTerms)}" placeholder="${t('Zahlbar innerhalb von 14 Tagen')}" /></label>
 					<div class="grid2">
-						<label>Skonto %<input id="t-skonto" type="number" min="0" max="20" step="0.5" value="${esc(draftSkonto)}" /></label>
+						<label>${t('Skonto %')}<input id="t-skonto" type="number" min="0" max="20" step="0.5" value="${esc(draftSkonto)}" /></label>
 						<label>&nbsp;</label>
 					</div>
-					<label>Notiz<textarea id="t-notes" rows="2">${esc(draftNotes)}</textarea></label>
-					<p class="muted">Summe netto: <strong>${eur(net)}</strong></p>
+					<label>${t('Notiz')}<textarea id="t-notes" rows="2">${esc(draftNotes)}</textarea></label>
+					<p class="muted">${t('Summe netto')}: <strong>${eur(net)}</strong></p>
 					${
 						catalog.length > 0
 							? `<div class="row">
-								<label style="flex:1">Aus dem Positionskatalog übernehmen<select id="t-catalog">
-									<option value="">– Position wählen –</option>
+								<label style="flex:1">${t('Aus dem Positionskatalog übernehmen')}<select id="t-catalog">
+									<option value="">${t('– Position wählen –')}</option>
 									${catalog
 										.map(
 											p =>
@@ -198,14 +198,14 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 										)
 										.join('')}
 								</select></label>
-								<button class="secondary" id="t-take" style="align-self:end">Position hinzufügen</button>
+								<button class="secondary" id="t-take" style="align-self:end">${t('Position hinzufügen')}</button>
 							</div>`
-							: `<p class="muted">Unter <a href="#/products">Positionen</a> kannst du den Katalog pflegen.</p>`
+							: `<p class="muted">${t('Unter {link} kannst du den Katalog pflegen.', { link: `<a href="#/products">${t('Positionen')}</a>` })}</p>`
 					}
 					${draftLines.map((l, i) => lineRow(l, i, VAT_RATES)).join('')}
-					<button class="secondary" id="t-add-line">+ Leere Position</button>
-					<p><button id="t-save">Speichern</button>
-					<button class="secondary" id="t-cancel">Abbrechen</button></p>
+					<button class="secondary" id="t-add-line">${t('+ Leere Position')}</button>
+					<p><button id="t-save">${t('Speichern')}</button>
+					<button class="secondary" id="t-cancel">${t('Abbrechen')}</button></p>
 				</div>`
 				: ''
 		}`;
@@ -213,20 +213,20 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 		root.querySelector('#t-new')?.addEventListener('click', () => startEdit(null));
 		root.querySelectorAll('[data-tpl-edit]').forEach(btn =>
 			btn.addEventListener('click', () => {
-				const t = items.find(x => x.id === (btn as HTMLElement).dataset.tplEdit);
-				if (t) {
-					startEdit(t);
+				const tpl = items.find(x => x.id === (btn as HTMLElement).dataset.tplEdit);
+				if (tpl) {
+					startEdit(tpl);
 				}
 			}),
 		);
 		root.querySelectorAll('[data-tpl-del]').forEach(btn =>
 			btn.addEventListener('click', async () => {
-				if (!window.confirm('Vorlage löschen? Bereits ausgestellte Rechnungen bleiben unverändert.')) {
+				if (!window.confirm(t('Vorlage löschen? Bereits ausgestellte Rechnungen bleiben unverändert.'))) {
 					return;
 				}
 				try {
 					await api.invoiceTemplates.remove((btn as HTMLElement).dataset.tplDel ?? '');
-					message = 'Vorlage gelöscht.';
+					message = t('Vorlage gelöscht.');
 					isError = false;
 					await reload();
 				} catch (e) {
@@ -279,14 +279,14 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 		root.querySelector('#t-save')?.addEventListener('click', async () => {
 			const name = root.querySelector<HTMLInputElement>('#t-name')?.value.trim() ?? '';
 			if (!name) {
-				message = 'Bitte einen Namen vergeben.';
+				message = t('Bitte einen Namen vergeben.');
 				isError = true;
 				render();
 				return;
 			}
 			const lines = collectLines().filter(l => l.description.trim() !== '');
 			if (lines.length === 0) {
-				message = 'Mindestens eine Position mit Bezeichnung nötig.';
+				message = t('Mindestens eine Position mit Bezeichnung nötig.');
 				isError = true;
 				render();
 				return;
@@ -303,7 +303,7 @@ export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 				} else {
 					await api.invoiceTemplates.create(name, body);
 				}
-				message = `Gespeichert: ${name}`;
+				message = t('Gespeichert: {name}', { name });
 				isError = false;
 				editing = null;
 				formOpen = false;
