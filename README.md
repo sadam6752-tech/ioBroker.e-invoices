@@ -331,7 +331,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.8.6 (2026-10-03)
 
 * (alex) New logo: the envelope with the euro sheet is the adapter icon now (admin, installed web app, favicon). The web app icons are generated from `admin/e-invoices.svg` (`node src-www/scripts/make-icons.mjs`).
 * (alex) Print templates got two header distances in mm from the top edge of the sheet: where the logo starts and where the header text (sender line, recipient, invoice data) starts. Empty keeps the layout as it was; the preview uses the values too. An update of a template only merges what it receives, so an emptied field is sent as `null` — which also fixes unlinking the company from a template.
