@@ -378,7 +378,7 @@ ${!quote ? `<button class="secondary" id="d-as-tpl" title="${t('Legt eine Rechnu
 		for (const [selector, layout] of [
 			['#d-rerender', 'current'],
 			['#d-rerender-issued', 'issued'],
-		] as const)
+		] as const) {
 			root.querySelector(selector)?.addEventListener('click', async () => {
 				const reason = window.prompt(
 					t('Grund für das Neu rendern (wird protokolliert, z. B. "Layout-Korrektur"):'),
@@ -441,6 +441,7 @@ ${!quote ? `<button class="secondary" id="d-as-tpl" title="${t('Legt eine Rechnu
 					out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
 				}
 			});
+		}
 		root.querySelector('#d-storno')?.addEventListener('click', async () => {
 			const reason = window.prompt(
 				t('Grund für den Storno (erscheint auf der Gutschrift):'),
