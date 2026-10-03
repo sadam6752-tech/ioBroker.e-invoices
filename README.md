@@ -348,7 +348,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.8.8 (2026-10-03)
 
 * (alex) Fix: lint error in the web app (braces around the re-render button loop) that kept release 0.8.7 from passing the checks. Same content as 0.8.7.
 
