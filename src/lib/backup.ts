@@ -147,6 +147,14 @@ function assertSafeRecords(dump: DatabaseDump): void {
 				}
 			}
 		}
+		// R7.8: the frozen layout carries a logo path too, and it is read from disk on re-render
+		const frozenLogo = invoice.templateSnapshot?.definition?.logo?.path;
+		if (frozenLogo != null) {
+			assertSafeEntryPath(frozenLogo);
+			if (!frozenLogo.startsWith('logos/')) {
+				throw new Error(`Backup contains a logo path outside logos/: ${frozenLogo}`);
+			}
+		}
 	}
 	for (const template of dump.templates) {
 		const logo = template.definition?.logo?.path;
@@ -219,6 +227,9 @@ export function collectArtifactPaths(dump: DatabaseDump): string[] {
 		}
 		if (invoice.number) {
 			paths.add(`invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}.xml`);
+		}
+		if (invoice.templateSnapshot?.definition?.logo?.path) {
+			paths.add(invoice.templateSnapshot.definition.logo.path);
 		}
 	}
 	for (const template of dump.templates) {

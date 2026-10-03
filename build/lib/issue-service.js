@@ -19,12 +19,14 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var issue_service_exports = {};
 __export(issue_service_exports, {
   collectReminderCandidates: () => collectReminderCandidates,
+  freezeTemplate: () => freezeTemplate,
   issueInvoiceBatch: () => issueInvoiceBatch,
   issueInvoiceWithArtifacts: () => issueInvoiceWithArtifacts,
   loadRenderTemplate: () => loadRenderTemplate,
   rerenderInvoicePdf: () => rerenderInvoicePdf
 });
 module.exports = __toCommonJS(issue_service_exports);
+var import_node_crypto = require("node:crypto");
 var import_excel = require("./excel");
 var import_invoice_model = require("./invoice-model");
 var import_pdf = require("./pdf");
@@ -76,7 +78,9 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
   const issued = db.issueDraft(invoiceId);
   const quote = (0, import_invoice_model.isQuote)(issued.docType);
   log.info(`${quote ? "Quotation" : "Invoice"} issued: ${issued.number} (${issued.id})`);
-  const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
+  const loaded = await loadRenderTemplate(db, log, storage);
+  const { template, templateId, logo } = loaded;
+  const templateSnapshot = await freezeTemplate(storage, log, loaded);
   const attachments = db.listAttachments(invoiceId);
   const generated = quote ? null : await (0, import_zugferd.generateInvoiceXml)(issued, attachments);
   const xml = (_a = generated == null ? void 0 : generated.xml) != null ? _a : null;
@@ -128,7 +132,8 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
     xml: xml != null ? xml : void 0,
     pdfPath: written.has(`${base}.pdf`) ? `${base}.pdf` : null,
     xlsxPath: written.has(`${base}.xlsx`) ? `${base}.xlsx` : void 0,
-    templateId
+    templateId,
+    templateSnapshot
   });
   return {
     invoice: withArtifacts,
@@ -192,8 +197,8 @@ async function nextArchivePath(storage, base, start) {
   }
   throw new Error(`No free archive slot for ${base}`);
 }
-async function rerenderInvoicePdf(db, log, invoiceId, storage, reason) {
-  var _a;
+async function rerenderInvoicePdf(db, log, invoiceId, storage, reason, options = {}) {
+  var _a, _b, _c;
   const invoice = db.getInvoice(invoiceId);
   if (!invoice) {
     throw new Error(`Invoice not found: ${invoiceId}`);
@@ -204,7 +209,40 @@ async function rerenderInvoicePdf(db, log, invoiceId, storage, reason) {
   if (!invoice.number) {
     throw new Error("Invoice has no number yet - issue it before re-rendering");
   }
-  const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
+  const wanted = (_a = options.layout) != null ? _a : "current";
+  if (wanted !== "issued" && wanted !== "current") {
+    throw new Error(`Unknown layout: ${String(wanted)}`);
+  }
+  let template;
+  let templateId;
+  let logo;
+  let newSnapshot;
+  let layout;
+  if (wanted === "issued") {
+    const frozen = invoice.templateSnapshot;
+    if (!frozen) {
+      throw new Error(
+        "This document has no frozen layout (issued before R7.8) - re-render with the current layout"
+      );
+    }
+    template = frozen.definition;
+    templateId = frozen.templateId;
+    if ((_b = template.logo) == null ? void 0 : _b.path) {
+      try {
+        logo = { data: await storage.read(template.logo.path) };
+      } catch (error) {
+        log.error(
+          `Cannot read frozen logo ${template.logo.path}, rendering without: ${error.message}`
+        );
+      }
+    }
+    layout = "issued";
+  } else {
+    const loaded = await loadRenderTemplate(db, log, storage);
+    ({ template, templateId, logo } = loaded);
+    newSnapshot = await freezeTemplate(storage, log, loaded);
+    layout = invoice.templateSnapshot ? "current" : "current-unfrozen";
+  }
   const attachments = db.listAttachments(invoiceId);
   const quote = (0, import_invoice_model.isQuote)(invoice.docType);
   let xml = null;
@@ -253,21 +291,26 @@ async function rerenderInvoicePdf(db, log, invoiceId, storage, reason) {
   const updated = db.attachIssueArtifacts(invoiceId, {
     xml: xml != null ? xml : void 0,
     pdfPath: newPath,
-    xlsxPath: (_a = invoice.xlsxPath) != null ? _a : void 0,
-    templateId: templateId != null ? templateId : invoice.templateId
+    xlsxPath: (_c = invoice.xlsxPath) != null ? _c : void 0,
+    templateId: templateId != null ? templateId : invoice.templateId,
+    templateSnapshot: newSnapshot
   });
-  db.logRender(invoiceId, "pdf", archivedPath, newPath, reason);
-  return { invoice: updated, pdfPath: newPath, archivedPath };
+  db.logRender(invoiceId, "pdf", archivedPath, newPath, reason, layout);
+  return { invoice: updated, pdfPath: newPath, archivedPath, layout };
 }
 async function loadRenderTemplate(db, log, storage) {
   var _a;
   let template = import_templates.DEFAULT_TEMPLATE;
   let templateId = null;
+  let templateName = import_templates.DEFAULT_TEMPLATE.name;
+  let templateVersion = null;
   try {
     const stored = db.getDefaultTemplate();
     if (stored) {
       template = stored.definition;
       templateId = stored.id;
+      templateName = stored.name;
+      templateVersion = stored.version;
     }
   } catch (error) {
     log.error(`Cannot load default template, using Standard: ${error.message}`);
@@ -280,11 +323,45 @@ async function loadRenderTemplate(db, log, storage) {
       log.error(`Cannot read logo ${template.logo.path}, rendering without: ${error.message}`);
     }
   }
-  return { template, templateId, logo };
+  return { template, templateId, templateName, templateVersion, logo };
+}
+async function freezeTemplate(storage, log, loaded) {
+  var _a, _b, _c, _d;
+  const definition = JSON.parse(JSON.stringify(loaded.template));
+  if ((_a = definition.logo) == null ? void 0 : _a.path) {
+    if (loaded.logo) {
+      const ext = (_d = (_c = (_b = /\.(png|jpe?g)$/i.exec(definition.logo.path)) == null ? void 0 : _b[1]) == null ? void 0 : _c.toLowerCase().replace("jpeg", "jpg")) != null ? _d : "png";
+      const frozenPath = `logos/frozen/${(0, import_node_crypto.createHash)("sha256").update(loaded.logo.data).digest("hex")}.${ext}`;
+      try {
+        let exists = false;
+        try {
+          exists = (await storage.read(frozenPath)).equals(loaded.logo.data);
+        } catch {
+        }
+        if (!exists) {
+          await storage.write(frozenPath, loaded.logo.data);
+        }
+        definition.logo.path = frozenPath;
+      } catch (error) {
+        log.error(`Cannot freeze logo, snapshot without logo: ${error.message}`);
+        delete definition.logo;
+      }
+    } else {
+      delete definition.logo;
+    }
+  }
+  return {
+    templateId: loaded.templateId,
+    templateName: loaded.templateName,
+    templateVersion: loaded.templateVersion,
+    definition,
+    frozenAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   collectReminderCandidates,
+  freezeTemplate,
   issueInvoiceBatch,
   issueInvoiceWithArtifacts,
   loadRenderTemplate,

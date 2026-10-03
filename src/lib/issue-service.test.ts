@@ -217,11 +217,11 @@ describe('issue => re-render', function () {
 			const created = db.createDraft(draft);
 			const issued = await issueInvoiceWithArtifacts(db, logger, created.id, memStorage(files));
 			const before = db.getInvoice(issued.invoice.id)!;
-			const snapshot = JSON.stringify({ ...before, updatedAt: '', pdfPath: '' });
+			const snapshot = JSON.stringify({ ...before, updatedAt: '', pdfPath: '', templateSnapshot: null });
 
 			await rerenderInvoicePdf(db, logger, issued.invoice.id, memStorage(files), null);
 			const after = db.getInvoice(issued.invoice.id)!;
-			expect(JSON.stringify({ ...after, updatedAt: '', pdfPath: '' })).to.equal(snapshot);
+			expect(JSON.stringify({ ...after, updatedAt: '', pdfPath: '', templateSnapshot: null })).to.equal(snapshot);
 			expect(after.number).to.equal(before.number);
 			expect(after.status).to.equal('issued');
 			expect(after.totals.grossTotal).to.equal(before.totals.grossTotal);
@@ -478,6 +478,127 @@ describe('issue => quotations (R8)', function () {
 			// and the offer itself is still the offer
 			expect(db.getInvoice(quoteId)?.docType).to.equal('quote');
 			expect(db.getInvoice(quoteId)?.number).to.equal('A-2026-00-001');
+		} finally {
+			db.close();
+		}
+	});
+});
+
+describe('issue => template snapshot (R7.8)', function () {
+	this.timeout(60000);
+
+	const PNG = Buffer.from(
+		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+		'base64',
+	);
+
+	/**
+	 * A database with one default template that has a logo and a header distance.
+	 *
+	 * @param files - Map acting as the file system.
+	 */
+	function setup(files: Map<string, Buffer>): { db: InvoiceDatabase; templateId: string } {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		files.set('logos/tpl.png', PNG);
+		const template = db.createTemplate('Briefkopf', {
+			...DEFAULT_TEMPLATE,
+			logo: { path: 'logos/tpl.png', position: 'right', widthMm: 30 } as never,
+			logoTopMm: 20,
+		});
+		db.setDefaultTemplate(template.id);
+		return { db, templateId: template.id };
+	}
+
+	it('freezes the layout and a content-addressed logo copy at issue', async () => {
+		const files = new Map<string, Buffer>();
+		const { db, templateId } = setup(files);
+		try {
+			const issued = await issueInvoiceWithArtifacts(db, logger, db.createDraft(draft).id, memStorage(files));
+			const snapshot = db.getInvoice(issued.invoice.id)!.templateSnapshot!;
+			expect(snapshot.templateId).to.equal(templateId);
+			expect(snapshot.templateName).to.equal('Briefkopf');
+			expect(snapshot.templateVersion).to.be.a('number');
+			expect(snapshot.definition.logoTopMm).to.equal(20);
+			expect(snapshot.definition.logo?.path).to.match(/^logos\/frozen\/[0-9a-f]{64}\.png$/);
+			expect(files.get(snapshot.definition.logo!.path)!.equals(PNG)).to.equal(true);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('keeps the issued layout when the template and its logo change afterwards', async () => {
+		const files = new Map<string, Buffer>();
+		const { db, templateId } = setup(files);
+		try {
+			const issued = await issueInvoiceWithArtifacts(db, logger, db.createDraft(draft).id, memStorage(files));
+			const frozen = db.getInvoice(issued.invoice.id)!.templateSnapshot!;
+			// the template is edited and its logo file is replaced
+			db.updateTemplate(templateId, { definition: { ...db.getTemplate(templateId)!.definition, logoTopMm: 40 } });
+			files.set('logos/tpl.png', Buffer.from('not the old logo'));
+
+			const kept = await rerenderInvoicePdf(db, logger, issued.invoice.id, memStorage(files), 'wie vorher', {
+				layout: 'issued',
+			});
+			expect(kept.layout).to.equal('issued');
+			// rendering with the frozen layout does not touch the frozen layout
+			expect(db.getInvoice(issued.invoice.id)!.templateSnapshot).to.deep.equal(frozen);
+
+			const fresh = await rerenderInvoicePdf(db, logger, issued.invoice.id, memStorage(files), 'neu');
+			expect(fresh.layout).to.equal('current');
+			const now = db.getInvoice(issued.invoice.id)!.templateSnapshot!;
+			expect(now.definition.logoTopMm).to.equal(40);
+			expect(now.templateVersion).to.be.greaterThan(frozen.templateVersion!);
+			// the old frozen logo is still there, the new one is a copy of its own
+			expect(files.get(frozen.definition.logo!.path)!.equals(PNG)).to.equal(true);
+			expect(now.definition.logo!.path).to.not.equal(frozen.definition.logo!.path);
+
+			expect(db.listRenderHistory(issued.invoice.id).map(entry => entry.layout)).to.deep.equal([
+				'current',
+				'issued',
+			]);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('refuses the issued layout for a document without a snapshot and marks the history', async () => {
+		const files = new Map<string, Buffer>();
+		const { db } = setup(files);
+		try {
+			const issued = await issueInvoiceWithArtifacts(db, logger, db.createDraft(draft).id, memStorage(files));
+			// a document from before R7.8
+			(db as unknown as { db: { prepare(sql: string): { run(...args: unknown[]): void } } }).db
+				.prepare('UPDATE invoices SET template_snapshot_json = NULL WHERE id = ?')
+				.run(issued.invoice.id);
+			let message = '';
+			try {
+				await rerenderInvoicePdf(db, logger, issued.invoice.id, memStorage(files), null, { layout: 'issued' });
+			} catch (error) {
+				message = (error as Error).message;
+			}
+			expect(message).to.contain('no frozen layout');
+			expect(message).to.not.contain('not found');
+
+			const result = await rerenderInvoicePdf(db, logger, issued.invoice.id, memStorage(files), null);
+			expect(result.layout).to.equal('current-unfrozen');
+			// from now on the document has a frozen layout
+			expect(db.getInvoice(issued.invoice.id)!.templateSnapshot).to.not.equal(null);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('shares one frozen logo between documents issued with the same logo', async () => {
+		const files = new Map<string, Buffer>();
+		const { db } = setup(files);
+		try {
+			const first = await issueInvoiceWithArtifacts(db, logger, db.createDraft(draft).id, memStorage(files));
+			const second = await issueInvoiceWithArtifacts(db, logger, db.createDraft(draft).id, memStorage(files));
+			expect(db.getInvoice(second.invoice.id)!.templateSnapshot!.definition.logo!.path).to.equal(
+				db.getInvoice(first.invoice.id)!.templateSnapshot!.definition.logo!.path,
+			);
+			expect([...files.keys()].filter(key => key.startsWith('logos/frozen/'))).to.have.length(1);
 		} finally {
 			db.close();
 		}

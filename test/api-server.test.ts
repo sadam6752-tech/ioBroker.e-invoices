@@ -171,11 +171,29 @@ describe('api => invoices', function () {
 		expect(res.body.invoice.number).to.match(/^2026-00-\d{3}$/);
 		// the original stays retrievable next to the fresh rendering
 		expect(res.body.archivedPath).to.match(/\.orig-1\.pdf$/);
+		// R7.8: without a choice the current layout is used
+		expect(res.body.layout).to.equal('current');
 
 		const history = await request(app).get(`/api/invoices/${created.body.id}/renders`).expect(200);
 		expect(history.body).to.have.lengthOf(1);
 		expect(history.body[0].reason).to.equal('Layoutkorrektur');
 		expect(history.body[0].artifact).to.equal('pdf');
+	});
+
+	it('re-renders with the issued layout and validates the layout choice (R7.8)', async () => {
+		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		const issued = await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
+		expect(issued.body.templateSnapshot.definition).to.be.an('object');
+
+		const same = await request(app)
+			.post(`/api/invoices/${created.body.id}/rerender`)
+			.send({ reason: 'wie ausgestellt', layout: 'issued' })
+			.expect(200);
+		expect(same.body.layout).to.equal('issued');
+		const history = await request(app).get(`/api/invoices/${created.body.id}/renders`).expect(200);
+		expect(history.body[0].layout).to.equal('issued');
+
+		await request(app).post(`/api/invoices/${created.body.id}/rerender`).send({ layout: 'bogus' }).expect(400);
 	});
 
 	it('refuses to re-render a draft', async () => {

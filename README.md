@@ -331,6 +331,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) The layout an invoice is issued with is frozen with it (template definition and a copy of the logo under `logos/frozen/`, stored in the new column `template_snapshot_json`, migration v13). Re-render now offers the choice: with the **current** print template (default — what you want after changing the template) or with the **issued layout** (reproduces the delivered document). The re-render history says which one was used. Documents issued before this version have no frozen layout; their first re-render freezes the layout it uses. The snapshot and its logo are part of the backup.
+
 ### 0.8.6 (2026-10-03)
 
 * (alex) New logo: the envelope with the euro sheet is the adapter icon now (admin, installed web app, favicon). The web app icons are generated from `admin/e-invoices.svg` (`node src-www/scripts/make-icons.mjs`).

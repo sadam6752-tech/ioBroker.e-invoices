@@ -74,6 +74,8 @@ export const en: Record<string, string> = {
 	'Aus: das Dokument bleibt schwarz/weiß, die Primärfarbe wird nirgends verwendet':
 		'Off: the document stays black and white, the primary color is not used anywhere',
 	'Ausgeglichen am {date}': 'Settled on {date}',
+	'Ausgestellt mit Layout „{name}“ (Version {version}), eingefroren am {date}.':
+		'Issued with layout “{name}” (version {version}), frozen on {date}.',
 	Ausrichtung: 'Alignment',
 	'Aussehen der PDF-Rechnung: Logo, Farben, Kopf- und Fußzeilen. Die inhaltlichen Positionen legst du unter {templates} oder {items} fest.':
 		'Look of the PDF invoice: logo, colors, header and footer. You define the content of the items under {templates} or {items}.',
@@ -123,8 +125,10 @@ export const en: Record<string, string> = {
 	Datum: 'Date',
 	'Der Rechnungsbetrag ist sofort ohne Abzug fällig.': 'The invoice amount is due immediately without deduction.',
 	Detailzeile: 'Detail line',
-	'Die PDF wird aus den unveränderten Rechnungsdaten neu erzeugt. Nummer, Beträge und Daten der Rechnung ändern sich nicht. Das bisherige Dokument wird als .orig-<n>.pdf archiviert (nie überschrieben), das XML bleibt unverändert. Fortfahren?':
-		'The PDF is created again from the unchanged invoice data. Number, amounts and dates of the invoice do not change. The previous document is archived as .orig-<n>.pdf (never overwritten), the XML stays unchanged. Continue?',
+	'Die PDF wird aus den unveränderten Rechnungsdaten mit der aktuellen Druckvorlage neu erzeugt. Nummer, Beträge und Daten der Rechnung ändern sich nicht. Das bisherige Dokument wird als .orig-<n>.pdf archiviert (nie überschrieben), das XML bleibt unverändert. Fortfahren?':
+		'The PDF is rendered again from the unchanged invoice data with the current print template. Number, amounts and dates of the invoice do not change. The previous document is archived as .orig-<n>.pdf (never overwritten), the XML stays unchanged. Continue?',
+	'Die PDF wird mit dem Layout neu erzeugt, mit dem das Dokument ausgestellt wurde. Nummer, Beträge und Daten ändern sich nicht. Das bisherige Dokument wird als .orig-<n>.pdf archiviert (nie überschrieben), das XML bleibt unverändert. Fortfahren?':
+		'The PDF is rendered again with the layout the document was issued with. Number, amounts and dates do not change. The previous document is archived as .orig-<n>.pdf (never overwritten), the XML stays unchanged. Continue?',
 	'Die Rechnung wird auf storniert gesetzt und als Gutschrift neu angelegt. Das Original bleibt unverändert erhalten. Fortfahren?':
 		'The invoice is set to cancelled and created anew as a credit note. The original is kept unchanged. Continue?',
 	'Die aktuelle Datenbank wird durch das Backup ersetzt.': 'The current database will be replaced by the backup.',
@@ -165,6 +169,8 @@ export const en: Record<string, string> = {
 		'Creates an invoice draft that refers to this offer. The invoice number is only assigned on issue.',
 	'Erzeugt die PDF aus den gespeicherten Daten neu (z. B. nach einer Layout-Korrektur). Nummer, Beträge und Daten bleiben unverändert, das Original wird archiviert.':
 		'Creates the PDF again from the stored data (e.g. after a layout correction). Number, amounts and dates stay unchanged, the original is archived.',
+	'Erzeugt die PDF mit dem Layout neu, mit dem das Dokument ausgestellt wurde – auch wenn die Druckvorlage inzwischen geändert wurde.':
+		'Renders the PDF again with the layout the document was issued with – even if the print template has been changed since.',
 	'Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.':
 		'Exact totals and validation (XSD, EN16931, BR rules) are done on the server when issuing.',
 	'Excel-Liste': 'Excel list',
@@ -232,6 +238,7 @@ export const en: Record<string, string> = {
 	'Lade …': 'Loading …',
 	'Lade…': 'Loading…',
 	Land: 'Country',
+	'Layout wie ausgestellt': 'layout as issued',
 	'Leer lassen = automatisch aus den Firmendaten (Adresse, Kontakt, Bank, Steuer). Je Box eine Zeile pro Zeile, Ausrichtung pro Box.':
 		'Leave empty = automatic from the company data (address, contact, bank, tax). One line per line in each box, alignment per box.',
 	'Leer lassen: es wird kein Name gedruckt': 'Leave empty: no name is printed',
@@ -255,6 +262,7 @@ export const en: Record<string, string> = {
 	Mahnstufe: 'Dunning level',
 	Menge: 'Quantity',
 	'Mindestens eine Position mit Bezeichnung nötig.': 'At least one item with a description is required.',
+	'Mit ausgestelltem Layout neu rendern': 'Re-render with issued layout',
 	'Mit „bis" steht der Zeitraum als Leistungszeitraum auf dem Angebot.':
 		'With “to” the period appears as the service period on the offer.',
 	'Mit „bis" wird der Zeitraum als BT-74/BT-75 in die Rechnung geschrieben.':
@@ -440,6 +448,8 @@ export const en: Record<string, string> = {
 	Zustand: 'State',
 	'abgelehnt am {date}': 'declined on {date}',
 	absteigend: 'descending',
+	'aktuelles Layout': 'current layout',
+	'aktuelles Layout (zuvor nicht eingefroren)': 'current layout (not frozen before)',
 	alle: 'all',
 	am: 'on',
 	'angenommen am {date}': 'accepted on {date}',

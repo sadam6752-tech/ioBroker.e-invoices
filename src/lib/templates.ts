@@ -26,6 +26,27 @@ export interface TemplateLogo {
 	widthMm: number;
 }
 
+/**
+ * The layout a document was issued with, frozen together with it (R7.8).
+ *
+ * Templates are edited in place, so a template id alone cannot say how a delivered
+ * document looked. The snapshot keeps the whole definition; its logo path points to
+ * a content-addressed copy (`logos/frozen/<sha256>.<ext>`), because the template's
+ * own logo file is replaced when a new logo is uploaded.
+ */
+export interface TemplateSnapshot {
+	/** Id of the template the document was issued with, null for the built-in default. */
+	templateId: string | null;
+	/** Name of that template at the time. */
+	templateName: string;
+	/** Version of that template at the time, null for the built-in default. */
+	templateVersion: number | null;
+	/** The definition as it was; `logo.path` names the frozen copy. */
+	definition: LayoutTemplate;
+	/** ISO timestamp of the freeze. */
+	frozenAt: string;
+}
+
 /** Where the logo sat before it could be moved: 36 pt from the top edge of the sheet. */
 export const DEFAULT_LOGO_TOP_MM = 12.7;
 

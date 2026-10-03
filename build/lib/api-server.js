@@ -92,6 +92,7 @@ function previewInvoice(draft) {
   const docType = (0, import_invoice_model.normalizeDocumentType)(draft.docType);
   return {
     id: "preview",
+    templateSnapshot: null,
     number: "PREVIEW",
     issueDate: draft.issueDate,
     deliveryDate: draft.deliveryDate,
@@ -996,9 +997,15 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
       var _a2;
       const body = (_a2 = req.body) != null ? _a2 : {};
       const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
+      if (body.layout !== void 0 && body.layout !== "issued" && body.layout !== "current") {
+        res.status(400).json({ error: 'layout must be "issued" or "current"' });
+        return;
+      }
       try {
-        const outcome = await (0, import_issue_service.rerenderInvoicePdf)(db, log, routeParam(req, "id"), storage, reason);
-        res.json({ invoice: outcome.invoice, archivedPath: outcome.archivedPath });
+        const outcome = await (0, import_issue_service.rerenderInvoicePdf)(db, log, routeParam(req, "id"), storage, reason, {
+          layout: body.layout
+        });
+        res.json({ invoice: outcome.invoice, archivedPath: outcome.archivedPath, layout: outcome.layout });
       } catch (error) {
         res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
       }

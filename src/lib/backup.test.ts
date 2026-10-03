@@ -78,6 +78,9 @@ describe('backup => roundtrip', function () {
 			const restored = dbB.getInvoice(invoiceId);
 			expect(restored?.number).to.match(/^2026-00-\d{3}$/);
 			expect(restored?.xml).to.contain('CrossIndustryInvoice');
+			// R7.8: the frozen layout travels with the invoice
+			expect(restored?.templateSnapshot).to.deep.equal(dbA.getInvoice(invoiceId)?.templateSnapshot);
+			expect(restored?.templateSnapshot?.templateName).to.be.a('string');
 			// R4: attachments are part of the dump (base64) and come back as a
 			// BLOB, byte for byte. The price is size: base64 costs about a third
 			// more than the file, so a backup with Anlagen grows noticeably —
@@ -313,6 +316,18 @@ describe('backup => corrupt input', () => {
 					'a traversal in the PDF path',
 					dump => (dump.invoices[0].pdfPath = '../../etc/passwd'),
 					/unsafe file path/,
+				],
+				[
+					'a traversal in the frozen logo path',
+					dump =>
+						(dump.invoices[0].templateSnapshot = { definition: { logo: { path: '../../etc/passwd' } } }),
+					/unsafe file path/,
+				],
+				[
+					'a frozen logo outside logos/',
+					dump =>
+						(dump.invoices[0].templateSnapshot = { definition: { logo: { path: 'invoices/2026/x.pdf' } } }),
+					/outside logos/,
 				],
 				['an absolute Excel path', dump => (dump.invoices[0].xlsxPath = '/etc/passwd'), /unsafe file path/],
 				[

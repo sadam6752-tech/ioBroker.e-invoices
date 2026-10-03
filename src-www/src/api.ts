@@ -59,6 +59,8 @@ export interface Invoice {
 	profile: string;
 	status: 'draft' | 'issued' | 'cancelled';
 	templateId: string | null;
+	/** The layout the document was issued with, frozen (R7.8); null for older documents. */
+	templateSnapshot?: { templateName: string; templateVersion: number | null; frozenAt: string } | null;
 	employeeCode: string | null;
 	documentTitle: string;
 	notes: string | null;
@@ -277,6 +279,8 @@ export interface RenderHistoryEntry {
 	newPath: string;
 	/** Free-text reason given by the user. */
 	reason: string | null;
+	/** Layout used: `issued`, `current`, `current-unfrozen`; null for older entries. */
+	layout?: string | null;
 	/** ISO timestamp. */
 	createdAt: string;
 }
@@ -573,13 +577,13 @@ export const api = {
 			method: 'POST',
 			body: JSON.stringify({ name }),
 		}),
-	rerender: (id: string, reason?: string) =>
+	rerender: (id: string, reason?: string, layout?: 'issued' | 'current') =>
 		request<{
 			invoice: Invoice;
 			archivedPath: string | null;
 		}>(`/api/invoices/${id}/rerender`, {
 			method: 'POST',
-			body: JSON.stringify({ reason }),
+			body: JSON.stringify({ reason, layout }),
 		}),
 	renders: (id: string) => request<RenderHistoryEntry[]>(`/api/invoices/${id}/renders`),
 	/**

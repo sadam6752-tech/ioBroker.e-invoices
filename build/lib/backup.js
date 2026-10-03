@@ -60,7 +60,7 @@ function assertSafeEntryPath(relPath) {
 }
 const SAFE_NUMBER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 function assertSafeRecords(dump) {
-  var _a, _b;
+  var _a, _b, _c, _d, _e;
   for (const invoice of dump.invoices) {
     if (invoice.number != null && !SAFE_NUMBER.test(invoice.number)) {
       throw new Error(`Backup contains an unsafe document number: ${String(invoice.number).slice(0, 40)}`);
@@ -73,9 +73,16 @@ function assertSafeRecords(dump) {
         }
       }
     }
+    const frozenLogo = (_c = (_b = (_a = invoice.templateSnapshot) == null ? void 0 : _a.definition) == null ? void 0 : _b.logo) == null ? void 0 : _c.path;
+    if (frozenLogo != null) {
+      assertSafeEntryPath(frozenLogo);
+      if (!frozenLogo.startsWith("logos/")) {
+        throw new Error(`Backup contains a logo path outside logos/: ${frozenLogo}`);
+      }
+    }
   }
   for (const template of dump.templates) {
-    const logo = (_b = (_a = template.definition) == null ? void 0 : _a.logo) == null ? void 0 : _b.path;
+    const logo = (_e = (_d = template.definition) == null ? void 0 : _d.logo) == null ? void 0 : _e.path;
     if (logo != null) {
       assertSafeEntryPath(logo);
       if (!logo.startsWith("logos/")) {
@@ -101,7 +108,7 @@ function stampName(date = /* @__PURE__ */ new Date()) {
   return date.toISOString().replace(/[:.]/g, "-").slice(0, 19);
 }
 function collectArtifactPaths(dump) {
-  var _a;
+  var _a, _b, _c, _d;
   const paths = /* @__PURE__ */ new Set();
   for (const invoice of dump.invoices) {
     if (invoice.pdfPath) {
@@ -113,9 +120,12 @@ function collectArtifactPaths(dump) {
     if (invoice.number) {
       paths.add(`invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}.xml`);
     }
+    if ((_c = (_b = (_a = invoice.templateSnapshot) == null ? void 0 : _a.definition) == null ? void 0 : _b.logo) == null ? void 0 : _c.path) {
+      paths.add(invoice.templateSnapshot.definition.logo.path);
+    }
   }
   for (const template of dump.templates) {
-    if ((_a = template.definition.logo) == null ? void 0 : _a.path) {
+    if ((_d = template.definition.logo) == null ? void 0 : _d.path) {
       paths.add(template.definition.logo.path);
     }
   }

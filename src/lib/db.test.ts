@@ -87,6 +87,59 @@ describe('db => migrations', () => {
 		}
 	});
 
+	it('upgrades a v12 database: old documents have no frozen layout (R7.8)', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'einv-legacy-'));
+		const file = join(dir, 'invoices.db');
+		const legacy = new Database(file);
+		try {
+			for (const migration of MIGRATIONS.filter(m => m.version <= 12)) {
+				for (const statement of migration.sql) {
+					legacy.exec(statement);
+				}
+				legacy
+					.prepare(`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`)
+					.run(migration.version, migration.name, '2026-01-01T00:00:00.000Z');
+			}
+			legacy
+				.prepare(
+					`INSERT INTO invoices
+					 (id, number, issue_date, delivery_date, seller_json, buyer_json, lines_json, totals_json, status, created_at, updated_at)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'issued', ?, ?)`,
+				)
+				.run(
+					'legacy-12',
+					'2026-00-003',
+					'2026-01-05',
+					'2026-01-04',
+					JSON.stringify(seller),
+					JSON.stringify(buyer),
+					JSON.stringify([{ description: 'Alt', quantity: 1, unit: 'Std', unitPriceNet: 10, vatRate: 19 }]),
+					JSON.stringify({ netTotal: 10, taxTotal: 1.9, grossTotal: 11.9, breakdown: [] }),
+					'2026-01-05T08:00:00.000Z',
+					'2026-01-05T08:00:00.000Z',
+				);
+			legacy
+				.prepare(
+					`INSERT INTO render_history (invoice_id, artifact, previous_path, new_path, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+				)
+				.run('legacy-12', 'pdf', null, 'invoices/2026/2026-00-003.pdf', 'alt', '2026-01-06T08:00:00.000Z');
+		} finally {
+			legacy.close();
+		}
+		const db = new InvoiceDatabase(file);
+		try {
+			db.migrate();
+			expect(db.currentVersion()).to.equal(LATEST_SCHEMA_VERSION);
+			const migrated = db.getInvoice('legacy-12');
+			expect(migrated?.number).to.equal('2026-00-003');
+			expect(migrated?.templateSnapshot).to.equal(null);
+			expect(db.listRenderHistory('legacy-12')[0].layout).to.equal(null);
+		} finally {
+			db.close();
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	it('upgrades a v11 database without touching its invoice numbers (R8)', () => {
 		const dir = mkdtempSync(join(tmpdir(), 'einv-legacy-'));
 		const file = join(dir, 'invoices.db');

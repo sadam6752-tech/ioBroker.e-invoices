@@ -180,6 +180,7 @@ export function previewInvoice(draft: InvoiceDraftInput): StoredInvoice {
 	const docType = normalizeDocumentType(draft.docType);
 	return {
 		id: 'preview',
+		templateSnapshot: null,
 		number: 'PREVIEW',
 		issueDate: draft.issueDate,
 		deliveryDate: draft.deliveryDate,
@@ -1254,11 +1255,18 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	app.post(
 		'/api/invoices/:id/rerender',
 		route(async (req, res) => {
-			const body = (req.body ?? {}) as { reason?: unknown };
+			const body = (req.body ?? {}) as { reason?: unknown; layout?: unknown };
 			const reason = typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : null;
+			// R7.8: which layout to render with; missing = the current template
+			if (body.layout !== undefined && body.layout !== 'issued' && body.layout !== 'current') {
+				res.status(400).json({ error: 'layout must be "issued" or "current"' });
+				return;
+			}
 			try {
-				const outcome = await rerenderInvoicePdf(db, log, routeParam(req, 'id'), storage, reason);
-				res.json({ invoice: outcome.invoice, archivedPath: outcome.archivedPath });
+				const outcome = await rerenderInvoicePdf(db, log, routeParam(req, 'id'), storage, reason, {
+					layout: body.layout,
+				});
+				res.json({ invoice: outcome.invoice, archivedPath: outcome.archivedPath, layout: outcome.layout });
 			} catch (error) {
 				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
 			}

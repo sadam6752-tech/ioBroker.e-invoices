@@ -6,12 +6,13 @@
  * injected storage: the adapter passes its file mountpoint, tests pass an
  * in-memory map. Rendering uses the default layout template (+ logo).
  */
+import { createHash } from 'node:crypto';
 import type { InvoiceDatabase, StoredAttachmentMeta, StoredInvoice } from './db';
 import { renderInvoiceWorkbook } from './excel';
 import { daysBetween, isQuote, quoteState, todayIso } from './invoice-model';
 import { formatDeDate, renderInvoicePdf, type InvoiceRenderContext, type TemplateLogoImage } from './pdf';
 import { embedPdfAttachments } from './pdf-attachments';
-import { DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
+import { DEFAULT_TEMPLATE, type LayoutTemplate, type TemplateSnapshot } from './templates';
 import { embedHybridPdf, generateInvoiceXml } from './zugferd';
 
 /** Writes one artifact file to `relPath` (e.g. mountpoint or memory). */
@@ -127,7 +128,11 @@ export async function issueInvoiceWithArtifacts(
 	const quote = isQuote(issued.docType);
 	log.info(`${quote ? 'Quotation' : 'Invoice'} issued: ${issued.number} (${issued.id})`);
 
-	const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
+	const loaded = await loadRenderTemplate(db, log, storage);
+	const { template, templateId, logo } = loaded;
+	// R7.8: the layout is frozen with the document, so a later template edit cannot change
+	// what "the layout it was issued with" means
+	const templateSnapshot = await freezeTemplate(storage, log, loaded);
 	// R4: the attachments of the draft travel with it. They are read before the
 	// records are written: the file becomes part of the e-invoice, so they have
 	// to sit in the PDF container (PDF/A-3) and — EN 16931 — in the XML (BG-24).
@@ -197,6 +202,7 @@ export async function issueInvoiceWithArtifacts(
 		pdfPath: written.has(`${base}.pdf`) ? `${base}.pdf` : null,
 		xlsxPath: written.has(`${base}.xlsx`) ? `${base}.xlsx` : undefined,
 		templateId,
+		templateSnapshot,
 	});
 	return {
 		invoice: withArtifacts,
@@ -341,7 +347,8 @@ export async function rerenderInvoicePdf(
 	invoiceId: string,
 	storage: IssueStorage,
 	reason: string | null,
-): Promise<{ invoice: StoredInvoice; pdfPath: string; archivedPath: string | null }> {
+	options: RerenderOptions = {},
+): Promise<{ invoice: StoredInvoice; pdfPath: string; archivedPath: string | null; layout: RerenderLayout }> {
 	const invoice = db.getInvoice(invoiceId);
 	if (!invoice) {
 		throw new Error(`Invoice not found: ${invoiceId}`);
@@ -355,7 +362,43 @@ export async function rerenderInvoicePdf(
 
 	// Render from the stored invoice data, not from a fresh preview: the numbers,
 	// totals and Storno reference must stay exactly as they were issued.
-	const { template, templateId, logo } = await loadRenderTemplate(db, log, storage);
+	// R7.8: `issued` renders with the layout frozen at issue, `current` (default) with the
+	// template as it is now — the reason for a re-render is usually a changed template.
+	const wanted = options.layout ?? 'current';
+	if (wanted !== 'issued' && wanted !== 'current') {
+		throw new Error(`Unknown layout: ${String(wanted)}`);
+	}
+	let template: LayoutTemplate;
+	let templateId: string | null;
+	let logo: TemplateLogoImage | undefined;
+	let newSnapshot: TemplateSnapshot | undefined;
+	let layout: RerenderLayout;
+	if (wanted === 'issued') {
+		const frozen = invoice.templateSnapshot;
+		if (!frozen) {
+			throw new Error(
+				'This document has no frozen layout (issued before R7.8) - re-render with the current layout',
+			);
+		}
+		template = frozen.definition;
+		templateId = frozen.templateId;
+		if (template.logo?.path) {
+			try {
+				logo = { data: await storage.read(template.logo.path) };
+			} catch (error) {
+				log.error(
+					`Cannot read frozen logo ${template.logo.path}, rendering without: ${(error as Error).message}`,
+				);
+			}
+		}
+		layout = 'issued';
+	} else {
+		const loaded = await loadRenderTemplate(db, log, storage);
+		({ template, templateId, logo } = loaded);
+		// the layout used now becomes the document's frozen layout
+		newSnapshot = await freezeTemplate(storage, log, loaded);
+		layout = invoice.templateSnapshot ? 'current' : 'current-unfrozen';
+	}
 	// R4: the attachments are part of the record, so a re-render reproduces
 	// them exactly — an issued invoice keeps its Anlagenverzeichnis and its
 	// embedded files.
@@ -427,9 +470,10 @@ export async function rerenderInvoicePdf(
 		pdfPath: newPath,
 		xlsxPath: invoice.xlsxPath ?? undefined,
 		templateId: templateId ?? invoice.templateId,
+		templateSnapshot: newSnapshot,
 	});
-	db.logRender(invoiceId, 'pdf', archivedPath, newPath, reason);
-	return { invoice: updated, pdfPath: newPath, archivedPath };
+	db.logRender(invoiceId, 'pdf', archivedPath, newPath, reason, layout);
+	return { invoice: updated, pdfPath: newPath, archivedPath, layout };
 }
 
 /**
@@ -443,14 +487,18 @@ export async function loadRenderTemplate(
 	db: InvoiceDatabase,
 	log: IssueLogger,
 	storage: IssueStorage,
-): Promise<{ template: LayoutTemplate; templateId: string | null; logo?: TemplateLogoImage }> {
+): Promise<LoadedTemplate> {
 	let template: LayoutTemplate = DEFAULT_TEMPLATE;
 	let templateId: string | null = null;
+	let templateName = DEFAULT_TEMPLATE.name;
+	let templateVersion: number | null = null;
 	try {
 		const stored = db.getDefaultTemplate();
 		if (stored) {
 			template = stored.definition;
 			templateId = stored.id;
+			templateName = stored.name;
+			templateVersion = stored.version;
 		}
 	} catch (error) {
 		log.error(`Cannot load default template, using Standard: ${(error as Error).message}`);
@@ -463,5 +511,80 @@ export async function loadRenderTemplate(
 			log.error(`Cannot read logo ${template.logo.path}, rendering without: ${(error as Error).message}`);
 		}
 	}
-	return { template, templateId, logo };
+	return { template, templateId, templateName, templateVersion, logo };
+}
+
+/** Which layout a re-render uses (R7.8). */
+export type RerenderLayout = 'issued' | 'current' | 'current-unfrozen';
+
+/** Options of a re-render. */
+export interface RerenderOptions {
+	/** `issued` = the frozen layout, `current` = the template as it is now (default). */
+	layout?: 'issued' | 'current';
+}
+
+/** A template as loaded for rendering. */
+export interface LoadedTemplate {
+	/** Layout definition. */
+	template: LayoutTemplate;
+	/** Template id, null for the built-in default. */
+	templateId: string | null;
+	/** Template name. */
+	templateName: string;
+	/** Template version, null for the built-in default. */
+	templateVersion: number | null;
+	/** Logo bytes, when the template has one that could be read. */
+	logo?: TemplateLogoImage;
+}
+
+/**
+ * Freezes a loaded template for storage with a document (R7.8).
+ *
+ * The logo is copied to a content-addressed file (`logos/frozen/<sha256>.<ext>`):
+ * the template's own logo file is overwritten on the next upload. An existing frozen
+ * file is kept, so equal logos share one copy. Fail-soft: when the copy cannot be
+ * written the snapshot is stored without a logo rather than blocking the issue.
+ *
+ * @param storage - Artifact file backend.
+ * @param log - Logger.
+ * @param loaded - The template as loaded for this render.
+ */
+export async function freezeTemplate(
+	storage: IssueStorage,
+	log: IssueLogger,
+	loaded: LoadedTemplate,
+): Promise<TemplateSnapshot> {
+	const definition = JSON.parse(JSON.stringify(loaded.template)) as LayoutTemplate;
+	if (definition.logo?.path) {
+		if (loaded.logo) {
+			const ext =
+				/\.(png|jpe?g)$/i.exec(definition.logo.path)?.[1]?.toLowerCase().replace('jpeg', 'jpg') ?? 'png';
+			const frozenPath = `logos/frozen/${createHash('sha256').update(loaded.logo.data).digest('hex')}.${ext}`;
+			try {
+				let exists = false;
+				try {
+					exists = (await storage.read(frozenPath)).equals(loaded.logo.data);
+				} catch {
+					// not there yet
+				}
+				if (!exists) {
+					await storage.write(frozenPath, loaded.logo.data);
+				}
+				definition.logo.path = frozenPath;
+			} catch (error) {
+				log.error(`Cannot freeze logo, snapshot without logo: ${(error as Error).message}`);
+				delete definition.logo;
+			}
+		} else {
+			// the logo could not be read, so the document was rendered without it
+			delete definition.logo;
+		}
+	}
+	return {
+		templateId: loaded.templateId,
+		templateName: loaded.templateName,
+		templateVersion: loaded.templateVersion,
+		definition,
+		frozenAt: new Date().toISOString(),
+	};
 }

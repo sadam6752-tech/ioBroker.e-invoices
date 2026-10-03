@@ -8,6 +8,21 @@ import { mountAttachments } from './attachments';
  *
  * @param value
  */
+/**
+ * Words for the layout a re-render used (R7.8).
+ *
+ * @param layout - `issued`, `current` or `current-unfrozen`.
+ */
+function layoutLabel(layout: string): string {
+	if (layout === 'issued') {
+		return t('Layout wie ausgestellt');
+	}
+	if (layout === 'current-unfrozen') {
+		return t('aktuelles Layout (zuvor nicht eingefroren)');
+	}
+	return t('aktuelles Layout');
+}
+
 function round2(value: number): number {
 	return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -120,7 +135,8 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 						: ''
 				}
 				${inv.status !== 'draft' && inv.pdfPath ? `<button class="secondary" id="d-rerender" title="${t('Erzeugt die PDF aus den gespeicherten Daten neu (z. B. nach einer Layout-Korrektur). Nummer, Beträge und Daten bleiben unverändert, das Original wird archiviert.')}">${t('Neu rendern')}</button>` : ''}
-				${!quote ? `<button class="secondary" id="d-as-tpl" title="${t('Legt eine Rechnungsvorlage mit diesen Positionen, Terminen und Zahlungsbedingungen an. Käufer und Datum werden nicht übernommen.')}">${t('Vorlage erstellen')}</button>` : ''}
+								${inv.status !== 'draft' && inv.pdfPath && inv.templateSnapshot ? `<button class="secondary" id="d-rerender-issued" title="${t('Erzeugt die PDF mit dem Layout neu, mit dem das Dokument ausgestellt wurde – auch wenn die Druckvorlage inzwischen geändert wurde.')}">${t('Mit ausgestelltem Layout neu rendern')}</button>` : ''}
+${!quote ? `<button class="secondary" id="d-as-tpl" title="${t('Legt eine Rechnungsvorlage mit diesen Positionen, Terminen und Zahlungsbedingungen an. Käufer und Datum werden nicht übernommen.')}">${t('Vorlage erstellen')}</button>` : ''}
 				<button class="secondary" id="d-validate">${quote ? t('Pflichtangaben prüfen') : t('Validieren')}</button>
 				${quote && inv.status === 'issued' && !inv.acceptedAt && !inv.rejectedAt ? `<button id="d-accept">${t('Annehmen')}</button><button class="secondary" id="d-reject">${t('Ablehnen')}</button>` : ''}
 				${quote && inv.status === 'issued' ? `<button class="secondary" id="d-convert" title="${t('Erstellt einen Rechnungsentwurf mit Verweis auf dieses Angebot. Die Rechnungsnummer fällt erst beim Ausstellen.')}">${t('In Rechnung umwandeln')}</button>` : ''}
@@ -129,7 +145,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			${inv.status === 'issued' && inv.pdfPath ? `<button class="secondary" id="d-mail">${t('E-Mail (PDF)')}</button>` : ''}
 			${inv.xml ? `<button class="secondary" data-dl="xml">XML ↓</button>` : ''}
 			${inv.xlsxPath ? `<button class="secondary" data-dl="xlsx">Excel ↓</button>` : ''}
-			</div><div id="d-out"></div><div id="d-duty"></div><div id="d-history"></div><div id="d-reports"></div><div id="d-attachments"></div><div id="d-links"></div></div>`;
+			</div><div id="d-out"></div>${inv.templateSnapshot ? `<p class="muted" id="d-frozen">${t('Ausgestellt mit Layout „{name}“ (Version {version}), eingefroren am {date}.', { name: esc(inv.templateSnapshot.templateName), version: String(inv.templateSnapshot.templateVersion ?? '–'), date: esc(inv.templateSnapshot.frozenAt.slice(0, 10)) })}</p>` : ''}<div id="d-duty"></div><div id="d-history"></div><div id="d-reports"></div><div id="d-attachments"></div><div id="d-links"></div></div>`;
 
 		const out = root.querySelector('#d-out')!;
 		const fail = (e: unknown): void => {
@@ -153,7 +169,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 						e =>
 							`<li>${esc(e.createdAt.slice(0, 16).replace('T', ' '))} – ${esc(
 								e.artifact.toUpperCase(),
-							)}${e.reason ? ` – ${esc(e.reason)}` : ''}${
+							)}${e.layout ? ` – ${esc(layoutLabel(e.layout))}` : ''}${e.reason ? ` – ${esc(e.reason)}` : ''}${
 								e.previousPath
 									? ` – ${t('Original')}: <code>${esc(e.previousPath.split('/').pop() ?? '')}</code>`
 									: ''
@@ -359,64 +375,72 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 				fail(e);
 			}
 		});
-		root.querySelector('#d-rerender')?.addEventListener('click', async () => {
-			const reason = window.prompt(
-				t('Grund für das Neu rendern (wird protokolliert, z. B. "Layout-Korrektur"):'),
-				'Layout-Korrektur',
-			);
-			if (reason === null) {
-				return;
-			}
-			if (
-				!window.confirm(
-					t(
-						'Die PDF wird aus den unveränderten Rechnungsdaten neu erzeugt. Nummer, Beträge und Daten der Rechnung ändern sich nicht. Das bisherige Dokument wird als .orig-<n>.pdf archiviert (nie überschrieben), das XML bleibt unverändert. Fortfahren?',
-					),
-				)
-			) {
-				return;
-			}
-			out.innerHTML = `<p class="muted">${t('Rendere neu…')}</p>`;
-			try {
-				const res = await api.rerender(inv.id, reason.trim() || undefined);
-				inv = res.invoice;
-				out.innerHTML = `<p style="color:var(--ok)">${t('PDF neu erzeugt.')}${
-					res.archivedPath
-						? ` ${t('Das Original liegt als {name} daneben.', { name: `<code>${esc(res.archivedPath.split('/').pop() ?? '')}</code>` })}`
-						: ''
-				}</p>`;
-				await loadHistory();
-
-				// § 16 Abs. 2 Nr. 2 UStG: the server states whether the payment method
-				// has to be checked. The decision itself stays with the user.
-				const dutyBox = root.querySelector('#d-duty')!;
-				if (inv.status !== 'draft' && !inv.paid) {
-					try {
-						const { duty, checked } = await api.paymentCheck(inv.id);
-						if (duty.required && !checked) {
-							dutyBox.innerHTML = `<p class="error">${esc(duty.reason)}</p>
-						<button class="secondary" id="d-duty-ok">${t('Zahlungsweise geprüft')}</button>`;
-							root.querySelector('#d-duty-ok')?.addEventListener('click', async () => {
-								try {
-									await api.paymentCheck(inv.id, 'geprüft');
-									dutyBox.innerHTML = `<p style="color:var(--ok)">${t('Zahlungsweise geprüft.')}</p>`;
-								} catch (e) {
-									fail(e);
-								}
-							});
-						} else if (checked) {
-							dutyBox.innerHTML = `<p class="muted">${t('Zahlungsweise geprüft')}${
-								inv.paymentCheckedAt ? ` ${t('am')} ${esc(inv.paymentCheckedAt.slice(0, 10))}` : ''
-							}.</p>`;
-						}
-					} catch {
-						// the duty hint is informational, never block the view
-					}
+		for (const [selector, layout] of [
+			['#d-rerender', 'current'],
+			['#d-rerender-issued', 'issued'],
+		] as const)
+			root.querySelector(selector)?.addEventListener('click', async () => {
+				const reason = window.prompt(
+					t('Grund für das Neu rendern (wird protokolliert, z. B. "Layout-Korrektur"):'),
+					'Layout-Korrektur',
+				);
+				if (reason === null) {
+					return;
 				}
-			} catch (e) {
-				out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
-			}
-		});
+				if (
+					!window.confirm(
+						layout === 'issued'
+							? t(
+									'Die PDF wird mit dem Layout neu erzeugt, mit dem das Dokument ausgestellt wurde. Nummer, Beträge und Daten ändern sich nicht. Das bisherige Dokument wird als .orig-<n>.pdf archiviert (nie überschrieben), das XML bleibt unverändert. Fortfahren?',
+								)
+							: t(
+									'Die PDF wird aus den unveränderten Rechnungsdaten mit der aktuellen Druckvorlage neu erzeugt. Nummer, Beträge und Daten der Rechnung ändern sich nicht. Das bisherige Dokument wird als .orig-<n>.pdf archiviert (nie überschrieben), das XML bleibt unverändert. Fortfahren?',
+								),
+					)
+				) {
+					return;
+				}
+				out.innerHTML = `<p class="muted">${t('Rendere neu…')}</p>`;
+				try {
+					const res = await api.rerender(inv.id, reason.trim() || undefined, layout);
+					inv = res.invoice;
+					out.innerHTML = `<p style="color:var(--ok)">${t('PDF neu erzeugt.')}${
+						res.archivedPath
+							? ` ${t('Das Original liegt als {name} daneben.', { name: `<code>${esc(res.archivedPath.split('/').pop() ?? '')}</code>` })}`
+							: ''
+					}</p>`;
+					await loadHistory();
+
+					// § 16 Abs. 2 Nr. 2 UStG: the server states whether the payment method
+					// has to be checked. The decision itself stays with the user.
+					const dutyBox = root.querySelector('#d-duty')!;
+					if (inv.status !== 'draft' && !inv.paid) {
+						try {
+							const { duty, checked } = await api.paymentCheck(inv.id);
+							if (duty.required && !checked) {
+								dutyBox.innerHTML = `<p class="error">${esc(duty.reason)}</p>
+						<button class="secondary" id="d-duty-ok">${t('Zahlungsweise geprüft')}</button>`;
+								root.querySelector('#d-duty-ok')?.addEventListener('click', async () => {
+									try {
+										await api.paymentCheck(inv.id, 'geprüft');
+										dutyBox.innerHTML = `<p style="color:var(--ok)">${t('Zahlungsweise geprüft.')}</p>`;
+									} catch (e) {
+										fail(e);
+									}
+								});
+							} else if (checked) {
+								dutyBox.innerHTML = `<p class="muted">${t('Zahlungsweise geprüft')}${
+									inv.paymentCheckedAt ? ` ${t('am')} ${esc(inv.paymentCheckedAt.slice(0, 10))}` : ''
+								}.</p>`;
+							}
+						} catch {
+							// the duty hint is informational, never block the view
+						}
+					}
+				} catch (e) {
+					out.innerHTML = `<p class="error">${esc((e as Error).message)}</p>`;
+				}
+			});
 		root.querySelector('#d-storno')?.addEventListener('click', async () => {
 			const reason = window.prompt(
 				t('Grund für den Storno (erscheint auf der Gutschrift):'),

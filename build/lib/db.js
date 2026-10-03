@@ -142,6 +142,7 @@ function mapRow(row) {
     status: row.status,
     docType: (0, import_invoice_model.normalizeDocumentType)(row.doc_type),
     templateId: row.template_id,
+    templateSnapshot: row.template_snapshot_json ? parseJson(row.template_snapshot_json, "template snapshot") : null,
     documentTitle: row.document_title,
     notes: row.notes,
     employeeCode: (_a = row.employee_code) != null ? _a : null,
@@ -775,12 +776,13 @@ class InvoiceDatabase {
       throw new Error("Artifacts can only be attached to issued invoices.");
     }
     this.db.prepare(
-      `UPDATE invoices SET xml = ?, pdf_path = ?, xlsx_path = ?, template_id = ?, updated_at = ? WHERE id = ?`
+      `UPDATE invoices SET xml = ?, pdf_path = ?, xlsx_path = ?, template_id = ?, template_snapshot_json = COALESCE(?, template_snapshot_json), updated_at = ? WHERE id = ?`
     ).run(
       (_a = artifacts.xml) != null ? _a : null,
       artifacts.pdfPath,
       (_b = artifacts.xlsxPath) != null ? _b : null,
       (_c = artifacts.templateId) != null ? _c : null,
+      artifacts.templateSnapshot ? JSON.stringify(artifacts.templateSnapshot) : null,
       nowIso(),
       id
     );
@@ -1244,8 +1246,8 @@ class InvoiceDatabase {
 					 profile, status, template_id, document_title, notes, payment_terms, employee_code, xml, pdf_path, xlsx_path,
 					 paid, paid_at, storno_of_id, skonto_percent, skonto_due_date, sent_at, send_channel, payment_check,
 					 payment_checked_at, reminded_at, reminder_level, retain_until, created_at, updated_at, doc_type,
-					 valid_until, source_document_id, accepted_at, rejected_at, rejection_reason)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					 valid_until, source_document_id, accepted_at, rejected_at, rejection_reason, template_snapshot_json)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).run(
           invoice.id,
           invoice.number,
@@ -1287,7 +1289,8 @@ class InvoiceDatabase {
           (_p = invoice.sourceDocumentId) != null ? _p : null,
           (_q = invoice.acceptedAt) != null ? _q : null,
           (_r = invoice.rejectedAt) != null ? _r : null,
-          (_s = invoice.rejectionReason) != null ? _s : null
+          (_s = invoice.rejectionReason) != null ? _s : null,
+          invoice.templateSnapshot ? JSON.stringify(invoice.templateSnapshot) : null
         );
       }
       for (const company of (_t = dump.companies) != null ? _t : []) {
@@ -1384,11 +1387,12 @@ class InvoiceDatabase {
    * @param previousPath - Path of the archived original, if any.
    * @param newPath - Path of the freshly rendered file.
    * @param reason - Free text, stored for the audit trail.
+   * @param layout - Which layout was used: `issued`, `current` or `current-unfrozen` (R7.8).
    */
-  logRender(invoiceId, artifact, previousPath, newPath, reason) {
+  logRender(invoiceId, artifact, previousPath, newPath, reason, layout = null) {
     this.db.prepare(
-      `INSERT INTO render_history (invoice_id, artifact, previous_path, new_path, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(invoiceId, artifact, previousPath, newPath, reason, nowIso());
+      `INSERT INTO render_history (invoice_id, artifact, previous_path, new_path, reason, layout, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(invoiceId, artifact, previousPath, newPath, reason, layout, nowIso());
   }
   /**
    * Lists the re-render history of an invoice, newest first.
@@ -1397,13 +1401,17 @@ class InvoiceDatabase {
    */
   listRenderHistory(invoiceId) {
     const rows = this.db.prepare(`SELECT * FROM render_history WHERE invoice_id = ? ORDER BY created_at DESC, id DESC`).all(invoiceId);
-    return rows.map((row) => ({
-      artifact: row.artifact,
-      previousPath: row.previous_path,
-      newPath: row.new_path,
-      reason: row.reason,
-      createdAt: row.created_at
-    }));
+    return rows.map((row) => {
+      var _a;
+      return {
+        artifact: row.artifact,
+        previousPath: row.previous_path,
+        newPath: row.new_path,
+        reason: row.reason,
+        layout: (_a = row.layout) != null ? _a : null,
+        createdAt: row.created_at
+      };
+    });
   }
   /**
    * Stores one validation report. The JSON file itself is written by the API

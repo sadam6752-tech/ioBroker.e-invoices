@@ -272,6 +272,18 @@ const MIGRATIONS = [
       `DROP TABLE counters`,
       `ALTER TABLE counters_new RENAME TO counters`
     ]
+  },
+  {
+    version: 13,
+    name: "template-snapshot",
+    sql: [
+      // R7.8: the layout an invoice was issued with, frozen with it. NULL for
+      // everything issued before (those render with the current layout and are
+      // marked as "not frozen" in the history).
+      `ALTER TABLE invoices ADD COLUMN template_snapshot_json TEXT`,
+      // Which layout a re-render used: issued, current, or current-unfrozen.
+      `ALTER TABLE render_history ADD COLUMN layout TEXT`
+    ]
   }
 ];
 const LATEST_SCHEMA_VERSION = MIGRATIONS.reduce((max, item) => Math.max(max, item.version), 0);

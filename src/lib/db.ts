@@ -37,7 +37,13 @@ import {
 	type QuoteDecision,
 } from './invoice-model';
 import { LATEST_SCHEMA_VERSION, MIGRATIONS } from './migrations';
-import { DEFAULT_TEMPLATE, stripCleared, validateTemplate, type LayoutTemplate } from './templates';
+import {
+	DEFAULT_TEMPLATE,
+	stripCleared,
+	validateTemplate,
+	type LayoutTemplate,
+	type TemplateSnapshot,
+} from './templates';
 
 /** Stored invoice row mapped to objects. */
 export interface StoredInvoice {
@@ -67,6 +73,8 @@ export interface StoredInvoice {
 	docType: DocumentType;
 	/** Layout template id, null until artifacts attached. */
 	templateId: string | null;
+	/** The layout the document was issued with, frozen (R7.8); null for older documents. */
+	templateSnapshot: TemplateSnapshot | null;
 	/** Document title (Rechnung/Gutschrift/...). */
 	documentTitle: string;
 	/** Free notes, may be null. */
@@ -131,6 +139,8 @@ export interface IssueArtifacts {
 	xlsxPath?: string;
 	/** Layout template id (optional). */
 	templateId?: string | null;
+	/** The layout to freeze with the document (R7.8); omitted = keep what is stored. */
+	templateSnapshot?: TemplateSnapshot | null;
 }
 
 /** List filter for invoices. */
@@ -320,6 +330,7 @@ interface InvoiceRow {
 	status: string;
 	doc_type: string;
 	template_id: string | null;
+	template_snapshot_json: string | null;
 	document_title: string;
 	notes: string | null;
 	employee_code: string | null;
@@ -363,6 +374,9 @@ function mapRow(row: InvoiceRow): StoredInvoice {
 		status: row.status as InvoiceStatus,
 		docType: normalizeDocumentType(row.doc_type),
 		templateId: row.template_id,
+		templateSnapshot: row.template_snapshot_json
+			? parseJson<TemplateSnapshot>(row.template_snapshot_json, 'template snapshot')
+			: null,
 		documentTitle: row.document_title,
 		notes: row.notes,
 		employeeCode: row.employee_code ?? null,
@@ -771,6 +785,12 @@ export interface RenderHistoryEntry {
 	newPath: string;
 	/** Free-text reason given by the user. */
 	reason: string | null;
+	/**
+	 * Which layout the re-render used (R7.8): `issued` (the frozen one), `current` (the
+	 * template as it is now, frozen anew) or `current-unfrozen` (the document had no
+	 * frozen layout yet). Null for entries from before the snapshot existed.
+	 */
+	layout: string | null;
 	/** ISO timestamp. */
 	createdAt: string;
 }
@@ -1435,13 +1455,14 @@ export class InvoiceDatabase {
 		}
 		this.db
 			.prepare(
-				`UPDATE invoices SET xml = ?, pdf_path = ?, xlsx_path = ?, template_id = ?, updated_at = ? WHERE id = ?`,
+				`UPDATE invoices SET xml = ?, pdf_path = ?, xlsx_path = ?, template_id = ?, template_snapshot_json = COALESCE(?, template_snapshot_json), updated_at = ? WHERE id = ?`,
 			)
 			.run(
 				artifacts.xml ?? null,
 				artifacts.pdfPath,
 				artifacts.xlsxPath ?? null,
 				artifacts.templateId ?? null,
+				artifacts.templateSnapshot ? JSON.stringify(artifacts.templateSnapshot) : null,
 				nowIso(),
 				id,
 			);
@@ -1978,8 +1999,8 @@ export class InvoiceDatabase {
 					 profile, status, template_id, document_title, notes, payment_terms, employee_code, xml, pdf_path, xlsx_path,
 					 paid, paid_at, storno_of_id, skonto_percent, skonto_due_date, sent_at, send_channel, payment_check,
 					 payment_checked_at, reminded_at, reminder_level, retain_until, created_at, updated_at, doc_type,
-					 valid_until, source_document_id, accepted_at, rejected_at, rejection_reason)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					 valid_until, source_document_id, accepted_at, rejected_at, rejection_reason, template_snapshot_json)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					)
 					.run(
 						invoice.id,
@@ -2023,6 +2044,7 @@ export class InvoiceDatabase {
 						invoice.acceptedAt ?? null,
 						invoice.rejectedAt ?? null,
 						invoice.rejectionReason ?? null,
+						invoice.templateSnapshot ? JSON.stringify(invoice.templateSnapshot) : null,
 					);
 			}
 			for (const company of dump.companies ?? []) {
@@ -2139,6 +2161,7 @@ export class InvoiceDatabase {
 	 * @param previousPath - Path of the archived original, if any.
 	 * @param newPath - Path of the freshly rendered file.
 	 * @param reason - Free text, stored for the audit trail.
+	 * @param layout - Which layout was used: `issued`, `current` or `current-unfrozen` (R7.8).
 	 */
 	public logRender(
 		invoiceId: string,
@@ -2146,12 +2169,13 @@ export class InvoiceDatabase {
 		previousPath: string | null,
 		newPath: string,
 		reason: string | null,
+		layout: string | null = null,
 	): void {
 		this.db
 			.prepare(
-				`INSERT INTO render_history (invoice_id, artifact, previous_path, new_path, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO render_history (invoice_id, artifact, previous_path, new_path, reason, layout, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			)
-			.run(invoiceId, artifact, previousPath, newPath, reason, nowIso());
+			.run(invoiceId, artifact, previousPath, newPath, reason, layout, nowIso());
 	}
 
 	/**
@@ -2167,6 +2191,7 @@ export class InvoiceDatabase {
 			previous_path: string | null;
 			new_path: string;
 			reason: string | null;
+			layout: string | null;
 			created_at: string;
 		}[];
 		return rows.map(row => ({
@@ -2174,6 +2199,7 @@ export class InvoiceDatabase {
 			previousPath: row.previous_path,
 			newPath: row.new_path,
 			reason: row.reason,
+			layout: row.layout ?? null,
 			createdAt: row.created_at,
 		}));
 	}
