@@ -262,6 +262,41 @@ describe('pwa => offers (R8)', () => {
 	});
 });
 
+describe('pwa => logo', () => {
+	/**
+	 * Width and height from the IHDR chunk of a PNG.
+	 *
+	 * @param file - Path of the PNG file.
+	 */
+	function pngSize(file: string): { width: number; height: number } {
+		const bytes = readFileSync(file);
+		expect(bytes.subarray(1, 4).toString(), `${file} is a PNG`).to.equal('PNG');
+		return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+	}
+
+	it('uses one logo for the admin, the installed web app and the favicon', () => {
+		expect(pngSize('admin/e-invoices.png')).to.deep.equal({ width: 512, height: 512 });
+		expect(pngSize('src-www/public/icons/icon-192.png')).to.deep.equal({ width: 192, height: 192 });
+		expect(pngSize('src-www/public/icons/icon-512.png')).to.deep.equal({ width: 512, height: 512 });
+		expect(pngSize('src-www/public/icons/maskable-512.png')).to.deep.equal({ width: 512, height: 512 });
+		// the vector logo scales: it carries its own viewBox
+		const svg = readFileSync('admin/e-invoices.svg', 'utf8');
+		expect(svg).to.contain('viewBox="0 0 512 512"');
+		// the icons come from it, the script says so
+		expect(readFileSync('src-www/scripts/make-icons.mjs', 'utf8')).to.contain('admin');
+		// io-package.json names exactly the files that exist
+		const ioPackage = JSON.parse(readFileSync('io-package.json', 'utf8')) as { common: { icon: string } };
+		expect(ioPackage.common.icon).to.equal('e-invoices.png');
+		for (const built of ['www/icons/icon-192.png', 'www/icons/icon-512.png', 'www/icons/maskable-512.png']) {
+			if (existsSync(built)) {
+				expect(readFileSync(built).equals(readFileSync(built.replace('www/', 'src-www/public/')))).to.equal(
+					true,
+				);
+			}
+		}
+	});
+});
+
 describe('pwa => liability clause', () => {
 	it('carries the disclaimer in the README (English and German) and on the status page', () => {
 		const readme = readFileSync('README.md', 'utf8');

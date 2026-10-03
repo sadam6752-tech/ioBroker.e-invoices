@@ -1057,6 +1057,59 @@ describe('api => templates', function () {
 		await request(app).delete(`/api/templates/${second.body.id}`).expect(400);
 		await request(app).get('/api/templates/nope').expect(404);
 	});
+
+	it('stores the two header distances, takes them back and refuses nonsense', async () => {
+		const created = await request(app)
+			.post('/api/templates')
+			.send({
+				name: 'Briefkopf',
+				definition: { ...DEFAULT_TEMPLATE, name: 'Briefkopf', logoTopMm: 20, textTopMm: 62.5 },
+			})
+			.expect(201);
+		const id = created.body.id as string;
+		expect(created.body.definition.logoTopMm).to.equal(20);
+		expect(created.body.definition.textTopMm).to.equal(62.5);
+		const read = await request(app).get(`/api/templates/${id}`).expect(200);
+		expect(read.body.definition).to.include({ logoTopMm: 20, textTopMm: 62.5 });
+
+		// the preview renders with them
+		const preview = await request(app)
+			.post('/api/templates/preview')
+			.send({ definition: { ...DEFAULT_TEMPLATE, textTopMm: 80 } })
+			.expect(200);
+		expect(Buffer.from(preview.body).subarray(0, 4).toString()).to.equal('%PDF');
+
+		// nonsense is refused with the name of the field, nothing is stored
+		for (const bad of [-1, 151, 'zehn']) {
+			const refused = await request(app)
+				.put(`/api/templates/${id}`)
+				.send({ name: 'Briefkopf', definition: { ...DEFAULT_TEMPLATE, name: 'Briefkopf', logoTopMm: bad } })
+				.expect(400);
+			expect(String(refused.body.error)).to.contain('Logo-Abstand oben');
+		}
+		const still = await request(app).get(`/api/templates/${id}`).expect(200);
+		expect(still.body.definition.logoTopMm).to.equal(20);
+
+		// an update merges what it receives: leaving the keys out keeps the stored values …
+		const kept = await request(app)
+			.put(`/api/templates/${id}`)
+			.send({ name: 'Briefkopf', definition: { ...DEFAULT_TEMPLATE, name: 'Briefkopf' } })
+			.expect(200);
+		expect(kept.body.definition).to.include({ logoTopMm: 20, textTopMm: 62.5 });
+
+		// … and `null` is how the form says "empty again": the properties are gone, the old layout is back
+		const cleared = await request(app)
+			.put(`/api/templates/${id}`)
+			.send({
+				name: 'Briefkopf',
+				definition: { ...DEFAULT_TEMPLATE, name: 'Briefkopf', logoTopMm: null, textTopMm: null },
+			})
+			.expect(200);
+		expect(Object.keys(cleared.body.definition)).to.not.include.members(['logoTopMm']);
+		expect(Object.keys(cleared.body.definition)).to.not.include.members(['textTopMm']);
+		expect(cleared.body.definition.logoTopMm).to.equal(undefined);
+		expect(cleared.body.definition.textTopMm).to.equal(undefined);
+	});
 });
 
 describe('api => security (R3)', () => {

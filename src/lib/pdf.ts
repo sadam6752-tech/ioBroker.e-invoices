@@ -25,7 +25,7 @@ import {
 	attachmentTypeLabel,
 	formatFileSize,
 } from './pdf-attachments';
-import { ARCHIVE_HINT, DEFAULT_QUOTE_INTRO, DEFAULT_TEMPLATE, type LayoutTemplate } from './templates';
+import { ARCHIVE_HINT, DEFAULT_QUOTE_INTRO, DEFAULT_TEMPLATE, isTopMm, type LayoutTemplate } from './templates';
 import type { StoredInvoice } from './db';
 
 /**
@@ -84,6 +84,37 @@ export function imageHeightForWidth(data: Buffer, widthPt: number): number {
 		// fall through to the square fallback
 	}
 	return widthPt;
+}
+
+/** Points per millimetre (1 in = 25.4 mm = 72 pt). */
+const MM_TO_PT = 72 / 25.4;
+
+/** Where the logo sat before it could be moved, in pt. */
+const DEFAULT_LOGO_TOP_PT = 36;
+
+/** Where the header text starts when there is no logo, in pt. */
+const DEFAULT_TEXT_TOP_PT = 50;
+
+/**
+ * The two vertical anchors of the header: where the logo starts and where the
+ * header text (address line, recipient, meta block) starts. Both are distances
+ * from the top edge of the sheet; a missing value keeps the layout the template
+ * always had, so templates stored before the two settings existed render the same.
+ *
+ * @param template - Layout template.
+ * @param logoHeightPt - Height the logo is drawn with, 0 when there is no logo.
+ */
+export function headerTops(
+	template: Pick<LayoutTemplate, 'logoTopMm' | 'textTopMm'>,
+	logoHeightPt: number,
+): { logoTopPt: number; textTopPt: number } {
+	const logoTopPt = isTopMm(template.logoTopMm) ? template.logoTopMm * MM_TO_PT : DEFAULT_LOGO_TOP_PT;
+	const textTopPt = isTopMm(template.textTopMm)
+		? template.textTopMm * MM_TO_PT
+		: logoHeightPt > 0
+			? logoTopPt + logoHeightPt + 10
+			: DEFAULT_TEXT_TOP_PT;
+	return { logoTopPt, textTopPt };
 }
 
 /** Longest logo height in pt before the image is scaled down to fit. */
@@ -235,8 +266,9 @@ export async function renderInvoicePdf(
 						? left + (pageWidth - drawWidth) / 2
 						: left + pageWidth - drawWidth;
 			try {
-				doc.image(logo.data, lx, 36, { width: drawWidth, height: drawHeight });
-				return 36 + drawHeight;
+				const { logoTopPt } = headerTops(template, 0);
+				doc.image(logo.data, lx, logoTopPt, { width: drawWidth, height: drawHeight });
+				return logoTopPt + drawHeight;
 			} catch {
 				// broken logo must never break the invoice
 				return 0;
@@ -244,7 +276,9 @@ export async function renderInvoicePdf(
 		};
 		const logoBottom = drawLogo(LOGO_MAX_HEIGHT_PT);
 
-		let cursor = logoBottom > 0 ? logoBottom + 10 : 50;
+		// the text start is its own setting; without one it follows the logo
+		const logoHeight = logoBottom > 0 ? logoBottom - headerTops(template, 0).logoTopPt : 0;
+		let cursor = headerTops(template, logoHeight).textTopPt;
 		if (showTagline) {
 			doc.fillColor(colors.muted).fontSize(7);
 			doc.text(

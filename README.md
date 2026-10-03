@@ -56,6 +56,24 @@ preview, backups and a status page. The header bar carries the tabs only — the
 "+ Neu" buttons sit where their lists are, and the status page names the app
 next to the version and the schema.
 
+### Print templates: fine-tuning the header
+
+Besides logo, colors and blocks, a print template has two header distances, both
+in mm from the **top edge of the sheet**:
+
+- **Logo distance from top** — where the logo starts (empty = 12.7 mm, where it
+  always sat),
+- **Text distance from top** — where the header text starts: the small sender line,
+  the recipient address and the invoice data (empty = directly below the logo).
+
+With both empty the layout is exactly the one the template always had. Set only the
+logo distance and the text follows the logo; set the text distance and it stays
+where you put it, whatever the logo does — so a letterhead with a pre-printed logo or
+a window envelope can be matched by eye with the PDF preview. The values apply to
+invoices and offers alike, and the logo of the following pages (when it is drawn on
+every page) uses the same distance. Allowed are 0 to 150 mm; an empty field takes a
+value back.
+
 ### Language of the web app
 
 The web app speaks German and English. The language is chosen in the instance
@@ -313,6 +331,11 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) New logo: the envelope with the euro sheet is the adapter icon now (admin, installed web app, favicon). The web app icons are generated from `admin/e-invoices.svg` (`node src-www/scripts/make-icons.mjs`).
+* (alex) Print templates got two header distances in mm from the top edge of the sheet: where the logo starts and where the header text (sender line, recipient, invoice data) starts. Empty keeps the layout as it was; the preview uses the values too. An update of a template only merges what it receives, so an emptied field is sent as `null` — which also fixes unlinking the company from a template.
+
 ### 0.8.5 (2026-10-02)
 
 * (alex) Disclaimer: the README carries a liability clause (English and German) and the status page of the web app points to it.

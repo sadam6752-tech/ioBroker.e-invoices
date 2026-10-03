@@ -31,6 +31,7 @@ __export(pdf_exports, {
   formatDeDate: () => formatDeDate,
   formatEur: () => formatEur,
   formatEurDe: () => formatEurDe,
+  headerTops: () => headerTops,
   imageHeightForWidth: () => imageHeightForWidth,
   renderInvoicePdf: () => renderInvoicePdf
 });
@@ -63,6 +64,14 @@ function imageHeightForWidth(data, widthPt) {
   } catch {
   }
   return widthPt;
+}
+const MM_TO_PT = 72 / 25.4;
+const DEFAULT_LOGO_TOP_PT = 36;
+const DEFAULT_TEXT_TOP_PT = 50;
+function headerTops(template, logoHeightPt) {
+  const logoTopPt = (0, import_templates.isTopMm)(template.logoTopMm) ? template.logoTopMm * MM_TO_PT : DEFAULT_LOGO_TOP_PT;
+  const textTopPt = (0, import_templates.isTopMm)(template.textTopMm) ? template.textTopMm * MM_TO_PT : logoHeightPt > 0 ? logoTopPt + logoHeightPt + 10 : DEFAULT_TEXT_TOP_PT;
+  return { logoTopPt, textTopPt };
 }
 const LOGO_MAX_HEIGHT_PT = 220;
 const LOGO_CONTINUATION_HEIGHT_PT = 80;
@@ -130,14 +139,16 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       const drawWidth = naturalHeight > maxHeight ? widthPt * maxHeight / naturalHeight : widthPt;
       const lx = template.logo.position === "left" ? left : template.logo.position === "center" ? left + (pageWidth - drawWidth) / 2 : left + pageWidth - drawWidth;
       try {
-        doc.image(logo.data, lx, 36, { width: drawWidth, height: drawHeight });
-        return 36 + drawHeight;
+        const { logoTopPt } = headerTops(template, 0);
+        doc.image(logo.data, lx, logoTopPt, { width: drawWidth, height: drawHeight });
+        return logoTopPt + drawHeight;
       } catch {
         return 0;
       }
     };
     const logoBottom = drawLogo(LOGO_MAX_HEIGHT_PT);
-    let cursor = logoBottom > 0 ? logoBottom + 10 : 50;
+    const logoHeight = logoBottom > 0 ? logoBottom - headerTops(template, 0).logoTopPt : 0;
+    let cursor = headerTops(template, logoHeight).textTopPt;
     if (showTagline) {
       doc.fillColor(colors.muted).fontSize(7);
       doc.text(
@@ -505,6 +516,7 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
   formatDeDate,
   formatEur,
   formatEurDe,
+  headerTops,
   imageHeightForWidth,
   renderInvoicePdf
 });

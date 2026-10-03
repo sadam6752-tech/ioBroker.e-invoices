@@ -26,6 +26,10 @@ export const en: Record<string, string> = {
 	'Ablehnung vermerkt.': 'Decline recorded.',
 	Abmelden: 'Sign out',
 	Abschlagsrechnung: 'Interim invoice',
+	'Abstand der Oberkante des Logos vom oberen Blattrand. Leer = 12,7 mm (bisheriger Wert).':
+		'Distance of the top edge of the logo from the top edge of the sheet. Empty = 12.7 mm (the previous position).',
+	'Abstand des Textes (Absenderzeile, Empfänger, Rechnungsdaten) vom oberen Blattrand. Leer = direkt unter dem Logo.':
+		'Distance of the text (sender line, recipient, invoice data) from the top edge of the sheet. Empty = directly below the logo.',
 	'Achtung: Wiederherstellen ersetzt die gesamte Datenbank.': 'Caution: restoring replaces the whole database.',
 	'Adress-Tagline': 'Address tagline',
 	Aktion: 'Action',
@@ -241,6 +245,7 @@ export const en: Record<string, string> = {
 	Login: 'Login',
 	'Logo (PNG/JPEG, max. 2 MB)': 'Logo (PNG/JPEG, max. 2 MB)',
 	'Logo auf allen Seiten anzeigen': 'Show the logo on all pages',
+	'Logo-Abstand oben (mm)': 'Logo distance from top (mm)',
 	'Logo-Breite (mm)': 'Logo width (mm)',
 	'Logo-Position': 'Logo position',
 	'Logo-Upload fehlgeschlagen': 'Logo upload failed',
@@ -361,6 +366,7 @@ export const en: Record<string, string> = {
 	'Tabellenkopf komplett in Akzentfarbe': 'Whole table header in the accent color',
 	Tage: 'Days',
 	Telefon: 'Phone',
+	'Text-Abstand oben (mm)': 'Text distance from top (mm)',
 	Textfarbe: 'Text color',
 	'Tipp: Unter {link} eine Vorlage anlegen, um wiederkehrende Rechnungen nicht jedes Mal neu einzutippen.':
 		'Tip: create a template under {link} so you do not have to retype recurring invoices every time.',
@@ -440,6 +446,7 @@ export const en: Record<string, string> = {
 	aufsteigend: 'ascending',
 	'aus Zahlungsbedingung': 'from the payment conditions',
 	ausgestellt: 'issued',
+	automatisch: 'automatic',
 	bezahlt: 'paid',
 	'bis (optional)': 'to (optional)',
 	'bleibt beim Bearbeiten erhalten, der Nummernkreis hängt an ihr.':

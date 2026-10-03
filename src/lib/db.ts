@@ -37,7 +37,7 @@ import {
 	type QuoteDecision,
 } from './invoice-model';
 import { LATEST_SCHEMA_VERSION, MIGRATIONS } from './migrations';
-import { DEFAULT_TEMPLATE, validateTemplate, type LayoutTemplate } from './templates';
+import { DEFAULT_TEMPLATE, stripCleared, validateTemplate, type LayoutTemplate } from './templates';
 
 /** Stored invoice row mapped to objects. */
 export interface StoredInvoice {
@@ -1592,7 +1592,14 @@ export class InvoiceDatabase {
 				`INSERT INTO templates (id, name, version, definition_json, is_default, created_at, updated_at)
 				VALUES (?, ?, 1, ?, ?, ?, ?)`,
 			)
-			.run(id, name.trim(), JSON.stringify({ ...definition, name: name.trim() }), hasAny ? 0 : 1, stamp, stamp);
+			.run(
+				id,
+				name.trim(),
+				JSON.stringify({ ...stripCleared(definition), name: name.trim() }),
+				hasAny ? 0 : 1,
+				stamp,
+				stamp,
+			);
 		const created = this.getTemplate(id);
 		if (!created) {
 			throw new Error('Template was not stored');
@@ -1664,13 +1671,15 @@ export class InvoiceDatabase {
 		const patchDef: Partial<LayoutTemplate> = patch.definition ?? {};
 		// deep merge for the nested maps: a partial {blocks:{meta:false}} must not
 		// drop the other block flags (validateTemplate would then reject it)
-		const next: LayoutTemplate = {
+		const merged: LayoutTemplate = {
 			...current.definition,
 			...patchDef,
 			blocks: { ...current.definition.blocks, ...(patchDef.blocks ?? {}) },
 			colors: { ...current.definition.colors, ...(patchDef.colors ?? {}) },
 			name: patchDef.name?.trim() || nextName,
 		};
+		// `null` clears an optional setting (a missing key would keep the stored value)
+		const next = stripCleared(merged);
 		const errors = validateTemplate(next);
 		if (errors.length > 0) {
 			throw new Error(`Invalid template: ${errors.join(' | ')}`);

@@ -915,7 +915,14 @@ class InvoiceDatabase {
     this.db.prepare(
       `INSERT INTO templates (id, name, version, definition_json, is_default, created_at, updated_at)
 				VALUES (?, ?, 1, ?, ?, ?, ?)`
-    ).run(id, name.trim(), JSON.stringify({ ...definition, name: name.trim() }), hasAny ? 0 : 1, stamp, stamp);
+    ).run(
+      id,
+      name.trim(),
+      JSON.stringify({ ...(0, import_templates.stripCleared)(definition), name: name.trim() }),
+      hasAny ? 0 : 1,
+      stamp,
+      stamp
+    );
     const created = this.getTemplate(id);
     if (!created) {
       throw new Error("Template was not stored");
@@ -978,13 +985,14 @@ class InvoiceDatabase {
     }
     const nextName = ((_a = patch.name) == null ? void 0 : _a.trim()) || current.name;
     const patchDef = (_b = patch.definition) != null ? _b : {};
-    const next = {
+    const merged = {
       ...current.definition,
       ...patchDef,
       blocks: { ...current.definition.blocks, ...(_c = patchDef.blocks) != null ? _c : {} },
       colors: { ...current.definition.colors, ...(_d = patchDef.colors) != null ? _d : {} },
       name: ((_e = patchDef.name) == null ? void 0 : _e.trim()) || nextName
     };
+    const next = (0, import_templates.stripCleared)(merged);
     const errors = (0, import_templates.validateTemplate)(next);
     if (errors.length > 0) {
       throw new Error(`Invalid template: ${errors.join(" | ")}`);

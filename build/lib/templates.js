@@ -19,11 +19,31 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var templates_exports = {};
 __export(templates_exports, {
   ARCHIVE_HINT: () => ARCHIVE_HINT,
+  CLEARABLE_KEYS: () => CLEARABLE_KEYS,
+  DEFAULT_LOGO_TOP_MM: () => DEFAULT_LOGO_TOP_MM,
   DEFAULT_QUOTE_INTRO: () => DEFAULT_QUOTE_INTRO,
   DEFAULT_TEMPLATE: () => DEFAULT_TEMPLATE,
+  MAX_TOP_MM: () => MAX_TOP_MM,
+  isTopMm: () => isTopMm,
+  stripCleared: () => stripCleared,
   validateTemplate: () => validateTemplate
 });
 module.exports = __toCommonJS(templates_exports);
+const DEFAULT_LOGO_TOP_MM = 12.7;
+const CLEARABLE_KEYS = ["logoTopMm", "textTopMm", "companyId"];
+function stripCleared(definition) {
+  const copy = { ...definition };
+  for (const key of CLEARABLE_KEYS) {
+    if (copy[key] === null) {
+      delete copy[key];
+    }
+  }
+  return copy;
+}
+const MAX_TOP_MM = 150;
+function isTopMm(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= MAX_TOP_MM;
+}
 const DEFAULT_TEMPLATE = {
   version: 1,
   name: "Standard",
@@ -106,8 +126,17 @@ function validateTemplate(template) {
     errors.push("signatureName muss Text mit max. 80 Zeichen sein");
   }
   const companyId = t.companyId;
-  if (companyId !== void 0 && (typeof companyId !== "string" || companyId.length > 80)) {
+  if (companyId !== void 0 && companyId !== null && (typeof companyId !== "string" || companyId.length > 80)) {
     errors.push("companyId muss Text mit max. 80 Zeichen sein");
+  }
+  for (const [key, label] of [
+    ["logoTopMm", "Logo-Abstand oben"],
+    ["textTopMm", "Text-Abstand oben"]
+  ]) {
+    const value = t[key];
+    if (value !== void 0 && value !== null && !isTopMm(value)) {
+      errors.push(`${label} muss eine Zahl von 0 bis ${MAX_TOP_MM} mm sein`);
+    }
   }
   const blocks = t.blocks;
   if (!blocks) {
@@ -144,8 +173,13 @@ function validateTemplate(template) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ARCHIVE_HINT,
+  CLEARABLE_KEYS,
+  DEFAULT_LOGO_TOP_MM,
   DEFAULT_QUOTE_INTRO,
   DEFAULT_TEMPLATE,
+  MAX_TOP_MM,
+  isTopMm,
+  stripCleared,
   validateTemplate
 });
 //# sourceMappingURL=templates.js.map

@@ -26,6 +26,43 @@ export interface TemplateLogo {
 	widthMm: number;
 }
 
+/** Where the logo sat before it could be moved: 36 pt from the top edge of the sheet. */
+export const DEFAULT_LOGO_TOP_MM = 12.7;
+
+/**
+ * Optional settings that can be cleared again by sending `null`. A template update
+ * merges what it receives into the stored definition, so leaving a property out
+ * keeps the old value; `null` is the way to say "not set any more".
+ */
+export const CLEARABLE_KEYS = ['logoTopMm', 'textTopMm', 'companyId'] as const;
+
+/**
+ * Removes the clearable settings whose value is `null`.
+ *
+ * @param definition - Definition as stored or received.
+ */
+export function stripCleared<T extends object>(definition: T): T {
+	const copy = { ...definition } as Record<string, unknown>;
+	for (const key of CLEARABLE_KEYS) {
+		if (copy[key] === null) {
+			delete copy[key];
+		}
+	}
+	return copy as T;
+}
+
+/** Largest top distance the form accepts for the logo and the header text, in mm. */
+export const MAX_TOP_MM = 150;
+
+/**
+ * True for a usable top distance in mm.
+ *
+ * @param value - Candidate from a stored or submitted template.
+ */
+export function isTopMm(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= MAX_TOP_MM;
+}
+
 /** Toggleable content blocks. */
 export interface TemplateBlocks {
 	/** Document title (Rechnung/Gutschrift). */
@@ -86,6 +123,17 @@ export interface LayoutTemplate {
 	signatureName: string;
 	/** Extra header lines, e.g. Geschäftsführer (max 200 chars). */
 	headerExtra: string;
+	/**
+	 * Distance of the logo's top edge from the top edge of the sheet in mm
+	 * (0–150). Missing = 12.7 mm, where the logo always sat.
+	 */
+	logoTopMm?: number;
+	/**
+	 * Distance of the top edge of the header text (address line, recipient, meta
+	 * block) from the top edge of the sheet in mm (0–150). Missing = the text
+	 * follows right below the logo, as before.
+	 */
+	textTopMm?: number;
 	/** Content block toggles. */
 	blocks: TemplateBlocks;
 }
@@ -192,8 +240,17 @@ export function validateTemplate(template: unknown): string[] {
 		errors.push('signatureName muss Text mit max. 80 Zeichen sein');
 	}
 	const companyId: unknown = t.companyId;
-	if (companyId !== undefined && (typeof companyId !== 'string' || companyId.length > 80)) {
+	if (companyId !== undefined && companyId !== null && (typeof companyId !== 'string' || companyId.length > 80)) {
 		errors.push('companyId muss Text mit max. 80 Zeichen sein');
+	}
+	for (const [key, label] of [
+		['logoTopMm', 'Logo-Abstand oben'],
+		['textTopMm', 'Text-Abstand oben'],
+	] as const) {
+		const value: unknown = t[key];
+		if (value !== undefined && value !== null && !isTopMm(value)) {
+			errors.push(`${label} muss eine Zahl von 0 bis ${MAX_TOP_MM} mm sein`);
+		}
 	}
 	const blocks = t.blocks as Record<string, unknown> | undefined;
 	if (!blocks) {

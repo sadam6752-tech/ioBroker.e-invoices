@@ -26,6 +26,10 @@ interface Template {
 		headerExtra: string;
 		blocks: Record<string, boolean>;
 		logo?: { path: string; position: string; widthMm: number; allPages?: boolean };
+		/** Distance of the logo's top edge from the top of the sheet in mm (empty = 12.7). */
+		logoTopMm?: number | null;
+		/** Distance of the header text from the top of the sheet in mm (empty = below the logo). */
+		textTopMm?: number | null;
 	};
 	isDefault: boolean;
 }
@@ -124,6 +128,10 @@ export async function templates(root: HTMLElement): Promise<void> {
 					.join('')}
 			</select></label>
 			<label>${t('Logo-Breite (mm)')}<input id="t-lw" type="number" min="10" max="500" value="${d.logo?.widthMm ?? 30}" /></label>
+		</div>
+		<div class="grid2">
+			<label title="${t('Abstand der Oberkante des Logos vom oberen Blattrand. Leer = 12,7 mm (bisheriger Wert).')}">${t('Logo-Abstand oben (mm)')}<input id="t-ltop" type="number" min="0" max="150" step="0.5" value="${d.logoTopMm ?? ''}" placeholder="12,7" /></label>
+			<label title="${t('Abstand des Textes (Absenderzeile, Empfänger, Rechnungsdaten) vom oberen Blattrand. Leer = direkt unter dem Logo.')}">${t('Text-Abstand oben (mm)')}<input id="t-ttop" type="number" min="0" max="150" step="0.5" value="${d.textTopMm ?? ''}" placeholder="${t('automatisch')}" /></label>
 		</div>
 		<label class="pay" title="${t('Ohne Haken erscheint das Logo nur auf der ersten Seite')}">
 			<input type="checkbox" id="t-lall" ${d.logo?.allPages ? 'checked' : ''} /><span>${t('Logo auf allen Seiten anzeigen')}</span>
@@ -314,7 +322,8 @@ export async function templates(root: HTMLElement): Promise<void> {
 		if (formCompany) {
 			(def as unknown as Record<string, string>).companyId = formCompany;
 		} else {
-			delete (def as unknown as Record<string, unknown>).companyId;
+			// same rule: unlinking the company has to be sent, a missing key would keep the link
+			(def as unknown as Record<string, unknown>).companyId = null;
 		}
 		(def as unknown as Record<string, string>).introText =
 			root.querySelector<HTMLTextAreaElement>('#t-intro')?.value ?? '';
@@ -324,6 +333,20 @@ export async function templates(root: HTMLElement): Promise<void> {
 			root.querySelector<HTMLInputElement>('#t-sign')?.value ?? '';
 		(def as unknown as Record<string, string>).headerExtra =
 			root.querySelector<HTMLInputElement>('#t-hextra')?.value ?? '';
+		// the two header distances: empty means "as before". `null` (not a missing key) is what
+		// tells the server to drop a value stored earlier — an update only merges what it receives.
+		for (const [id, key] of [
+			['#t-ltop', 'logoTopMm'],
+			['#t-ttop', 'textTopMm'],
+		] as const) {
+			const text = root.querySelector<HTMLInputElement>(id)?.value.trim().replace(',', '.') ?? '';
+			const value = Number(text);
+			if (text !== '' && Number.isFinite(value)) {
+				def[key] = value;
+			} else {
+				def[key] = null;
+			}
+		}
 		if (def.logo) {
 			def.logo.position = root.querySelector<HTMLSelectElement>('#t-lpos')?.value ?? 'right';
 			def.logo.widthMm = Number(root.querySelector<HTMLInputElement>('#t-lw')?.value ?? 30);
