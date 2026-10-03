@@ -348,6 +348,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) Fix: lint error in the web app (braces around the re-render button loop) that kept release 0.8.7 from passing the checks. Same content as 0.8.7.
+
 ### 0.8.7 (2026-10-03)
 
 * (alex) Several companies: a document is bound to the company profile it was written for (new column `company_id`, migration v14; documents from before have none). Wizard stores the choice, a Storno and an invoice made from a quotation take it over, the invoice list and the exports can be filtered by company, and the new page "Umsatz" (`/api/reports/revenue-by-company`, CSV, Excel) adds the issued invoices up per company. The invoice number stays one circle for all companies.
