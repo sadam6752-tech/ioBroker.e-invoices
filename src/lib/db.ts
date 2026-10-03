@@ -117,6 +117,8 @@ export interface StoredInvoice {
 	validUntil: string | null;
 	/** Quotation only: id of the quotation this invoice came from (R8). */
 	sourceDocumentId: string | null;
+	/** Company profile the document was written for (R6.3); null for older documents. */
+	companyId: string | null;
 	/** Quotation only: when the customer accepted the offer. */
 	acceptedAt: string | null;
 	/** Quotation only: when the customer declined the offer. */
@@ -151,6 +153,8 @@ export interface InvoiceFilter {
 	docType?: DocumentType;
 	/** Only documents created from this quotation (R8, chain Angebot → Rechnung). */
 	sourceDocumentId?: string;
+	/** Only documents of this company profile (R6.3); `none` = documents without a company. */
+	companyId?: string;
 	/** Filter by issue year. */
 	year?: number;
 	/** Free-text search over number, parties, position texts and notes. */
@@ -331,6 +335,7 @@ interface InvoiceRow {
 	doc_type: string;
 	template_id: string | null;
 	template_snapshot_json: string | null;
+	company_id: string | null;
 	document_title: string;
 	notes: string | null;
 	employee_code: string | null;
@@ -398,6 +403,7 @@ function mapRow(row: InvoiceRow): StoredInvoice {
 		retainUntil: row.retain_until,
 		validUntil: row.valid_until,
 		sourceDocumentId: row.source_document_id,
+		companyId: row.company_id ?? null,
 		acceptedAt: row.accepted_at,
 		rejectedAt: row.rejected_at,
 		rejectionReason: row.rejection_reason,
@@ -1063,11 +1069,12 @@ export class InvoiceDatabase {
 		const stamp = nowIso();
 		const kind = normalizeDocumentType(input.docType);
 		const totals = calcTotals(input.lines.length > 0 ? input.lines : []);
+		const companyId = this.checkedCompanyId(input.companyId);
 		this.db
 			.prepare(
 				`INSERT INTO invoices
-				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, doc_type, template_id, document_title, notes, payment_terms, employee_code, skonto_percent, skonto_due_date, valid_until, source_document_id, created_at, updated_at)
-				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, doc_type, template_id, document_title, notes, payment_terms, employee_code, skonto_percent, skonto_due_date, valid_until, source_document_id, company_id, created_at, updated_at)
+				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.run(
 				id,
@@ -1087,6 +1094,7 @@ export class InvoiceDatabase {
 				input.skontoDueDate?.trim() || null,
 				input.validUntil?.trim() || null,
 				input.sourceDocumentId ?? null,
+				companyId,
 				stamp,
 				stamp,
 			);
@@ -1095,6 +1103,24 @@ export class InvoiceDatabase {
 			throw new Error('Draft was not stored');
 		}
 		return created;
+	}
+
+	/**
+	 * Normalises the company a document is bound to (R6.3).
+	 *
+	 * @param value - Company profile id, empty or null for "none".
+	 * @returns The id, or null when none was given.
+	 * @throws {Error} When the profile does not exist.
+	 */
+	private checkedCompanyId(value: string | null | undefined): string | null {
+		const id = typeof value === 'string' ? value.trim() : '';
+		if (!id) {
+			return null;
+		}
+		if (!this.getCompanyProfile(id)) {
+			throw new Error(`Unknown company profile: ${id}`);
+		}
+		return id;
 	}
 
 	/**
@@ -1122,6 +1148,12 @@ export class InvoiceDatabase {
 		if (filter.sourceDocumentId) {
 			where.push(`source_document_id = ?`);
 			params.push(filter.sourceDocumentId);
+		}
+		if (filter.companyId === 'none') {
+			where.push(`company_id IS NULL`);
+		} else if (filter.companyId) {
+			where.push(`company_id = ?`);
+			params.push(filter.companyId);
 		}
 		if (filter.status) {
 			where.push(`status = ?`);
@@ -1226,13 +1258,16 @@ export class InvoiceDatabase {
 			skontoPercent: patch.skontoPercent ?? current.skontoPercent,
 			skontoDueDate: pick(patch.skontoDueDate, current.skontoDueDate),
 			validUntil: pick(patch.validUntil, current.validUntil),
+			// R6.3: missing keeps the binding, null or empty unbinds it
+			companyId: patch.companyId === undefined ? current.companyId : patch.companyId,
 		};
+		const companyId = this.checkedCompanyId(merged.companyId);
 		const totals = calcTotals(merged.lines.length > 0 ? merged.lines : []);
 		this.db
 			.prepare(
 				`UPDATE invoices SET issue_date = ?, delivery_date = ?, due_date = ?, seller_json = ?, buyer_json = ?,
 				lines_json = ?, totals_json = ?, document_title = ?, notes = ?, payment_terms = ?, employee_code = ?,
-				skonto_percent = ?, skonto_due_date = ?, doc_type = ?, valid_until = ?, updated_at = ? WHERE id = ?`,
+				skonto_percent = ?, skonto_due_date = ?, doc_type = ?, valid_until = ?, company_id = ?, updated_at = ? WHERE id = ?`,
 			)
 			.run(
 				merged.issueDate,
@@ -1250,6 +1285,7 @@ export class InvoiceDatabase {
 				merged.skontoDueDate?.trim() || null,
 				normalizeDocumentType(merged.docType),
 				merged.validUntil?.trim() || null,
+				companyId,
 				nowIso(),
 				id,
 			);
@@ -1429,6 +1465,7 @@ export class InvoiceDatabase {
 			paymentTerms: quote.paymentTerms ?? undefined,
 			notes: quote.notes ?? undefined,
 			employeeCode: quote.employeeCode ?? undefined,
+			companyId: quote.companyId,
 			skontoPercent: quote.skontoPercent,
 			skontoDueDate: quote.skontoDueDate ?? undefined,
 			...patch,
@@ -1529,6 +1566,7 @@ export class InvoiceDatabase {
 			dueDate: original.dueDate ?? undefined,
 			currency: 'EUR',
 			employeeCode: original.employeeCode ?? undefined,
+			companyId: original.companyId,
 			paymentTerms: original.paymentTerms ?? undefined,
 			skontoPercent: original.skontoPercent,
 			skontoDueDate: original.skontoDueDate ?? undefined,
@@ -1999,8 +2037,8 @@ export class InvoiceDatabase {
 					 profile, status, template_id, document_title, notes, payment_terms, employee_code, xml, pdf_path, xlsx_path,
 					 paid, paid_at, storno_of_id, skonto_percent, skonto_due_date, sent_at, send_channel, payment_check,
 					 payment_checked_at, reminded_at, reminder_level, retain_until, created_at, updated_at, doc_type,
-					 valid_until, source_document_id, accepted_at, rejected_at, rejection_reason, template_snapshot_json)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					 valid_until, source_document_id, accepted_at, rejected_at, rejection_reason, template_snapshot_json, company_id)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					)
 					.run(
 						invoice.id,
@@ -2045,6 +2083,7 @@ export class InvoiceDatabase {
 						invoice.rejectedAt ?? null,
 						invoice.rejectionReason ?? null,
 						invoice.templateSnapshot ? JSON.stringify(invoice.templateSnapshot) : null,
+						invoice.companyId ?? null,
 					);
 			}
 			for (const company of dump.companies ?? []) {

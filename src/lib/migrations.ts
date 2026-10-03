@@ -283,6 +283,17 @@ export const MIGRATIONS: Migration[] = [
 			`ALTER TABLE render_history ADD COLUMN layout TEXT`,
 		],
 	},
+	{
+		version: 14,
+		name: 'invoice-company',
+		sql: [
+			// R6.3: which company profile a document was written for. NULL for everything
+			// before ("origin unknown, the seller snapshot applies"). The number circle stays
+			// global, so no counter changes and no existing number moves.
+			`ALTER TABLE invoices ADD COLUMN company_id TEXT`,
+			`CREATE INDEX IF NOT EXISTS idx_invoices_company ON invoices(company_id)`,
+		],
+	},
 ];
 
 /** Highest schema version defined. */

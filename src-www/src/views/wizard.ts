@@ -368,6 +368,7 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 					...freshState(),
 					docType: normalizeDocType(inv.docType),
 					seller: inv.seller,
+					selectedCompany: inv.companyId ?? null,
 					buyer: inv.buyer,
 					lines: inv.lines.length > 0 ? inv.lines : [emptyLine()],
 					issueDate: inv.issueDate,
@@ -1041,6 +1042,8 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 				// R8: the type travels with every write — it decides the number
 				// circle, the validation rules and the artifacts
 				docType: s.docType,
+				// R6.3: the company the document is written for; null unbinds an edited draft
+				companyId: s.selectedCompany,
 				employeeCode: s.employee.trim() || undefined,
 				documentTitle: s.documentTitle,
 				notes: s.notes || undefined,

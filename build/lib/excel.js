@@ -31,7 +31,8 @@ __export(excel_exports, {
   EXCEL_COPY_NOTICE: () => EXCEL_COPY_NOTICE,
   renderInvoiceListWorkbook: () => renderInvoiceListWorkbook,
   renderInvoiceWorkbook: () => renderInvoiceWorkbook,
-  renderOpenItemsWorkbook: () => renderOpenItemsWorkbook
+  renderOpenItemsWorkbook: () => renderOpenItemsWorkbook,
+  renderRevenueWorkbook: () => renderRevenueWorkbook
 });
 module.exports = __toCommonJS(excel_exports);
 var import_exceljs = __toESM(require("exceljs"));
@@ -262,11 +263,44 @@ async function renderOpenItemsWorkbook(report) {
   const buffer = await book.xlsx.writeBuffer();
   return Buffer.from(buffer);
 }
+async function renderRevenueWorkbook(report) {
+  const book = new import_exceljs.default.Workbook();
+  book.creator = "ioBroker.e-invoices";
+  book.created = /* @__PURE__ */ new Date();
+  const sheet = book.addWorksheet("Umsatz je Firma");
+  sheet.columns = [{ width: 36 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }];
+  sheet.getCell("A1").value = `Umsatz je Firma${report.year === null ? "" : ` ${report.year}`}`;
+  sheet.getCell("A1").font = { bold: true, size: 14 };
+  sheet.getCell("A2").value = EXCEL_COPY_NOTICE;
+  sheet.getCell("A2").font = { italic: true, color: { argb: "FFB91C1C" } };
+  headRow(sheet, 4, ["Firma", "Anzahl Rechnungen", "Netto", "USt", "Brutto"]);
+  const put = (rowNumber, label, count, net, tax, gross) => {
+    const r = sheet.getRow(rowNumber);
+    r.getCell(1).value = safeCellText(label);
+    r.getCell(2).value = count;
+    for (const [column, value] of [
+      [3, net],
+      [4, tax],
+      [5, gross]
+    ]) {
+      r.getCell(column).value = value;
+      r.getCell(column).numFmt = '#,##0.00 "EUR"';
+    }
+    r.commit();
+  };
+  report.rows.forEach((row, index) => put(5 + index, row.company, row.count, row.net, row.tax, row.gross));
+  const totalRow = 5 + report.rows.length;
+  put(totalRow, "Summe", report.total.count, report.total.net, report.total.tax, report.total.gross);
+  sheet.getRow(totalRow).font = { bold: true };
+  const buffer = await book.xlsx.writeBuffer();
+  return Buffer.from(buffer);
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   EXCEL_COPY_NOTICE,
   renderInvoiceListWorkbook,
   renderInvoiceWorkbook,
-  renderOpenItemsWorkbook
+  renderOpenItemsWorkbook,
+  renderRevenueWorkbook
 });
 //# sourceMappingURL=excel.js.map

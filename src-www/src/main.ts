@@ -10,6 +10,7 @@ import { invoiceTemplates } from './views/invoice-templates';
 import { login, logout } from './views/login';
 import { offers } from './views/offers';
 import { openItems } from './views/open-items';
+import { revenue } from './views/revenue';
 import { products } from './views/products';
 import { status } from './views/status';
 import { templates } from './views/templates';
@@ -26,6 +27,7 @@ function shell(route: string): void {
 		['#/', t('Rechnungen')],
 		['#/offers', t('Angebote')],
 		['#/open-items', t('Offene Posten')],
+		['#/revenue', t('Umsatz')],
 		['#/templates', t('Druckvorlagen')],
 		['#/company', t('Firma')],
 		['#/customers', t('Kunden')],
@@ -50,6 +52,8 @@ async function route(): Promise<void> {
 		await offers(v);
 	} else if (hash === '#/open-items') {
 		await openItems(v);
+	} else if (hash === '#/revenue') {
+		await revenue(v);
 	} else if (hash === '#/new' || hash === '#/new/quote') {
 		wizard(v, undefined, hash === '#/new/quote' ? 'quote' : 'invoice');
 	} else if (hash.startsWith('#/edit/')) {

@@ -46,9 +46,10 @@ import {
 } from './issue-service';
 import { createBackup, previewRestore, restoreBackup } from './backup';
 import { attachmentDisposition } from './attachments';
-import { renderDatevHead, renderDatevRows, renderInvoiceListCsv, renderOpenItemsCsv } from './csv';
-import { renderInvoiceListWorkbook, renderOpenItemsWorkbook } from './excel';
+import { renderDatevHead, renderDatevRows, renderInvoiceListCsv, renderOpenItemsCsv, renderRevenueCsv } from './csv';
+import { renderInvoiceListWorkbook, renderOpenItemsWorkbook, renderRevenueWorkbook } from './excel';
 import { evaluateOpenItems, type OpenItemsOptions } from './open-items';
+import { evaluateRevenueByCompany, type RevenueReport } from './revenue-report';
 import { paymentCheckDuty } from './invoice-model';
 import { renderInvoicePdf } from './pdf';
 import { validateTemplate, type LayoutTemplate } from './templates';
@@ -93,6 +94,7 @@ function filteredInvoices(
 	const status = typeof query.status === 'string' ? (query.status as InvoiceStatus) : undefined;
 	const year = typeof query.year === 'string' ? Number(query.year) : undefined;
 	const text = typeof query.q === 'string' ? query.q : undefined;
+	const companyId = typeof query.companyId === 'string' && query.companyId ? query.companyId : undefined;
 	// R8: the list can be narrowed to quotations or invoices; the export routes
 	// pass 'invoice' as fallback, `docType=all` is the explicit way to export
 	// both kinds.
@@ -101,6 +103,7 @@ function filteredInvoices(
 		status: status && ['draft', 'issued', 'cancelled'].includes(status) ? status : undefined,
 		year: Number.isInteger(year) ? year : undefined,
 		docType,
+		companyId,
 		query: text,
 		limit: 500,
 	});
@@ -181,6 +184,7 @@ export function previewInvoice(draft: InvoiceDraftInput): StoredInvoice {
 	return {
 		id: 'preview',
 		templateSnapshot: null,
+		companyId: null,
 		number: 'PREVIEW',
 		issueDate: draft.issueDate,
 		deliveryDate: draft.deliveryDate,
@@ -608,7 +612,10 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			// visible on both sides (the offer lists them, the invoice links back).
 			const sourceDocumentId =
 				typeof req.query.sourceDocumentId === 'string' ? req.query.sourceDocumentId : undefined;
-			res.json(db.listInvoices({ status, year, docType, sourceDocumentId, query, limit, offset }));
+			// R6.3: only the documents of one company (`none` = those without a company)
+			const companyId =
+				typeof req.query.companyId === 'string' && req.query.companyId ? req.query.companyId : undefined;
+			res.json(db.listInvoices({ status, year, docType, sourceDocumentId, companyId, query, limit, offset }));
 		}),
 	);
 
@@ -671,6 +678,60 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			},
 		);
 	});
+
+	// R6.3: revenue per company. One calculation behind JSON, CSV and Excel.
+	const revenueReport = (query: Record<string, unknown>): RevenueReport | string => {
+		let year: number | undefined;
+		if (typeof query.year === 'string' && query.year !== '') {
+			year = Number(query.year);
+			if (!Number.isInteger(year) || year < 1990 || year > 2200) {
+				return 'year must be a four-digit year';
+			}
+		}
+		const names = new Map(db.listCompanyProfiles().map(company => [company.id, company.name]));
+		return evaluateRevenueByCompany(db.allInvoices(), names, year);
+	};
+
+	app.get(
+		'/api/reports/revenue-by-company',
+		route((req, res) => {
+			const report = revenueReport(req.query);
+			if (typeof report === 'string') {
+				res.status(400).json({ error: report });
+				return;
+			}
+			res.json(report);
+		}),
+	);
+
+	app.get(
+		'/api/reports/revenue-by-company.csv',
+		route((req, res) => {
+			const report = revenueReport(req.query);
+			if (typeof report === 'string') {
+				res.status(400).json({ error: report });
+				return;
+			}
+			res.type('text/csv; charset=utf-8');
+			res.set('Content-Disposition', attachmentDisposition('umsatz-je-firma.csv'));
+			res.send(renderRevenueCsv(report));
+		}),
+	);
+
+	app.get(
+		'/api/reports/revenue-by-company.xlsx',
+		route(async (req, res) => {
+			const report = revenueReport(req.query);
+			if (typeof report === 'string') {
+				res.status(400).json({ error: report });
+				return;
+			}
+			const buffer = await renderRevenueWorkbook(report);
+			res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+			res.set('Content-Disposition', attachmentDisposition('umsatz-je-firma.xlsx'));
+			res.send(buffer);
+		}),
+	);
 
 	// R6.2: open items (OPOS). One calculation (`evaluateOpenItems`) behind the JSON view,
 	// the CSV and the Excel list, so the sums cannot differ between them.

@@ -196,6 +196,55 @@ describe('api => invoices', function () {
 		await request(app).post(`/api/invoices/${created.body.id}/rerender`).send({ layout: 'bogus' }).expect(400);
 	});
 
+	it('binds documents to a company, filters by it and reports the revenue per company (R6.3)', async () => {
+		const company = await request(app)
+			.post('/api/company-profiles')
+			.send({ name: 'Bericht GmbH', profile: { ...seller, name: 'Bericht GmbH' } })
+			.expect(201);
+		const companyId = company.body.id as string;
+		await request(app)
+			.post('/api/invoices')
+			.send({ ...draftBody, companyId: 'gibt-es-nicht' })
+			.expect(400);
+		for (const net of [100, 40]) {
+			const created = await request(app)
+				.post('/api/invoices')
+				.send({
+					...draftBody,
+					companyId,
+					lines: [{ description: 'x', quantity: 1, unit: 'Stk', unitPriceNet: net, vatRate: 19 }],
+				})
+				.expect(201);
+			expect(created.body.companyId).to.equal(companyId);
+			await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
+		}
+		const listed = await request(app).get(`/api/invoices?companyId=${companyId}`).expect(200);
+		expect(listed.body).to.have.lengthOf(2);
+		const exported = await request(app).get(`/api/invoices/export.csv?companyId=${companyId}`).expect(200);
+		expect(exported.text.split(/\r?\n/).filter(line => line.includes('Kunde AG'))).to.have.lengthOf(2);
+
+		const report = (await request(app).get('/api/reports/revenue-by-company?year=2026').expect(200)).body;
+		const row = report.rows.find((r: { companyId: string | null }) => r.companyId === companyId);
+		expect(row).to.include({ company: 'Bericht GmbH', count: 2, net: 140, tax: 26.6, gross: 166.6 });
+		const sum = report.rows.reduce((total: number, r: { gross: number }) => total + r.gross, 0);
+		expect(Math.round(sum * 100) / 100).to.equal(report.total.gross);
+
+		const csv = await request(app).get('/api/reports/revenue-by-company.csv?year=2026').buffer(true).expect(200);
+		expect(String(csv.headers['content-disposition'])).to.contain('umsatz-je-firma.csv');
+		expect(csv.text).to.contain('Bericht GmbH;2;140,00;26,60;166,60');
+		await request(app)
+			.get('/api/reports/revenue-by-company.xlsx')
+			.buffer(true)
+			.parse((res, callback) => {
+				const chunks: Buffer[] = [];
+				res.on('data', (chunk: Buffer) => chunks.push(chunk));
+				res.on('end', () => callback(null, Buffer.concat(chunks)));
+			})
+			.expect(200)
+			.expect(res => expect((res.body as Buffer).subarray(0, 2).toString()).to.equal('PK'));
+		await request(app).get('/api/reports/revenue-by-company?year=abc').expect(400);
+	});
+
 	it('refuses to re-render a draft', async () => {
 		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
 		await request(app).post(`/api/invoices/${created.body.id}/rerender`).expect(400);

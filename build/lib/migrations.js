@@ -284,6 +284,17 @@ const MIGRATIONS = [
       // Which layout a re-render used: issued, current, or current-unfrozen.
       `ALTER TABLE render_history ADD COLUMN layout TEXT`
     ]
+  },
+  {
+    version: 14,
+    name: "invoice-company",
+    sql: [
+      // R6.3: which company profile a document was written for. NULL for everything
+      // before ("origin unknown, the seller snapshot applies"). The number circle stays
+      // global, so no counter changes and no existing number moves.
+      `ALTER TABLE invoices ADD COLUMN company_id TEXT`,
+      `CREATE INDEX IF NOT EXISTS idx_invoices_company ON invoices(company_id)`
+    ]
   }
 ];
 const LATEST_SCHEMA_VERSION = MIGRATIONS.reduce((max, item) => Math.max(max, item.version), 0);

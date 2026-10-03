@@ -168,6 +168,23 @@ The wording of every screen comes from one table per document type
 offer screen says "Rechnung". The booking list and the three accounting exports
 stay pinned to `docType=invoice`, so the two document types never mix.
 
+### Several companies
+
+Every document is bound to the company profile it was written for (the "Aus Firma
+übernehmen" choice in the wizard; a new document starts with the default company). The
+binding is stored with the document, so it survives later changes of the profile. A Storno
+credit note and an invoice made from a quotation take over the company of the original.
+
+- The invoice list gets a company filter as soon as there are two or more companies (also
+  `?companyId=` on the list and export routes; `none` = documents without a company).
+- **Revenue** (`#/revenue`, `GET /api/reports/revenue-by-company`, also `.csv` and `.xlsx`)
+  adds the issued invoices up per company, for one year or for all of them. Offers, drafts,
+  Storno credit notes and credit notes do not count; a cancelled invoice drops out.
+- Documents from before the binding have no company and form their own row
+  "without company", so the total always equals the sum of the single documents.
+- The **invoice number stays one circle for all companies** — nothing about the numbering
+  changed, no existing number moved.
+
 ### Open items (Offene Posten)
 
 The tab *Offene Posten* lists the unpaid, issued invoices with their age and adds
@@ -333,6 +350,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) Several companies: a document is bound to the company profile it was written for (new column `company_id`, migration v14; documents from before have none). Wizard stores the choice, a Storno and an invoice made from a quotation take it over, the invoice list and the exports can be filtered by company, and the new page "Umsatz" (`/api/reports/revenue-by-company`, CSV, Excel) adds the issued invoices up per company. The invoice number stays one circle for all companies.
 * (alex) The layout an invoice is issued with is frozen with it (template definition and a copy of the logo under `logos/frozen/`, stored in the new column `template_snapshot_json`, migration v13). Re-render now offers the choice: with the **current** print template (default — what you want after changing the template) or with the **issued layout** (reproduces the delivered document). The re-render history says which one was used. Documents issued before this version have no frozen layout; their first re-render freezes the layout it uses. The snapshot and its logo are part of the backup.
 
 ### 0.8.6 (2026-10-03)

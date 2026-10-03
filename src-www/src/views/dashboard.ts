@@ -33,6 +33,7 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 					<option value="issued">${statusLabel('issued')}</option>
 					<option value="cancelled">${statusLabel('cancelled')}</option>
 				</select>
+				<select id="f-company" title="${t('Firma')}" hidden></select>
 				<select id="f-sort" title="${t('Sortierung')}">
 					<option value="date">${t('Datum')}</option>
 					<option value="number">${t('Nummer')}</option>
@@ -66,6 +67,7 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	const sortEl = root.querySelector<HTMLSelectElement>('#f-sort')!;
 	const orderBtn = root.querySelector<HTMLButtonElement>('#f-order')!;
 	const sentEl = root.querySelector<HTMLSelectElement>('#f-sent')!;
+	const companyEl = root.querySelector<HTMLSelectElement>('#f-company')!;
 	const remindersEl = root.querySelector('#reminders')!;
 	const openTileEl = root.querySelector('#open-tile')!;
 	/** Current sort direction, toggled by the order button. */
@@ -112,6 +114,9 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 		}
 		if (sentEl.value) {
 			params.sent = sentEl.value;
+		}
+		if (companyEl.value) {
+			params.companyId = companyEl.value;
 		}
 		try {
 			const items = await api.list(params);
@@ -195,6 +200,20 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	}
 	statusEl.onchange = () => void load();
 	sortEl.onchange = () => void load();
+	companyEl.onchange = () => void load();
+	// R6.3: the filter only appears when there is more than one company to choose from
+	void api.company
+		.list()
+		.then(list => {
+			if (list.length < 2) {
+				return;
+			}
+			companyEl.innerHTML = `<option value="">${t('alle Firmen')}</option>${list
+				.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`)
+				.join('')}<option value="none">${t('ohne Firmenzuordnung')}</option>`;
+			companyEl.hidden = false;
+		})
+		.catch(() => undefined);
 	sentEl.onchange = () => void load();
 	orderBtn.onclick = () => {
 		order = order === 'desc' ? 'asc' : 'desc';
@@ -248,6 +267,9 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 		}
 		if (qEl.value.trim()) {
 			params.q = qEl.value.trim();
+		}
+		if (companyEl.value) {
+			params.companyId = companyEl.value;
 		}
 		return params;
 	};

@@ -127,7 +127,7 @@ function parseJson(value, label) {
   }
 }
 function mapRow(row) {
-  var _a, _b, _c;
+  var _a, _b, _c, _d;
   return {
     id: row.id,
     number: row.number,
@@ -164,6 +164,7 @@ function mapRow(row) {
     retainUntil: row.retain_until,
     validUntil: row.valid_until,
     sourceDocumentId: row.source_document_id,
+    companyId: (_d = row.company_id) != null ? _d : null,
     acceptedAt: row.accepted_at,
     rejectedAt: row.rejected_at,
     rejectionReason: row.rejection_reason,
@@ -426,10 +427,11 @@ class InvoiceDatabase {
     const stamp = nowIso();
     const kind = (0, import_invoice_model.normalizeDocumentType)(input.docType);
     const totals = (0, import_invoice_model.calcTotals)(input.lines.length > 0 ? input.lines : []);
+    const companyId = this.checkedCompanyId(input.companyId);
     this.db.prepare(
       `INSERT INTO invoices
-				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, doc_type, template_id, document_title, notes, payment_terms, employee_code, skonto_percent, skonto_due_date, valid_until, source_document_id, created_at, updated_at)
-				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, doc_type, template_id, document_title, notes, payment_terms, employee_code, skonto_percent, skonto_due_date, valid_until, source_document_id, company_id, created_at, updated_at)
+				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       id,
       input.issueDate,
@@ -448,6 +450,7 @@ class InvoiceDatabase {
       ((_f = input.skontoDueDate) == null ? void 0 : _f.trim()) || null,
       ((_g = input.validUntil) == null ? void 0 : _g.trim()) || null,
       (_h = input.sourceDocumentId) != null ? _h : null,
+      companyId,
       stamp,
       stamp
     );
@@ -456,6 +459,23 @@ class InvoiceDatabase {
       throw new Error("Draft was not stored");
     }
     return created;
+  }
+  /**
+   * Normalises the company a document is bound to (R6.3).
+   *
+   * @param value - Company profile id, empty or null for "none".
+   * @returns The id, or null when none was given.
+   * @throws {Error} When the profile does not exist.
+   */
+  checkedCompanyId(value) {
+    const id = typeof value === "string" ? value.trim() : "";
+    if (!id) {
+      return null;
+    }
+    if (!this.getCompanyProfile(id)) {
+      throw new Error(`Unknown company profile: ${id}`);
+    }
+    return id;
   }
   /**
    * Loads one invoice by id.
@@ -482,6 +502,12 @@ class InvoiceDatabase {
     if (filter.sourceDocumentId) {
       where.push(`source_document_id = ?`);
       params.push(filter.sourceDocumentId);
+    }
+    if (filter.companyId === "none") {
+      where.push(`company_id IS NULL`);
+    } else if (filter.companyId) {
+      where.push(`company_id = ?`);
+      params.push(filter.companyId);
     }
     if (filter.status) {
       where.push(`status = ?`);
@@ -569,13 +595,16 @@ class InvoiceDatabase {
       notes: pick(patch.notes, current.notes),
       skontoPercent: (_f = patch.skontoPercent) != null ? _f : current.skontoPercent,
       skontoDueDate: pick(patch.skontoDueDate, current.skontoDueDate),
-      validUntil: pick(patch.validUntil, current.validUntil)
+      validUntil: pick(patch.validUntil, current.validUntil),
+      // R6.3: missing keeps the binding, null or empty unbinds it
+      companyId: patch.companyId === void 0 ? current.companyId : patch.companyId
     };
+    const companyId = this.checkedCompanyId(merged.companyId);
     const totals = (0, import_invoice_model.calcTotals)(merged.lines.length > 0 ? merged.lines : []);
     this.db.prepare(
       `UPDATE invoices SET issue_date = ?, delivery_date = ?, due_date = ?, seller_json = ?, buyer_json = ?,
 				lines_json = ?, totals_json = ?, document_title = ?, notes = ?, payment_terms = ?, employee_code = ?,
-				skonto_percent = ?, skonto_due_date = ?, doc_type = ?, valid_until = ?, updated_at = ? WHERE id = ?`
+				skonto_percent = ?, skonto_due_date = ?, doc_type = ?, valid_until = ?, company_id = ?, updated_at = ? WHERE id = ?`
     ).run(
       merged.issueDate,
       merged.deliveryDate,
@@ -592,6 +621,7 @@ class InvoiceDatabase {
       ((_l = merged.skontoDueDate) == null ? void 0 : _l.trim()) || null,
       (0, import_invoice_model.normalizeDocumentType)(merged.docType),
       ((_m = merged.validUntil) == null ? void 0 : _m.trim()) || null,
+      companyId,
       nowIso(),
       id
     );
@@ -751,6 +781,7 @@ class InvoiceDatabase {
       paymentTerms: (_a = quote.paymentTerms) != null ? _a : void 0,
       notes: (_b = quote.notes) != null ? _b : void 0,
       employeeCode: (_c = quote.employeeCode) != null ? _c : void 0,
+      companyId: quote.companyId,
       skontoPercent: quote.skontoPercent,
       skontoDueDate: (_d = quote.skontoDueDate) != null ? _d : void 0,
       ...patch,
@@ -846,6 +877,7 @@ class InvoiceDatabase {
       dueDate: (_a = original.dueDate) != null ? _a : void 0,
       currency: "EUR",
       employeeCode: (_b = original.employeeCode) != null ? _b : void 0,
+      companyId: original.companyId,
       paymentTerms: (_c = original.paymentTerms) != null ? _c : void 0,
       skontoPercent: original.skontoPercent,
       skontoDueDate: (_d = original.skontoDueDate) != null ? _d : void 0,
@@ -1193,7 +1225,7 @@ class InvoiceDatabase {
     }
     const has = (key) => Array.isArray(dump[key]);
     const run = this.db.transaction(() => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x;
       this.db.prepare(`DELETE FROM attachments`).run();
       this.db.prepare(`DELETE FROM invoices`).run();
       this.db.prepare(`DELETE FROM counters`).run();
@@ -1246,8 +1278,8 @@ class InvoiceDatabase {
 					 profile, status, template_id, document_title, notes, payment_terms, employee_code, xml, pdf_path, xlsx_path,
 					 paid, paid_at, storno_of_id, skonto_percent, skonto_due_date, sent_at, send_channel, payment_check,
 					 payment_checked_at, reminded_at, reminder_level, retain_until, created_at, updated_at, doc_type,
-					 valid_until, source_document_id, accepted_at, rejected_at, rejection_reason, template_snapshot_json)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					 valid_until, source_document_id, accepted_at, rejected_at, rejection_reason, template_snapshot_json, company_id)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).run(
           invoice.id,
           invoice.number,
@@ -1290,10 +1322,11 @@ class InvoiceDatabase {
           (_q = invoice.acceptedAt) != null ? _q : null,
           (_r = invoice.rejectedAt) != null ? _r : null,
           (_s = invoice.rejectionReason) != null ? _s : null,
-          invoice.templateSnapshot ? JSON.stringify(invoice.templateSnapshot) : null
+          invoice.templateSnapshot ? JSON.stringify(invoice.templateSnapshot) : null,
+          (_t = invoice.companyId) != null ? _t : null
         );
       }
-      for (const company of (_t = dump.companies) != null ? _t : []) {
+      for (const company of (_u = dump.companies) != null ? _u : []) {
         this.db.prepare(
           `INSERT INTO company_profiles (id, name, profile_json, is_default, created_at, updated_at)
 						VALUES (?, ?, ?, ?, ?, ?)`
@@ -1306,7 +1339,7 @@ class InvoiceDatabase {
           company.updatedAt
         );
       }
-      for (const customer of (_u = dump.customers) != null ? _u : []) {
+      for (const customer of (_v = dump.customers) != null ? _v : []) {
         this.db.prepare(
           `INSERT INTO customers (id, name, profile_json, created_at, updated_at)
 						VALUES (?, ?, ?, ?, ?)`
@@ -1318,7 +1351,7 @@ class InvoiceDatabase {
           customer.updatedAt
         );
       }
-      for (const product of (_v = dump.products) != null ? _v : []) {
+      for (const product of (_w = dump.products) != null ? _w : []) {
         this.db.prepare(
           `INSERT INTO products (id, sku, name, details, unit, unit_price_net, vat_rate, created_at, updated_at)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -1334,7 +1367,7 @@ class InvoiceDatabase {
           product.updatedAt
         );
       }
-      for (const attachment of (_w = dump.attachments) != null ? _w : []) {
+      for (const attachment of (_x = dump.attachments) != null ? _x : []) {
         this.db.prepare(
           `INSERT INTO attachments (invoice_id, filename, mime, size, data, created_at)
 						VALUES (?, ?, ?, ?, ?, ?)`

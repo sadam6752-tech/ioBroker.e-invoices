@@ -59,6 +59,8 @@ export interface Invoice {
 	profile: string;
 	status: 'draft' | 'issued' | 'cancelled';
 	templateId: string | null;
+	/** R6.3: company profile the document was written for, null for older documents. */
+	companyId?: string | null;
 	/** The layout the document was issued with, frozen (R7.8); null for older documents. */
 	templateSnapshot?: { templateName: string; templateVersion: number | null; frozenAt: string } | null;
 	employeeCode: string | null;
@@ -119,6 +121,8 @@ export interface DraftInput {
 	docType?: string;
 	/** R8: last day an offer stands (ISO date), only used for offers. */
 	validUntil?: string;
+	/** R6.3: company profile the document is written for; null unbinds it. */
+	companyId?: string | null;
 }
 
 export interface CompanyProfile {
@@ -225,6 +229,32 @@ function openItemsQuery(params: OpenItemsParams): string {
 	}
 	const text = query.toString();
 	return text ? `?${text}` : '';
+}
+
+/** Revenue of one company (R6.3). */
+export interface CompanyRevenue {
+	/** Company profile id, null for documents without a company. */
+	companyId: string | null;
+	/** Company name. */
+	company: string;
+	/** Number of invoices. */
+	count: number;
+	/** Net sum in EUR. */
+	net: number;
+	/** VAT sum in EUR. */
+	tax: number;
+	/** Gross sum in EUR. */
+	gross: number;
+}
+
+/** The evaluation of `GET /api/reports/revenue-by-company`. */
+export interface RevenueReport {
+	/** Year the report is limited to, null = all years. */
+	year: number | null;
+	/** One row per company. */
+	rows: CompanyRevenue[];
+	/** Sum over all rows. */
+	total: { count: number; net: number; tax: number; gross: number };
 }
 
 /** One issued invoice that is overdue and due for a dunning reminder. */
@@ -496,6 +526,14 @@ export const api = {
 	openItems: (params: OpenItemsParams = {}) => request<OpenItemsReport>(`/api/open-items${openItemsQuery(params)}`),
 	openItemsCsvUrl: (params: OpenItemsParams = {}) => `/api/open-items.csv${openItemsQuery(params)}`,
 	openItemsXlsxUrl: (params: OpenItemsParams = {}) => `/api/open-items.xlsx${openItemsQuery(params)}`,
+	/**
+	 * Revenue per company (R6.3).
+	 *
+	 * @param year - Limit to this year, empty = all years.
+	 */
+	revenue: (year?: number) => request<RevenueReport>(`/api/reports/revenue-by-company${year ? `?year=${year}` : ''}`),
+	revenueCsvUrl: (year?: number) => `/api/reports/revenue-by-company.csv${year ? `?year=${year}` : ''}`,
+	revenueXlsxUrl: (year?: number) => `/api/reports/revenue-by-company.xlsx${year ? `?year=${year}` : ''}`,
 	reminders: () => request<ReminderCandidate[]>('/api/reminders'),
 	reminded: (id: string) => request<Invoice>(`/api/invoices/${id}/reminded`, { method: 'POST' }),
 	invoiceTemplates: {

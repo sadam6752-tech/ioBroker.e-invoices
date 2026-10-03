@@ -11,6 +11,7 @@
  */
 import type { StoredInvoice } from './db';
 import { AGE_BUCKET_LABELS, AGE_BUCKETS, type OpenItemsReport } from './open-items';
+import type { RevenueReport } from './revenue-report';
 
 /** Notice printed as the first comment line of every CSV export. */
 export const CSV_COPY_NOTICE = 'KOPIE – kein Steuerdokument. Maßgeblich ist das eingebettete XML der ZUGFeRD-Rechnung.';
@@ -299,5 +300,24 @@ export function renderOpenItemsCsv(report: OpenItemsReport): string {
 	lines.push(
 		['Summe', 'davon überfällig', String(report.overdue.count), de(report.overdue.amount)].map(csvField).join(';'),
 	);
+	return `${UTF8_BOM}${lines.join('\r\n')}\r\n`;
+}
+
+/**
+ * Revenue per company as a semicolon CSV (R6.3).
+ *
+ * @param report - Result of `evaluateRevenueByCompany`.
+ * @returns CSV text including the BOM.
+ */
+export function renderRevenueCsv(report: RevenueReport): string {
+	const lines: string[] = [];
+	lines.push(csvField(CSV_COPY_NOTICE));
+	lines.push(csvField(`Umsatz je Firma${report.year === null ? '' : ` ${report.year}`}`));
+	lines.push(['Firma', 'Anzahl Rechnungen', 'Netto EUR', 'USt EUR', 'Brutto EUR'].map(csvField).join(';'));
+	for (const row of report.rows) {
+		lines.push([row.company, String(row.count), de(row.net), de(row.tax), de(row.gross)].map(csvField).join(';'));
+	}
+	const total = report.total;
+	lines.push(['Summe', String(total.count), de(total.net), de(total.tax), de(total.gross)].map(csvField).join(';'));
 	return `${UTF8_BOM}${lines.join('\r\n')}\r\n`;
 }

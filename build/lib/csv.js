@@ -23,6 +23,7 @@ __export(csv_exports, {
   renderDatevRows: () => renderDatevRows,
   renderInvoiceListCsv: () => renderInvoiceListCsv,
   renderOpenItemsCsv: () => renderOpenItemsCsv,
+  renderRevenueCsv: () => renderRevenueCsv,
   toCsvRow: () => toCsvRow
 });
 module.exports = __toCommonJS(csv_exports);
@@ -198,6 +199,19 @@ function renderOpenItemsCsv(report) {
   return `${UTF8_BOM}${lines.join("\r\n")}\r
 `;
 }
+function renderRevenueCsv(report) {
+  const lines = [];
+  lines.push(csvField(CSV_COPY_NOTICE));
+  lines.push(csvField(`Umsatz je Firma${report.year === null ? "" : ` ${report.year}`}`));
+  lines.push(["Firma", "Anzahl Rechnungen", "Netto EUR", "USt EUR", "Brutto EUR"].map(csvField).join(";"));
+  for (const row of report.rows) {
+    lines.push([row.company, String(row.count), de(row.net), de(row.tax), de(row.gross)].map(csvField).join(";"));
+  }
+  const total = report.total;
+  lines.push(["Summe", String(total.count), de(total.net), de(total.tax), de(total.gross)].map(csvField).join(";"));
+  return `${UTF8_BOM}${lines.join("\r\n")}\r
+`;
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   CSV_COPY_NOTICE,
@@ -205,6 +219,7 @@ function renderOpenItemsCsv(report) {
   renderDatevRows,
   renderInvoiceListCsv,
   renderOpenItemsCsv,
+  renderRevenueCsv,
   toCsvRow
 });
 //# sourceMappingURL=csv.js.map

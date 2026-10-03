@@ -49,6 +49,7 @@ var import_attachments = require("./attachments");
 var import_csv = require("./csv");
 var import_excel = require("./excel");
 var import_open_items = require("./open-items");
+var import_revenue_report = require("./revenue-report");
 var import_invoice_model2 = require("./invoice-model");
 var import_pdf = require("./pdf");
 var import_templates = require("./templates");
@@ -65,11 +66,13 @@ function filteredInvoices(db, query, fallbackDocType) {
   const status = typeof query.status === "string" ? query.status : void 0;
   const year = typeof query.year === "string" ? Number(query.year) : void 0;
   const text = typeof query.q === "string" ? query.q : void 0;
+  const companyId = typeof query.companyId === "string" && query.companyId ? query.companyId : void 0;
   const docType = docTypeFilter(query, fallbackDocType);
   return db.listInvoices({
     status: status && ["draft", "issued", "cancelled"].includes(status) ? status : void 0,
     year: Number.isInteger(year) ? year : void 0,
     docType,
+    companyId,
     query: text,
     limit: 500
   });
@@ -93,6 +96,7 @@ function previewInvoice(draft) {
   return {
     id: "preview",
     templateSnapshot: null,
+    companyId: null,
     number: "PREVIEW",
     issueDate: draft.issueDate,
     deliveryDate: draft.deliveryDate,
@@ -401,7 +405,8 @@ function createApiServer(deps) {
       const offset = typeof req.query.offset === "string" ? Number(req.query.offset) : void 0;
       const docType = docTypeFilter(req.query);
       const sourceDocumentId = typeof req.query.sourceDocumentId === "string" ? req.query.sourceDocumentId : void 0;
-      res.json(db.listInvoices({ status, year, docType, sourceDocumentId, query, limit, offset }));
+      const companyId = typeof req.query.companyId === "string" && req.query.companyId ? req.query.companyId : void 0;
+      res.json(db.listInvoices({ status, year, docType, sourceDocumentId, companyId, query, limit, offset }));
     })
   );
   app.post(
@@ -455,6 +460,55 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
       }
     );
   });
+  const revenueReport = (query) => {
+    let year;
+    if (typeof query.year === "string" && query.year !== "") {
+      year = Number(query.year);
+      if (!Number.isInteger(year) || year < 1990 || year > 2200) {
+        return "year must be a four-digit year";
+      }
+    }
+    const names = new Map(db.listCompanyProfiles().map((company) => [company.id, company.name]));
+    return (0, import_revenue_report.evaluateRevenueByCompany)(db.allInvoices(), names, year);
+  };
+  app.get(
+    "/api/reports/revenue-by-company",
+    route((req, res) => {
+      const report = revenueReport(req.query);
+      if (typeof report === "string") {
+        res.status(400).json({ error: report });
+        return;
+      }
+      res.json(report);
+    })
+  );
+  app.get(
+    "/api/reports/revenue-by-company.csv",
+    route((req, res) => {
+      const report = revenueReport(req.query);
+      if (typeof report === "string") {
+        res.status(400).json({ error: report });
+        return;
+      }
+      res.type("text/csv; charset=utf-8");
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("umsatz-je-firma.csv"));
+      res.send((0, import_csv.renderRevenueCsv)(report));
+    })
+  );
+  app.get(
+    "/api/reports/revenue-by-company.xlsx",
+    route(async (req, res) => {
+      const report = revenueReport(req.query);
+      if (typeof report === "string") {
+        res.status(400).json({ error: report });
+        return;
+      }
+      const buffer = await (0, import_excel.renderRevenueWorkbook)(report);
+      res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("umsatz-je-firma.xlsx"));
+      res.send(buffer);
+    })
+  );
   app.get(
     "/api/open-items",
     route((req, res) => {

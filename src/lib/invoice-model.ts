@@ -131,6 +131,8 @@ export interface InvoiceDraftInput {
 	 * never typed by the user — so the chain Angebot → Rechnung stays traceable.
 	 */
 	sourceDocumentId?: string;
+	/** Company profile this document is written for (R6.3); empty = none. */
+	companyId?: string | null;
 	/** Payment terms text, e.g. Skonto (optional). */
 	paymentTerms?: string;
 	/** Cash discount in percent, 0-100 (optional, EN 16931 BT-147). */
