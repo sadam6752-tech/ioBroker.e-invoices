@@ -91,8 +91,6 @@
 					<option value="1">${e("versendet")}</option>
 					<option value="0">${e("nicht versendet")}</option>
 				</select>
-			</div>
-			<div class="row filters">
 				<select id="f-range" title="${e("Zeitraum")}">
 					<option value="">${e("Zeitraum: alle")}</option>
 					<option value="thisMonth">${e("Dieser Monat")}</option>

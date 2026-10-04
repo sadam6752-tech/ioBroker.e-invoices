@@ -47,8 +47,6 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 					<option value="1">${t('versendet')}</option>
 					<option value="0">${t('nicht versendet')}</option>
 				</select>
-			</div>
-			<div class="row filters">
 				<select id="f-range" title="${t('Zeitraum')}">
 					<option value="">${t('Zeitraum: alle')}</option>
 					<option value="thisMonth">${t('Dieser Monat')}</option>
