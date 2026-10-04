@@ -13,6 +13,8 @@ declare global {
 			storageMount?: string;
 			/** Automatic backup interval in minutes, 0 = off. */
 			backupIntervalMinutes?: number;
+			/** Automatic backups kept, older ones are deleted; 0 = keep all. Manual backups are never deleted. */
+			backupKeep?: number;
 			/** Dunning check interval in hours, 0 = off. Never sends mails. */
 			reminderCheckHours?: number;
 			companyName?: string;

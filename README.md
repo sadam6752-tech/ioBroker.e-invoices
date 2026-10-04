@@ -245,7 +245,7 @@ starts five days after the due date and stays quiet for a day after a reminder.
 
 - `info.connection`, `info.invoiceCount`, `info.draftCount`,
   `info.issuedCount`, `info.lastNumber`, `info.lastIssuedAt`,
-  `info.dbVersion`, `info.lastBackup`
+  `info.dbVersion`, `info.lastBackup`, `info.backupWarning` (empty = backup is current)
 - `control.createDraft` (button: creates an empty draft, id lands in
   `control.lastDraftId`), `control.issueId` + `control.issue` (button:
   issues a draft), `control.refresh`, `control.backup`,
@@ -257,15 +257,40 @@ Issued artifacts (PDF/XML/XLSX), logos and backup ZIPs live below the
 `e-invoices.0.storage` file mount. The database file `invoices.db` lives in
 the instance data directory.
 
-For disaster recovery, back up both: the instance (covers the database and
-the storage files, which are kept as user files) and, additionally, create
-adapter backups from the PWA Backup page or the `control.backup` state.
-To move to another system, restore an adapter backup ZIP there via the PWA
-or `control.restoreId` + `control.restore`. The restore verifies checksums
-first and replaces the database in one transaction.
+#### BackItUp (ioBroker backup) versus the adapter backup
 
-When using the BackItUp adapter, include this adapter instance and its
-files in the backup job.
+| | ioBroker backup (e.g. BackItUp) | Adapter backup (ZIP) |
+| --- | --- | --- |
+| Contains the PDFs, XML, Excel files and logos | yes (`files/e-invoices.0.storage`) | yes |
+| Contains the **invoice database** | **no** — `invoices.db` lives in the instance data directory, which is not part of an ioBroker backup | yes, as `dump.json` |
+| Verified on restore | no | SHA-256 manifest, restore preview, safety copy |
+| Restore | restore ioBroker, then the files | PWA *Backup* page or `control.restore` |
+
+**The database reaches an ioBroker backup only through the adapter ZIP.** The ZIPs are written to
+`e-invoices.0.storage/backups/`, which is part of the files an ioBroker backup takes. Without a ZIP, a
+restore of an ioBroker backup brings back the documents but not the invoice numbers, the number
+counters, the status and the reminders. Therefore:
+
+- The **automatic backup is on by default** (every 1440 minutes = daily, setting *Backup interval in
+  minutes*, 0 = off). The interval counts from the last automatic backup, so restarting the adapter
+  neither skips nor repeats one; if one is overdue, it runs a minute after the start.
+- The newest **7 automatic backups are kept** (setting *Automatic backups to keep*, 0 = keep all). Only
+  files named `e-invoices-auto-….zip` are ever deleted. Backups you made by hand
+  (`e-invoices-backup-….zip`) and the safety copies before a restore (`…-prerestore-…`) are never
+  deleted.
+- The *Backup* page and the state `info.backupWarning` warn when there is no backup at all or the
+  newest one is older than twice the interval (at least two days; one week when the automatic backup is
+  off). The state is empty when everything is fine, so it can drive a notification.
+- Instances that were installed before 0.9.2 keep their saved interval (the old default was 0 = off):
+  set it in the instance settings.
+
+For disaster recovery use **both**: an ioBroker backup of the whole system and the adapter ZIPs (they
+travel inside it). To move to another system, restore an adapter backup ZIP there via the PWA or
+`control.restoreId` + `control.restore`. The restore verifies checksums first and replaces the database
+in one transaction.
+
+When using the BackItUp adapter, include this adapter instance and its files in the backup job — and
+check once in the archive that `files/e-invoices.0.storage/backups/` holds a ZIP.
 
 ### API
 
@@ -425,6 +450,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) Backup: the automatic backup is now **on by default** (daily) and keeps the newest 7 automatic backups (new setting *Automatic backups to keep*); only automatic backups are ever deleted, never those made by hand or the safety copies before a restore. The schedule counts from the last automatic backup, so a restart neither skips nor repeats one. The backup page and the new state `info.backupWarning` warn when there is no backup or it is old. Reason: an ioBroker backup (BackItUp) does not contain the invoice database `invoices.db` — it reaches the backup only through the adapter ZIP in `e-invoices.0.storage/backups/`. README compares BackItUp and the adapter backup. Instances installed earlier keep their saved interval (0 = off), set it in the instance settings.
+
 ### 0.9.1 (2026-10-04)
 
 * (alex) Fix: the file-based migration tests got a 30 s mocha timeout (they timed out on slow CI runners). Code documentation: all JSDoc warnings of the web app and the tests are fixed, `npm run lint` reports nothing. No functional change.

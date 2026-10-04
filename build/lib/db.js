@@ -1411,6 +1411,14 @@ class InvoiceDatabase {
     return { id, createdAt: stamp, ...entry };
   }
   /**
+   * Removes a backup from the log (its file was deleted by the retention).
+   *
+   * @param filename - File name as logged.
+   */
+  deleteBackupLog(filename) {
+    this.db.prepare(`DELETE FROM backups WHERE filename = ?`).run(filename);
+  }
+  /**
    * Lists logged backups, newest first.
    */
   listBackups() {

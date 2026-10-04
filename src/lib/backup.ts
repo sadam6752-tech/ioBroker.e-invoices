@@ -15,6 +15,12 @@ import { createHash } from 'node:crypto';
 import type { InvoiceDatabase, DatabaseDump } from './db';
 import { LATEST_SCHEMA_VERSION } from './migrations';
 
+/** File name prefix of backups the user asked for. */
+export const MANUAL_BACKUP_PREFIX = 'backups/e-invoices-backup-';
+
+/** File name prefix of the automatic backups — the only ones that are ever deleted again. */
+export const AUTO_BACKUP_PREFIX = 'backups/e-invoices-auto-';
+
 /** App id stamped into every manifest. */
 export const BACKUP_APP_ID = 'ioBroker.e-invoices';
 
@@ -264,12 +270,15 @@ interface DumpJsonAttachment {
  * @param storage - File backend for reading artifacts.
  * @param log - Logger.
  * @param adapterVersion - Adapter version for the manifest.
+ * @param kind - `manual` (default) or `auto`: automatic backups get their own file name, so only
+ *   they are ever pruned.
  */
 export async function createBackup(
 	db: InvoiceDatabase,
 	storage: Pick<BackupStorage, 'read'>,
 	log: BackupLogger,
 	adapterVersion: string,
+	kind: 'manual' | 'auto' = 'manual',
 ): Promise<BackupResult> {
 	const dump = db.exportData();
 	const dumpJson = {
@@ -316,7 +325,7 @@ export async function createBackup(
 	};
 	zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 	const data = Buffer.from(await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }));
-	const filename = `backups/e-invoices-backup-${stampName()}.zip`;
+	const filename = `${kind === 'auto' ? AUTO_BACKUP_PREFIX : MANUAL_BACKUP_PREFIX}${stampName()}.zip`;
 	return { filename, size: data.length, sha256: sha256Hex(data), manifest, data };
 }
 
@@ -641,5 +650,103 @@ export async function restoreBackup(
 		fileErrors,
 		safetyBackup,
 		countersKept: raised,
+	};
+}
+
+/** An entry of the backup log, as far as the schedule needs it. */
+export interface BackupLogItem {
+	/** Path below the storage mount, e.g. `backups/e-invoices-auto-….zip`. */
+	filename: string;
+	/** ISO creation time. */
+	createdAt: string;
+}
+
+/**
+ * Picks the automatic backups that exceed the number to keep (the oldest ones).
+ *
+ * Only files with the automatic prefix qualify: backups the user made by hand and the
+ * safety backups before a restore are never touched. `keep` 0 (or less) keeps everything.
+ *
+ * @param entries - The backup log.
+ * @param keep - How many automatic backups to keep.
+ * @returns File names to delete.
+ */
+export function selectBackupsToPrune(entries: BackupLogItem[], keep: number): string[] {
+	if (!Number.isFinite(keep) || keep <= 0) {
+		return [];
+	}
+	return entries
+		.filter(entry => entry.filename.startsWith(AUTO_BACKUP_PREFIX))
+		.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+		.slice(Math.floor(keep))
+		.map(entry => entry.filename);
+}
+
+/** Never sooner than this after a start, so a restarting adapter does not back up in a loop. */
+const MIN_BACKUP_DELAY_MS = 60_000;
+
+/**
+ * Delay until the next automatic backup.
+ *
+ * The schedule survives restarts: the interval counts from the last automatic backup, not from
+ * the start of the adapter. Without one — or when it is overdue — the backup runs a minute
+ * after the start.
+ *
+ * @param lastAutoAt - ISO time of the newest automatic backup, null when there is none.
+ * @param intervalMs - Backup interval.
+ * @param now - Current time in ms.
+ */
+export function nextBackupDelayMs(lastAutoAt: string | null, intervalMs: number, now: number): number {
+	const last = lastAutoAt ? Date.parse(lastAutoAt) : Number.NaN;
+	if (!Number.isFinite(last)) {
+		return MIN_BACKUP_DELAY_MS;
+	}
+	return Math.min(intervalMs, Math.max(MIN_BACKUP_DELAY_MS, last + intervalMs - now));
+}
+
+/** How current the newest backup is. */
+export interface BackupStatus {
+	/** ISO time of the newest backup of any kind, null when there is none. */
+	lastAt: string | null;
+	/** Age of that backup in hours, null when there is none. */
+	ageHours: number | null;
+	/** `none` = no backup at all, `stale` = too old, null = fine. */
+	warning: 'none' | 'stale' | null;
+	/** Configured interval in minutes, 0 = automatic backup off. */
+	intervalMinutes: number;
+	/** Automatic backups kept, 0 = all. */
+	keep: number;
+}
+
+/**
+ * Judges the backup log.
+ *
+ * Stale means: older than twice the interval but at least two days with the automatic backup
+ * on; older than a week with it off. Backup is the only protection of the database against the
+ * BackItUp gap (the database file itself is not part of an ioBroker backup).
+ *
+ * @param entries - The backup log.
+ * @param intervalMinutes - Configured interval, 0 = off.
+ * @param keep - Automatic backups kept.
+ * @param now - Current time in ms.
+ */
+export function backupStatus(
+	entries: BackupLogItem[],
+	intervalMinutes: number,
+	keep: number,
+	now: number,
+): BackupStatus {
+	const newest = entries.map(entry => entry.createdAt).sort((a, b) => b.localeCompare(a))[0] ?? null;
+	const base = { intervalMinutes, keep };
+	if (!newest) {
+		return { lastAt: null, ageHours: null, warning: 'none', ...base };
+	}
+	const ageMs = now - Date.parse(newest);
+	const limitMs = intervalMinutes > 0 ? Math.max(2 * intervalMinutes * 60_000, 48 * 3_600_000) : 7 * 24 * 3_600_000;
+	return {
+		lastAt: newest,
+		ageHours: Math.max(0, Math.round(ageMs / 3_600_000)),
+		warning: ageMs > limitMs ? 'stale' : null,
+		...base,
 	};
 }

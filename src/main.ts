@@ -10,7 +10,14 @@ import { join } from 'node:path';
 import { createServer, type Server } from 'node:http';
 import { version as adapterVersion } from '../package.json';
 import { attachStatic, createApiServer } from './lib/api-server';
-import { createBackup, restoreBackup } from './lib/backup';
+import {
+	AUTO_BACKUP_PREFIX,
+	backupStatus,
+	createBackup,
+	nextBackupDelayMs,
+	restoreBackup,
+	selectBackupsToPrune,
+} from './lib/backup';
 import { InvoiceDatabase } from './lib/db';
 import {
 	blankDraft,
@@ -44,6 +51,9 @@ class EInvoices extends utils.Adapter {
 	private server: Server | null = null;
 	/** Pending automatic backup, cancelled on unload. */
 	private backupTimer: ReturnType<EInvoices['setTimeout']> | undefined;
+	/** True once the backup warning was logged, so it is not repeated at every refresh. */
+	private backupWarned = false;
+
 	/** Pending automatic dunning check, cancelled on unload. */
 	private reminderTimer: ReturnType<EInvoices['setTimeout']> | undefined;
 	/** Pending refresh of the info states after a change through the API, cancelled on unload. */
@@ -262,6 +272,17 @@ class EInvoices extends utils.Adapter {
 				native: {},
 			},
 			{
+				id: 'info.backupWarning',
+				common: {
+					name: 'Backup warning (empty = backup is current)',
+					type: 'string',
+					role: 'text',
+					read: true,
+					write: false,
+				},
+				native: {},
+			},
+			{
 				id: 'info.lastReminderCheck',
 				common: { name: 'Last dunning check', type: 'string', role: 'text', read: true, write: false },
 				native: {},
@@ -444,6 +465,7 @@ class EInvoices extends utils.Adapter {
 		const last = this.db.listInvoices({ status: 'issued', limit: 1 });
 		await this.setState('info.lastNumber', last[0]?.number ?? '', true);
 		await this.setState('info.lastIssuedAt', last[0]?.updatedAt ?? '', true);
+		await this.refreshBackupStatus();
 	}
 
 	/**
@@ -510,12 +532,15 @@ class EInvoices extends utils.Adapter {
 
 	/**
 	 * Creates one backup and records it in the backup log.
+	 *
+	 * @param kind - `auto` for the timer: such a backup gets its own file name and the oldest ones
+	 *   beyond `backupKeep` are deleted afterwards. A backup by hand is never deleted.
 	 */
-	private async runBackup(): Promise<void> {
+	private async runBackup(kind: 'manual' | 'auto' = 'manual'): Promise<void> {
 		if (!this.db) {
 			throw new Error('Database is not ready');
 		}
-		const backup = await createBackup(this.db, { read: this.storageReader }, this.log, adapterVersion);
+		const backup = await createBackup(this.db, { read: this.storageReader }, this.log, adapterVersion, kind);
 		await this.writeFileAsync(this.mountId, backup.filename, backup.data);
 		this.db.logBackup({
 			filename: backup.filename,
@@ -525,7 +550,59 @@ class EInvoices extends utils.Adapter {
 		});
 		await this.setState('info.lastBackup', backup.filename, true);
 		this.log.info(`Backup finished: ${backup.filename}`);
+		if (kind === 'auto') {
+			await this.pruneAutomaticBackups();
+		}
+		await this.refreshBackupStatus();
 		await this.publishStatusFile();
+	}
+
+	/**
+	 * Deletes the oldest automatic backups beyond `backupKeep`. A file that cannot be deleted is
+	 * logged and kept in the log, nothing else is touched.
+	 */
+	private async pruneAutomaticBackups(): Promise<void> {
+		if (!this.db) {
+			return;
+		}
+		for (const filename of selectBackupsToPrune(this.db.listBackups(), Number(this.config.backupKeep ?? 0))) {
+			try {
+				await this.delFileAsync(this.mountId, filename);
+				this.db.deleteBackupLog(filename);
+				this.log.info(`Old automatic backup deleted: ${filename}`);
+			} catch (error) {
+				this.log.warn(`Cannot delete old backup ${filename}: ${(error as Error).message}`);
+			}
+		}
+	}
+
+	/**
+	 * Publishes how current the newest backup is (`info.backupWarning`, empty = fine). Without any
+	 * backup an ioBroker backup (BackItUp) holds the files but not the database.
+	 */
+	private async refreshBackupStatus(): Promise<void> {
+		if (!this.db) {
+			return;
+		}
+		const status = backupStatus(
+			this.db.listBackups(),
+			Number(this.config.backupIntervalMinutes ?? 0),
+			Number(this.config.backupKeep ?? 0),
+			Date.now(),
+		);
+		const text =
+			status.warning === 'none'
+				? 'No backup yet: an ioBroker backup does not contain the invoice database without one'
+				: status.warning === 'stale'
+					? `Last backup is ${status.ageHours} h old`
+					: '';
+		await this.setState('info.backupWarning', text, true);
+		if (text && !this.backupWarned) {
+			this.backupWarned = true;
+			this.log.warn(text);
+		} else if (!text) {
+			this.backupWarned = false;
+		}
 	}
 
 	/**
@@ -540,16 +617,18 @@ class EInvoices extends utils.Adapter {
 			return;
 		}
 		const delay = Math.min(Math.max(Math.round(minutes * 60_000), 60_000), 7 * 24 * 60 * 60_000);
-		const schedule = (): void => {
+		const schedule = (wait: number): void => {
 			// adapter timer (E5005): tracked by the controller and cancelled on unload
 			this.backupTimer = this.setTimeout(() => {
-				void this.runBackup()
+				void this.runBackup('auto')
 					.catch((error: Error) => this.log.error(`Automatic backup failed: ${error.message}`))
-					.finally(schedule);
-			}, delay);
+					.finally(() => schedule(delay));
+			}, wait);
 		};
 		this.log.info(`Automatic backup every ${Math.round(delay / 60_000)} min into ${this.mountId}.`);
-		schedule();
+		// the interval counts from the last automatic backup, so a restart neither skips nor repeats one
+		const lastAuto = this.db?.listBackups().find(entry => entry.filename.startsWith(AUTO_BACKUP_PREFIX));
+		schedule(nextBackupDelayMs(lastAuto?.createdAt ?? null, delay, Date.now()));
 	}
 
 	/** Cancels a pending automatic backup. */
@@ -720,6 +799,7 @@ class EInvoices extends utils.Adapter {
 					quoteNumberFormat: this.db?.effectiveQuoteNumberFormat() ?? DEFAULT_QUOTE_NUMBER_FORMAT,
 					storageMount: this.mountId,
 					backupIntervalMinutes: Number(this.config.backupIntervalMinutes ?? 0),
+					backupKeep: Number(this.config.backupKeep ?? 0),
 				},
 			});
 			const wwwDir = join(__dirname, '../www');

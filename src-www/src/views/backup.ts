@@ -9,6 +9,25 @@ interface BackupEntry {
 	sha256: string;
 }
 
+/** How current the newest backup is (`GET /api/backups/status`). */
+interface BackupStatus {
+	/** ISO time of the newest backup, null when there is none. */
+	lastAt: string | null;
+	/** Age of the newest backup in hours. */
+	ageHours: number | null;
+	/** `none` = no backup at all, `stale` = too old, null = fine. */
+	warning: 'none' | 'stale' | null;
+	/** Automatic backup interval in minutes, 0 = off. */
+	intervalMinutes: number;
+	/** Automatic backups kept, 0 = all. */
+	keep: number;
+}
+
+/**
+ * File name without the folder.
+ *
+ * @param path - Path below the storage mount.
+ */
 function baseName(path: string): string {
 	return path.split('/').pop() ?? path;
 }
@@ -67,6 +86,7 @@ async function confirmRestore(source: { filename?: string; dataBase64?: string }
 export async function backup(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">${t('Lade Backups…')}</div>`;
 	let items: BackupEntry[] = [];
+	let status: BackupStatus | null = null;
 	let message = '';
 	let isError = false;
 
@@ -76,7 +96,37 @@ export async function backup(root: HTMLElement): Promise<void> {
 			throw new Error(t('Backups konnten nicht geladen werden'));
 		}
 		items = (await res.json()) as BackupEntry[];
+		// the status is a hint, the list must not depend on it
+		try {
+			const statusRes = await apiFetch('/api/backups/status');
+			status = statusRes.ok ? ((await statusRes.json()) as BackupStatus) : null;
+		} catch {
+			status = null;
+		}
 		render();
+	}
+
+	/** Hint on how current the newest backup is and what the automatic backup does. */
+	function statusHtml(): string {
+		if (!status) {
+			return '';
+		}
+		const warning =
+			status.warning === 'none'
+				? t(
+						'Noch kein Backup. Ohne Adapter-Backup enthält eine ioBroker-Sicherung (z. B. BackItUp) die Rechnungsdatenbank nicht — bitte jetzt sichern.',
+					)
+				: status.warning === 'stale'
+					? t('Das letzte Backup ist {hours} Stunden alt.', { hours: status.ageHours ?? 0 })
+					: '';
+		const automatic =
+			status.intervalMinutes > 0
+				? t('Automatisches Backup: alle {minutes} Minuten, behalten werden {keep}.', {
+						minutes: status.intervalMinutes,
+						keep: status.keep > 0 ? String(status.keep) : t('alle'),
+					})
+				: t('Automatisches Backup ist aus (Instanz-Einstellungen: Backup-Intervall).');
+		return `${warning ? `<p class="error" id="b-warning">${esc(warning)}</p>` : ''}<p class="muted" id="b-auto">${esc(automatic)}</p>`;
 	}
 
 	function render(): void {
@@ -85,14 +135,15 @@ export async function backup(root: HTMLElement): Promise<void> {
 			<button id="b-now">${t('Jetzt sichern')}</button></div>
 			<p class="muted">${t('ZIP mit Datenbank (dump.json), allen PDFs/XML/XLSX/Logos und Manifest mit SHA-256-Prüfsummen.')}</p>
 			${message ? `<p class="${isError ? 'error' : ''}">${esc(message)}</p>` : ''}
+			${statusHtml()}
 		</div>
 		<div class="card"><h3>${t('Gesicherte Backups')}</h3>
 			${
 				items
 					.map(
 						b => `<div class="row" style="margin-top:8px">
-				<strong>${esc(baseName(b.filename))}</strong>
-				<span class="muted">${esc(b.createdAt.slice(0, 19).replace('T', ' '))} · ${Math.round(b.size / 1024)} KB</span>
+				<strong>${esc(baseName(b.filename))}</strong>${baseName(b.filename).startsWith('e-invoices-auto-') ? ` <span class="badge">${t('automatisch')}</span>` : ''}
+<span class="muted">${esc(b.createdAt.slice(0, 19).replace('T', ' '))} · ${Math.round(b.size / 1024)} KB</span>
 				<button class="secondary" data-dl="${esc(b.filename)}">${t('Download')}</button>
 				<button class="secondary" data-restore="${esc(b.filename)}">${t('Wiederherstellen')}</button>
 			</div>`,

@@ -49,6 +49,8 @@ const STATES = [
 	'info.lastBackup',
 	'info.overdueCount',
 	'info.overdueList',
+	'info.reminderSuggestions',
+	'info.backupWarning',
 	'info.lastReminderCheck',
 	'control.createDraft',
 	'control.lastDraftId',
@@ -154,7 +156,9 @@ tests.integration(path.join(__dirname, '..'), {
 						port: PORT,
 						bind: '127.0.0.1',
 						authToken: '',
-						backupIntervalMinutes: 0,
+						// automatic backup every minute (the shortest allowed), only the newest one is kept
+						backupIntervalMinutes: 1,
+						backupKeep: 1,
 						reminderCheckHours: 0,
 					},
 				});
@@ -290,6 +294,49 @@ tests.integration(path.join(__dirname, '..'), {
 				// the first row in issue-date order — a known limitation, see ROADMAP §14)
 				if (issued.status !== 'issued') {
 					throw new Error('the invoice was not issued through the API');
+				}
+			});
+
+			it('runs the automatic backup and keeps only the newest one, never touching a backup by hand', async function () {
+				this.timeout(300000);
+				const listed = async () => await (await api('/api/backups')).json();
+				const autos = async () => (await listed()).filter(b => b.filename.includes('e-invoices-auto-'));
+				const first = await waitFor(
+					async () => (await autos())[0]?.filename ?? null,
+					'the first automatic backup',
+					200000,
+				);
+				const second = await waitFor(
+					async () => {
+						const found = (await autos())[0];
+						return found && found.filename !== first ? found.filename : null;
+					},
+					'the second automatic backup',
+					200000,
+				);
+				// the older one is deleted from the mount and from the log, the newest stays
+				await waitFor(async () => (await autos()).length === 1, 'the old automatic backup to be pruned');
+				const left = await autos();
+				if (left[0].filename !== second) {
+					throw new Error(`expected ${second} to be kept, got ${left[0].filename}`);
+				}
+				const gone = await api(`/api/backups/file/${path.basename(first)}`);
+				if (gone.status !== 404) {
+					throw new Error(`the pruned backup is still downloadable (${gone.status})`);
+				}
+				const kept = await api(`/api/backups/file/${path.basename(second)}`);
+				if (kept.status !== 200) {
+					throw new Error(`the kept backup cannot be downloaded (${kept.status})`);
+				}
+				// the backup made by hand with control.backup is still there
+				if (!(await listed()).some(b => b.filename.includes('e-invoices-backup-'))) {
+					throw new Error('the manual backup was deleted by the retention');
+				}
+				// with a current backup the warning state is empty
+				await waitFor(async () => (await read('info.backupWarning')) === '', 'info.backupWarning to be empty');
+				const status = await (await api('/api/backups/status')).json();
+				if (status.warning !== null || status.keep !== 1 || status.intervalMinutes !== 1) {
+					throw new Error(`unexpected backup status ${JSON.stringify(status)}`);
 				}
 			});
 

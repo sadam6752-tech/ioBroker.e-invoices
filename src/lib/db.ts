@@ -2207,6 +2207,15 @@ export class InvoiceDatabase {
 	}
 
 	/**
+	 * Removes a backup from the log (its file was deleted by the retention).
+	 *
+	 * @param filename - File name as logged.
+	 */
+	public deleteBackupLog(filename: string): void {
+		this.db.prepare(`DELETE FROM backups WHERE filename = ?`).run(filename);
+	}
+
+	/**
 	 * Lists logged backups, newest first.
 	 */
 	public listBackups(): StoredBackup[] {

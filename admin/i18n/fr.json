@@ -1,7 +1,7 @@
 {
     "0 = off, otherwise an automatic backup into the storage mount":  "0 = désactivé ; sinon sauvegarde automatique dans le point de stockage",
     "127.0.0.1 = only this machine, 0.0.0.0 = all interfaces":  "127.0.0.1 = uniquement cette machine, 0.0.0.0 = toutes les interfaces",
-    "API port":  "Port de l\u0027API",
+    "API port":  "Port de l'API",
     "API token (optional)":  "Jeton API (facultatif)",
     "Backup interval in minutes":  "Intervalle de sauvegarde en minutes",
     "BIC":  "BIC",
@@ -32,7 +32,9 @@
     "VAT ID (USt-IdNr.)":  "N° de TVA",
     "Website":  "Site web",
     "Dunning check interval in hours":  "Intervalle de relance en heures",
-    "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = désactivé. L\u0027adaptateur ne compte que les factures échues dans info.overdue*, il n\u0027envoie aucun e-mail lui-même.",
+    "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = désactivé. L'adaptateur ne compte que les factures échues dans info.overdue*, il n'envoie aucun e-mail lui-même.",
     "Web app language":  "Langue de l'application web",
-    "auto = language of the browser; German and English are available":  "auto = langue du navigateur ; allemand et anglais disponibles"
+    "auto = language of the browser; German and English are available":  "auto = langue du navigateur ; allemand et anglais disponibles",
+    "Automatic backups to keep":  "Sauvegardes automatiques à conserver",
+    "Older automatic backups are deleted, 0 = keep all. Manual backups are never deleted.":  "Les anciennes sauvegardes automatiques sont supprimées, 0 = tout conserver. Les sauvegardes manuelles ne sont jamais supprimées."
 }

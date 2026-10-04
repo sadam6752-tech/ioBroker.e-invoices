@@ -34,5 +34,7 @@
     "Dunning check interval in hours":  "催款检查间隔（小时）",
     "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = 关闭。适配器只统计逾期发票到 info.overdue*，不会自行发送邮件。",
     "Web app language":  "网页应用语言",
-    "auto = language of the browser; German and English are available":  "auto = 浏览器语言；提供德语和英语"
+    "auto = language of the browser; German and English are available":  "auto = 浏览器语言；提供德语和英语",
+    "Automatic backups to keep":  "保留的自动备份数量",
+    "Older automatic backups are deleted, 0 = keep all. Manual backups are never deleted.":  "较旧的自动备份将被删除，0 = 全部保留。手动备份永远不会被删除。"
 }

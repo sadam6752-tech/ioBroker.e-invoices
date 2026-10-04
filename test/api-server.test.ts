@@ -304,6 +304,16 @@ describe('api => invoices', function () {
 		await request(app).delete('/api/dunning/texts/0').expect(400);
 	});
 
+	it('reports how current the newest backup is (0.9.2)', async () => {
+		const first = (await request(app).get('/api/backups/status').expect(200)).body;
+		expect(first).to.have.keys(['lastAt', 'ageHours', 'warning', 'intervalMinutes', 'keep']);
+		await request(app).post('/api/backups').expect(201);
+		const after = (await request(app).get('/api/backups/status').expect(200)).body;
+		expect(after.warning).to.equal(null);
+		expect(after.ageHours).to.equal(0);
+		expect(after.lastAt).to.be.a('string');
+	});
+
 	it('refuses to re-render a draft', async () => {
 		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
 		await request(app).post(`/api/invoices/${created.body.id}/rerender`).expect(400);

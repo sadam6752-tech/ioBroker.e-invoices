@@ -44,6 +44,8 @@ class EInvoices extends utils.Adapter {
   server = null;
   /** Pending automatic backup, cancelled on unload. */
   backupTimer;
+  /** True once the backup warning was logged, so it is not repeated at every refresh. */
+  backupWarned = false;
   /** Pending automatic dunning check, cancelled on unload. */
   reminderTimer;
   /** Pending refresh of the info states after a change through the API, cancelled on unload. */
@@ -252,6 +254,17 @@ class EInvoices extends utils.Adapter {
         native: {}
       },
       {
+        id: "info.backupWarning",
+        common: {
+          name: "Backup warning (empty = backup is current)",
+          type: "string",
+          role: "text",
+          read: true,
+          write: false
+        },
+        native: {}
+      },
+      {
         id: "info.lastReminderCheck",
         common: { name: "Last dunning check", type: "string", role: "text", read: true, write: false },
         native: {}
@@ -425,6 +438,7 @@ class EInvoices extends utils.Adapter {
     const last = this.db.listInvoices({ status: "issued", limit: 1 });
     await this.setState("info.lastNumber", (_b = (_a = last[0]) == null ? void 0 : _a.number) != null ? _b : "", true);
     await this.setState("info.lastIssuedAt", (_d = (_c = last[0]) == null ? void 0 : _c.updatedAt) != null ? _d : "", true);
+    await this.refreshBackupStatus();
   }
   /**
    * Handles control.* button commands (each ack:false write triggers once).
@@ -487,12 +501,15 @@ class EInvoices extends utils.Adapter {
   }
   /**
    * Creates one backup and records it in the backup log.
+   *
+   * @param kind - `auto` for the timer: such a backup gets its own file name and the oldest ones
+   *   beyond `backupKeep` are deleted afterwards. A backup by hand is never deleted.
    */
-  async runBackup() {
+  async runBackup(kind = "manual") {
     if (!this.db) {
       throw new Error("Database is not ready");
     }
-    const backup = await (0, import_backup.createBackup)(this.db, { read: this.storageReader }, this.log, import_package.version);
+    const backup = await (0, import_backup.createBackup)(this.db, { read: this.storageReader }, this.log, import_package.version, kind);
     await this.writeFileAsync(this.mountId, backup.filename, backup.data);
     this.db.logBackup({
       filename: backup.filename,
@@ -502,7 +519,54 @@ class EInvoices extends utils.Adapter {
     });
     await this.setState("info.lastBackup", backup.filename, true);
     this.log.info(`Backup finished: ${backup.filename}`);
+    if (kind === "auto") {
+      await this.pruneAutomaticBackups();
+    }
+    await this.refreshBackupStatus();
     await this.publishStatusFile();
+  }
+  /**
+   * Deletes the oldest automatic backups beyond `backupKeep`. A file that cannot be deleted is
+   * logged and kept in the log, nothing else is touched.
+   */
+  async pruneAutomaticBackups() {
+    var _a;
+    if (!this.db) {
+      return;
+    }
+    for (const filename of (0, import_backup.selectBackupsToPrune)(this.db.listBackups(), Number((_a = this.config.backupKeep) != null ? _a : 0))) {
+      try {
+        await this.delFileAsync(this.mountId, filename);
+        this.db.deleteBackupLog(filename);
+        this.log.info(`Old automatic backup deleted: ${filename}`);
+      } catch (error) {
+        this.log.warn(`Cannot delete old backup ${filename}: ${error.message}`);
+      }
+    }
+  }
+  /**
+   * Publishes how current the newest backup is (`info.backupWarning`, empty = fine). Without any
+   * backup an ioBroker backup (BackItUp) holds the files but not the database.
+   */
+  async refreshBackupStatus() {
+    var _a, _b;
+    if (!this.db) {
+      return;
+    }
+    const status = (0, import_backup.backupStatus)(
+      this.db.listBackups(),
+      Number((_a = this.config.backupIntervalMinutes) != null ? _a : 0),
+      Number((_b = this.config.backupKeep) != null ? _b : 0),
+      Date.now()
+    );
+    const text = status.warning === "none" ? "No backup yet: an ioBroker backup does not contain the invoice database without one" : status.warning === "stale" ? `Last backup is ${status.ageHours} h old` : "";
+    await this.setState("info.backupWarning", text, true);
+    if (text && !this.backupWarned) {
+      this.backupWarned = true;
+      this.log.warn(text);
+    } else if (!text) {
+      this.backupWarned = false;
+    }
   }
   /**
    * Starts the automatic backup as a setTimeout chain (never a fixed cron
@@ -510,19 +574,21 @@ class EInvoices extends utils.Adapter {
    * missing means off.
    */
   startBackupTimer() {
+    var _a, _b;
     this.stopBackupTimer();
     const minutes = Number(this.config.backupIntervalMinutes);
     if (!Number.isFinite(minutes) || minutes <= 0) {
       return;
     }
     const delay = Math.min(Math.max(Math.round(minutes * 6e4), 6e4), 7 * 24 * 60 * 6e4);
-    const schedule = () => {
+    const schedule = (wait) => {
       this.backupTimer = this.setTimeout(() => {
-        void this.runBackup().catch((error) => this.log.error(`Automatic backup failed: ${error.message}`)).finally(schedule);
-      }, delay);
+        void this.runBackup("auto").catch((error) => this.log.error(`Automatic backup failed: ${error.message}`)).finally(() => schedule(delay));
+      }, wait);
     };
     this.log.info(`Automatic backup every ${Math.round(delay / 6e4)} min into ${this.mountId}.`);
-    schedule();
+    const lastAuto = (_a = this.db) == null ? void 0 : _a.listBackups().find((entry) => entry.filename.startsWith(import_backup.AUTO_BACKUP_PREFIX));
+    schedule((0, import_backup.nextBackupDelayMs)((_b = lastAuto == null ? void 0 : lastAuto.createdAt) != null ? _b : null, delay, Date.now()));
   }
   /** Cancels a pending automatic backup. */
   stopBackupTimer() {
@@ -655,7 +721,7 @@ class EInvoices extends utils.Adapter {
    * socket for the PWA — see README for the W5049 reason).
    */
   startApiServer() {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
     if (!this.db) {
       return;
     }
@@ -674,7 +740,8 @@ class EInvoices extends utils.Adapter {
           numberFormat: (_e = (_d = this.db) == null ? void 0 : _d.effectiveNumberFormat()) != null ? _e : import_invoice_model.DEFAULT_NUMBER_FORMAT,
           quoteNumberFormat: (_g = (_f = this.db) == null ? void 0 : _f.effectiveQuoteNumberFormat()) != null ? _g : import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
           storageMount: this.mountId,
-          backupIntervalMinutes: Number((_h = this.config.backupIntervalMinutes) != null ? _h : 0)
+          backupIntervalMinutes: Number((_h = this.config.backupIntervalMinutes) != null ? _h : 0),
+          backupKeep: Number((_i = this.config.backupKeep) != null ? _i : 0)
         }
       });
       const wwwDir = (0, import_node_path.join)(__dirname, "../www");

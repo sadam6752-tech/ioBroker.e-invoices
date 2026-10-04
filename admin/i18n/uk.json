@@ -34,5 +34,7 @@
     "Dunning check interval in hours":  "Інтервал нагадувань у годинах",
     "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = вимкнено. Адаптер лише рахує прострочені рахунки в info.overdue*, сам листа не надсилає.",
     "Web app language":  "Мова веб-застосунку",
-    "auto = language of the browser; German and English are available":  "auto = мова браузера; доступні німецька та англійська"
+    "auto = language of the browser; German and English are available":  "auto = мова браузера; доступні німецька та англійська",
+    "Automatic backups to keep":  "Скільки автоматичних резервних копій зберігати",
+    "Older automatic backups are deleted, 0 = keep all. Manual backups are never deleted.":  "Старіші автоматичні копії видаляються, 0 = зберігати всі. Копії, створені вручну, не видаляються ніколи."
 }

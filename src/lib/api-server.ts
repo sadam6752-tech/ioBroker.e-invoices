@@ -44,7 +44,7 @@ import {
 	type ArtifactWriter,
 	type IssueLogger,
 } from './issue-service';
-import { createBackup, previewRestore, restoreBackup } from './backup';
+import { backupStatus, createBackup, previewRestore, restoreBackup } from './backup';
 import { attachmentDisposition } from './attachments';
 import {
 	renderDatevHead,
@@ -178,6 +178,8 @@ export interface ApiServerDeps {
 		quoteNumberFormat: string;
 		storageMount: string;
 		backupIntervalMinutes: number;
+		/** Automatic backups kept (0 = all). */
+		backupKeep?: number;
 	};
 }
 
@@ -469,6 +471,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		quoteNumberFormat: deps.settings?.quoteNumberFormat?.trim() || DEFAULT_QUOTE_NUMBER_FORMAT,
 		storageMount: deps.settings?.storageMount?.trim() ?? '',
 		backupIntervalMinutes: Math.max(0, Math.round(Number(deps.settings?.backupIntervalMinutes) || 0)),
+		backupKeep: Math.max(0, Math.round(Number(deps.settings?.backupKeep) || 0)),
 	};
 	const limits = {
 		api: Math.max(1, Math.round(deps.limits?.api ?? 600)),
@@ -1659,6 +1662,12 @@ export function createApiServer(deps: ApiServerDeps): Express {
 
 	app.get('/api/backups', (_req, res) => {
 		res.json(db.listBackups());
+	});
+
+	// how current the newest backup is — the database is only in an ioBroker (BackItUp) backup
+	// through the adapter ZIP, so a missing or old one is worth a warning
+	app.get('/api/backups/status', (_req, res) => {
+		res.json(backupStatus(db.listBackups(), settings.backupIntervalMinutes, settings.backupKeep, Date.now()));
 	});
 
 	app.get(

@@ -92,6 +92,10 @@ export const en: Record<string, string> = {
 	'Ausstellen vergibt endgültig die Rechnungsnummer — danach ist keine Änderung mehr möglich (GoBD).':
 		'Issuing assigns the invoice number for good — afterwards no change is possible (GoBD).',
 	Ausstellungsdatum: 'Issue date',
+	'Automatisches Backup ist aus (Instanz-Einstellungen: Backup-Intervall).':
+		'Automatic backup is off (instance settings: backup interval).',
+	'Automatisches Backup: alle {minutes} Minuten, behalten werden {keep}.':
+		'Automatic backup: every {minutes} minutes, {keep} are kept.',
 	Backup: 'Backup',
 	'Backup & Wiederherstellung': 'Backup & restore',
 	'Backup kann nicht gelesen werden: {message}': 'The backup cannot be read: {message}',
@@ -128,6 +132,7 @@ export const en: Record<string, string> = {
 	'Das Angebot ist nicht als angenommen vermerkt. Trotzdem einen Rechnungsentwurf daraus erstellen?':
 		'The offer is not recorded as accepted. Create an invoice draft from it anyway?',
 	'Das Original liegt als {name} daneben.': 'The original is kept next to it as {name}.',
+	'Das letzte Backup ist {hours} Stunden alt.': 'The last backup is {hours} hours old.',
 	Datei: 'File',
 	'Datei nicht lesbar': 'File not readable',
 	'Dateien:': 'Files:',
@@ -302,6 +307,8 @@ export const en: Record<string, string> = {
 	'Neuer Kunde': 'New customer',
 	'Nicht angemeldet — bitte Token auf der Login-Seite eintragen':
 		'Not signed in — please enter the token on the login page',
+	'Noch kein Backup. Ohne Adapter-Backup enthält eine ioBroker-Sicherung (z. B. BackItUp) die Rechnungsdatenbank nicht — bitte jetzt sichern.':
+		'No backup yet. Without an adapter backup an ioBroker backup (e.g. BackItUp) does not contain the invoice database — please back up now.',
 	'Noch keine Anlagen.': 'No attachments yet.',
 	'Noch keine Backups.': 'No backups yet.',
 	'Noch keine Kunden.': 'No customers yet.',

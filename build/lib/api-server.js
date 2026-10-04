@@ -264,7 +264,7 @@ function secretEquals(provided, expected) {
   return (0, import_node_crypto.timingSafeEqual)(a, b);
 }
 function createApiServer(deps) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
   const { db, storage, log, version, authToken } = deps;
   const settings = {
     defaultVatRate: import_invoice_model.ALLOWED_VAT_RATES.includes(Number((_a = deps.settings) == null ? void 0 : _a.defaultVatRate)) ? Number((_b = deps.settings) == null ? void 0 : _b.defaultVatRate) : 19,
@@ -276,11 +276,12 @@ function createApiServer(deps) {
     // matching format next to the invoice one.
     quoteNumberFormat: ((_k = (_j = deps.settings) == null ? void 0 : _j.quoteNumberFormat) == null ? void 0 : _k.trim()) || import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
     storageMount: (_n = (_m = (_l = deps.settings) == null ? void 0 : _l.storageMount) == null ? void 0 : _m.trim()) != null ? _n : "",
-    backupIntervalMinutes: Math.max(0, Math.round(Number((_o = deps.settings) == null ? void 0 : _o.backupIntervalMinutes) || 0))
+    backupIntervalMinutes: Math.max(0, Math.round(Number((_o = deps.settings) == null ? void 0 : _o.backupIntervalMinutes) || 0)),
+    backupKeep: Math.max(0, Math.round(Number((_p = deps.settings) == null ? void 0 : _p.backupKeep) || 0))
   };
   const limits = {
-    api: Math.max(1, Math.round((_q = (_p = deps.limits) == null ? void 0 : _p.api) != null ? _q : 600)),
-    restore: Math.max(1, Math.round((_s = (_r = deps.limits) == null ? void 0 : _r.restore) != null ? _s : 10))
+    api: Math.max(1, Math.round((_r = (_q = deps.limits) == null ? void 0 : _q.api) != null ? _r : 600)),
+    restore: Math.max(1, Math.round((_t = (_s = deps.limits) == null ? void 0 : _s.restore) != null ? _t : 10))
   };
   const app = (0, import_express.default)();
   app.disable("x-powered-by");
@@ -1358,6 +1359,9 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
   );
   app.get("/api/backups", (_req, res) => {
     res.json(db.listBackups());
+  });
+  app.get("/api/backups/status", (_req, res) => {
+    res.json((0, import_backup.backupStatus)(db.listBackups(), settings.backupIntervalMinutes, settings.backupKeep, Date.now()));
   });
   app.get(
     "/api/backups/file/:name",

@@ -34,5 +34,7 @@
     "Dunning check interval in hours":  "Intervalo de cobro en horas",
     "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = desactivado. El adaptador solo cuenta las facturas vencidas en info.overdue*, no envía correos por sí mismo.",
     "Web app language":  "Idioma de la aplicación web",
-    "auto = language of the browser; German and English are available":  "auto = idioma del navegador; alemán e inglés disponibles"
+    "auto = language of the browser; German and English are available":  "auto = idioma del navegador; alemán e inglés disponibles",
+    "Automatic backups to keep":  "Copias de seguridad automáticas a conservar",
+    "Older automatic backups are deleted, 0 = keep all. Manual backups are never deleted.":  "Las copias automáticas más antiguas se eliminan, 0 = conservar todas. Las copias manuales nunca se eliminan."
 }

@@ -658,6 +658,8 @@ export const api = {
 			storageMount: string;
 			/** Automatic backup interval in minutes. */
 			backupIntervalMinutes: number;
+			/** Automatic backups kept, 0 = all. */
+			backupKeep?: number;
 			/** Language setting of the web app. */
 			pwaLanguage: string;
 		}>('/api/settings'),

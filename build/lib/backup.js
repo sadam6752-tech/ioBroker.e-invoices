@@ -28,18 +28,25 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var backup_exports = {};
 __export(backup_exports, {
+  AUTO_BACKUP_PREFIX: () => AUTO_BACKUP_PREFIX,
   BACKUP_APP_ID: () => BACKUP_APP_ID,
   BACKUP_FORMAT_VERSION: () => BACKUP_FORMAT_VERSION,
   DEFAULT_BACKUP_LIMITS: () => DEFAULT_BACKUP_LIMITS,
+  MANUAL_BACKUP_PREFIX: () => MANUAL_BACKUP_PREFIX,
+  backupStatus: () => backupStatus,
   collectArtifactPaths: () => collectArtifactPaths,
   createBackup: () => createBackup,
+  nextBackupDelayMs: () => nextBackupDelayMs,
   previewRestore: () => previewRestore,
-  restoreBackup: () => restoreBackup
+  restoreBackup: () => restoreBackup,
+  selectBackupsToPrune: () => selectBackupsToPrune
 });
 module.exports = __toCommonJS(backup_exports);
 var import_jszip = __toESM(require("jszip"));
 var import_node_crypto = require("node:crypto");
 var import_migrations = require("./migrations");
+const MANUAL_BACKUP_PREFIX = "backups/e-invoices-backup-";
+const AUTO_BACKUP_PREFIX = "backups/e-invoices-auto-";
 const BACKUP_APP_ID = "ioBroker.e-invoices";
 const BACKUP_FORMAT_VERSION = 1;
 function sha256Hex(data) {
@@ -131,7 +138,7 @@ function collectArtifactPaths(dump) {
   }
   return [...paths];
 }
-async function createBackup(db, storage, log, adapterVersion) {
+async function createBackup(db, storage, log, adapterVersion, kind = "manual") {
   const dump = db.exportData();
   const dumpJson = {
     ...dump,
@@ -176,7 +183,7 @@ async function createBackup(db, storage, log, adapterVersion) {
   };
   zip.file("manifest.json", JSON.stringify(manifest, null, 2));
   const data = Buffer.from(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
-  const filename = `backups/e-invoices-backup-${stampName()}.zip`;
+  const filename = `${kind === "auto" ? AUTO_BACKUP_PREFIX : MANUAL_BACKUP_PREFIX}${stampName()}.zip`;
   return { filename, size: data.length, sha256: sha256Hex(data), manifest, data };
 }
 async function previewRestore(db, zipData, limits) {
@@ -393,14 +400,49 @@ async function restoreBackup(db, storage, zipData, log, limits, options = {}) {
     countersKept: raised
   };
 }
+function selectBackupsToPrune(entries, keep) {
+  if (!Number.isFinite(keep) || keep <= 0) {
+    return [];
+  }
+  return entries.filter((entry) => entry.filename.startsWith(AUTO_BACKUP_PREFIX)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(Math.floor(keep)).map((entry) => entry.filename);
+}
+const MIN_BACKUP_DELAY_MS = 6e4;
+function nextBackupDelayMs(lastAutoAt, intervalMs, now) {
+  const last = lastAutoAt ? Date.parse(lastAutoAt) : Number.NaN;
+  if (!Number.isFinite(last)) {
+    return MIN_BACKUP_DELAY_MS;
+  }
+  return Math.min(intervalMs, Math.max(MIN_BACKUP_DELAY_MS, last + intervalMs - now));
+}
+function backupStatus(entries, intervalMinutes, keep, now) {
+  var _a;
+  const newest = (_a = entries.map((entry) => entry.createdAt).sort((a, b) => b.localeCompare(a))[0]) != null ? _a : null;
+  const base = { intervalMinutes, keep };
+  if (!newest) {
+    return { lastAt: null, ageHours: null, warning: "none", ...base };
+  }
+  const ageMs = now - Date.parse(newest);
+  const limitMs = intervalMinutes > 0 ? Math.max(2 * intervalMinutes * 6e4, 48 * 36e5) : 7 * 24 * 36e5;
+  return {
+    lastAt: newest,
+    ageHours: Math.max(0, Math.round(ageMs / 36e5)),
+    warning: ageMs > limitMs ? "stale" : null,
+    ...base
+  };
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  AUTO_BACKUP_PREFIX,
   BACKUP_APP_ID,
   BACKUP_FORMAT_VERSION,
   DEFAULT_BACKUP_LIMITS,
+  MANUAL_BACKUP_PREFIX,
+  backupStatus,
   collectArtifactPaths,
   createBackup,
+  nextBackupDelayMs,
   previewRestore,
-  restoreBackup
+  restoreBackup,
+  selectBackupsToPrune
 });
 //# sourceMappingURL=backup.js.map

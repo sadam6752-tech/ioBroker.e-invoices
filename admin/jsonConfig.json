@@ -54,6 +54,19 @@
 					"lg": 4,
 					"xl": 4
 				},
+				"backupKeep": {
+					"type": "number",
+					"label": "Automatic backups to keep",
+					"help": "Older automatic backups are deleted, 0 = keep all. Manual backups are never deleted.",
+					"min": 0,
+					"max": 365,
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 6,
+					"lg": 4,
+					"xl": 4
+				},
 				"reminderCheckHours": {
 					"type": "number",
 					"label": "Dunning check interval in hours",

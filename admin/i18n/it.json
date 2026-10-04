@@ -15,7 +15,7 @@
     "Company zip code":  "CAP",
     "Default payment terms":  "Condizioni di pagamento predefinite",
     "Default VAT rate":  "Aliquota IVA predefinita",
-    "e-invoices adapter settings":  "Impostazioni dell\u0027adattatore per e-invoices",
+    "e-invoices adapter settings":  "Impostazioni dell'adattatore per e-invoices",
     "empty = own data directory; otherwise an existing ioBroker file mount, e.g. e-invoices":  "vuoto = directory propria; altrimenti un mount di file ioBroker esistente, ad es. e-invoices",
     "Empty means no authentication (LAN trust)":  "Vuoto significa nessuna autenticazione (fiducia LAN)",
     "IBAN":  "IBAN",
@@ -32,7 +32,9 @@
     "VAT ID (USt-IdNr.)":  "P. IVA",
     "Website":  "Sito web",
     "Dunning check interval in hours":  "Intervallo di sollecitazione in ore",
-    "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = disattivato. L\u0027adattatore conta solo le fatture scadute in info.overdue*, non invia email per conto proprio.",
+    "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = disattivato. L'adattatore conta solo le fatture scadute in info.overdue*, non invia email per conto proprio.",
     "Web app language":  "Lingua dell'app web",
-    "auto = language of the browser; German and English are available":  "auto = lingua del browser; tedesco e inglese disponibili"
+    "auto = language of the browser; German and English are available":  "auto = lingua del browser; tedesco e inglese disponibili",
+    "Automatic backups to keep":  "Backup automatici da conservare",
+    "Older automatic backups are deleted, 0 = keep all. Manual backups are never deleted.":  "I backup automatici più vecchi vengono eliminati, 0 = conserva tutti. I backup manuali non vengono mai eliminati."
 }
