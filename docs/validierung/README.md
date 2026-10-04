@@ -23,6 +23,21 @@ Stand desselben Generators — ebenfalls `rep:accept`).
 `musterfaelle/` enthält die frisch erzeugten Belege mit ihren Berichten, der Wurzelordner
 den Lauf über den Belegbestand (`2026-*-report.xml`, `alle-belege.verapdf-3b.txt`).
 
+## Automatischer Lauf (M6)
+
+Der manuelle Nachweis ist automatisiert, damit eine Änderung am XML- oder PDF-Code nicht unbemerkt nicht-konforme Belege erzeugt:
+
+- **`npm run validate`** (nach `npm run build`): startet den End-to-End-Server auf einem Wegwerf-Datenverzeichnis, lässt
+  `musterfaelle.mjs` die sieben Musterfälle ausstellen und prüft jedes XML mit dem KoSIT-Validator 1.6.3 (EN 16931, CII). Die
+  Werkzeuge werden beim ersten Lauf nach `.validation-tools/` geladen und gegen die oben genannten **SHA-256-Prüfsummen** geprüft
+  (vollständig im Skript `test/validation/run.mjs`); Java muss im `PATH` liegen (oder `JAVA=` setzen). Ausgabe nach
+  `.validation-out/` (XML, PDF, Berichte, `kosit.log`). Exit-Code 1, sobald ein Beleg abgelehnt wird.
+- **Workflow `Validate invoices`** (`.github/workflows/validate-invoices.yml`): derselbe Lauf auf GitHub, dazu **veraPDF** (Docker-Image
+  `verapdf/cli`, PDF/A-3b) für alle PDFs. Er startet monatlich, per Hand (`workflow_dispatch`) und bei Änderungen an `zugferd.ts`, `pdf.ts`,
+  `pdf-attachments.ts`, `issue-service.ts`, `invoice-model.ts`, `templates.ts`, `fonts.ts` oder an den Musterfällen. Er gehört **nicht** zum
+  Release-Workflow: ein roter Lauf ist ein Hinweis, die Dateien anzusehen (Artefakt `validation-files`), kein gesperrtes Release.
+- Lokal bestätigt am 04.10.2026: 7 von 7 akzeptiert. Der veraPDF-Schritt im Workflow wurde noch nicht auf GitHub ausgeführt.
+
 ## Werkzeuge (Version, Bezug, Prüfsumme)
 
 | Werkzeug | Version | Bezug | SHA-256 |

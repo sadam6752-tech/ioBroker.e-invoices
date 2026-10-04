@@ -1,0 +1,67 @@
+# External validation of the generated e-invoices (M6).
+#
+# Makes the sample cases over the real API stack and checks every XML with the KoSIT validator
+# (EN 16931, CII) and every PDF with veraPDF (PDF/A-3b). It is not part of the release workflow:
+# a red run is a signal to look at the files (`validation-files` artifact), not a blocked release.
+name: Validate invoices
+
+on:
+  workflow_dispatch:
+  schedule:
+    # monthly, off the full hour (the validator rules change a few times a year)
+    - cron: "27 5 5 * *"
+  push:
+    branches: [main]
+    paths:
+      - "src/lib/zugferd.ts"
+      - "src/lib/pdf.ts"
+      - "src/lib/pdf-attachments.ts"
+      - "src/lib/issue-service.ts"
+      - "src/lib/invoice-model.ts"
+      - "src/lib/templates.ts"
+      - "src/lib/fonts.ts"
+      - "docs/validierung/musterfaelle.mjs"
+      - "test/validation/**"
+      - ".github/workflows/validate-invoices.yml"
+
+concurrency:
+  group: validate-invoices
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: npm ci
+      - run: npm run build
+      - name: Make the sample cases and check the XML with the KoSIT validator
+        run: npm run validate
+      - name: Check the PDF files with veraPDF (PDF/A-3b)
+        run: |
+          set -e
+          failed=0
+          for pdf in .validation-out/*.pdf; do
+            result=$(docker run --rm -v "$PWD/.validation-out:/data" verapdf/cli:latest -f 3b --format text "/data/$(basename "$pdf")" || true)
+            echo "$result"
+            case "$result" in PASS*) ;; *) failed=$((failed + 1)) ;; esac
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "$failed PDF file(s) are not PDF/A-3b conformant"
+            exit 1
+          fi
+      - name: Keep the files of the run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-files
+          path: .validation-out
+          retention-days: 30
