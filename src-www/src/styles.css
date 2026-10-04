@@ -8,6 +8,48 @@
 	--danger: #b91c1c;
 	--ok: #15803d;
 	--radius: 10px;
+	--line: #e5e7eb;
+	--line-strong: #d1d5db;
+	--surface-alt: #f3f4f6;
+	--chip: #e5e7eb;
+	--input-bg: #ffffff;
+	--badge-draft-bg: #fef3c7;
+	--badge-draft-fg: #92400e;
+	--badge-ok-bg: #dcfce7;
+	--badge-bad-bg: #fee2e2;
+	--badge-open-bg: #dbeafe;
+	--badge-open-fg: #1e40af;
+	--badge-off-bg: #e5e7eb;
+	--badge-off-fg: #374151;
+}
+/* Dark theme: chosen on the status page. `theme-init.js` and `theme.ts` put `data-theme` on <html>
+   ("light" or "dark") before the first paint, so there is no flash; the documents themselves
+   (PDF, Excel) stay as they are. */
+:root[data-theme='dark'] {
+	color-scheme: dark;
+	--brand: #2563eb;
+	--bg: #0b1220;
+	--card: #151e2e;
+	--text: #e5e7eb;
+	--muted: #9ca3af;
+	--danger: #f87171;
+	--ok: #4ade80;
+	--line: #263145;
+	--line-strong: #374151;
+	--surface-alt: #1b263b;
+	--chip: #263145;
+	--input-bg: #0f172a;
+	--badge-draft-bg: #422006;
+	--badge-draft-fg: #fcd34d;
+	--badge-ok-bg: #052e16;
+	--badge-bad-bg: #450a0a;
+	--badge-open-bg: #172554;
+	--badge-open-fg: #93c5fd;
+	--badge-off-bg: #1f2937;
+	--badge-off-fg: #d1d5db;
+}
+:root[data-theme='dark'] main a:not(.btn) {
+	color: #93c5fd;
 }
 * {
 	box-sizing: border-box;
@@ -109,33 +151,33 @@ main {
 	font-weight: 700;
 }
 .badge.draft {
-	background: #fef3c7;
-	color: #92400e;
+	background: var(--badge-draft-bg);
+	color: var(--badge-draft-fg);
 }
 .badge.issued {
-	background: #dcfce7;
+	background: var(--badge-ok-bg);
 	color: var(--ok);
 }
 .badge.cancelled {
-	background: #fee2e2;
+	background: var(--badge-bad-bg);
 	color: var(--danger);
 }
 /* R8: the life cycle of an offer, derived from its dates */
 .badge.open {
-	background: #dbeafe;
-	color: #1e40af;
+	background: var(--badge-open-bg);
+	color: var(--badge-open-fg);
 }
 .badge.accepted {
-	background: #dcfce7;
+	background: var(--badge-ok-bg);
 	color: var(--ok);
 }
 .badge.rejected {
-	background: #fee2e2;
+	background: var(--badge-bad-bg);
 	color: var(--danger);
 }
 .badge.expired {
-	background: #e5e7eb;
-	color: #374151;
+	background: var(--badge-off-bg);
+	color: var(--badge-off-fg);
 }
 button,
 .btn {
@@ -150,7 +192,7 @@ button,
 	display: inline-block;
 }
 button.secondary {
-	background: #e5e7eb;
+	background: var(--chip);
 	color: var(--text);
 }
 button.danger {
@@ -165,9 +207,11 @@ select,
 textarea {
 	width: 100%;
 	padding: 8px;
-	border: 1px solid #d1d5db;
+	border: 1px solid var(--line-strong);
 	border-radius: 8px;
 	font-size: 14px;
+	background: var(--input-bg);
+	color: var(--text);
 }
 label {
 	display: block;
@@ -194,7 +238,7 @@ table.lines th,
 table.lines td {
 	text-align: left;
 	padding: 6px 4px;
-	border-bottom: 1px solid #e5e7eb;
+	border-bottom: 1px solid var(--line);
 }
 table.ovw {
 	width: 100%;
@@ -205,10 +249,10 @@ table.ovw {
 table.ovw th,
 table.ovw td {
 	padding: 5px 4px;
-	border-bottom: 1px solid #e5e7eb;
+	border-bottom: 1px solid var(--line);
 }
 table.ovw th {
-	background: #f3f4f6;
+	background: var(--surface-alt);
 	font-weight: 600;
 }
 table.ovw .r {
@@ -229,7 +273,7 @@ table.ovw.sums {
 	margin-left: auto;
 }
 table.ovw.sums td {
-	border-bottom: 1px solid #e5e7eb;
+	border-bottom: 1px solid var(--line);
 	padding: 6px 8px;
 }
 table.ovw.sums td.lbl {
@@ -243,8 +287,8 @@ table.ovw.sums tr.sub td {
 }
 table.ovw.sums tr.total td {
 	font-weight: 700;
-	background: #f3f4f6;
-	border-top: 1px solid #e5e7eb;
+	background: var(--surface-alt);
+	border-top: 1px solid var(--line);
 	color: var(--text);
 	font-size: 15px;
 }
@@ -264,7 +308,7 @@ label.sortsel select {
 	font-size: 14px;
 }
 fieldset.period {
-	border: 1px solid #e5e7eb;
+	border: 1px solid var(--line);
 	border-radius: 8px;
 	padding: 10px 12px 12px;
 	margin: 0 0 10px;
@@ -308,7 +352,7 @@ label.pay:has(input:checked) {
 	display: inline-block;
 	width: 16px;
 	height: 16px;
-	border: 1px dashed #d1d5db;
+	border: 1px dashed var(--line-strong);
 	border-radius: 4px;
 	flex: 0 0 auto;
 }
@@ -364,7 +408,7 @@ pre.dump {
 .steps span {
 	padding: 4px 10px;
 	border-radius: 999px;
-	background: #e5e7eb;
+	background: var(--chip);
 	font-size: 13px;
 }
 .steps span.on {

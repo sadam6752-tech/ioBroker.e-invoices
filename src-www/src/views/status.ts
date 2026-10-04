@@ -1,8 +1,31 @@
 import { api, esc } from '../api';
 import { t } from '../i18n';
+import { getThemeChoice, setThemeChoice, toChoice } from '../theme';
 
 /**
- * Status page: adapter health and counters.
+ * The look of the app: light, dark or follow the device. A choice of this device, no server call.
+ *
+ * @param root - Element the card is added to.
+ */
+function appendThemeCard(root: HTMLElement): void {
+	const choice = getThemeChoice();
+	root.insertAdjacentHTML(
+		'beforeend',
+		`<div class="card"><h3>${t('Darstellung')}</h3>
+		<label>${t('Farbschema')}<select id="s-theme">
+			<option value="system" ${choice === 'system' ? 'selected' : ''}>${t('System')}</option>
+			<option value="light" ${choice === 'light' ? 'selected' : ''}>${t('Hell')}</option>
+			<option value="dark" ${choice === 'dark' ? 'selected' : ''}>${t('Dunkel')}</option>
+		</select></label>
+		<p class="muted">${t('„System“ folgt der Einstellung deines Geräts. Die Wahl gilt nur für dieses Gerät; PDF und Excel bleiben unverändert.')}</p></div>`,
+	);
+	root.querySelector<HTMLSelectElement>('#s-theme')?.addEventListener('change', event => {
+		setThemeChoice(toChoice((event.target as HTMLSelectElement).value));
+	});
+}
+
+/**
+ * Status page: adapter health and counters, and the look of the app.
  *
  * It also carries the app name: the header bar stays for the tabs only, and the
  * version and the schema belong next to that name anyway.
@@ -19,4 +42,6 @@ export async function status(root: HTMLElement): Promise<void> {
 	} catch (e) {
 		root.innerHTML = `<div class="card error">${t('API nicht erreichbar')}: ${esc((e as Error).message)}</div>`;
 	}
+	// also without a reachable API: the look is a choice of this device
+	appendThemeCard(root);
 }

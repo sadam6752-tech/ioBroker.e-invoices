@@ -81,7 +81,7 @@
     "watch:ts": "build-adapter ts --watch",
     "test:ts": "mocha --config test/mocharc.custom.json src/**/*.test.ts",
     "test:api": "mocha --config test/mocharc.custom.json test/api-server.test.ts --exit",
-    "test:pwa": "mocha --config test/mocharc.custom.json test/pwa.test.ts test/pwa-range.test.ts --exit",
+    "test:pwa": "mocha --config test/mocharc.custom.json test/pwa.test.ts test/pwa-range.test.ts test/pwa-theme.test.ts --exit",
     "test:i18n": "mocha --config test/mocharc.custom.json test/i18n.test.ts --exit",
     "test:pwa-i18n": "mocha --config test/mocharc.custom.json test/i18n-pwa.test.ts --exit",
     "test:package": "mocha test/package --exit",

@@ -111,6 +111,15 @@ PDFs, the XML, the document titles (`Rechnung`, `Angebot`, …), the payment-ter
 presets and the text of the customer mail. Only their labels in the dropdowns
 follow the language of the page.
 
+### Light and dark appearance
+
+The web app has a light and a dark appearance. On the **status page**, *Darstellung* offers three choices:
+**System** (follow the setting of the device — the default), **Hell** (light) and **Dunkel** (dark). The
+choice belongs to the device (it is kept in the browser, like the language) and is applied before the page is
+painted, so a dark choice does not flash light first. With *System* the app also follows the device while it is
+open, for example when a phone switches to dark in the evening. Only the user interface changes: the PDFs, the
+test prints and the Excel files stay as they are, because they are documents and must not depend on a device.
+
 ### Attachments (Anlagen)
 
 A draft can carry up to 10 files (PDF, PNG or JPEG, 5 MB each) — delivery
@@ -466,6 +475,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) Dark appearance of the web app: the status page offers *System* (follows the device, default), *Hell* and *Dunkel*. The choice is kept per device, applied before the first paint and, with *System*, follows the device while the app is open. PDFs and Excel files are not affected.
+
 ### 0.9.4 (2026-10-04)
 
 * (alex) Invoice list: the period (quick choice, *Von*, *Bis*) sits in the same filter row as the other filters, with the labels above the two days.

@@ -129,6 +129,7 @@ export const en: Record<string, string> = {
 	'DATEV-Buchungssätze': 'DATEV postings',
 	'Danach nicht mehr änderbar.': 'Cannot be changed afterwards.',
 	'Daraus hervorgegangene Rechnung(en)': 'Resulting invoice(s)',
+	Darstellung: 'Appearance',
 	'Das Angebot ist am {date} verfallen.': 'The offer expired on {date}.',
 	'Das Angebot ist nicht als angenommen vermerkt. Trotzdem einen Rechnungsentwurf daraus erstellen?':
 		'The offer is not recorded as accepted. Create an invoice draft from it anyway?',
@@ -160,6 +161,7 @@ export const en: Record<string, string> = {
 	Download: 'Download',
 	'Download fehlgeschlagen (HTTP {status})': 'Download failed (HTTP {status})',
 	Druckvorlagen: 'Print templates',
+	Dunkel: 'Dark',
 	'E-Mail': 'E-mail',
 	'E-Mail (PDF)': 'E-mail (PDF)',
 	'E-Mail im Kopf': 'E-mail in the header',
@@ -197,6 +199,7 @@ export const en: Record<string, string> = {
 	'Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.':
 		'Exact totals and validation (XSD, EN16931, BR rules) are done on the server when issuing.',
 	'Excel-Liste': 'Excel list',
+	Farbschema: 'Color scheme',
 	'Fehlt die Kundennummer (BT-10), trage sie unten ein — ohne sie ist die Rechnung nicht ausstellbar.':
 		'If the customer number (BT-10) is missing, enter it below — without it the invoice cannot be issued.',
 	Firma: 'Company',
@@ -228,6 +231,7 @@ export const en: Record<string, string> = {
 	'Gültig: keine offenen Pflichtangaben.': 'Valid: no open mandatory fields.',
 	'Haftungsausschluss: Das Programm wird unentgeltlich und ohne Gewähr bereitgestellt und ersetzt keine Steuer- oder Rechtsberatung. Für die Richtigkeit der Rechnungen, die Einhaltung der Vorschriften und die Datensicherung bist du selbst verantwortlich. Details im README.':
 		'Disclaimer: this software is provided free of charge and without warranty and is not tax or legal advice. You are responsible for the correctness of your invoices, for compliance with the rules that apply to you and for your backups. See the README for details.',
+	Hell: 'Light',
 	'Hinweis: der Bericht konnte nicht gespeichert werden (Adapter-Log).':
 		'Note: the report could not be saved (adapter log).',
 	Hochladen: 'Upload',
@@ -413,6 +417,7 @@ export const en: Record<string, string> = {
 	'Suche (Name, Nummer, Ort)…': 'Search (name, number, city)…',
 	'Suche (Nr, Kunde, Position)…': 'Search (no., customer, item)…',
 	'Summe netto': 'Total net',
+	System: 'System',
 	'Tabellenkopf komplett in Akzentfarbe': 'Whole table header in the accent color',
 	Tage: 'Days',
 	Telefon: 'Phone',
@@ -591,4 +596,6 @@ export const en: Record<string, string> = {
 	'– Position wählen –': '– Choose an item –',
 	'– eigene Positionen –': '– own items –',
 	'– manuell eingeben –': '– enter manually –',
+	'„System“ folgt der Einstellung deines Geräts. Die Wahl gilt nur für dieses Gerät; PDF und Excel bleiben unverändert.':
+		'“System” follows the setting of your device. The choice applies to this device only; PDF and Excel stay unchanged.',
 };

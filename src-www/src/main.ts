@@ -1,6 +1,7 @@
 import './styles.css';
 import { getToken } from './api';
 import { initLanguage, t } from './i18n';
+import { initTheme } from './theme';
 import { backup } from './views/backup';
 import { company } from './views/company';
 import { customers } from './views/customers';
@@ -102,6 +103,9 @@ async function adminLanguage(): Promise<string | null> {
 		return null;
 	}
 }
+
+// the stored light/dark choice (the page already has it from theme-init.js, this keeps it in step with the device)
+initTheme();
 
 void adminLanguage().then(admin => {
 	initLanguage(admin);
