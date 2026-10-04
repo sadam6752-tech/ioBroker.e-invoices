@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.0.3": {
+        "en": "Repository checker findings: the README is English only (the German disclaimer moved to docs/haftungsausschluss.md) and the translations of the web app are part of the npm package.",
+        "de": "Befunde des Repository-Checkers: Die README ist nur noch englisch (der deutsche Haftungsausschluss liegt jetzt in docs/haftungsausschluss.md), und die Übersetzungen der Web-App sind Teil des npm-Pakets.",
+        "ru": "Замечания проверки репозитория: README теперь только на английском (немецкий отказ от ответственности перенесён в docs/haftungsausschluss.md), а переводы веб-приложения входят в пакет npm.",
+        "pt": "Resultados do verificador do repositório: o README está apenas em inglês (o aviso legal em alemão passou para docs/haftungsausschluss.md) e as traduções da aplicação web fazem parte do pacote npm.",
+        "nl": "Bevindingen van de repository-checker: de README is alleen Engels (de Duitse disclaimer staat nu in docs/haftungsausschluss.md) en de vertalingen van de web-app maken deel uit van het npm-pakket.",
+        "fr": "Remarques du vérificateur de dépôt : le README est uniquement en anglais (l'avertissement juridique allemand se trouve désormais dans docs/haftungsausschluss.md) et les traductions de l'application web font partie du paquet npm.",
+        "it": "Rilievi del verificatore del repository: il README è solo in inglese (la dichiarazione di esclusione di responsabilità in tedesco si trova ora in docs/haftungsausschluss.md) e le traduzioni della web app fanno parte del pacchetto npm.",
+        "es": "Hallazgos del verificador del repositorio: el README está solo en inglés (el aviso legal en alemán está ahora en docs/haftungsausschluss.md) y las traducciones de la aplicación web forman parte del paquete npm.",
+        "pl": "Uwagi weryfikatora repozytorium: README jest wyłącznie po angielsku (niemieckie zastrzeżenie prawne znajduje się teraz w docs/haftungsausschluss.md), a tłumaczenia aplikacji internetowej są częścią pakietu npm.",
+        "uk": "Зауваження перевірки репозиторію: README тепер лише англійською (німецька відмова від відповідальності перенесена до docs/haftungsausschluss.md), а переклади вебзастосунку входять до пакета npm.",
+        "zh-cn": "仓库检查器的发现：README 现在仅为英文（德文免责声明已移至 docs/haftungsausschluss.md），网页应用的翻译文件已包含在 npm 包中。"
+      },
       "1.0.2": {
         "en": "System page: the topics are tabs inside the page (Status, Backup, Company, Print templates) and only the chosen one is shown, instead of one long page with everything below each other.",
         "de": "Systemseite: Die Themen sind Reiter innerhalb der Seite (Status, Backup, Firma, Druckvorlagen), und es wird nur das gewählte angezeigt – statt einer langen Seite mit allem untereinander.",
@@ -101,19 +114,6 @@
         "pl": "Okres (od/do) dla listy faktur oraz eksportów do Excela, CSV i DATEV. Eksporty nie są już ucinane przy 500 fakturach i nigdy nie zawierają szkiców.",
         "uk": "Період (від/до) для списку рахунків та експорту в Excel, CSV і DATEV. Експорт більше не обрізається на 500 рахунках і ніколи не містить чернеток.",
         "zh-cn": "发票列表以及 Excel、CSV 和 DATEV 导出支持日期范围（起/止）。导出不再在 500 张发票处被截断，也不再包含草稿。"
-      },
-      "0.9.2": {
-        "en": "The automatic backup is on by default (daily) and keeps the newest 7 automatic backups; a warning shows when there is no current backup. An ioBroker backup (BackItUp) does not contain the invoice database without the adapter backup.",
-        "de": "Das automatische Backup ist standardmäßig an (täglich) und behält die neuesten 7 automatischen Backups; eine Warnung erscheint, wenn kein aktuelles Backup existiert. Eine ioBroker-Sicherung (BackItUp) enthält die Rechnungsdatenbank nicht ohne das Adapter-Backup.",
-        "ru": "Автоматическое резервное копирование включено по умолчанию (ежедневно) и хранит 7 последних автоматических копий; если актуальной копии нет, показывается предупреждение. Резервная копия ioBroker (BackItUp) не содержит базу счетов без резервной копии адаптера.",
-        "pt": "A cópia de segurança automática está ativa por predefinição (diária) e mantém as 7 cópias automáticas mais recentes; é mostrado um aviso quando não existe uma cópia atual. Uma cópia de segurança do ioBroker (BackItUp) não contém a base de dados de faturas sem a cópia do adaptador.",
-        "nl": "De automatische back-up staat standaard aan (dagelijks) en bewaart de 7 nieuwste automatische back-ups; er verschijnt een waarschuwing als er geen actuele back-up is. Een ioBroker-back-up (BackItUp) bevat de factuurdatabase niet zonder de adapter-back-up.",
-        "fr": "La sauvegarde automatique est activée par défaut (quotidienne) et conserve les 7 dernières sauvegardes automatiques ; un avertissement s'affiche lorsqu'il n'y a pas de sauvegarde récente. Une sauvegarde ioBroker (BackItUp) ne contient pas la base de données des factures sans la sauvegarde de l'adaptateur.",
-        "it": "Il backup automatico è attivo per impostazione predefinita (giornaliero) e conserva gli ultimi 7 backup automatici; viene mostrato un avviso se non esiste un backup recente. Un backup di ioBroker (BackItUp) non contiene il database delle fatture senza il backup dell'adattatore.",
-        "es": "La copia de seguridad automática está activada por defecto (diaria) y conserva las 7 copias automáticas más recientes; se muestra un aviso cuando no hay una copia actual. Una copia de seguridad de ioBroker (BackItUp) no contiene la base de datos de facturas sin la copia del adaptador.",
-        "pl": "Automatyczna kopia zapasowa jest domyślnie włączona (codziennie) i zachowuje 7 najnowszych kopii automatycznych; gdy brak aktualnej kopii, pojawia się ostrzeżenie. Kopia zapasowa ioBroker (BackItUp) nie zawiera bazy faktur bez kopii adaptera.",
-        "uk": "Автоматичне резервне копіювання за замовчуванням увімкнено (щодня), зберігаються 7 останніх автоматичних копій; якщо актуальної копії немає, показується попередження. Резервна копія ioBroker (BackItUp) не містить бази рахунків без резервної копії адаптера.",
-        "zh-cn": "自动备份默认开启（每天一次），并保留最新的 7 份自动备份；没有最新备份时会显示警告。没有适配器备份时，ioBroker 备份（BackItUp）不包含发票数据库。"
       }
     },
     "titleLang": {

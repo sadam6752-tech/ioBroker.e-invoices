@@ -495,11 +495,12 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.3 (2026-10-04)
 
 * (alex) Repository checker findings: the README is English only (the German disclaimer moved to `docs/haftungsausschluss.md`, German UI names in the text are translated), and the translations of the web app (`src-www/src/i18n`) are part of the npm package.
 
 -->
+
 ### 1.0.2 (2026-10-04)
 
 * (alex) System page: the topics are tabs inside the page (*Status*, *Backup*, *Firma*, *Druckvorlagen*) and only the chosen one is shown, instead of one long page with everything below each other.
@@ -519,10 +520,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ### 0.9.5 (2026-10-04)
 
 * (alex) Dark appearance of the web app: the status page offers *System* (follows the device, default), *Hell* and *Dunkel*. The choice is kept per device, applied before the first paint and, with *System*, follows the device while the app is open. PDFs and Excel files are not affected.
-
-### 0.9.4 (2026-10-04)
-
-* (alex) Invoice list: the period (quick choice, *Von*, *Bis*) sits in the same filter row as the other filters, with the labels above the two days.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
