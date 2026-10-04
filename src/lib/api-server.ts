@@ -44,6 +44,8 @@ import {
 	issueInvoiceBatch,
 	issueInvoiceWithArtifacts,
 	collectReminderCandidates,
+	missingArtifacts,
+	repairMissingArtifacts,
 	rerenderInvoicePdf,
 	type ArtifactWriter,
 	type IssueLogger,
@@ -749,6 +751,24 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		);
 	});
 
+	// M1: issued documents that miss files (the number is consumed before the files are made). Before the
+	// `:id` routes: `incomplete` would otherwise be taken for an id.
+	app.get(
+		'/api/invoices/incomplete',
+		route((_req, res) => {
+			res.json(
+				db.listIncompleteDocuments().map(invoice => ({
+					id: invoice.id,
+					number: invoice.number,
+					issueDate: invoice.issueDate,
+					customer: invoice.buyer.name,
+					docType: invoice.docType,
+					missing: missingArtifacts(invoice),
+				})),
+			);
+		}),
+	);
+
 	// R6.3: revenue per company. One calculation behind JSON, CSV and Excel.
 	const revenueReport = (query: Record<string, unknown>): RevenueReport | string => {
 		let year: number | undefined;
@@ -1442,6 +1462,19 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				);
 			} catch (error) {
 				res.status(400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	// M1: makes the files an issued document lacks — only those, nothing that exists is touched
+	app.post(
+		'/api/invoices/:id/repair',
+		route(async (req, res) => {
+			try {
+				const result = await repairMissingArtifacts(db, log, routeParam(req, 'id'), storage);
+				res.json({ invoice: result.invoice, created: result.created });
+			} catch (error) {
+				res.status(isMissingError(error) ? 404 : 400).json({ error: (error as Error).message });
 			}
 		}),
 	);

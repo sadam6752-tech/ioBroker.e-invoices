@@ -124,12 +124,25 @@ export async function issueInvoiceWithArtifacts(
 	if (current.status !== 'draft') {
 		throw new Error('Only drafts can be issued');
 	}
+	const loaded = await loadRenderTemplate(db, log, storage);
+	const { template, templateId, logo } = loaded;
+	// M1: make every document once with a placeholder number BEFORE the number is consumed. A defect of the
+	// layout, the attachments or the XML then stops here, with the draft untouched and no number lost.
+	try {
+		await buildArtifacts(
+			db,
+			{ ...current, number: 'PROBE-000', status: 'issued' },
+			template,
+			logo,
+			db.listAttachments(invoiceId),
+		);
+	} catch (error) {
+		throw new Error(`The documents cannot be created, nothing was issued: ${(error as Error).message}`);
+	}
 	const issued = db.issueDraft(invoiceId);
 	const quote = isQuote(issued.docType);
 	log.info(`${quote ? 'Quotation' : 'Invoice'} issued: ${issued.number} (${issued.id})`);
 
-	const loaded = await loadRenderTemplate(db, log, storage);
-	const { template, templateId, logo } = loaded;
 	// R7.8: the layout is frozen with the document, so a later template edit cannot change
 	// what "the layout it was issued with" means
 	const templateSnapshot = await freezeTemplate(storage, log, loaded);
@@ -137,24 +150,7 @@ export async function issueInvoiceWithArtifacts(
 	// records are written: the file becomes part of the e-invoice, so they have
 	// to sit in the PDF container (PDF/A-3) and — EN 16931 — in the XML (BG-24).
 	const attachments = db.listAttachments(invoiceId);
-	// R8: a quotation is not an e-invoice. No CII XML, no PDF/A-3 container and
-	// no BG-24 — it ships as a plain sight PDF whose files travel next to it.
-	const generated = quote ? null : await generateInvoiceXml(issued, attachments);
-	const xml = generated?.xml ?? null;
-	const attachmentDocuments = generated?.attachmentDocuments ?? 0;
-	const sight = await renderInvoicePdf(issued, template, logo, buildRenderContext(db, issued, attachments));
-	// `pdf-lib` appends to the existing /AF array, so the Factur-X step below
-	// stays the last writer: it owns the XMP packet, the output intent and the
-	// trailer /ID that PDF/A-3b is checked for.
-	const hybrid = xml
-		? await embedHybridPdf(
-				await embedPdfAttachments(sight, attachments),
-				xml,
-				issued.profile,
-				`${issued.documentTitle} ${issued.number}`,
-			)
-		: sight;
-	const xlsx = await renderInvoiceWorkbook(issued);
+	const { xml, hybrid, xlsx, attachmentDocuments } = await buildArtifacts(db, issued, template, logo, attachments);
 	const base = `invoices/${issued.issueDate.slice(0, 4)}/${issued.number}`;
 	if (attachments.length > 0) {
 		log.info(
@@ -209,6 +205,143 @@ export async function issueInvoiceWithArtifacts(
 		pdfPath: `${base}.pdf`,
 		xmlPath: written.has(`${base}.xml`) ? `${base}.xml` : null,
 	};
+}
+
+/** What is made for a document: the XML (invoices only), the PDF and the Excel copy. */
+interface BuiltArtifacts {
+	/** The CII XML; null for a quotation. */
+	xml: string | null;
+	/** The PDF: the hybrid with the XML inside, or the plain sight PDF of a quotation. */
+	hybrid: Uint8Array;
+	/** The Excel copy. */
+	xlsx: Buffer;
+	/** Attachments that were written into the XML (BG-24). */
+	attachmentDocuments: number;
+}
+
+/**
+ * Makes the XML, the PDF and the Excel copy of a document (not yet stored).
+ *
+ * @param db - Open invoice database.
+ * @param doc - The document, with its number.
+ * @param template - Print layout.
+ * @param logo - Logo image, if any.
+ * @param attachments - Attachments of the document.
+ */
+async function buildArtifacts(
+	db: InvoiceDatabase,
+	doc: StoredInvoice,
+	template: LayoutTemplate,
+	logo: TemplateLogoImage | undefined,
+	attachments: ReturnType<InvoiceDatabase['listAttachments']>,
+): Promise<BuiltArtifacts> {
+	// R8: a quotation is not an e-invoice. No CII XML, no PDF/A-3 container and
+	// no BG-24 — it ships as a plain sight PDF whose files travel next to it.
+	const generated = isQuote(doc.docType) ? null : await generateInvoiceXml(doc, attachments);
+	const xml = generated?.xml ?? null;
+	const sight = await renderInvoicePdf(doc, template, logo, buildRenderContext(db, doc, attachments));
+	// `pdf-lib` appends to the existing /AF array, so the Factur-X step below
+	// stays the last writer: it owns the XMP packet, the output intent and the
+	// trailer /ID that PDF/A-3b is checked for.
+	const hybrid = xml
+		? await embedHybridPdf(
+				await embedPdfAttachments(sight, attachments),
+				xml,
+				doc.profile,
+				`${doc.documentTitle} ${doc.number}`,
+			)
+		: sight;
+	const xlsx = await renderInvoiceWorkbook(doc);
+	return { xml, hybrid, xlsx, attachmentDocuments: generated?.attachmentDocuments ?? 0 };
+}
+
+/** The parts of an issued document that can be missing. */
+export type MissingArtifact = 'xml' | 'pdf' | 'xlsx';
+
+/**
+ * Which files an issued document lacks according to the database.
+ *
+ * @param invoice - An issued document.
+ */
+export function missingArtifacts(invoice: StoredInvoice): MissingArtifact[] {
+	const missing: MissingArtifact[] = [];
+	if (!isQuote(invoice.docType) && !invoice.xml) {
+		missing.push('xml');
+	}
+	if (!invoice.pdfPath) {
+		missing.push('pdf');
+	}
+	if (!invoice.xlsxPath) {
+		missing.push('xlsx');
+	}
+	return missing;
+}
+
+/**
+ * Makes the files an issued document lacks — and only those (M1).
+ *
+ * The number is consumed when a document is issued and the files follow right after; if that failed, the
+ * document stands without them. This builds the missing ones from the stored data: the XML is generated
+ * from the record, the PDF is rendered with the layout frozen at issue (the current one when there is
+ * none), the Excel copy is written. A file that exists is never touched, and the invoice itself does not
+ * change (GoBD).
+ *
+ * @param db - Open invoice database.
+ * @param log - Logger.
+ * @param invoiceId - Issued document UUID.
+ * @param storage - Artifact file backend.
+ * @returns The document and the files that were made.
+ */
+export async function repairMissingArtifacts(
+	db: InvoiceDatabase,
+	log: IssueLogger,
+	invoiceId: string,
+	storage: IssueStorage,
+): Promise<{ invoice: StoredInvoice; created: MissingArtifact[] }> {
+	let invoice = db.getInvoice(invoiceId);
+	if (!invoice) {
+		throw new Error(`Invoice not found: ${invoiceId}`);
+	}
+	if (invoice.status !== 'issued' || !invoice.number) {
+		throw new Error('Only issued documents can be completed.');
+	}
+	const missing = missingArtifacts(invoice);
+	const created: MissingArtifact[] = [];
+	const base = `invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}`;
+	if (missing.includes('xml')) {
+		const attachments = db.listAttachments(invoiceId);
+		const { xml } = await generateInvoiceXml(invoice, attachments);
+		await storage.write(`${base}.xml`, xml);
+		invoice = db.attachIssueArtifacts(invoiceId, {
+			xml,
+			pdfPath: invoice.pdfPath,
+			xlsxPath: invoice.xlsxPath ?? undefined,
+			templateId: invoice.templateId,
+		});
+		created.push('xml');
+		log.info(`Missing XML made from the stored data: ${base}.xml`);
+	}
+	if (missing.includes('pdf')) {
+		// no PDF exists, so nothing is archived or overwritten; the XML (now stored) is embedded unchanged
+		const result = await rerenderInvoicePdf(db, log, invoiceId, storage, 'Datei nachträglich erzeugt', {
+			layout: invoice.templateSnapshot ? 'issued' : 'current',
+		});
+		invoice = result.invoice;
+		created.push('pdf');
+	}
+	if (missing.includes('xlsx')) {
+		const xlsx = await renderInvoiceWorkbook(invoice);
+		await storage.write(`${base}.xlsx`, xlsx);
+		invoice = db.attachIssueArtifacts(invoiceId, {
+			xml: invoice.xml ?? undefined,
+			pdfPath: invoice.pdfPath,
+			xlsxPath: `${base}.xlsx`,
+			templateId: invoice.templateId,
+		});
+		created.push('xlsx');
+		log.info(`Missing Excel copy made: ${base}.xlsx`);
+	}
+	return { invoice, created };
 }
 
 /**

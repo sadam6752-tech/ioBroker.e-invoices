@@ -13,13 +13,12 @@ import { openItems } from './views/open-items';
 import { revenue } from './views/revenue';
 import { products } from './views/products';
 import { system } from './views/system';
-import { templates } from './views/templates';
 import { wizard } from './views/wizard';
 
 const app = document.querySelector('#app')!;
 
-/** The three addresses of the system page (backup and company used to be tabs of their own). */
-const SYSTEM_ROUTES = ['#/status', '#/backup', '#/company'];
+/** The addresses of the system page (backup, company and print templates used to be tabs of their own). */
+const SYSTEM_ROUTES = ['#/status', '#/backup', '#/company', '#/templates'];
 
 function shell(route: string): void {
 	const logged = !!getToken();
@@ -32,7 +31,6 @@ function shell(route: string): void {
 		['#/open-items', t('Offene Posten')],
 		['#/dunning', t('Mahnwesen')],
 		['#/revenue', t('Umsatz')],
-		['#/templates', t('Druckvorlagen')],
 		['#/customers', t('Kunden')],
 		['#/products', t('Positionen')],
 		['#/invoice-templates', t('Rechnungsvorlagen')],
@@ -64,8 +62,6 @@ async function route(): Promise<void> {
 		wizard(v, decodeURIComponent(hash.slice('#/edit/'.length)));
 	} else if (hash.startsWith('#/invoices/')) {
 		await detail(v, decodeURIComponent(hash.slice('#/invoices/'.length)));
-	} else if (hash === '#/templates') {
-		await templates(v);
 	} else if (hash === '#/customers') {
 		await customers(v);
 	} else if (hash === '#/products') {
@@ -77,7 +73,16 @@ async function route(): Promise<void> {
 	} else if (hash === '#/logout') {
 		logout();
 	} else if (SYSTEM_ROUTES.includes(hash)) {
-		await system(v, hash === '#/backup' ? 'backup' : hash === '#/company' ? 'company' : 'status');
+		await system(
+			v,
+			hash === '#/backup'
+				? 'backup'
+				: hash === '#/company'
+					? 'company'
+					: hash === '#/templates'
+						? 'templates'
+						: 'status',
+		);
 	} else {
 		v.innerHTML = `<div class="card">${t('Unbekannte Route.')}</div>`;
 	}

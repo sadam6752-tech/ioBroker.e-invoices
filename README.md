@@ -74,10 +74,11 @@ preview and the **System** page. The header bar carries the tabs only — the
 "+ Neu" buttons sit where their lists are.
 
 The **System** page holds what is rarely needed, one below the other: the status (app
-name, version, schema, counters), backup and restore, the company data (filled in once)
-and the appearance (light, dark or follow the device). It replaces the former tabs
-"Backup", "Firma" and "Status"; the old addresses `#/backup`, `#/company` and `#/status`
-still open it and scroll to their part.
+name, version, schema, counters), backup and restore, the company data (filled in once),
+the print templates and the appearance (light, dark or follow the device). It replaces
+the former tabs "Backup", "Firma", "Druckvorlagen" and "Status"; the old addresses
+`#/backup`, `#/company`, `#/templates` and `#/status` still open it and scroll to their
+part.
 
 ### Print templates: fine-tuning the header
 
@@ -353,6 +354,12 @@ duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML
 - Every issued invoice records its **earliest deletion date** (`retain_until`, ten years from the
   end of the issue year: § 147 AO, § 14b UStG). Only drafts can be deleted, never an issued
   invoice.
+- **Issuing is checked before the number is taken.** The documents are made once with a placeholder number first; a
+  defect of the layout, the attachments or the XML stops there, with the draft untouched and no number used. Should a
+  document still end up numbered **without its files** (the disk was full or not writable), the dashboard shows it
+  under "Issued but without file" and *Rebuild files* makes exactly the missing ones from the stored data — the XML
+  from the record, the PDF with the layout frozen at issue, the Excel copy. A file that exists is never touched, and
+  the invoice itself does not change.
 - Re-rendering a PDF (for example after a layout change) **never overwrites** the delivered file:
   the original is archived as `<number>.orig-<n>.pdf`, the reason is logged, and the XML stays
   unchanged. The layout an invoice was issued with is frozen with it and can be re-used.
@@ -486,7 +493,8 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ### **WORK IN PROGRESS**
 
 * (alex) Backup: a backup that the restore would refuse (ZIP, `dump.json`, unpacked size or number of files above the restore limits) is no longer created without notice — it is refused with a message that names the limit. Attachments count as base64 in `dump.json`.
-* (alex) New **System** page: status, backup and restore, company data and appearance on one page, so the header bar loses the tabs "Backup", "Firma" and "Status" (the old addresses still work).
+* (alex) New **System** page: status, backup and restore, company data, print templates and appearance on one page, so the header bar loses the tabs "Backup", "Firma", "Druckvorlagen" and "Status" (twelve entries became eight; the old addresses still work).
+* (alex) Issuing is checked before the number is taken: the documents are made once with a placeholder number first, so a defect stops there with the draft untouched. A document that is still left without its files shows up on the dashboard and *Rebuild files* makes only the missing ones from the stored data (the XML from the record, the PDF with the layout frozen at issue, the Excel copy); existing files are never touched.
 
 ### 1.0.0 (2026-10-04)
 

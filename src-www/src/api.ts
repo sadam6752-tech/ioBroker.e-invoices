@@ -392,6 +392,22 @@ export interface RevenueReport {
 	total: { count: number; net: number; tax: number; gross: number };
 }
 
+/** An issued document that lacks files (M1). */
+export interface IncompleteDocument {
+	/** Document UUID. */
+	id: string;
+	/** Document number. */
+	number: string;
+	/** ISO issue date. */
+	issueDate: string;
+	/** Customer name. */
+	customer: string;
+	/** `invoice` or `quote`. */
+	docType: string;
+	/** What is missing. */
+	missing: ('xml' | 'pdf' | 'xlsx')[];
+}
+
 /** One level of the dunning process (R6.4). */
 export interface DunningText {
 	/** 1 = reminder, 2 = first, 3 = second dunning letter. */
@@ -748,6 +764,16 @@ export const api = {
 		csvUrl: () => '/api/dunning/suggestions.csv',
 		pdfUrl: () => '/api/dunning/suggestions.pdf',
 	},
+	/** Issued documents that lack files (M1). */
+	incomplete: () => request<IncompleteDocument[]>('/api/invoices/incomplete'),
+	/**
+	 * Makes the files of a document that lacks them (only those).
+	 *
+	 * @param id - Document UUID.
+	 */
+	repair: (id: string) =>
+		request<{ invoice: Invoice; created: string[] }>(`/api/invoices/${id}/repair`, { method: 'POST' }),
+	/** Overdue invoices that are due for a dunning step. */
 	reminders: () => request<ReminderCandidate[]>('/api/reminders'),
 	reminded: (id: string) => request<Invoice>(`/api/invoices/${id}/reminded`, { method: 'POST' }),
 	invoiceTemplates: {

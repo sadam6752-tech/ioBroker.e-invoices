@@ -35,7 +35,7 @@ test.describe('English browser', () => {
 		await signIn(page, 'Save');
 		await expect(page.getByRole('link', { name: 'Invoices' })).toBeVisible();
 		await expect(page.getByRole('link', { name: 'Offers' })).toBeVisible();
-		await expect(page.getByRole('link', { name: 'Print templates' })).toBeVisible();
+		await expect(page.getByRole('link', { name: 'System', exact: true })).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Excel' })).toBeVisible();
 
 		await page.goto('/#/new');

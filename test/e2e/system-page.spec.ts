@@ -1,7 +1,7 @@
 /**
- * 1.0.1: the system page holds what is rarely needed — status, backup, company data and the look of the
- * app. The tabs "Backup" and "Firma" are gone from the bar; their old addresses still open the page and
- * scroll to their part.
+ * 1.0.1: the system page holds what is rarely needed — status, backup, company data, print templates and the
+ * look of the app. The tabs "Backup", "Firma" and "Druckvorlagen" are gone from the bar; their old addresses
+ * still open the page and scroll to their part.
  */
 import { expect, test } from '@playwright/test';
 
@@ -18,14 +18,16 @@ test('puts status, backup, company and appearance on one page and keeps the old 
 	await page.goto('/#/status');
 	const nav = page.locator('header.top nav');
 	await expect(nav.getByRole('link', { name: 'System', exact: true })).toHaveClass(/active/);
-	// the bar no longer carries the two rarely used tabs
+	// the bar no longer carries the rarely used tabs
 	await expect(nav.getByRole('link', { name: 'Backup', exact: true })).toHaveCount(0);
 	await expect(nav.getByRole('link', { name: 'Firma', exact: true })).toHaveCount(0);
+	await expect(nav.getByRole('link', { name: 'Druckvorlagen', exact: true })).toHaveCount(0);
 
-	// all four parts are on the page
+	// all parts are on the page
 	await expect(page.locator('#sys-status')).toContainText('Version');
 	await expect(page.locator('#sys-backup')).toContainText('Backup & Wiederherstellung');
 	await expect(page.locator('#sys-company #c-name')).toBeVisible();
+	await expect(page.locator('#sys-templates #t-new')).toBeVisible();
 	await expect(page.locator('#sys-theme #s-theme')).toBeVisible();
 
 	// the old addresses open the same page, mark "System" as the active tab and scroll to their part
@@ -34,5 +36,7 @@ test('puts status, backup, company and appearance on one page and keeps the old 
 	await expect(nav.getByRole('link', { name: 'System', exact: true })).toHaveClass(/active/);
 	await page.goto('/#/company');
 	await expect(page.locator('#sys-company')).toBeInViewport();
+	await page.goto('/#/templates');
+	await expect(page.locator('#sys-templates')).toBeInViewport();
 	expect(errors).toEqual([]);
 });

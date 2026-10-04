@@ -99,7 +99,7 @@ test('stores the logo and text distances, shows them again and takes them back',
 
 	await logoTop.fill('25');
 	await textTop.fill('62.5');
-	await page.getByRole('button', { name: 'Speichern' }).click();
+	await page.locator('#t-save').click();
 	await expect(page.locator(`[data-edit="${template.id}"]`)).toBeVisible();
 	expect((await stored(request, template.id)).definition).toMatchObject({ logoTopMm: 25, textTopMm: 62.5 });
 
@@ -110,14 +110,14 @@ test('stores the logo and text distances, shows them again and takes them back',
 
 	// a value outside the sheet is refused by the server and the form says so
 	await page.getByLabel('Logo-Abstand oben (mm)').fill('999');
-	await page.getByRole('button', { name: 'Speichern' }).click();
+	await page.locator('#t-save').click();
 	await expect(page.locator('p.error')).toContainText('Logo-Abstand oben');
 	expect((await stored(request, template.id)).definition.logoTopMm).toBe(25);
 
 	// empty fields take the distances back
 	await page.getByLabel('Logo-Abstand oben (mm)').fill('');
 	await page.getByLabel('Text-Abstand oben (mm)').fill('');
-	await page.getByRole('button', { name: 'Speichern' }).click();
+	await page.locator('#t-save').click();
 	await expect(page.locator(`[data-edit="${template.id}"]`)).toBeVisible();
 	const after = (await stored(request, template.id)).definition;
 	expect(after.logoTopMm).toBeUndefined();

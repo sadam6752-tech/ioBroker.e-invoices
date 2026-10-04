@@ -23,6 +23,8 @@ __export(issue_service_exports, {
   issueInvoiceBatch: () => issueInvoiceBatch,
   issueInvoiceWithArtifacts: () => issueInvoiceWithArtifacts,
   loadRenderTemplate: () => loadRenderTemplate,
+  missingArtifacts: () => missingArtifacts,
+  repairMissingArtifacts: () => repairMissingArtifacts,
   rerenderInvoicePdf: () => rerenderInvoicePdf
 });
 module.exports = __toCommonJS(issue_service_exports);
@@ -67,7 +69,6 @@ function buildRenderContext(db, invoice, attachments) {
   };
 }
 async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
-  var _a, _b;
   const current = db.getInvoice(invoiceId);
   if (!current) {
     throw new Error(`Invoice not found: ${invoiceId}`);
@@ -75,24 +76,25 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
   if (current.status !== "draft") {
     throw new Error("Only drafts can be issued");
   }
+  const loaded = await loadRenderTemplate(db, log, storage);
+  const { template, templateId, logo } = loaded;
+  try {
+    await buildArtifacts(
+      db,
+      { ...current, number: "PROBE-000", status: "issued" },
+      template,
+      logo,
+      db.listAttachments(invoiceId)
+    );
+  } catch (error) {
+    throw new Error(`The documents cannot be created, nothing was issued: ${error.message}`);
+  }
   const issued = db.issueDraft(invoiceId);
   const quote = (0, import_invoice_model.isQuote)(issued.docType);
   log.info(`${quote ? "Quotation" : "Invoice"} issued: ${issued.number} (${issued.id})`);
-  const loaded = await loadRenderTemplate(db, log, storage);
-  const { template, templateId, logo } = loaded;
   const templateSnapshot = await freezeTemplate(storage, log, loaded);
   const attachments = db.listAttachments(invoiceId);
-  const generated = quote ? null : await (0, import_zugferd.generateInvoiceXml)(issued, attachments);
-  const xml = (_a = generated == null ? void 0 : generated.xml) != null ? _a : null;
-  const attachmentDocuments = (_b = generated == null ? void 0 : generated.attachmentDocuments) != null ? _b : 0;
-  const sight = await (0, import_pdf.renderInvoicePdf)(issued, template, logo, buildRenderContext(db, issued, attachments));
-  const hybrid = xml ? await (0, import_zugferd.embedHybridPdf)(
-    await (0, import_pdf_attachments.embedPdfAttachments)(sight, attachments),
-    xml,
-    issued.profile,
-    `${issued.documentTitle} ${issued.number}`
-  ) : sight;
-  const xlsx = await (0, import_excel.renderInvoiceWorkbook)(issued);
+  const { xml, hybrid, xlsx, attachmentDocuments } = await buildArtifacts(db, issued, template, logo, attachments);
   const base = `invoices/${issued.issueDate.slice(0, 4)}/${issued.number}`;
   if (attachments.length > 0) {
     log.info(
@@ -140,6 +142,79 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
     pdfPath: `${base}.pdf`,
     xmlPath: written.has(`${base}.xml`) ? `${base}.xml` : null
   };
+}
+async function buildArtifacts(db, doc, template, logo, attachments) {
+  var _a, _b;
+  const generated = (0, import_invoice_model.isQuote)(doc.docType) ? null : await (0, import_zugferd.generateInvoiceXml)(doc, attachments);
+  const xml = (_a = generated == null ? void 0 : generated.xml) != null ? _a : null;
+  const sight = await (0, import_pdf.renderInvoicePdf)(doc, template, logo, buildRenderContext(db, doc, attachments));
+  const hybrid = xml ? await (0, import_zugferd.embedHybridPdf)(
+    await (0, import_pdf_attachments.embedPdfAttachments)(sight, attachments),
+    xml,
+    doc.profile,
+    `${doc.documentTitle} ${doc.number}`
+  ) : sight;
+  const xlsx = await (0, import_excel.renderInvoiceWorkbook)(doc);
+  return { xml, hybrid, xlsx, attachmentDocuments: (_b = generated == null ? void 0 : generated.attachmentDocuments) != null ? _b : 0 };
+}
+function missingArtifacts(invoice) {
+  const missing = [];
+  if (!(0, import_invoice_model.isQuote)(invoice.docType) && !invoice.xml) {
+    missing.push("xml");
+  }
+  if (!invoice.pdfPath) {
+    missing.push("pdf");
+  }
+  if (!invoice.xlsxPath) {
+    missing.push("xlsx");
+  }
+  return missing;
+}
+async function repairMissingArtifacts(db, log, invoiceId, storage) {
+  var _a, _b;
+  let invoice = db.getInvoice(invoiceId);
+  if (!invoice) {
+    throw new Error(`Invoice not found: ${invoiceId}`);
+  }
+  if (invoice.status !== "issued" || !invoice.number) {
+    throw new Error("Only issued documents can be completed.");
+  }
+  const missing = missingArtifacts(invoice);
+  const created = [];
+  const base = `invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}`;
+  if (missing.includes("xml")) {
+    const attachments = db.listAttachments(invoiceId);
+    const { xml } = await (0, import_zugferd.generateInvoiceXml)(invoice, attachments);
+    await storage.write(`${base}.xml`, xml);
+    invoice = db.attachIssueArtifacts(invoiceId, {
+      xml,
+      pdfPath: invoice.pdfPath,
+      xlsxPath: (_a = invoice.xlsxPath) != null ? _a : void 0,
+      templateId: invoice.templateId
+    });
+    created.push("xml");
+    log.info(`Missing XML made from the stored data: ${base}.xml`);
+  }
+  if (missing.includes("pdf")) {
+    const result = await rerenderInvoicePdf(db, log, invoiceId, storage, "Datei nachtr\xE4glich erzeugt", {
+      layout: invoice.templateSnapshot ? "issued" : "current"
+    });
+    invoice = result.invoice;
+    created.push("pdf");
+  }
+  if (missing.includes("xlsx")) {
+    const xlsx = await (0, import_excel.renderInvoiceWorkbook)(invoice);
+    await storage.write(`${base}.xlsx`, xlsx);
+    invoice = db.attachIssueArtifacts(invoiceId, {
+      xml: (_b = invoice.xml) != null ? _b : void 0,
+      pdfPath: invoice.pdfPath,
+      xlsxPath: `${base}.xlsx`,
+      templateId: invoice.templateId
+    });
+    created.push("xlsx");
+    log.info(`Missing Excel copy made: ${base}.xlsx`);
+  }
+  return { invoice, created };
 }
 async function issueInvoiceBatch(db, log, invoiceIds, storage) {
   const issued = [];
@@ -365,6 +440,8 @@ async function freezeTemplate(storage, log, loaded) {
   issueInvoiceBatch,
   issueInvoiceWithArtifacts,
   loadRenderTemplate,
+  missingArtifacts,
+  repairMissingArtifacts,
   rerenderInvoicePdf
 });
 //# sourceMappingURL=issue-service.js.map

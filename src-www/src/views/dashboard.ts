@@ -72,6 +72,7 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 			</div>
 		</div>
 		<div id="open-tile"></div>
+		<div id="incomplete"></div>
 		<div id="reminders"></div>
 		<div id="list-err"></div>
 		<div id="list"></div>`;
@@ -86,6 +87,7 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	const fromEl = root.querySelector<HTMLInputElement>('#f-from')!;
 	const toEl = root.querySelector<HTMLInputElement>('#f-to')!;
 	const remindersEl = root.querySelector('#reminders')!;
+	const incompleteEl = root.querySelector('#incomplete')!;
 	const openTileEl = root.querySelector('#open-tile')!;
 	/** Current sort direction, toggled by the order button. */
 	let order: 'asc' | 'desc' = 'desc';
@@ -362,6 +364,46 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 		}
 	}
 
+	// M1: documents that were numbered but ended up without files. The number cannot be given back, so the
+	// files are made afterwards from the stored data — only the missing ones.
+	async function loadIncomplete(): Promise<void> {
+		try {
+			const items = await api.incomplete();
+			if (!items.length) {
+				incompleteEl.innerHTML = '';
+				return;
+			}
+			const word = (key: string): string => (key === 'xml' ? 'XML' : key === 'pdf' ? 'PDF' : t('Excel-Kopie'));
+			incompleteEl.innerHTML = `<div class="card"><div class="row">
+				<strong class="error">${t('Ausgestellt, aber ohne Datei: {n}', { n: items.length })}</strong>
+				<span class="muted">${t('Die Nummer ist vergeben. Die fehlenden Dateien werden aus den gespeicherten Daten nachgebaut, vorhandene bleiben unberührt.')}</span>
+			</div>${items
+				.map(
+					item => `<div class="row" style="margin-top:8px" data-incomplete="${esc(item.id)}">
+						<strong>${esc(item.number)}</strong> ${esc(item.customer)}
+						<span class="muted">${t('fehlt')}: ${item.missing.map(word).join(', ')}</span>
+						<button class="secondary" data-repair="${esc(item.id)}">${t('Dateien nachbauen')}</button>
+						<a href="#/invoices/${esc(item.id)}">${t('Ansehen')}</a>
+					</div>`,
+				)
+				.join('')}</div>`;
+			for (const button of incompleteEl.querySelectorAll<HTMLButtonElement>('[data-repair]')) {
+				button.addEventListener('click', async () => {
+					button.disabled = true;
+					try {
+						await api.repair(button.dataset.repair ?? '');
+						await loadIncomplete();
+					} catch (e) {
+						button.disabled = false;
+						fail(e);
+					}
+				});
+			}
+		} catch {
+			// the hint is informational, never block the list
+		}
+	}
+
 	// Overdue invoices: the adapter reminds, the user decides and sends.
 	async function loadReminders(): Promise<void> {
 		try {
@@ -397,5 +439,6 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 
 	await load();
 	await loadOpenTile();
+	await loadIncomplete();
 	await loadReminders();
 }

@@ -81,6 +81,7 @@ export const en: Record<string, string> = {
 	'Ausgeglichen am {date}': 'Settled on {date}',
 	'Ausgestellt mit Layout „{name}“ (Version {version}), eingefroren am {date}.':
 		'Issued with layout “{name}” (version {version}), frozen on {date}.',
+	'Ausgestellt, aber ohne Datei: {n}': 'Issued but without file: {n}',
 	'Ausgestellte Rechnungen je Firma. Angebote, Entwürfe, Stornos und Gutschriften zählen nicht; eine stornierte Rechnung fällt heraus. Rechnungen von vor der Firmenzuordnung stehen in einer eigenen Zeile. Die Rechnungsnummer läuft für alle Firmen gemeinsam.':
 		'Issued invoices per company. Quotations, drafts, Storno documents and credit notes do not count; a cancelled invoice drops out. Invoices from before the company assignment have a row of their own. The invoice number runs across all companies.',
 	Ausrichtung: 'Alignment',
@@ -136,6 +137,7 @@ export const en: Record<string, string> = {
 	'Das letzte Backup ist {hours} Stunden alt.': 'The last backup is {hours} hours old.',
 	Datei: 'File',
 	'Datei nicht lesbar': 'File not readable',
+	'Dateien nachbauen': 'Rebuild files',
 	'Dateien:': 'Files:',
 	Datum: 'Date',
 	'Der Rechnungsbetrag ist sofort ohne Abzug fällig.': 'The invoice amount is due immediately without deduction.',
@@ -144,6 +146,8 @@ export const en: Record<string, string> = {
 	'Der nächste Schritt je überfälliger Rechnung. Der Adapter versendet nichts: Schreiben kopieren, mailen oder drucken und danach „Als gemahnt markieren“ — erst das setzt die Stufe weiter. Es entsteht kein XML.':
 		'The next step for each overdue invoice. The adapter sends nothing: copy, mail or print the letter and then use “Mark as reminded” — only that moves the level on. No XML is created.',
 	Detailzeile: 'Detail line',
+	'Die Nummer ist vergeben. Die fehlenden Dateien werden aus den gespeicherten Daten nachgebaut, vorhandene bleiben unberührt.':
+		'The number is taken. The missing files are rebuilt from the stored data, existing ones stay untouched.',
 	'Die PDF wird aus den unveränderten Rechnungsdaten mit der aktuellen Druckvorlage neu erzeugt. Nummer, Beträge und Daten der Rechnung ändern sich nicht. Das bisherige Dokument wird als .orig-<n>.pdf archiviert (nie überschrieben), das XML bleibt unverändert. Fortfahren?':
 		'The PDF is rendered again from the unchanged invoice data with the current print template. Number, amounts and dates of the invoice do not change. The previous document is archived as .orig-<n>.pdf (never overwritten), the XML stays unchanged. Continue?',
 	'Die PDF wird mit dem Layout neu erzeugt, mit dem das Dokument ausgestellt wurde. Nummer, Beträge und Daten ändern sich nicht. Das bisherige Dokument wird als .orig-<n>.pdf archiviert (nie überschrieben), das XML bleibt unverändert. Fortfahren?':
@@ -197,6 +201,7 @@ export const en: Record<string, string> = {
 		'Renders the PDF again with the layout the document was issued with – even if the print template has been changed since.',
 	'Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.':
 		'Exact totals and validation (XSD, EN16931, BR rules) are done on the server when issuing.',
+	'Excel-Kopie': 'Excel copy',
 	'Excel-Liste': 'Excel list',
 	Farbschema: 'Color scheme',
 	'Fehlt die Kundennummer (BT-10), trage sie unten ein — ohne sie ist die Rechnung nicht ausstellbar.':
@@ -526,6 +531,7 @@ export const en: Record<string, string> = {
 	'eigener Zahlungstext': 'own payment text',
 	'ein Angebot ist keine E-Rechnung: es gibt kein XML und keine XSD-Prüfung.':
 		'an offer is not an e-invoice: there is no XML and no XSD check.',
+	fehlt: 'missing',
 	'gültig bis {date}': 'valid until {date}',
 	herunterladen: 'download',
 	'je Angebot': 'per offer',

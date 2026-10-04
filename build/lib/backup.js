@@ -33,6 +33,7 @@ __export(backup_exports, {
   BACKUP_FORMAT_VERSION: () => BACKUP_FORMAT_VERSION,
   DEFAULT_BACKUP_LIMITS: () => DEFAULT_BACKUP_LIMITS,
   MANUAL_BACKUP_PREFIX: () => MANUAL_BACKUP_PREFIX,
+  backupSizeProblems: () => backupSizeProblems,
   backupStatus: () => backupStatus,
   collectArtifactPaths: () => collectArtifactPaths,
   createBackup: () => createBackup,
@@ -138,8 +139,14 @@ function collectArtifactPaths(dump) {
   }
   return [...paths];
 }
-async function createBackup(db, storage, log, adapterVersion, kind = "manual") {
+async function createBackup(db, storage, log, adapterVersion, kind = "manual", limits) {
+  const caps = resolveLimits(limits);
   const dump = db.exportData();
+  const attachmentBytes = dump.attachments.reduce((sum, attachment) => sum + Math.ceil(attachment.size / 3) * 4, 0);
+  const early = backupSizeProblems({ dumpBytes: attachmentBytes }, caps);
+  if (early.length > 0) {
+    throw new Error(backupTooLargeMessage(early));
+  }
   const dumpJson = {
     ...dump,
     attachments: dump.attachments.map((attachment) => ({
@@ -164,6 +171,18 @@ async function createBackup(db, storage, log, adapterVersion, kind = "manual") {
     }
   }
   const dumpJsonText = JSON.stringify(dumpJson, null, 2);
+  const dumpBytes = Buffer.byteLength(dumpJsonText);
+  const problems = backupSizeProblems(
+    {
+      dumpBytes,
+      unpackedBytes: dumpBytes + files.reduce((sum, file) => sum + file.size, 0),
+      entries: files.length + 2
+    },
+    caps
+  );
+  if (problems.length > 0) {
+    throw new Error(backupTooLargeMessage(problems));
+  }
   zip.file("dump.json", dumpJsonText);
   const manifest = {
     app: BACKUP_APP_ID,
@@ -183,6 +202,10 @@ async function createBackup(db, storage, log, adapterVersion, kind = "manual") {
   };
   zip.file("manifest.json", JSON.stringify(manifest, null, 2));
   const data = Buffer.from(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
+  const zipProblems = backupSizeProblems({ zipBytes: data.length }, caps);
+  if (zipProblems.length > 0) {
+    throw new Error(backupTooLargeMessage(zipProblems));
+  }
   const filename = `${kind === "auto" ? AUTO_BACKUP_PREFIX : MANUAL_BACKUP_PREFIX}${stampName()}.zip`;
   return { filename, size: data.length, sha256: sha256Hex(data), manifest, data };
 }
@@ -430,6 +453,28 @@ function backupStatus(entries, intervalMinutes, keep, now) {
     ...base
   };
 }
+function backupSizeProblems(sizes, limits) {
+  const mb = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
+  const out = [];
+  if (sizes.dumpBytes !== void 0 && sizes.dumpBytes > limits.dumpBytes) {
+    out.push(
+      `the database part (dump.json, attachments included as base64) would be ${mb(sizes.dumpBytes)}, the limit is ${mb(limits.dumpBytes)}`
+    );
+  }
+  if (sizes.unpackedBytes !== void 0 && sizes.unpackedBytes > limits.unpackedBytes) {
+    out.push(`the backup would unpack to ${mb(sizes.unpackedBytes)}, the limit is ${mb(limits.unpackedBytes)}`);
+  }
+  if (sizes.zipBytes !== void 0 && sizes.zipBytes > limits.zipBytes) {
+    out.push(`the ZIP would be ${mb(sizes.zipBytes)}, the limit is ${mb(limits.zipBytes)}`);
+  }
+  if (sizes.entries !== void 0 && sizes.entries > limits.entries) {
+    out.push(`the ZIP would hold ${sizes.entries} files, the limit is ${limits.entries}`);
+  }
+  return out;
+}
+function backupTooLargeMessage(problems) {
+  return `Backup not created, it could not be restored: ${problems.join("; ")}. Reduce the attachments, or rely on the instance backup (BackItUp) for the files.`;
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   AUTO_BACKUP_PREFIX,
@@ -437,6 +482,7 @@ function backupStatus(entries, intervalMinutes, keep, now) {
   BACKUP_FORMAT_VERSION,
   DEFAULT_BACKUP_LIMITS,
   MANUAL_BACKUP_PREFIX,
+  backupSizeProblems,
   backupStatus,
   collectArtifactPaths,
   createBackup,

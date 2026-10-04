@@ -508,6 +508,21 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice", ran
       }
     );
   });
+  app.get(
+    "/api/invoices/incomplete",
+    route((_req, res) => {
+      res.json(
+        db.listIncompleteDocuments().map((invoice) => ({
+          id: invoice.id,
+          number: invoice.number,
+          issueDate: invoice.issueDate,
+          customer: invoice.buyer.name,
+          docType: invoice.docType,
+          missing: (0, import_issue_service.missingArtifacts)(invoice)
+        }))
+      );
+    })
+  );
   const revenueReport = (query) => {
     let year;
     if (typeof query.year === "string" && query.year !== "") {
@@ -1145,6 +1160,17 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice", ran
         );
       } catch (error) {
         res.status(400).json({ error: error.message });
+      }
+    })
+  );
+  app.post(
+    "/api/invoices/:id/repair",
+    route(async (req, res) => {
+      try {
+        const result = await (0, import_issue_service.repairMissingArtifacts)(db, log, routeParam(req, "id"), storage);
+        res.json({ invoice: result.invoice, created: result.created });
+      } catch (error) {
+        res.status(isMissingError(error) ? 404 : 400).json({ error: error.message });
       }
     })
   );

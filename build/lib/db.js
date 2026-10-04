@@ -837,6 +837,20 @@ class InvoiceDatabase {
     return updated;
   }
   /**
+   * Issued documents that miss a stored file or the XML (M1): the number is consumed when a document is
+   * issued, the files are made right after, so a failure in between leaves a document without them.
+   * Whether that is really the case for a document is decided by `missingArtifacts` (issue-service).
+   */
+  listIncompleteDocuments() {
+    const rows = this.db.prepare(
+      `SELECT * FROM invoices WHERE status = 'issued' AND number IS NOT NULL AND (
+					pdf_path IS NULL OR pdf_path = '' OR xlsx_path IS NULL OR xlsx_path = ''
+					OR (doc_type = 'invoice' AND (xml IS NULL OR xml = ''))
+				) ORDER BY issue_date, number`
+    ).all();
+    return rows.map(mapRow);
+  }
+  /**
    * Marks an issued invoice as paid or unpaid. Payment state is bookkeeping
    * only — it never changes the frozen XML artifact (GoBD).
    *

@@ -393,6 +393,44 @@ describe('api => invoices', function () {
 			.expect(res => expect([200, 204]).to.include(res.status));
 	});
 
+	it('lists issued documents without files and completes only what is missing (M1)', async () => {
+		// nothing is incomplete after a normal issue
+		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
+		let incomplete = (await request(app).get('/api/invoices/incomplete').expect(200)).body as {
+			id: string;
+			missing: string[];
+		}[];
+		expect(incomplete.some(item => item.id === created.body.id)).to.equal(false);
+
+		// the Excel copy of the record is lost: the document shows up with exactly that
+		db.attachIssueArtifacts(created.body.id, {
+			xml: db.getInvoice(created.body.id)!.xml ?? undefined,
+			pdfPath: db.getInvoice(created.body.id)!.pdfPath,
+			xlsxPath: null as unknown as undefined,
+			templateId: null,
+		});
+		incomplete = (await request(app).get('/api/invoices/incomplete').expect(200)).body;
+		expect(incomplete.find(item => item.id === created.body.id)?.missing).to.deep.equal(['xlsx']);
+
+		const repaired = await request(app).post(`/api/invoices/${created.body.id}/repair`).expect(200);
+		expect(repaired.body.created).to.deep.equal(['xlsx']);
+		expect(repaired.body.invoice.xlsxPath).to.match(/\.xlsx$/);
+		incomplete = (await request(app).get('/api/invoices/incomplete').expect(200)).body;
+		expect(incomplete.some(item => item.id === created.body.id)).to.equal(false);
+
+		// a second run has nothing to do, a draft and an unknown id are refused
+		expect(
+			(await request(app).post(`/api/invoices/${created.body.id}/repair`).expect(200)).body.created,
+		).to.deep.equal([]);
+		const draft = await request(app).post('/api/invoices').send(draftBody).expect(201);
+		await request(app).post(`/api/invoices/${draft.body.id}/repair`).expect(400);
+		await request(app).post('/api/invoices/gibt-es-nicht/repair').expect(404);
+		await request(app)
+			.delete(`/api/invoices/${draft.body.id}`)
+			.expect(res => expect([200, 204]).to.include(res.status));
+	});
+
 	it('refuses to re-render a draft', async () => {
 		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
 		await request(app).post(`/api/invoices/${created.body.id}/rerender`).expect(400);
