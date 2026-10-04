@@ -104,7 +104,7 @@ Changelog entries of ioBroker.e-invoices that are no longer listed in the README
   customer with a reason and turns an accepted offer into an invoice draft in one
   click. "+ Neues Angebot" opens the wizard with the document type preselected —
   the same steps as an invoice, only the payment due date, the cash discount and
-  the payment terms are replaced by the validity date ("Gültig bis"), which
+  the payment terms are replaced by the validity date ("Valid until"), which
   follows the issue date (30 days) while it has not been touched.
 * (alex) The interface speaks the language of the document it shows: one table
   per document type (`src-www/src/labels.ts`, mirroring `documentLabels()` and
@@ -127,14 +127,14 @@ Changelog entries of ioBroker.e-invoices that are no longer listed in the README
   the displayed title stays a label, while numbering, validation, mandatory
   fields and the PDF wording follow the type. An offer has its own number circle
   (`A-{YYYY}-{EMPLOYEE}-{SEQ}`, "Quotation number format" in the instance
-  settings), its own validity ("Gültig bis", default issue date + 30 days) and
+  settings), its own validity ("Valid until", default issue date + 30 days) and
   its own life cycle: draft → open, ended by `accepted` or `rejected`, or
   `expired` once the validity date has passed (computed, without a timer).
 * (alex) An offer is not an e-invoice, and the release says so on every level:
   no CII XML, no PDF/A-3 container, no BG-24, no `pdfaid` claim, no retention
   date (§ 147 AO concerns invoices) and no Leitweg-ID. On issue it stores a
   plain sight PDF (labels "Angebotsnr.", "Angebotsdatum", "Leistungszeitraum",
-  "Gültig bis") whose attachments are listed under "Anlagen" with the note that
+  "Valid until") whose attachments are listed under "Attachments" with the note that
   they travel separately instead of being embedded. `POST
   /api/invoices/:id/validate` answers with business findings only — it never
   reports XSD findings that would pretend an EN 16931 document exists.
@@ -166,10 +166,10 @@ Changelog entries of ioBroker.e-invoices that are no longer listed in the README
 ### 0.0.7 (2026-09-30)
 * (alex) The admin translations are proper UTF-8 again: all eleven
   `admin/i18n/*.json` files had once been written with the Windows code page
-  1252, so the instance settings showed "StraÃŸe" instead of "Straße". The key
+  1252, so the instance settings showed a mis-decoded street label instead of the right one. The key
   of the company hint was mangled as well, which is why its German text was
   never used. A new test (`npm run test:i18n`) keeps both from happening again.
-* (alex) Invoices can carry attachments now ("Anlagen"): drafts accept up to 10
+* (alex) Invoices can carry attachments now ("Attachments"): drafts accept up to 10
   files of 5 MB each (PDF/PNG/JPEG) over `GET/POST/DELETE
   /api/invoices/:id/attachments` plus a download route per file, and the PWA
   has its own section for it (upload with progress, list with type and size,
@@ -180,7 +180,7 @@ Changelog entries of ioBroker.e-invoices that are no longer listed in the README
   (GoBD) — their files can be read, but no longer changed.
 * (alex) On issue the attachments become part of the e-invoice: the Stored PDF
   carries them as PDF/A-3 associated files (`/AFRelationship /Data` in the
-  embedded-file name tree) and lists them under "Anlagen"; an EN 16931 invoice
+  embedded-file name tree) and lists them under "Attachments"; an EN 16931 invoice
   writes each file as BG-24 "Additional supporting documents" with the payload
   embedded base64 (Factur-X's BASIC schema has no such node, so a BASIC invoice
   keeps its files in the PDF container). The validator stays at zero errors —

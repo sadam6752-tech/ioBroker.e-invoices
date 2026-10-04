@@ -67,6 +67,7 @@
     "admin{,/!(src)/**}/*.{html,css,png,svg,jpg,js}",
     "build/",
     "www/",
+    "src-www/src/i18n/",
     "assets/",
     "io-package.json",
     "LICENSE"

@@ -298,18 +298,34 @@ describe('pwa => logo', () => {
 });
 
 describe('pwa => liability clause', () => {
-	it('carries the disclaimer in the README (English and German) and on the status page', () => {
+	it('carries the disclaimer in the README (English), the German original in docs, and on the status page', () => {
 		const readme = readFileSync('README.md', 'utf8');
 		expect(readme).to.contain('## Disclaimer');
 		expect(readme).to.contain('without warranty of any kind');
-		expect(readme).to.contain('**Haftungsausschluss.**');
 		// the duties that matter for invoices: correctness, the rules, backups
-		for (const duty of ['VAT law, GoBD', 'UStG, GoBD', 'regular backups', 'Datensicherungen']) {
+		for (const duty of ['VAT law, GoBD', 'regular backups']) {
 			expect(readme, duty).to.contain(duty);
+		}
+		// the German original lives in its own document, the README only links to it: the repository checker
+		// wants an English README (E6015) and a German paragraph in it is exactly what it finds
+		expect(readme).to.contain('docs/haftungsausschluss.md');
+		expect(readme).to.not.contain('**Haftungsausschluss.**');
+		const german = readFileSync('docs/haftungsausschluss.md', 'utf8');
+		expect(german).to.contain('**Haftungsausschluss.**');
+		for (const duty of ['UStG, GoBD', 'Datensicherungen']) {
+			expect(german, duty).to.contain(duty);
 		}
 		const status = readFileSync('src-www/src/views/status.ts', 'utf8');
 		expect(status).to.contain('id="s-disclaimer"');
 		expect(status).to.contain("t('Haftungsausschluss:");
+	});
+
+	it('keeps the README in English: no German letters or phrases (E6015)', () => {
+		const readme = readFileSync('README.md', 'utf8');
+		expect(readme.match(/[äöüÄÖÜß]/g) ?? [], 'umlauts in the README').to.deep.equal([]);
+		for (const phrase of ['Gültig bis', 'Fällig am', 'Haftungsausschluss.']) {
+			expect(readme, phrase).to.not.contain(phrase);
+		}
 	});
 });
 

@@ -160,7 +160,7 @@ only offers with `GET /api/invoices?docType=quote`.
   instance setting "Quotation number format" (`quoteNumberFormat`, default
   `A-{YYYY}-{EMPLOYEE}-{SEQ}`). Offers never consume an invoice number — the
   invoice sequence stays continuous (§ 14 Abs. 4 Nr. 4 UStG).
-- **Own validity:** `validUntil` ("Gültig bis") defaults to the issue date plus
+- **Own validity:** `validUntil` ("Valid until") defaults to the issue date plus
   30 days and is printed on the offer. Offers carry no retention date (§ 147 AO
   concerns invoices) and no Leitweg-ID.
 - **Plain sight PDF, never an e-invoice:** no CII XML, no PDF/A-3 container, no
@@ -192,8 +192,8 @@ In the PWA, offers have their own tab (**Angebote**): the list shows the state
 (open, accepted, rejected, expired), records the customer's answer and turns an
 accepted offer into an invoice draft in one click ("In Rechnung umwandeln").
 "+ Neues Angebot" opens the wizard with the document type preselected — the same
-wizard as for invoices, without the invoice-only fields: no "Fällig am", no
-Skonto, no payment terms, but a "Gültig bis" date that follows the issue date
+wizard as for invoices, without the invoice-only fields: no "Due date", no
+Skonto, no payment terms, but a "Valid until" date that follows the issue date
 (30 days) while it stays untouched. An invoice draft made from an offer links
 back ("Zugrunde liegendes Angebot"), and the offer lists the invoices it became.
 The wording of every screen comes from one table per document type
@@ -219,8 +219,8 @@ may stay empty (open end).
 
 ### Several companies
 
-Every document is bound to the company profile it was written for (the "Aus Firma
-übernehmen" choice in the wizard; a new document starts with the default company). The
+Every document is bound to the company profile it was written for (the company choice in
+the wizard; a new document starts with the default company). The
 binding is stored with the document, so it survives later changes of the profile. A Storno
 credit note and an invoice made from a quotation take over the company of the original.
 
@@ -371,7 +371,7 @@ duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML
 ## What this adapter is not
 
 - **No bookkeeping.** There is no ledger, no chart of accounts, no VAT return (UStVA), no income
-  statement (EÜR) and no tax filing. The CSV, Excel and DATEV exports are lists for your tax
+  statement for the tax return and no tax filing. The CSV, Excel and DATEV exports are lists for your tax
   advisor or your bookkeeping software.
 - **No e-mail delivery.** The adapter never sends an invoice or a reminder. You send them yourself
   (the web app offers copy, `mailto:` links and PDF/CSV lists) and mark them as sent.
@@ -461,11 +461,7 @@ so it cannot share the compact process.
 - compliance with the rules that apply to you (e.g. VAT law, GoBD, retention periods, GDPR),
 - regular backups – also outside the adapter – and testing that they can be restored.
 
-**Haftungsausschluss.** Dieses Programm wird unentgeltlich und so bereitgestellt, wie es ist – ohne Gewähr und ohne Zusicherung einer bestimmten Beschaffenheit oder Eignung. Es ersetzt keine Steuer- oder Rechtsberatung. Soweit gesetzlich zulässig, ist die Haftung ausgeschlossen; unberührt bleibt die Haftung für Vorsatz und grobe Fahrlässigkeit sowie für Schäden an Leben, Körper und Gesundheit und nach zwingendem Recht. Du bist selbst verantwortlich für:
-
-- die inhaltliche und rechnerische Richtigkeit deiner Rechnungen und Angebote sowie die Prüfung der Ergebnisse (z. B. mit einem Validator oder deinem Steuerberater),
-- die Einhaltung der geltenden Vorschriften (u. a. UStG, GoBD, Aufbewahrungsfristen, DSGVO),
-- regelmäßige Datensicherungen – auch außerhalb des Adapters – und deren Wiederherstellungstest.
+The German original of this disclaimer is in [docs/haftungsausschluss.md](docs/haftungsausschluss.md).
 
 ## Standards and references
 
@@ -498,6 +494,11 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 <!--
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
+-->
+### **WORK IN PROGRESS**
+
+* (alex) Repository checker findings: the README is English only (the German disclaimer moved to `docs/haftungsausschluss.md`, German UI names in the text are translated), and the translations of the web app (`src-www/src/i18n`) are part of the npm package.
+
 -->
 ### 1.0.2 (2026-10-04)
 
