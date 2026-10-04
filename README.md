@@ -425,7 +425,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.9.0 (2026-10-04)
 
 * (alex) Test print of the print templates with three sample documents: full invoice (two VAT rates, line discount, Skonto), small business (§ 19 UStG) and credit note.
 * (alex) README: first steps, e-invoices in a nutshell, retention and GoBD, what the adapter is not. New `docs/performance.md` (measurements up to 5 000 invoices) and a Lighthouse report (`docs/validierung`: PWA 100, accessibility 100).
