@@ -228,3 +228,6 @@ that came out of the tag pipeline (npm provenance via Trusted Publishing) is
 * (alex) initial release
 * (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
   when the sRGB profile for PDF/A-3 is missing
+## 0.9.2 (2026-10-04)
+
+* (alex) Backup: the automatic backup is now **on by default** (daily) and keeps the newest 7 automatic backups (new setting *Automatic backups to keep*); only automatic backups are ever deleted, never those made by hand or the safety copies before a restore. The schedule counts from the last automatic backup, so a restart neither skips nor repeats one. The backup page and the new state `info.backupWarning` warn when there is no backup or it is old. Reason: an ioBroker backup (BackItUp) does not contain the invoice database `invoices.db` — it reaches the backup only through the adapter ZIP in `e-invoices.0.storage/backups/`. README compares BackItUp and the adapter backup. Instances installed earlier keep their saved interval (0 = off), set it in the instance settings.

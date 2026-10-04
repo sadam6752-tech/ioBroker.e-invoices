@@ -499,7 +499,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.1 (2026-10-04)
 
 * (alex) External validation of the generated e-invoices is automated: `npm run validate` makes the sample cases over the real API stack and checks every XML with the KoSIT validator (EN 16931, CII; tools downloaded once and pinned by SHA-256); the GitHub workflow `Validate invoices` runs it monthly and on changes of the XML/PDF code, and checks the PDF files with veraPDF (PDF/A-3b). It is not part of the release workflow.
 * (alex) Hardening: wrong tokens are throttled separately (twenty per minute and client; asking without a token is not counted); the open health route no longer reports document counts (they moved to the authenticated `/api/status`). Issuing a document dated in an earlier year asks first, because the number follows the year of the date and the numbers are then not in time order (the log says so as well). The retention note now names the statutory minimum for invoices (eight years since 2025) next to the ten years the adapter keeps to be on the safe side. Dependabot no longer merges patches of the libraries that write the invoice (better-sqlite3, pdfkit, pdf-lib, jszip, express, factur-x) by itself.
@@ -522,10 +522,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ### 0.9.3 (2026-10-04)
 
 * (alex) Date range for the invoice list and the exports: quick choices (this/last month, quarter, year) or free *Von* / *Bis* days on the invoice date, both days included. Excel, CSV and DATEV use the same filter as the list and name the range in the file name (`rechnungen_2026-08-01_2026-08-31.csv`). `from` / `to` on the list and export routes. Fixed on the way: an export was cut at 500 invoices — it now contains everything that matches, in date order, and never a draft (a draft has no number to book).
-
-### 0.9.2 (2026-10-04)
-
-* (alex) Backup: the automatic backup is now **on by default** (daily) and keeps the newest 7 automatic backups (new setting *Automatic backups to keep*); only automatic backups are ever deleted, never those made by hand or the safety copies before a restore. The schedule counts from the last automatic backup, so a restart neither skips nor repeats one. The backup page and the new state `info.backupWarning` warn when there is no backup or it is old. Reason: an ioBroker backup (BackItUp) does not contain the invoice database `invoices.db` — it reaches the backup only through the adapter ZIP in `e-invoices.0.storage/backups/`. README compares BackItUp and the adapter backup. Instances installed earlier keep their saved interval (0 = off), set it in the instance settings.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
