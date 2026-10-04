@@ -4,6 +4,7 @@
  * follows the device). It is a separate file because the content security policy of the app
  * allows only its own scripts, no inline ones.
  */
+/* global window, document, localStorage */
 (function () {
 	try {
 		var choice = localStorage.getItem('e-invoices.theme');
@@ -14,7 +15,7 @@
 		if (meta) {
 			meta.setAttribute('content', dark ? '#2563eb' : '#1a56db');
 		}
-	} catch (e) {
+	} catch {
 		// storage blocked: the stylesheet default (light) applies
 	}
 })();

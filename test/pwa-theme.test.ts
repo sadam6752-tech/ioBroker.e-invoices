@@ -32,7 +32,7 @@ describe('pwa => theme (0.9.5)', () => {
 		expect(toChoice('dark')).to.equal('dark');
 		expect(toChoice('light')).to.equal('light');
 		for (const raw of ['system', '', null, undefined, 'blau', 1, {}]) {
-			expect(toChoice(raw), String(raw)).to.equal('system');
+			expect(toChoice(raw), JSON.stringify(raw) ?? 'undefined').to.equal('system');
 		}
 	});
 
