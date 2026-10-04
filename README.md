@@ -466,6 +466,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) Invoice list: the period (quick choice, *Von*, *Bis*) sits in the same filter row as the other filters, with the labels above the two days.
+
 ### 0.9.3 (2026-10-04)
 
 * (alex) Date range for the invoice list and the exports: quick choices (this/last month, quarter, year) or free *Von* / *Bis* days on the invoice date, both days included. Excel, CSV and DATEV use the same filter as the list and name the range in the file name (`rechnungen_2026-08-01_2026-08-31.csv`). `from` / `to` on the list and export routes. Fixed on the way: an export was cut at 500 invoices — it now contains everything that matches, in date order, and never a draft (a draft has no number to book).
