@@ -96,7 +96,6 @@ export const en: Record<string, string> = {
 		'Automatic backup is off (instance settings: backup interval).',
 	'Automatisches Backup: alle {minutes} Minuten, behalten werden {keep}.':
 		'Automatic backup: every {minutes} minutes, {keep} are kept.',
-	Backup: 'Backup',
 	'Backup & Wiederherstellung': 'Backup & restore',
 	'Backup kann nicht gelesen werden: {message}': 'The backup cannot be read: {message}',
 	'Backup-Datei hochladen & wiederherstellen': 'Upload a backup file & restore',

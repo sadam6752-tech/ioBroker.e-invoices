@@ -2,8 +2,6 @@ import './styles.css';
 import { getToken } from './api';
 import { initLanguage, t } from './i18n';
 import { initTheme } from './theme';
-import { backup } from './views/backup';
-import { company } from './views/company';
 import { customers } from './views/customers';
 import { dashboard } from './views/dashboard';
 import { detail } from './views/detail';
@@ -14,11 +12,14 @@ import { dunning } from './views/dunning';
 import { openItems } from './views/open-items';
 import { revenue } from './views/revenue';
 import { products } from './views/products';
-import { status } from './views/status';
+import { system } from './views/system';
 import { templates } from './views/templates';
 import { wizard } from './views/wizard';
 
 const app = document.querySelector('#app')!;
+
+/** The three addresses of the system page (backup and company used to be tabs of their own). */
+const SYSTEM_ROUTES = ['#/status', '#/backup', '#/company'];
 
 function shell(route: string): void {
 	const logged = !!getToken();
@@ -32,16 +33,14 @@ function shell(route: string): void {
 		['#/dunning', t('Mahnwesen')],
 		['#/revenue', t('Umsatz')],
 		['#/templates', t('Druckvorlagen')],
-		['#/company', t('Firma')],
 		['#/customers', t('Kunden')],
 		['#/products', t('Positionen')],
 		['#/invoice-templates', t('Rechnungsvorlagen')],
-		['#/backup', t('Backup')],
-		['#/status', t('Status')],
+		['#/status', t('System')],
 		[logged ? '#/logout' : '#/login', logged ? t('Logout') : t('Login')],
 	];
 	app.innerHTML = `<header class="top"><nav>
-		${links.map(([h, label]) => `<a href="${h}" class="${route === h || (h === '#/' && route.startsWith('#/invoices')) ? 'active' : ''}">${label}</a>`).join('')}
+		${links.map(([h, label]) => `<a href="${h}" class="${route === h || (h === '#/' && route.startsWith('#/invoices')) || (h === '#/status' && SYSTEM_ROUTES.includes(route)) ? 'active' : ''}">${label}</a>`).join('')}
 	</nav></header><main id="view"></main>`;
 }
 
@@ -67,22 +66,18 @@ async function route(): Promise<void> {
 		await detail(v, decodeURIComponent(hash.slice('#/invoices/'.length)));
 	} else if (hash === '#/templates') {
 		await templates(v);
-	} else if (hash === '#/company') {
-		await company(v);
 	} else if (hash === '#/customers') {
 		await customers(v);
 	} else if (hash === '#/products') {
 		await products(v);
 	} else if (hash === '#/invoice-templates') {
 		await invoiceTemplates(v);
-	} else if (hash === '#/backup') {
-		await backup(v);
 	} else if (hash === '#/login') {
 		login(v);
 	} else if (hash === '#/logout') {
 		logout();
-	} else if (hash === '#/status') {
-		await status(v);
+	} else if (SYSTEM_ROUTES.includes(hash)) {
+		await system(v, hash === '#/backup' ? 'backup' : hash === '#/company' ? 'company' : 'status');
 	} else {
 		v.innerHTML = `<div class="card">${t('Unbekannte Route.')}</div>`;
 	}

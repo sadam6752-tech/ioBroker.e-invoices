@@ -7,7 +7,7 @@ import { getThemeChoice, setThemeChoice, toChoice } from '../theme';
  *
  * @param root - Element the card is added to.
  */
-function appendThemeCard(root: HTMLElement): void {
+export function appendThemeCard(root: HTMLElement): void {
 	const choice = getThemeChoice();
 	root.insertAdjacentHTML(
 		'beforeend',
@@ -25,7 +25,7 @@ function appendThemeCard(root: HTMLElement): void {
 }
 
 /**
- * Status page: adapter health and counters, and the look of the app.
+ * Status section of the system page: adapter health and counters.
  *
  * It also carries the app name: the header bar stays for the tabs only, and the
  * version and the schema belong next to that name anyway.
@@ -42,6 +42,4 @@ export async function status(root: HTMLElement): Promise<void> {
 	} catch (e) {
 		root.innerHTML = `<div class="card error">${t('API nicht erreichbar')}: ${esc((e as Error).message)}</div>`;
 	}
-	// also without a reachable API: the look is a choice of this device
-	appendThemeCard(root);
 }

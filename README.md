@@ -70,9 +70,14 @@ network.
 Open `http://<iobroker-host>:8093/` for the invoice dashboard, the offers tab
 ("Angebote"), the multi-step wizard (seller → buyer → lines → review), invoice
 details with validation, attachments and downloads, layout templates with PDF
-preview, backups and a status page. The header bar carries the tabs only — the
-"+ Neu" buttons sit where their lists are, and the status page names the app
-next to the version and the schema.
+preview and the **System** page. The header bar carries the tabs only — the
+"+ Neu" buttons sit where their lists are.
+
+The **System** page holds what is rarely needed, one below the other: the status (app
+name, version, schema, counters), backup and restore, the company data (filled in once)
+and the appearance (light, dark or follow the device). It replaces the former tabs
+"Backup", "Firma" and "Status"; the old addresses `#/backup`, `#/company` and `#/status`
+still open it and scroll to their part.
 
 ### Print templates: fine-tuning the header
 
@@ -475,6 +480,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) New **System** page: status, backup and restore, company data and appearance on one page, so the header bar loses the tabs "Backup", "Firma" and "Status" (the old addresses still work).
+
 ### 1.0.0 (2026-10-04)
 
 * (alex) First stable release: ZUGFeRD / EN 16931 e-invoices with offers, Storno, attachments, print templates, several companies, open items, dunning, exports with a date range, automatic backup and a German/English web app in a light or dark appearance. No functional change compared with 0.9.5; the changelog was shortened (older entries are in `CHANGELOG_OLD.md`).
