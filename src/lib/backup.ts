@@ -272,6 +272,9 @@ interface DumpJsonAttachment {
  * @param adapterVersion - Adapter version for the manifest.
  * @param kind - `manual` (default) or `auto`: automatic backups get their own file name, so only
  *   they are ever pruned.
+ * @param limits - The limits a restore enforces (default: the production ones; tests pass small ones).
+ * @throws {Error} When the backup could not be restored with these limits — better no backup than one
+ *   that only looks like protection.
  */
 export async function createBackup(
 	db: InvoiceDatabase,
@@ -279,8 +282,17 @@ export async function createBackup(
 	log: BackupLogger,
 	adapterVersion: string,
 	kind: 'manual' | 'auto' = 'manual',
+	limits?: Partial<BackupLimits>,
 ): Promise<BackupResult> {
+	const caps = resolveLimits(limits);
 	const dump = db.exportData();
+	// before the big string is built: attachments travel as base64 in dump.json (4 bytes per 3), so their
+	// sum alone can already be too much — and would eat the memory of the ioBroker host first
+	const attachmentBytes = dump.attachments.reduce((sum, attachment) => sum + Math.ceil(attachment.size / 3) * 4, 0);
+	const early = backupSizeProblems({ dumpBytes: attachmentBytes }, caps);
+	if (early.length > 0) {
+		throw new Error(backupTooLargeMessage(early));
+	}
 	const dumpJson = {
 		...dump,
 		attachments: dump.attachments.map((attachment): DumpJsonAttachment => ({
@@ -306,6 +318,19 @@ export async function createBackup(
 		}
 	}
 	const dumpJsonText = JSON.stringify(dumpJson, null, 2);
+	const dumpBytes = Buffer.byteLength(dumpJsonText);
+	// the restore refuses what is above its limits, so such a backup must not be created at all
+	const problems = backupSizeProblems(
+		{
+			dumpBytes,
+			unpackedBytes: dumpBytes + files.reduce((sum, file) => sum + file.size, 0),
+			entries: files.length + 2,
+		},
+		caps,
+	);
+	if (problems.length > 0) {
+		throw new Error(backupTooLargeMessage(problems));
+	}
 	zip.file('dump.json', dumpJsonText);
 	const manifest: BackupManifest = {
 		app: BACKUP_APP_ID,
@@ -325,6 +350,10 @@ export async function createBackup(
 	};
 	zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 	const data = Buffer.from(await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }));
+	const zipProblems = backupSizeProblems({ zipBytes: data.length }, caps);
+	if (zipProblems.length > 0) {
+		throw new Error(backupTooLargeMessage(zipProblems));
+	}
 	const filename = `${kind === 'auto' ? AUTO_BACKUP_PREFIX : MANUAL_BACKUP_PREFIX}${stampName()}.zip`;
 	return { filename, size: data.length, sha256: sha256Hex(data), manifest, data };
 }
@@ -749,4 +778,55 @@ export function backupStatus(
 		warning: ageMs > limitMs ? 'stale' : null,
 		...base,
 	};
+}
+
+/** The sizes of a backup that the restore limits apply to; every field is optional. */
+export interface BackupSizes {
+	/** Size of the finished ZIP. */
+	zipBytes?: number;
+	/** Size of `dump.json`. */
+	dumpBytes?: number;
+	/** Sum of everything the ZIP unpacks to. */
+	unpackedBytes?: number;
+	/** Number of entries in the ZIP. */
+	entries?: number;
+}
+
+/**
+ * Compares the sizes of a backup with the limits the restore enforces (M2).
+ *
+ * A backup the restore would refuse is no backup: it would only be found out in the emergency. The same
+ * limits protect against crafted ZIPs on the way in; here they protect the user on the way out.
+ *
+ * @param sizes - What is known about the backup so far.
+ * @param limits - The restore limits.
+ * @returns One text per exceeded limit, empty when the backup could be restored.
+ */
+export function backupSizeProblems(sizes: BackupSizes, limits: BackupLimits): string[] {
+	const mb = (bytes: number): string => `${(bytes / 1048576).toFixed(1)} MB`;
+	const out: string[] = [];
+	if (sizes.dumpBytes !== undefined && sizes.dumpBytes > limits.dumpBytes) {
+		out.push(
+			`the database part (dump.json, attachments included as base64) would be ${mb(sizes.dumpBytes)}, the limit is ${mb(limits.dumpBytes)}`,
+		);
+	}
+	if (sizes.unpackedBytes !== undefined && sizes.unpackedBytes > limits.unpackedBytes) {
+		out.push(`the backup would unpack to ${mb(sizes.unpackedBytes)}, the limit is ${mb(limits.unpackedBytes)}`);
+	}
+	if (sizes.zipBytes !== undefined && sizes.zipBytes > limits.zipBytes) {
+		out.push(`the ZIP would be ${mb(sizes.zipBytes)}, the limit is ${mb(limits.zipBytes)}`);
+	}
+	if (sizes.entries !== undefined && sizes.entries > limits.entries) {
+		out.push(`the ZIP would hold ${sizes.entries} files, the limit is ${limits.entries}`);
+	}
+	return out;
+}
+
+/**
+ * The error text for a backup that is too large to be restored.
+ *
+ * @param problems - Result of `backupSizeProblems`.
+ */
+function backupTooLargeMessage(problems: string[]): string {
+	return `Backup not created, it could not be restored: ${problems.join('; ')}. Reduce the attachments, or rely on the instance backup (BackItUp) for the files.`;
 }

@@ -398,6 +398,9 @@ duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML
 - **Restore limits:** a backup ZIP may be at most 512 MB and expand to at most
   1 GB (`dump.json` at most 256 MB); a crafted archive is rejected before it is
   unpacked. Entry paths, per-file checksums and the manifest are verified.
+  The same limits apply when a backup is **created**: a backup that the restore would refuse is not written, the
+  error names the limit that is exceeded (attachments travel as base64 in `dump.json`, about a third more than the
+  files) — better no backup than one that only looks like protection.
 - **Where the PWA keeps the token:** in the browser profile's `localStorage`, so a
   reload does not ask again. It is only ever sent as an `Authorization` header to
   the adapter (never in a URL), but a script running on the same origin could read
@@ -482,6 +485,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) Backup: a backup that the restore would refuse (ZIP, `dump.json`, unpacked size or number of files above the restore limits) is no longer created without notice — it is refused with a message that names the limit. Attachments count as base64 in `dump.json`.
 * (alex) New **System** page: status, backup and restore, company data and appearance on one page, so the header bar loses the tabs "Backup", "Firma" and "Status" (the old addresses still work).
 
 ### 1.0.0 (2026-10-04)
