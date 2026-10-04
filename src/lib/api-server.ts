@@ -57,6 +57,7 @@ import {
 import { renderInvoiceListWorkbook, renderOpenItemsWorkbook, renderRevenueWorkbook } from './excel';
 import { evaluateOpenItems, type OpenItemsOptions } from './open-items';
 import { evaluateRevenueByCompany, type RevenueReport } from './revenue-report';
+import { isPreviewSample, PREVIEW_SAMPLES, previewSampleDraft } from './preview-samples';
 import { buildDunningSuggestions } from './dunning';
 import { renderDunningPdf } from './dunning-pdf';
 import { paymentCheckDuty } from './invoice-model';
@@ -1475,7 +1476,13 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	app.post(
 		'/api/templates/preview',
 		route(async (req, res) => {
-			const body = (req.body ?? {}) as { definition?: unknown; companyId?: unknown };
+			const body = (req.body ?? {}) as { definition?: unknown; companyId?: unknown; sample?: unknown };
+			// R7.9: which sample document the test print uses; missing = the full invoice
+			if (body.sample !== undefined && !isPreviewSample(body.sample)) {
+				res.status(400).json({ error: `sample must be one of ${PREVIEW_SAMPLES.join(', ')}` });
+				return;
+			}
+			const sampleKind = body.sample ?? 'full';
 			const errors = validateTemplate(body.definition);
 			if (errors.length > 0) {
 				res.status(400).json({ error: errors.join(' | ') });
@@ -1499,28 +1506,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 					seller = { ...seller, ...company.profile };
 				}
 			}
-			const sample = previewInvoice({
-				seller,
-				buyer: {
-					name: 'Kunde AG',
-					street: 'Kundenweg 5',
-					zip: '80331',
-					city: 'München',
-					country: 'DE',
-					customerNumber: 'K-42',
-				},
-				lines: [
-					{ description: 'Beratung', quantity: 2, unit: 'Std', unitPriceNet: 100, vatRate: 19 },
-					{ description: 'Anfahrt', quantity: 1, unit: 'Stk', unitPriceNet: 50, vatRate: 19 },
-				],
-				issueDate: '2026-09-28',
-				deliveryDate: '2026-09-27',
-				dueDate: '2026-10-12',
-				currency: 'EUR',
-				documentTitle: 'Rechnung',
-				notes: 'Dies ist eine Layout-Vorschau.',
-				paymentTerms: 'Zahlbar innerhalb von 14 Tagen ohne Abzug.',
-			});
+			const sample = previewInvoice(previewSampleDraft(sampleKind, seller));
 			let logo: { data: Buffer } | undefined;
 			if (definition.logo?.path && isContainedRelPath(definition.logo.path)) {
 				try {

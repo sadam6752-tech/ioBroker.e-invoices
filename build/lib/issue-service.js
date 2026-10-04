@@ -169,9 +169,6 @@ function collectReminderCandidates(db, today = (0, import_invoice_model.todayIso
     if (invoice.stornoOfId != null || invoice.documentTitle === "Gutschrift") {
       continue;
     }
-    if (db.listInvoices({ status: "cancelled" }).some((c) => c.stornoOfId === invoice.id)) {
-      continue;
-    }
     const overdueDays = (0, import_invoice_model.daysBetween)(invoice.dueDate, today);
     if (overdueDays < graceDays) {
       continue;

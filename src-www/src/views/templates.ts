@@ -54,6 +54,8 @@ export async function templates(root: HTMLElement): Promise<void> {
 	let items: Template[] = [];
 	let editing: Template | null = null;
 	let error = '';
+	// R7.9: which sample document the test print uses (full invoice, small business, credit note)
+	let sample = 'full';
 	let companies: { id: string; name: string }[] = [];
 	try {
 		const res = await apiFetch('/api/company-profiles');
@@ -143,7 +145,12 @@ export async function templates(root: HTMLElement): Promise<void> {
 	function render(): void {
 		root.innerHTML = `
 		<div class="card"><div class="row"><strong>${t('Druckvorlagen')}</strong>
-			<button id="t-new">${t('+ Neu')}</button></div>
+			<button id="t-new">${t('+ Neu')}</button>
+			<label>${t('Probedruck mit')}<select id="t-sample">
+				<option value="full" ${sample === 'full' ? 'selected' : ''}>${t('Vollrechnung')}</option>
+				<option value="small" ${sample === 'small' ? 'selected' : ''}>${t('Kleinbetrag (§ 19 UStG)')}</option>
+				<option value="credit" ${sample === 'credit' ? 'selected' : ''}>${t('Gutschrift')}</option>
+			</select></label></div>
 			<p class="muted">${t(
 				'Aussehen der PDF-Rechnung: Logo, Farben, Kopf- und Fußzeilen. Die inhaltlichen Positionen legst du unter {templates} oder {items} fest.',
 				{
@@ -213,7 +220,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 					const res = await apiFetch('/api/templates/preview', {
 						method: 'POST',
 						headers: { 'content-type': 'application/json' },
-						body: JSON.stringify({ definition: tpl.definition }),
+						body: JSON.stringify({ definition: tpl.definition, sample }),
 					});
 					if (!res.ok) {
 						const j = (await res.json().catch(() => ({}))) as { error?: string };
@@ -261,6 +268,9 @@ export async function templates(root: HTMLElement): Promise<void> {
 			error = '';
 			render();
 		});
+		root.querySelector('#t-sample')?.addEventListener('change', event => {
+			sample = (event.target as HTMLSelectElement).value;
+		});
 		root.querySelector('#t-save')?.addEventListener('click', () => void save());
 		root.querySelector('#t-preview')?.addEventListener('click', async () => {
 			const collected = collectForm();
@@ -271,7 +281,7 @@ export async function templates(root: HTMLElement): Promise<void> {
 				const res = await apiFetch('/api/templates/preview', {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({ definition: collected.definition }),
+					body: JSON.stringify({ definition: collected.definition, sample }),
 				});
 				if (!res.ok) {
 					const j = (await res.json().catch(() => ({}))) as { error?: string };

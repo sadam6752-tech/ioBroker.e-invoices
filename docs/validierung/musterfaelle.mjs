@@ -210,6 +210,50 @@ try {
 	console.error(`  storno-zur-originalrechnung: ${error.message}`);
 }
 
+// With an attachment (R4): the file sits in the PDF/A-3 container and, for EN 16931, in the XML
+// as BG-24 (AdditionalReferencedDocument with an embedded binary object).
+try {
+	const png = Buffer.from(
+		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+		'base64',
+	);
+	const draft = await json('POST', '/api/invoices', {
+		seller,
+		buyer,
+		lines: [{ description: 'Leistung mit Nachweis', quantity: 1, unit: 'Std', unitPriceNet: 80, vatRate: 19 }],
+		issueDate: '2026-09-28',
+		deliveryDate: '2026-09-27',
+		documentTitle: 'Rechnung',
+	});
+	await json('POST', `/api/invoices/${draft.id}/attachments`, {
+		filename: 'leistungsnachweis.png',
+		mime: 'image/png',
+		dataBase64: png.toString('base64'),
+	});
+	const issued = await json('POST', `/api/invoices/${draft.id}/issue`);
+	await save('rechnung-mit-anlage-bg24', issued, ['AdditionalReferencedDocument', 'AttachmentBinaryObject']);
+} catch (error) {
+	failed++;
+	console.error(`  rechnung-mit-anlage-bg24: ${error.message}`);
+}
+
+// Skonto and payment terms: the discount shows up in the payment terms of the XML.
+try {
+	const issued = await issue({
+		lines: [{ description: 'Leistung mit Skonto', quantity: 1, unit: 'Std', unitPriceNet: 200, vatRate: 19 }],
+		issueDate: '2026-09-28',
+		deliveryDate: '2026-09-27',
+		dueDate: '2026-10-28',
+		skontoPercent: 2,
+		skontoDueDate: '2026-10-08',
+		documentTitle: 'Rechnung',
+	});
+	await save('rechnung-mit-skonto', issued, ['SpecifiedTradePaymentTerms']);
+} catch (error) {
+	failed++;
+	console.error(`  rechnung-mit-skonto: ${error.message}`);
+}
+
 console.log(
 	failed ? `\n${failed} Musterfall/Musterfaelle fehlgeschlagen.` : `\nAlle Musterfaelle erzeugt in ${target}.`,
 );

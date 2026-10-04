@@ -286,10 +286,8 @@ export function collectReminderCandidates(db: InvoiceDatabase, today: string = t
 		if (invoice.stornoOfId != null || invoice.documentTitle === 'Gutschrift') {
 			continue;
 		}
-		// A Storno reverses an original, chasing the original makes no sense.
-		if (db.listInvoices({ status: 'cancelled' }).some(c => c.stornoOfId === invoice.id)) {
-			continue;
-		}
+		// A reversed original is `cancelled` and dropped by the status check above — it needs no lookup
+		// of its own (the old per-invoice search was quadratic and saw only the 50 newest documents).
 		const overdueDays = daysBetween(invoice.dueDate, today);
 		if (overdueDays < graceDays) {
 			continue;

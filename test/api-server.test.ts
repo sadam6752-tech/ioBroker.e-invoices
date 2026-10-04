@@ -1161,6 +1161,30 @@ describe('api => templates', function () {
 		expect(preview.headers['content-type']).to.contain('application/pdf');
 		await request(app).post('/api/templates/preview').send({ definition: badDef }).expect(400);
 
+		// R7.9: the test print offers three sample documents that lay out differently
+		const prints: Record<string, Buffer> = {};
+		for (const sample of ['full', 'small', 'credit']) {
+			const res = await request(app)
+				.post('/api/templates/preview')
+				.send({ definition: { ...DEFAULT_TEMPLATE, name: 'Vorschau' }, sample })
+				.buffer(true)
+				.parse((response, callback) => {
+					const chunks: Buffer[] = [];
+					response.on('data', (chunk: Buffer) => chunks.push(chunk));
+					response.on('end', () => callback(null, Buffer.concat(chunks)));
+				})
+				.expect(200);
+			prints[sample] = res.body as Buffer;
+			expect(prints[sample].subarray(0, 4).toString()).to.equal('%PDF');
+		}
+		expect(prints.full.equals(prints.small)).to.equal(false);
+		expect(prints.full.equals(prints.credit)).to.equal(false);
+		expect(prints.small.equals(prints.credit)).to.equal(false);
+		await request(app)
+			.post('/api/templates/preview')
+			.send({ definition: { ...DEFAULT_TEMPLATE, name: 'Vorschau' }, sample: 'bogus' })
+			.expect(400);
+
 		const png = readFileSync('admin/e-invoices.png');
 		const withLogo = await request(app)
 			.post(`/api/templates/${first.body.id}/logo`)

@@ -50,6 +50,7 @@ var import_csv = require("./csv");
 var import_excel = require("./excel");
 var import_open_items = require("./open-items");
 var import_revenue_report = require("./revenue-report");
+var import_preview_samples = require("./preview-samples");
 var import_dunning = require("./dunning");
 var import_dunning_pdf = require("./dunning-pdf");
 var import_invoice_model2 = require("./invoice-model");
@@ -1183,8 +1184,13 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
   app.post(
     "/api/templates/preview",
     route(async (req, res) => {
-      var _a2, _b2, _c2;
+      var _a2, _b2, _c2, _d2;
       const body = (_a2 = req.body) != null ? _a2 : {};
+      if (body.sample !== void 0 && !(0, import_preview_samples.isPreviewSample)(body.sample)) {
+        res.status(400).json({ error: `sample must be one of ${import_preview_samples.PREVIEW_SAMPLES.join(", ")}` });
+        return;
+      }
+      const sampleKind = (_b2 = body.sample) != null ? _b2 : "full";
       const errors = (0, import_templates.validateTemplate)(body.definition);
       if (errors.length > 0) {
         res.status(400).json({ error: errors.join(" | ") });
@@ -1203,35 +1209,14 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
         email: "rechnung@muster.example"
       };
       if (companyId) {
-        const company = (_b2 = db.getCompanyProfile(companyId)) != null ? _b2 : db.getDefaultCompanyProfile();
+        const company = (_c2 = db.getCompanyProfile(companyId)) != null ? _c2 : db.getDefaultCompanyProfile();
         if (company == null ? void 0 : company.profile.name.trim()) {
           seller = { ...seller, ...company.profile };
         }
       }
-      const sample = previewInvoice({
-        seller,
-        buyer: {
-          name: "Kunde AG",
-          street: "Kundenweg 5",
-          zip: "80331",
-          city: "M\xFCnchen",
-          country: "DE",
-          customerNumber: "K-42"
-        },
-        lines: [
-          { description: "Beratung", quantity: 2, unit: "Std", unitPriceNet: 100, vatRate: 19 },
-          { description: "Anfahrt", quantity: 1, unit: "Stk", unitPriceNet: 50, vatRate: 19 }
-        ],
-        issueDate: "2026-09-28",
-        deliveryDate: "2026-09-27",
-        dueDate: "2026-10-12",
-        currency: "EUR",
-        documentTitle: "Rechnung",
-        notes: "Dies ist eine Layout-Vorschau.",
-        paymentTerms: "Zahlbar innerhalb von 14 Tagen ohne Abzug."
-      });
+      const sample = previewInvoice((0, import_preview_samples.previewSampleDraft)(sampleKind, seller));
       let logo;
-      if (((_c2 = definition.logo) == null ? void 0 : _c2.path) && isContainedRelPath(definition.logo.path)) {
+      if (((_d2 = definition.logo) == null ? void 0 : _d2.path) && isContainedRelPath(definition.logo.path)) {
         try {
           logo = { data: await storage.read(definition.logo.path) };
         } catch {

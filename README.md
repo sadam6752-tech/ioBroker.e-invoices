@@ -45,6 +45,24 @@ After the installation, open the instance settings and check the API port
 Optionally set an API token there; without a token the API trusts the local
 network.
 
+## First steps
+
+1. **Token (recommended).** Set `authToken` in the instance settings (a long random value).
+   Without a token the API trusts everyone who can reach the port — see *Security notes*.
+2. **Open the web app** at `http://<iobroker-host>:8093/` (reach it by IP address if you did not
+   set a token). With a token, the login page asks for it once and keeps it in the browser.
+3. **Company data.** Under *Firma* create your company profile: name, address, VAT ID or tax
+   number, bank account (IBAN), contact. The first one is the default and prefills every new
+   document. Several companies are possible (see *Several companies*).
+4. **Print template.** Under *Druckvorlagen* upload a logo, pick colors, set the footer and use
+   the test print (full invoice, small business, credit note) to check the layout. Mandatory
+   content cannot be switched off.
+5. **First invoice.** *Rechnungen* → *+ Neu*: seller, buyer, positions, review. A draft can be
+   changed freely; **issuing** assigns the number, creates the XML and the hybrid PDF and
+   freezes the record.
+6. **Backup.** Create one adapter backup on the *Backup* page and note where the instance
+   backup (e.g. BackItUp) puts the files — see *Files and backup*.
+
 ## Usage
 
 ### PWA
@@ -258,6 +276,45 @@ reject, convert into an invoice draft), templates with logo upload and PDF
 preview, backups, restore, open items as JSON, CSV and Excel). With an API token configured, every route except
 `/api/health` requires an `Authorization: Bearer <token>` header.
 
+## E-invoices in a nutshell
+
+Since 2025 German businesses have to be able to **receive** e-invoices, and from 2027/2028 the
+duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML document
+(standard EN 16931); a PDF alone is not one.
+
+- **ZUGFeRD / Factur-X** (what this adapter creates): a PDF/A-3 file that carries the XML inside.
+  People read the PDF, software reads the XML. **The XML is the leading document** — if the two
+  ever differ, the XML counts. The adapter offers the profiles BASIC and EN 16931.
+- **XRechnung** is a pure XML format used mainly towards public authorities (B2G). The adapter
+  does **not** create it in this version; B2G customers are not the target.
+- Every issued invoice is checked against the XSD schema on issue; the PDF/A-3 structure and
+  the XML were additionally validated with the KoSIT validator and veraPDF (see
+  `docs/validierung`). Run your own acceptance check before productive use.
+
+## Retention and GoBD
+
+- An **issued invoice is immutable**. A mistake is corrected with a **Storno** (credit note) and a
+  new invoice — never by editing. The number circle stays gap-free per year and employee code.
+- Every issued invoice records its **earliest deletion date** (`retain_until`, ten years from the
+  end of the issue year: § 147 AO, § 14b UStG). Only drafts can be deleted, never an issued
+  invoice.
+- Re-rendering a PDF (for example after a layout change) **never overwrites** the delivered file:
+  the original is archived as `<number>.orig-<n>.pdf`, the reason is logged, and the XML stays
+  unchanged. The layout an invoice was issued with is frozen with it and can be re-used.
+- The adapter helps with these rules, but **you** keep responsibility for them — see *Disclaimer*.
+
+## What this adapter is not
+
+- **No bookkeeping.** There is no ledger, no chart of accounts, no VAT return (UStVA), no income
+  statement (EÜR) and no tax filing. The CSV, Excel and DATEV exports are lists for your tax
+  advisor or your bookkeeping software.
+- **No e-mail delivery.** The adapter never sends an invoice or a reminder. You send them yourself
+  (the web app offers copy, `mailto:` links and PDF/CSV lists) and mark them as sent.
+- **No payment processing.** "Paid" is a flag you set; there is no bank connection and no part
+  payments.
+- **No substitute for tax or legal advice** and no guarantee that an invoice is correct for your
+  case.
+
 ## Security notes
 
 - **Token:** set `authToken` in the instance configuration. Every API route except
@@ -370,6 +427,9 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) Test print of the print templates with three sample documents: full invoice (two VAT rates, line discount, Skonto), small business (§ 19 UStG) and credit note.
+* (alex) README: first steps, e-invoices in a nutshell, retention and GoBD, what the adapter is not. New `docs/performance.md` (measurements up to 5 000 invoices) and a Lighthouse report (`docs/validierung`: PWA 100, accessibility 100).
+* (alex) Fix: the dunning check searched the cancelled documents once per overdue invoice (slow with many invoices, and it only saw the 50 newest); it is a single pass now. Tests for the whole migration chain (every schema version v1–v14 upgrades to the latest and keeps number and counter).
 * (alex) Dunning (Mahnwesen): the new page shows the next dunning step per overdue invoice with the text filled in (reminder, 1st and 2nd dunning letter), editable texts, days and payment deadlines (new table `dunning_texts`, migration v15, part of the backup), all letters as one PDF and as CSV, state `info.reminderSuggestions`. The adapter still sends nothing and creates no XML; "Mark as reminded" moves the level on and the invoice shows level and date. Fix: a Storno credit note is no longer proposed for a reminder.
 
 ### 0.8.8 (2026-10-03)

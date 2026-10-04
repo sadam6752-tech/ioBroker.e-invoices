@@ -233,6 +233,7 @@ export const en: Record<string, string> = {
 	'Keine Rechnungen gefunden.': 'No invoices found.',
 	'Keine Rechnungen im Zeitraum.': 'No invoices in this period.',
 	'Keine offenen Posten.': 'No open items.',
+	'Kleinbetrag (§ 19 UStG)': 'Small business (§ 19 UStG)',
 	'Kopfzusatz (z.B. Geschäftsführer)': 'Header addition (e.g. managing director)',
 	Kopiert: 'Copied',
 	Kostenvoranschlag: 'Cost estimate',
@@ -347,6 +348,7 @@ export const en: Record<string, string> = {
 	'Preis netto': 'Net price',
 	Primärfarbe: 'Primary color',
 	'Primärfarbe verwenden': 'Use the primary color',
+	'Probedruck mit': 'Test print with',
 	'Produkte und Dienstleistungen für die Rechnungsstellung.': 'Products and services for invoicing.',
 	Profilname: 'Profile name',
 	Prüfen: 'Review',
@@ -433,6 +435,7 @@ export const en: Record<string, string> = {
 	Versandstatus: 'Shipping status',
 	Version: 'Version',
 	Verwerfen: 'Discard',
+	Vollrechnung: 'Full invoice',
 	'Vor dem Wiederherstellen wird der aktuelle Stand automatisch als "prerestore"-Backup gesichert.':
 		'Before restoring, the current state is saved automatically as a "prerestore" backup.',
 	'Vorlage erstellen': 'Create template',

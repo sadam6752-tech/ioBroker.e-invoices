@@ -74,7 +74,11 @@ gleich), zusätzlich wurden die Downloads aus den API-Routen direkt geprüft. Be
 Bewertet wird `rep:accept`/`rep:reject` und der `failed-assert`-Zähler im VARL-Bericht,
 bei veraPDF das `PASS`/`FAIL` der Textausgabe.
 
-## Musterfälle (frisch erzeugt 30.09.2026)
+## Musterfälle (frisch erzeugt 30.09.2026, Nachlauf 04.10.2026)
+
+**Nachlauf 04.10.2026 auf dem Stand 0.8.8** (Schema v15: Anlagen, Angebote, eingefrorenes Layout, Firmenbindung, Mahnwesen): sieben Fälle über den echten API-Stack neu erzeugt (`musterfaelle.mjs` kennt jetzt zusätzlich *Rechnung mit Anlage (BG-24)* und *Rechnung mit Skonto*), KoSIT-Validator 1.6.3 mit der Konfiguration „EN16931 (CII)“ (CEN 1.3.16): **7 von 7 akzeptabel, 0 Fehler** (`*-report.xml`, `kosit-en16931.log`); veraPDF 1.30.2, Profil PDF/A-3b: **7 von 7 PASS** (`verapdf-3b.txt`). Die Dateien in `musterfaelle/` sind die Läufe dieses Nachlaufs.
+
+_Hinweis zum Aufruf:_ der KoSIT-Validator prüft beim Start, ob Daten über stdin kommen, und scheitert mit `Unzulässige Funktion`, wenn stdin kein Terminal und keine Pipe ist (z. B. `NUL` oder ein Hintergrundprozess). Aus einer Skript-Umgebung deshalb mit leerer Pipe starten: `type NUL | java -jar validator-1.6.3-standalone.jar …` (cmd).
 
 | Fall | Rechnung | CII-XML | PDF/A-3b |
 | --- | --- | --- | --- |
@@ -83,6 +87,8 @@ bei veraPDF das `PASS`/`FAIL` der Textausgabe.
 | Gutschrift (UNTDID 1001 = 381, Hinweis nach § 14 Abs. 4 UStG) | 2026-00-003 | konform | PASS |
 | Reverse Charge (§ 13b UStG, Kategorie AE, 0 %) | 2026-00-004 | konform | PASS |
 | Storno zur Rechnung 2026-00-005 | 2026-00-006 | konform | PASS |
+| Rechnung mit Anlage (BG-24, eingebettetes PNG) — neu 04.10.2026 | 2026-00-007 | konform | PASS |
+| Rechnung mit Skonto und Zahlungsziel — neu 04.10.2026 | 2026-00-008 | konform | PASS |
 
 ## Gefundene Punkte
 

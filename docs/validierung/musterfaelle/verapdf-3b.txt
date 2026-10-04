@@ -1,5 +1,7 @@
-PASS C:\Users\alex\Documents\Opencode\projekte_3\ioBroker-invoices\ioBroker.e-invoices\docs\validierung\musterfaelle\gutschrift.pdf 3b
-PASS C:\Users\alex\Documents\Opencode\projekte_3\ioBroker-invoices\ioBroker.e-invoices\docs\validierung\musterfaelle\kleinbetrag-rundung.pdf 3b
-PASS C:\Users\alex\Documents\Opencode\projekte_3\ioBroker-invoices\ioBroker.e-invoices\docs\validierung\musterfaelle\reverse-charge-befreiung.pdf 3b
-PASS C:\Users\alex\Documents\Opencode\projekte_3\ioBroker-invoices\ioBroker.e-invoices\docs\validierung\musterfaelle\storno-zur-originalrechnung.pdf 3b
-PASS C:\Users\alex\Documents\Opencode\projekte_3\ioBroker-invoices\ioBroker.e-invoices\docs\validierung\musterfaelle\vollrechnung-zwei-steuersaetze.pdf 3b
+PASS C:\Users\alex\AppData\Local\Temp\val-out\gutschrift.pdf 3b
+PASS C:\Users\alex\AppData\Local\Temp\val-out\kleinbetrag-rundung.pdf 3b
+PASS C:\Users\alex\AppData\Local\Temp\val-out\rechnung-mit-anlage-bg24.pdf 3b
+PASS C:\Users\alex\AppData\Local\Temp\val-out\rechnung-mit-skonto.pdf 3b
+PASS C:\Users\alex\AppData\Local\Temp\val-out\reverse-charge-befreiung.pdf 3b
+PASS C:\Users\alex\AppData\Local\Temp\val-out\storno-zur-originalrechnung.pdf 3b
+PASS C:\Users\alex\AppData\Local\Temp\val-out\vollrechnung-zwei-steuersaetze.pdf 3b
