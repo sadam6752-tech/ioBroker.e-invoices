@@ -466,7 +466,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.9.4 (2026-10-04)
 
 * (alex) Invoice list: the period (quick choice, *Von*, *Bis*) sits in the same filter row as the other filters, with the labels above the two days.
 
