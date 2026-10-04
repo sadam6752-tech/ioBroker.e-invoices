@@ -116,6 +116,7 @@ export const en: Record<string, string> = {
 	Betrag: 'Amount',
 	Betreff: 'Subject',
 	Bezeichnung: 'Description',
+	Bis: 'To',
 	'Bitte einen Namen vergeben.': 'Please enter a name.',
 	'Bitte zuerst eine Datei auswählen.': 'Please choose a file first.',
 	'Bitte zuerst eine ZIP-Datei wählen': 'Please choose a ZIP file first',
@@ -138,6 +139,8 @@ export const en: Record<string, string> = {
 	'Dateien:': 'Files:',
 	Datum: 'Date',
 	'Der Rechnungsbetrag ist sofort ohne Abzug fällig.': 'The invoice amount is due immediately without deduction.',
+	'Der Zeitraum gilt für das Rechnungsdatum, beide Tage zählen mit. Die Exporte enthalten alle passenden Rechnungen, aber keine Entwürfe.':
+		'The range applies to the invoice date, both days are included. The exports contain all matching invoices but no drafts.',
 	'Der nächste Schritt je überfälliger Rechnung. Der Adapter versendet nichts: Schreiben kopieren, mailen oder drucken und danach „Als gemahnt markieren“ — erst das setzt die Stufe weiter. Es entsteht kein XML.':
 		'The next step for each overdue invoice. The adapter sends nothing: copy, mail or print the letter and then use “Mark as reminded” — only that moves the level on. No XML is created.',
 	Detailzeile: 'Detail line',
@@ -150,6 +153,9 @@ export const en: Record<string, string> = {
 	'Die aktuelle Datenbank wird durch das Backup ersetzt.': 'The current database will be replaced by the backup.',
 	'Diese Rechnung ist ausgestellt: die Anlagen bleiben abrufbar, lassen sich aber nicht mehr ändern (GoBD).':
 		'This invoice has been issued: the attachments stay available but can no longer be changed (GoBD).',
+	'Dieser Monat': 'This month',
+	'Dieses Jahr': 'This year',
+	'Dieses Quartal': 'This quarter',
 	Dokumenttyp: 'Document title',
 	Download: 'Download',
 	'Download fehlgeschlagen (HTTP {status})': 'Download failed (HTTP {status})',
@@ -157,6 +163,7 @@ export const en: Record<string, string> = {
 	'E-Mail': 'E-mail',
 	'E-Mail (PDF)': 'E-mail (PDF)',
 	'E-Mail im Kopf': 'E-mail in the header',
+	'Eigener Zeitraum': 'Custom range',
 	'Ein Angebot ist keine E-Rechnung: geprüft werden nur die Pflichtangaben — es gibt kein XML und keine XSD-Prüfung.':
 		'An offer is not an e-invoice: only the mandatory fields are checked — there is no XML and no XSD check.',
 	'Ein Angebot ist keine E-Rechnung: gespeichert wird ein Sicht-PDF ohne XML, gemahnt wird nie und in den Buchhaltungsexporten taucht es nicht auf.':
@@ -270,6 +277,9 @@ export const en: Record<string, string> = {
 		'Creates an invoice template with these items, dates and payment conditions. Buyer and date are not taken over.',
 	Leistungszeitraum: 'Service period',
 	'Leistungszeitraum:': 'Service period:',
+	'Letzter Monat': 'Last month',
+	'Letztes Jahr': 'Last year',
+	'Letztes Quartal': 'Last quarter',
 	'Lieferdatum:': 'Delivery date:',
 	Links: 'Left',
 	Liste: 'List',
@@ -443,6 +453,7 @@ export const en: Record<string, string> = {
 	Version: 'Version',
 	Verwerfen: 'Discard',
 	Vollrechnung: 'Full invoice',
+	Von: 'From',
 	'Vor dem Wiederherstellen wird der aktuelle Stand automatisch als "prerestore"-Backup gesichert.':
 		'Before restoring, the current state is saved automatically as a "prerestore" backup.',
 	'Vorlage erstellen': 'Create template',
@@ -483,6 +494,8 @@ export const en: Record<string, string> = {
 	Zahlungsziel: 'Payment deadline',
 	'Zahlungsziel (Tage)': 'Payment deadline (days)',
 	'Zahlungsziel:': 'Payment term:',
+	Zeitraum: 'Period',
+	'Zeitraum: alle': 'Period: all',
 	Zentriert: 'Centered',
 	'Zugrunde liegendes Angebot': 'Underlying offer',
 	Zurück: 'Back',

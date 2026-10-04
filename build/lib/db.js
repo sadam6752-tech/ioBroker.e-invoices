@@ -510,6 +510,18 @@ class InvoiceDatabase {
       where.push(`company_id = ?`);
       params.push(filter.companyId);
     }
+    if (filter.excludeStatus) {
+      where.push(`status <> ?`);
+      params.push(filter.excludeStatus);
+    }
+    if (filter.from) {
+      where.push(`issue_date >= ?`);
+      params.push(filter.from);
+    }
+    if (filter.to) {
+      where.push(`issue_date <= ?`);
+      params.push(filter.to);
+    }
     if (filter.status) {
       where.push(`status = ?`);
       params.push(filter.status);
@@ -532,7 +544,7 @@ class InvoiceDatabase {
     }
     const rawLimit = Number(filter.limit);
     const rawOffset = Number(filter.offset);
-    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 500) : 50;
+    const limit = filter.all ? -1 : Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 500) : 50;
     const offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
     const sortColumns = {
       date: "issue_date",
@@ -547,7 +559,7 @@ class InvoiceDatabase {
     const column = (_b = sortColumns[(_a = filter.sort) != null ? _a : "date"]) != null ? _b : "issue_date";
     const direction = filter.order === "asc" ? "ASC" : "DESC";
     const rows = this.db.prepare(
-      `SELECT * FROM invoices ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY ${column} ${direction}, id DESC LIMIT ? OFFSET ?`
+      `SELECT * FROM invoices ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY ${column} ${direction}, number ${direction}, id DESC LIMIT ? OFFSET ?`
     ).all(...params, limit, offset);
     return rows.map(mapRow);
   }

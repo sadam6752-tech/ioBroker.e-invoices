@@ -23,12 +23,16 @@ import type {
 import {
 	blankDraft,
 	calcTotals,
+	dateRangeFileSuffix,
 	defaultDocumentTitle,
+	formatDateRange,
+	parseDateRange,
 	defaultValidUntil,
 	isQuote,
 	normalizeDocumentType,
 	todayIso,
 	validateInvoiceForIssue,
+	type DateRange,
 	type DocumentType,
 	type InvoiceDraftInput,
 	type InvoiceStatus,
@@ -94,12 +98,17 @@ function docTypeFilter(query: Record<string, unknown>, fallback?: DocumentType):
  * @param db - Open invoice database.
  * @param query - Express query object.
  * @param fallbackDocType - Type to use when the request carries no `docType`.
- * @returns Matching invoices, capped at the export limit.
+ * @param range - Issue date range (already checked by `parseDateRange`).
+ * @param forExport - An accounting export: everything that matches in date order, and no drafts
+ *   unless the request asks for the status `draft` itself (a draft has no number to book).
+ * @returns Matching invoices.
  */
 function filteredInvoices(
 	db: InvoiceDatabase,
 	query: Record<string, unknown>,
 	fallbackDocType?: DocumentType,
+	range: DateRange = {},
+	forExport = false,
 ): StoredInvoice[] {
 	const status = typeof query.status === 'string' ? (query.status as InvoiceStatus) : undefined;
 	const year = typeof query.year === 'string' ? Number(query.year) : undefined;
@@ -115,7 +124,16 @@ function filteredInvoices(
 		docType,
 		companyId,
 		query: text,
-		limit: 500,
+		from: range.from,
+		to: range.to,
+		...(forExport
+			? {
+					all: true,
+					sort: 'date' as const,
+					order: 'asc' as const,
+					excludeStatus: status === 'draft' ? undefined : ('draft' as const),
+				}
+			: { limit: 500 }),
 	});
 }
 
@@ -628,7 +646,25 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			// R6.3: only the documents of one company (`none` = those without a company)
 			const companyId =
 				typeof req.query.companyId === 'string' && req.query.companyId ? req.query.companyId : undefined;
-			res.json(db.listInvoices({ status, year, docType, sourceDocumentId, companyId, query, limit, offset }));
+			const range = parseDateRange(req.query.from, req.query.to);
+			if (typeof range === 'string') {
+				res.status(400).json({ error: range });
+				return;
+			}
+			res.json(
+				db.listInvoices({
+					status,
+					year,
+					docType,
+					sourceDocumentId,
+					companyId,
+					query,
+					limit,
+					offset,
+					from: range.from,
+					to: range.to,
+				}),
+			);
 		}),
 	);
 
@@ -663,27 +699,48 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	// "export.csv" and answer 404.
 	// R8: all three are accounting exports and therefore default to invoices —
 	// an offer only shows up when it is asked for (`docType=quote|all`).
+	// R6.3+: every export takes the same filter as the list plus the issue date range `from` / `to`
+	// (both days included); the file name names the range.
 	app.get('/api/invoices/export.csv', (req, res) => {
+		const range = parseDateRange(req.query.from, req.query.to);
+		if (typeof range === 'string') {
+			res.status(400).json({ error: range });
+			return;
+		}
 		res.type('text/csv; charset=utf-8');
-		res.set('Content-Disposition', attachmentDisposition('rechnungen.csv'));
-		res.send(renderInvoiceListCsv(filteredInvoices(db, req.query, 'invoice')));
+		res.set('Content-Disposition', attachmentDisposition(`rechnungen${dateRangeFileSuffix(range)}.csv`));
+		res.send(renderInvoiceListCsv(filteredInvoices(db, req.query, 'invoice', range, true)));
 	});
 
 	app.get('/api/invoices/export.datev', (req, res) => {
+		const range = parseDateRange(req.query.from, req.query.to);
+		if (typeof range === 'string') {
+			res.status(400).json({ error: range });
+			return;
+		}
 		const company = db.getDefaultCompanyProfile()?.profile;
 		const head = renderDatevHead(company?.name ?? 'Firma', company?.taxNumber ?? '');
 		res.type('text/plain; charset=iso-8859-1');
-		res.set('Content-Disposition', attachmentDisposition('rechnungen.datev'));
-		res.send(`${head}\n${renderDatevRows(filteredInvoices(db, req.query, 'invoice'))}`);
+		res.set('Content-Disposition', attachmentDisposition(`rechnungen${dateRangeFileSuffix(range)}.datev`));
+		res.send(`${head}\n${renderDatevRows(filteredInvoices(db, req.query, 'invoice', range, true))}`);
 	});
 
 	app.get('/api/invoices/export.xlsx', (req, res) => {
-		const invoices = filteredInvoices(db, req.query, 'invoice');
+		const range = parseDateRange(req.query.from, req.query.to);
+		if (typeof range === 'string') {
+			res.status(400).json({ error: range });
+			return;
+		}
+		const invoices = filteredInvoices(db, req.query, 'invoice', range, true);
 		const stamp = new Date().toISOString().slice(0, 10);
-		void renderInvoiceListWorkbook(invoices, `Rechnungsübersicht ${stamp}`).then(
+		const period = formatDateRange(range);
+		void renderInvoiceListWorkbook(invoices, `Rechnungsübersicht ${stamp}${period ? ` (${period})` : ''}`).then(
 			buffer => {
 				res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-				res.set('Content-Disposition', attachmentDisposition(`export-${stamp}.xlsx`));
+				res.set(
+					'Content-Disposition',
+					attachmentDisposition(`export-${stamp}${dateRangeFileSuffix(range)}.xlsx`),
+				);
 				res.send(buffer);
 			},
 			(error: Error) => {

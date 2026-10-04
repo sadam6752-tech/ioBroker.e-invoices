@@ -314,6 +314,85 @@ describe('api => invoices', function () {
 		expect(after.lastAt).to.be.a('string');
 	});
 
+	it('filters the list and every export by issue date range, both days included, without drafts (0.9.3)', async () => {
+		const company = await request(app)
+			.post('/api/company-profiles')
+			.send({ name: 'Zeitraum GmbH', profile: { ...seller, name: 'Zeitraum GmbH' } })
+			.expect(201);
+		const companyId = company.body.id as string;
+		const make = async (issueDate: string, issue: boolean): Promise<string> => {
+			const created = await request(app)
+				.post('/api/invoices')
+				.send({ ...draftBody, companyId, issueDate, deliveryDate: issueDate, dueDate: undefined })
+				.expect(201);
+			if (issue) {
+				await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
+			}
+			return created.body.id as string;
+		};
+		await make('2026-07-31', true);
+		const first = await make('2026-08-01', true);
+		const middle = await make('2026-08-15', true);
+		const last = await make('2026-08-31', true);
+		await make('2026-09-01', true);
+		const draftId = await make('2026-08-20', false);
+
+		const base = `companyId=${companyId}&from=2026-08-01&to=2026-08-31`;
+		// the list shows the range, drafts included
+		const listed = await request(app).get(`/api/invoices?${base}`).expect(200);
+		expect((listed.body as { id: string }[]).map(i => i.id)).to.have.members([first, middle, last, draftId]);
+
+		// the CSV: the three issued invoices of August, the draft stays out, named after the range
+		const csv = await request(app).get(`/api/invoices/export.csv?${base}`).buffer(true).expect(200);
+		expect(String(csv.headers['content-disposition'])).to.contain('rechnungen_2026-08-01_2026-08-31.csv');
+		const days = ['2026-08-01', '2026-08-15', '2026-08-31'];
+		for (const day of days) {
+			expect(csv.text, day).to.contain(day);
+		}
+		expect(csv.text).to.not.contain('2026-07-31').and.to.not.contain('2026-09-01');
+		expect(csv.text).to.not.contain('2026-08-20');
+
+		// only a start day or only an end day
+		const from = await request(app)
+			.get(`/api/invoices/export.csv?companyId=${companyId}&from=2026-08-31`)
+			.expect(200);
+		expect(String(from.headers['content-disposition'])).to.contain('rechnungen_ab-2026-08-31.csv');
+		const to = await request(app)
+			.get(`/api/invoices/export.datev?companyId=${companyId}&to=2026-08-01`)
+			.expect(200);
+		expect(String(to.headers['content-disposition'])).to.contain('rechnungen_bis-2026-08-01.datev');
+		const xlsx = await request(app)
+			.get(`/api/invoices/export.xlsx?${base}`)
+			.buffer(true)
+			.parse((res, callback) => {
+				const chunks: Buffer[] = [];
+				res.on('data', (chunk: Buffer) => chunks.push(chunk));
+				res.on('end', () => callback(null, Buffer.concat(chunks)));
+			})
+			.expect(200);
+		expect(String(xlsx.headers['content-disposition'])).to.contain('_2026-08-01_2026-08-31.xlsx');
+
+		// wrong input is refused on the list and on every export
+		for (const route of [
+			'/api/invoices',
+			'/api/invoices/export.csv',
+			'/api/invoices/export.datev',
+			'/api/invoices/export.xlsx',
+		]) {
+			await request(app).get(`${route}?from=01.08.2026`).expect(400);
+			await request(app).get(`${route}?from=2026-09-01&to=2026-08-01`).expect(400);
+		}
+
+		// a draft only comes into an export when its status is asked for
+		const drafts = await request(app).get(`/api/invoices/export.csv?${base}&status=draft`).buffer(true).expect(200);
+		expect(drafts.text).to.contain('2026-08-20');
+
+		// leave no draft behind: other tests of this file count them
+		await request(app)
+			.delete(`/api/invoices/${draftId}`)
+			.expect(res => expect([200, 204]).to.include(res.status));
+	});
+
 	it('refuses to re-render a draft', async () => {
 		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
 		await request(app).post(`/api/invoices/${created.body.id}/rerender`).expect(400);

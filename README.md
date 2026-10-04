@@ -186,6 +186,22 @@ The wording of every screen comes from one table per document type
 offer screen says "Rechnung". The booking list and the three accounting exports
 stay pinned to `docType=invoice`, so the two document types never mix.
 
+### Date range for lists and exports
+
+The invoice list has a **period** filter: quick choices (this month, last month, this quarter, last
+quarter, this year, last year) or two free days *Von* / *Bis*. It filters by the **invoice date**, and
+**both days belong to the range** — 1 August to 31 August contains the invoices of both days. One side
+may stay empty (open end).
+
+- Excel, CSV and DATEV take exactly the filter of the list, so what you see is what is exported. The
+  file name names the range: `rechnungen_2026-08-01_2026-08-31.csv` (`…_ab-…` or `…_bis-…` for an open
+  end), and the Excel title shows it as well.
+- Exports contain **all** matching invoices (no page limit) in date order and **never a draft** — a draft
+  has no number to book. A draft only comes into an export when the status "draft" is asked for.
+- API: `from` and `to` (ISO date, `2026-08-01`) on `GET /api/invoices` and on the three export routes;
+  a malformed date or a range that ends before it starts answers `400`. They combine with `status`,
+  `companyId`, `q` and `docType`.
+
 ### Several companies
 
 Every document is bound to the company profile it was written for (the "Aus Firma
@@ -450,6 +466,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) Date range for the invoice list and the exports: quick choices (this/last month, quarter, year) or free *Von* / *Bis* days on the invoice date, both days included. Excel, CSV and DATEV use the same filter as the list and name the range in the file name (`rechnungen_2026-08-01_2026-08-31.csv`). `from` / `to` on the list and export routes. Fixed on the way: an export was cut at 500 invoices — it now contains everything that matches, in date order, and never a draft (a draft has no number to book).
+
 ### 0.9.2 (2026-10-04)
 
 * (alex) Backup: the automatic backup is now **on by default** (daily) and keeps the newest 7 automatic backups (new setting *Automatic backups to keep*); only automatic backups are ever deleted, never those made by hand or the safety copies before a restore. The schedule counts from the last automatic backup, so a restart neither skips nor repeats one. The backup page and the new state `info.backupWarning` warn when there is no backup or it is old. Reason: an ioBroker backup (BackItUp) does not contain the invoice database `invoices.db` — it reaches the backup only through the adapter ZIP in `e-invoices.0.storage/backups/`. README compares BackItUp and the adapter backup. Instances installed earlier keep their saved interval (0 = off), set it in the instance settings.

@@ -808,3 +808,71 @@ export function validateInvoiceForIssue(input: InvoiceDraftInput): string[] {
 	}
 	return errors;
 }
+
+/** An inclusive range of issue dates; a missing side is open. */
+export interface DateRange {
+	/** First day, ISO `YYYY-MM-DD`. */
+	from?: string;
+	/** Last day, ISO `YYYY-MM-DD`. */
+	to?: string;
+}
+
+/**
+ * Reads and checks the `from` / `to` filter of a request. Both days belong to the range, so
+ * 1 August to 31 August contains the invoices of both days.
+ *
+ * @param from - First day, empty or missing = open.
+ * @param to - Last day, empty or missing = open.
+ * @returns The range, or an error text for a malformed day or a range that ends before it starts.
+ */
+export function parseDateRange(from: unknown, to: unknown): DateRange | string {
+	const range: DateRange = {};
+	for (const [key, value] of [
+		['from', from],
+		['to', to],
+	] as const) {
+		if (value === undefined || value === '') {
+			continue;
+		}
+		if (typeof value !== 'string' || !isIsoDate(value)) {
+			return `${key} must be a date like 2026-08-31`;
+		}
+		range[key] = value;
+	}
+	if (range.from && range.to && range.from > range.to) {
+		return 'from must not be after to';
+	}
+	return range;
+}
+
+/**
+ * Words for a range in German date format, e.g. `01.08.2026–31.08.2026` (shown in the title of
+ * an export).
+ *
+ * @param range - The range.
+ */
+export function formatDateRange(range: DateRange): string {
+	const de = (iso: string): string => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
+	if (range.from && range.to) {
+		return `${de(range.from)}–${de(range.to)}`;
+	}
+	if (range.from) {
+		return `ab ${de(range.from)}`;
+	}
+	return range.to ? `bis ${de(range.to)}` : '';
+}
+
+/**
+ * Part of an export file name that names the range: `_2026-08-01_2026-08-31`, `_ab-…`, `_bis-…`.
+ *
+ * @param range - The range.
+ */
+export function dateRangeFileSuffix(range: DateRange): string {
+	if (range.from && range.to) {
+		return `_${range.from}_${range.to}`;
+	}
+	if (range.from) {
+		return `_ab-${range.from}`;
+	}
+	return range.to ? `_bis-${range.to}` : '';
+}

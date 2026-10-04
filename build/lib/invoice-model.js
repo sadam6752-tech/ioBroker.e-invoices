@@ -30,11 +30,13 @@ __export(invoice_model_exports, {
   blankDraft: () => blankDraft,
   calcSkonto: () => calcSkonto,
   calcTotals: () => calcTotals,
+  dateRangeFileSuffix: () => dateRangeFileSuffix,
   daysBetween: () => daysBetween,
   defaultDocumentTitle: () => defaultDocumentTitle,
   defaultValidUntil: () => defaultValidUntil,
   documentLabels: () => documentLabels,
   formatCustomerNumber: () => formatCustomerNumber,
+  formatDateRange: () => formatDateRange,
   formatDeliveryDateDe: () => formatDeliveryDateDe,
   formatInvoiceNumber: () => formatInvoiceNumber,
   isIsoDate: () => isIsoDate,
@@ -44,6 +46,7 @@ __export(invoice_model_exports, {
   normalizeDocumentType: () => normalizeDocumentType,
   normalizeEmployeeCode: () => normalizeEmployeeCode,
   normalizeNumberFormat: () => normalizeNumberFormat,
+  parseDateRange: () => parseDateRange,
   parseDeliveryPeriod: () => parseDeliveryPeriod,
   paymentCheckDuty: () => paymentCheckDuty,
   quoteState: () => quoteState,
@@ -400,6 +403,44 @@ function validateInvoiceForIssue(input) {
   }
   return errors;
 }
+function parseDateRange(from, to) {
+  const range = {};
+  for (const [key, value] of [
+    ["from", from],
+    ["to", to]
+  ]) {
+    if (value === void 0 || value === "") {
+      continue;
+    }
+    if (typeof value !== "string" || !isIsoDate(value)) {
+      return `${key} must be a date like 2026-08-31`;
+    }
+    range[key] = value;
+  }
+  if (range.from && range.to && range.from > range.to) {
+    return "from must not be after to";
+  }
+  return range;
+}
+function formatDateRange(range) {
+  const de = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
+  if (range.from && range.to) {
+    return `${de(range.from)}\u2013${de(range.to)}`;
+  }
+  if (range.from) {
+    return `ab ${de(range.from)}`;
+  }
+  return range.to ? `bis ${de(range.to)}` : "";
+}
+function dateRangeFileSuffix(range) {
+  if (range.from && range.to) {
+    return `_${range.from}_${range.to}`;
+  }
+  if (range.from) {
+    return `_ab-${range.from}`;
+  }
+  return range.to ? `_bis-${range.to}` : "";
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ALLOWED_VAT_RATES,
@@ -414,11 +455,13 @@ function validateInvoiceForIssue(input) {
   blankDraft,
   calcSkonto,
   calcTotals,
+  dateRangeFileSuffix,
   daysBetween,
   defaultDocumentTitle,
   defaultValidUntil,
   documentLabels,
   formatCustomerNumber,
+  formatDateRange,
   formatDeliveryDateDe,
   formatInvoiceNumber,
   isIsoDate,
@@ -428,6 +471,7 @@ function validateInvoiceForIssue(input) {
   normalizeDocumentType,
   normalizeEmployeeCode,
   normalizeNumberFormat,
+  parseDateRange,
   parseDeliveryPeriod,
   paymentCheckDuty,
   quoteState,

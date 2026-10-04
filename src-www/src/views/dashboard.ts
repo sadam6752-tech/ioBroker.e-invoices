@@ -1,5 +1,6 @@
 import { api, downloadUrl, esc, eur, type Invoice } from '../api';
 import { t } from '../i18n';
+import { localToday, presetRange, type RangePreset } from '../range';
 import { statusLabel } from '../labels';
 
 /**
@@ -47,6 +48,21 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 					<option value="0">${t('nicht versendet')}</option>
 				</select>
 			</div>
+			<div class="row filters">
+				<select id="f-range" title="${t('Zeitraum')}">
+					<option value="">${t('Zeitraum: alle')}</option>
+					<option value="thisMonth">${t('Dieser Monat')}</option>
+					<option value="lastMonth">${t('Letzter Monat')}</option>
+					<option value="thisQuarter">${t('Dieses Quartal')}</option>
+					<option value="lastQuarter">${t('Letztes Quartal')}</option>
+					<option value="thisYear">${t('Dieses Jahr')}</option>
+					<option value="lastYear">${t('Letztes Jahr')}</option>
+					<option value="custom" hidden>${t('Eigener Zeitraum')}</option>
+				</select>
+				<label>${t('Von')}<input type="date" id="f-from" /></label>
+				<label>${t('Bis')}<input type="date" id="f-to" /></label>
+			</div>
+			<p class="muted">${t('Der Zeitraum gilt für das Rechnungsdatum, beide Tage zählen mit. Die Exporte enthalten alle passenden Rechnungen, aber keine Entwürfe.')}</p>
 			<div class="row actions">
 				<input id="f-q" placeholder="${t('Suche (Nr, Kunde, Position)…')}" />
 				<button class="btn secondary" id="f-order" title="${t('Umschalten aufsteigend/absteigend')}">↓ ${t('absteigend')}</button>
@@ -68,6 +84,9 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	const orderBtn = root.querySelector<HTMLButtonElement>('#f-order')!;
 	const sentEl = root.querySelector<HTMLSelectElement>('#f-sent')!;
 	const companyEl = root.querySelector<HTMLSelectElement>('#f-company')!;
+	const rangeEl = root.querySelector<HTMLSelectElement>('#f-range')!;
+	const fromEl = root.querySelector<HTMLInputElement>('#f-from')!;
+	const toEl = root.querySelector<HTMLInputElement>('#f-to')!;
 	const remindersEl = root.querySelector('#reminders')!;
 	const openTileEl = root.querySelector('#open-tile')!;
 	/** Current sort direction, toggled by the order button. */
@@ -117,6 +136,12 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 		}
 		if (companyEl.value) {
 			params.companyId = companyEl.value;
+		}
+		if (fromEl.value) {
+			params.from = fromEl.value;
+		}
+		if (toEl.value) {
+			params.to = toEl.value;
 		}
 		try {
 			const items = await api.list(params);
@@ -201,6 +226,24 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	statusEl.onchange = () => void load();
 	sortEl.onchange = () => void load();
 	companyEl.onchange = () => void load();
+	// a quick choice fills the two days; typing a day makes the range "own"
+	rangeEl.onchange = () => {
+		if (rangeEl.value === '') {
+			fromEl.value = '';
+			toEl.value = '';
+		} else if (rangeEl.value !== 'custom') {
+			const range = presetRange(rangeEl.value as RangePreset, localToday());
+			fromEl.value = range.from;
+			toEl.value = range.to;
+		}
+		void load();
+	};
+	const ownRange = (): void => {
+		rangeEl.value = fromEl.value || toEl.value ? 'custom' : '';
+		void load();
+	};
+	fromEl.onchange = ownRange;
+	toEl.onchange = ownRange;
 	// R6.3: the filter only appears when there is more than one company to choose from
 	void api.company
 		.list()
@@ -270,6 +313,13 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 		}
 		if (companyEl.value) {
 			params.companyId = companyEl.value;
+		}
+		// the exports take exactly the range the list shows
+		if (fromEl.value) {
+			params.from = fromEl.value;
+		}
+		if (toEl.value) {
+			params.to = toEl.value;
 		}
 		return params;
 	};

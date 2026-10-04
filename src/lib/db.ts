@@ -156,6 +156,14 @@ export interface IssueArtifacts {
 export interface InvoiceFilter {
 	/** Filter by lifecycle status. */
 	status?: InvoiceStatus;
+	/** Leave out documents with this status (the exports use it to leave out drafts). */
+	excludeStatus?: InvoiceStatus;
+	/** First issue date, inclusive, ISO `YYYY-MM-DD`. */
+	from?: string;
+	/** Last issue date, inclusive, ISO `YYYY-MM-DD`. */
+	to?: string;
+	/** No page limit: everything that matches (exports must never be cut). */
+	all?: boolean;
 	/** Filter by document type (invoices, quotations or both). */
 	docType?: DocumentType;
 	/** Only documents created from this quotation (R8, chain Angebot → Rechnung). */
@@ -1178,6 +1186,18 @@ export class InvoiceDatabase {
 			where.push(`company_id = ?`);
 			params.push(filter.companyId);
 		}
+		if (filter.excludeStatus) {
+			where.push(`status <> ?`);
+			params.push(filter.excludeStatus);
+		}
+		if (filter.from) {
+			where.push(`issue_date >= ?`);
+			params.push(filter.from);
+		}
+		if (filter.to) {
+			where.push(`issue_date <= ?`);
+			params.push(filter.to);
+		}
 		if (filter.status) {
 			where.push(`status = ?`);
 			params.push(filter.status);
@@ -1207,7 +1227,11 @@ export class InvoiceDatabase {
 		// NaN-safe: an unparsable ?limit=abc must not reach the driver as NaN.
 		const rawLimit = Number(filter.limit);
 		const rawOffset = Number(filter.offset);
-		const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 500) : 50;
+		const limit = filter.all
+			? -1 // SQLite: a negative LIMIT means no limit
+			: Number.isFinite(rawLimit)
+				? Math.min(Math.max(Math.trunc(rawLimit), 1), 500)
+				: 50;
 		const offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
 		// Every sort column is a fixed whitelist, never client input, so no
 		// injection via ORDER BY is possible.
@@ -1225,7 +1249,7 @@ export class InvoiceDatabase {
 		const direction = filter.order === 'asc' ? 'ASC' : 'DESC';
 		const rows = this.db
 			.prepare(
-				`SELECT * FROM invoices ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY ${column} ${direction}, id DESC LIMIT ? OFFSET ?`,
+				`SELECT * FROM invoices ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY ${column} ${direction}, number ${direction}, id DESC LIMIT ? OFFSET ?`,
 			)
 			.all(...params, limit, offset) as InvoiceRow[];
 		return rows.map(mapRow);

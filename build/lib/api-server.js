@@ -65,7 +65,7 @@ function docTypeFilter(query, fallback) {
   }
   return raw ? (0, import_invoice_model.normalizeDocumentType)(raw) : fallback;
 }
-function filteredInvoices(db, query, fallbackDocType) {
+function filteredInvoices(db, query, fallbackDocType, range = {}, forExport = false) {
   const status = typeof query.status === "string" ? query.status : void 0;
   const year = typeof query.year === "string" ? Number(query.year) : void 0;
   const text = typeof query.q === "string" ? query.q : void 0;
@@ -77,7 +77,14 @@ function filteredInvoices(db, query, fallbackDocType) {
     docType,
     companyId,
     query: text,
-    limit: 500
+    from: range.from,
+    to: range.to,
+    ...forExport ? {
+      all: true,
+      sort: "date",
+      order: "asc",
+      excludeStatus: status === "draft" ? void 0 : "draft"
+    } : { limit: 500 }
   });
 }
 function openItemsOptions(query) {
@@ -410,7 +417,25 @@ function createApiServer(deps) {
       const docType = docTypeFilter(req.query);
       const sourceDocumentId = typeof req.query.sourceDocumentId === "string" ? req.query.sourceDocumentId : void 0;
       const companyId = typeof req.query.companyId === "string" && req.query.companyId ? req.query.companyId : void 0;
-      res.json(db.listInvoices({ status, year, docType, sourceDocumentId, companyId, query, limit, offset }));
+      const range = (0, import_invoice_model.parseDateRange)(req.query.from, req.query.to);
+      if (typeof range === "string") {
+        res.status(400).json({ error: range });
+        return;
+      }
+      res.json(
+        db.listInvoices({
+          status,
+          year,
+          docType,
+          sourceDocumentId,
+          companyId,
+          query,
+          limit,
+          offset,
+          from: range.from,
+          to: range.to
+        })
+      );
     })
   );
   app.post(
@@ -437,26 +462,45 @@ function createApiServer(deps) {
     })
   );
   app.get("/api/invoices/export.csv", (req, res) => {
+    const range = (0, import_invoice_model.parseDateRange)(req.query.from, req.query.to);
+    if (typeof range === "string") {
+      res.status(400).json({ error: range });
+      return;
+    }
     res.type("text/csv; charset=utf-8");
-    res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("rechnungen.csv"));
-    res.send((0, import_csv.renderInvoiceListCsv)(filteredInvoices(db, req.query, "invoice")));
+    res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`rechnungen${(0, import_invoice_model.dateRangeFileSuffix)(range)}.csv`));
+    res.send((0, import_csv.renderInvoiceListCsv)(filteredInvoices(db, req.query, "invoice", range, true)));
   });
   app.get("/api/invoices/export.datev", (req, res) => {
     var _a2, _b2, _c2;
+    const range = (0, import_invoice_model.parseDateRange)(req.query.from, req.query.to);
+    if (typeof range === "string") {
+      res.status(400).json({ error: range });
+      return;
+    }
     const company = (_a2 = db.getDefaultCompanyProfile()) == null ? void 0 : _a2.profile;
     const head = (0, import_csv.renderDatevHead)((_b2 = company == null ? void 0 : company.name) != null ? _b2 : "Firma", (_c2 = company == null ? void 0 : company.taxNumber) != null ? _c2 : "");
     res.type("text/plain; charset=iso-8859-1");
-    res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("rechnungen.datev"));
+    res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`rechnungen${(0, import_invoice_model.dateRangeFileSuffix)(range)}.datev`));
     res.send(`${head}
-${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`);
+${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice", range, true))}`);
   });
   app.get("/api/invoices/export.xlsx", (req, res) => {
-    const invoices = filteredInvoices(db, req.query, "invoice");
+    const range = (0, import_invoice_model.parseDateRange)(req.query.from, req.query.to);
+    if (typeof range === "string") {
+      res.status(400).json({ error: range });
+      return;
+    }
+    const invoices = filteredInvoices(db, req.query, "invoice", range, true);
     const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-    void (0, import_excel.renderInvoiceListWorkbook)(invoices, `Rechnungs\xFCbersicht ${stamp}`).then(
+    const period = (0, import_invoice_model.formatDateRange)(range);
+    void (0, import_excel.renderInvoiceListWorkbook)(invoices, `Rechnungs\xFCbersicht ${stamp}${period ? ` (${period})` : ""}`).then(
       (buffer) => {
         res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`export-${stamp}.xlsx`));
+        res.set(
+          "Content-Disposition",
+          (0, import_attachments.attachmentDisposition)(`export-${stamp}${(0, import_invoice_model.dateRangeFileSuffix)(range)}.xlsx`)
+        );
         res.send(buffer);
       },
       (error) => {
