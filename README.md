@@ -425,7 +425,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.9.1 (2026-10-04)
 
 * (alex) Fix: the file-based migration tests got a 30 s mocha timeout (they timed out on slow CI runners). Code documentation: all JSDoc warnings of the web app and the tests are fixed, `npm run lint` reports nothing. No functional change.
 
