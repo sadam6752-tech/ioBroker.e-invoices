@@ -142,6 +142,13 @@ export async function issueInvoiceWithArtifacts(
 	const issued = db.issueDraft(invoiceId);
 	const quote = isQuote(issued.docType);
 	log.info(`${quote ? 'Quotation' : 'Invoice'} issued: ${issued.number} (${issued.id})`);
+	// N4: the number circle follows the year of the document date, so a date in an earlier year continues the old
+	// circle — the numbers are then not in time order. Allowed, but worth a line in the log.
+	if (issued.issueDate.slice(0, 4) < todayIso().slice(0, 4)) {
+		log.warn?.(
+			`${issued.number} carries the date ${issued.issueDate} of an earlier year: it continues that year's number circle, so the numbers are not in time order`,
+		);
+	}
 
 	// R7.8: the layout is frozen with the document, so a later template edit cannot change
 	// what "the layout it was issued with" means

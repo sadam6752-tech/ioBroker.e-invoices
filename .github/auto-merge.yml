@@ -1,8 +1,25 @@
 # Configure here which dependency updates should be merged automatically.
-# The recommended configuration is the following:
+#
+# Production patches are merged automatically only for the dependencies listed by name below.
+# The libraries that write the invoice (better-sqlite3, pdfkit, pdf-lib, jszip, express and the
+# XML/PDF library @stackforge-eu/factur-x) are left out on purpose: a compromised patch release there
+# would reach the release branch without a review (supply chain), and the tag deploys to npm
+# automatically. Their updates come as pull requests and are merged by hand.
 - match:
-    # Only merge patches for production dependencies
     dependency_type: production
+    dependency_name: "@iobroker/adapter-core"
+    update_type: "semver:patch"
+- match:
+    dependency_type: production
+    dependency_name: express-rate-limit
+    update_type: "semver:patch"
+- match:
+    dependency_type: production
+    dependency_name: helmet
+    update_type: "semver:patch"
+- match:
+    dependency_type: production
+    dependency_name: exceljs
     update_type: "semver:patch"
 - match:
     # Except for security fixes, here we allow minor patches

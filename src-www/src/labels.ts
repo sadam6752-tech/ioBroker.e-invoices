@@ -8,6 +8,7 @@
  * server's decision.
  */
 import { t } from './i18n';
+import { localToday } from './range';
 
 /** Document types the adapter stores. */
 export type DocType = 'invoice' | 'quote';
@@ -245,4 +246,23 @@ export function statusLabel(status: string): string {
 		default:
 			return status;
 	}
+}
+
+/**
+ * The question before a document is issued; with a date in an earlier year it carries the warning about the
+ * number circle (N4: the number follows the year of the date, so the numbers are not in time order).
+ *
+ * @param docType - Document type.
+ * @param issueDate - ISO issue date of the document.
+ * @param today - ISO date of today.
+ */
+export function issueQuestion(docType: string | undefined, issueDate: string, today: string = localToday()): string {
+	const base = labels(docType).issueConfirm;
+	if (issueDate.slice(0, 4) >= today.slice(0, 4)) {
+		return base;
+	}
+	return `${base}\n\n${t(
+		'Achtung: Das Datum {date} liegt in einem früheren Jahr. Die Nummer folgt dem Jahr des Datums und setzt die Nummernreihe dieses Jahres fort — die Nummern sind dann zeitlich nicht aufsteigend. Trotzdem ausstellen?',
+		{ date: issueDate },
+	)}`;
 }

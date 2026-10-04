@@ -93,6 +93,8 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 	let order: 'asc' | 'desc' = 'desc';
 	/** Draft ids currently visible, for the batch issue. */
 	let visibleDrafts: string[] = [];
+	// drafts dated in an earlier year: they continue that year's number circle (N4)
+	let backdatedDrafts = 0;
 	const listEl = root.querySelector('#list')!;
 	const errEl = root.querySelector('#list-err')!;
 	/** Monotonic request counter to discard stale responses. */
@@ -149,6 +151,9 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 				return;
 			}
 			visibleDrafts = items.filter(i => i.status === 'draft').map(i => i.id);
+			backdatedDrafts = items.filter(
+				i => i.status === 'draft' && i.issueDate.slice(0, 4) < localToday().slice(0, 4),
+			).length;
 			const issueAll = root.querySelector<HTMLButtonElement>('#f-issue-all')!;
 			issueAll.hidden = visibleDrafts.length === 0;
 			issueAll.textContent = `${t('Ausstellen')} (${visibleDrafts.length})`;
@@ -280,7 +285,12 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 					{
 						n: visibleDrafts.length,
 					},
-				),
+				) +
+					(backdatedDrafts > 0
+						? `
+
+${t('Achtung: {n} davon tragen ein Datum aus einem früheren Jahr; sie setzen die Nummernreihe dieses Jahres fort, die Nummern sind dann zeitlich nicht aufsteigend.', { n: backdatedDrafts })}`
+						: ''),
 			)
 		) {
 			return;

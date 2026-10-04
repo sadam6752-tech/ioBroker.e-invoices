@@ -1,6 +1,6 @@
 import { api, downloadUrl, esc, eur, openUrl } from '../api';
 import { t } from '../i18n';
-import { isQuote, labels, quoteState, quoteStateLabel, statusLabel } from '../labels';
+import { isQuote, issueQuestion, labels, quoteState, quoteStateLabel, statusLabel } from '../labels';
 import { mountAttachments } from './attachments';
 
 /**
@@ -468,7 +468,7 @@ ${!quote ? `<button class="secondary" id="d-as-tpl" title="${t('Legt eine Rechnu
 			}
 		});
 		root.querySelector('#d-issue')?.addEventListener('click', async () => {
-			if (!window.confirm(lbl.issueConfirm)) {
+			if (!window.confirm(issueQuestion(inv.docType, inv.issueDate))) {
 				return;
 			}
 			try {

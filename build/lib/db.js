@@ -693,7 +693,7 @@ class InvoiceDatabase {
       ).run(
         number,
         JSON.stringify((0, import_invoice_model.calcTotals)(current.lines)),
-        // § 147 AO / § 14b UStG: ten years, computed once at issuance.
+        // § 147 AO / § 14b UStG: eight years for invoices since 2025; ten are kept to be on the safe side, computed once at issuance.
         // A quotation is no booking record, so it carries no
         // retention date at all (R8).
         (0, import_invoice_model.isQuote)(docType) ? null : retentionUntil(current.issueDate),

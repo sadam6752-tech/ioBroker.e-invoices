@@ -351,9 +351,12 @@ duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML
 
 - An **issued invoice is immutable**. A mistake is corrected with a **Storno** (credit note) and a
   new invoice — never by editing. The number circle stays gap-free per year and employee code.
-- Every issued invoice records its **earliest deletion date** (`retain_until`, ten years from the
-  end of the issue year: § 147 AO, § 14b UStG). Only drafts can be deleted, never an issued
-  invoice.
+- Every issued invoice records its **earliest deletion date** (`retain_until`): the end of the **tenth** year after
+  the issue year. That is a deliberately cautious choice, not the statutory minimum: for invoices the retention
+  period is **eight years** since 2025 (§ 147 AO and § 14b UStG as amended by the Fourth Bureaucracy Relief Act,
+  BEG IV), while other records (for example business letters or the annual accounts) can need more. Ask your tax
+  advisor which period applies to you — the adapter never deletes anything of its own accord. Only drafts can be
+  deleted, never an issued invoice.
 - **Issuing is checked before the number is taken.** The documents are made once with a placeholder number first; a
   defect of the layout, the attachments or the XML stops there, with the draft untouched and no number used. Should a
   document still end up numbered **without its files** (the disk was full or not writable), the dashboard shows it
@@ -391,7 +394,13 @@ duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML
   logged as a warning on startup — use a token in that case.
 - **Rate limits:** 600 requests per minute and client on `/api`, but only 10 on
   `/api/restore*`, which replaces the whole database. Exceeding a budget answers
-  `429 Too many requests` and logs method plus path (never the token).
+  `429 Too many requests` and logs method plus path (never the token). **Failed
+  sign-ins have a budget of their own:** twenty wrong tokens per minute and client (asking without any token does not count),
+  then `429` — even for the right token until the minute is over — so guessing the token
+  is slow and a stranger cannot use up your general budget by asking without a token.
+- **What the open health route says:** `/api/health` (no token) names only status, version,
+  schema version and the web app language. The number of documents per status sits behind
+  the token (`/api/status`).
 - **Browser hardening:** API and PWA answer with a self-only Content Security
   Policy (`default-src 'self'`, `frame-ancestors 'none'`), `X-Content-Type-Options:
   nosniff`, `Referrer-Policy: no-referrer` and without `X-Powered-By`.
@@ -492,6 +501,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) Hardening: wrong tokens are throttled separately (twenty per minute and client; asking without a token is not counted); the open health route no longer reports document counts (they moved to the authenticated `/api/status`). Issuing a document dated in an earlier year asks first, because the number follows the year of the date and the numbers are then not in time order (the log says so as well). The retention note now names the statutory minimum for invoices (eight years since 2025) next to the ten years the adapter keeps to be on the safe side. Dependabot no longer merges patches of the libraries that write the invoice (better-sqlite3, pdfkit, pdf-lib, jszip, express, factur-x) by itself.
 * (alex) Backup: a backup that the restore would refuse (ZIP, `dump.json`, unpacked size or number of files above the restore limits) is no longer created without notice — it is refused with a message that names the limit. Attachments count as base64 in `dump.json`.
 * (alex) New **System** page: status, backup and restore, company data, print templates and appearance on one page, so the header bar loses the tabs "Backup", "Firma", "Druckvorlagen" and "Status" (twelve entries became eight; the old addresses still work).
 * (alex) Issuing is checked before the number is taken: the documents are made once with a placeholder number first, so a defect stops there with the draft untouched. A document that is still left without its files shows up on the dashboard and *Rebuild files* makes only the missing ones from the stored data (the XML from the record, the PDF with the layout frozen at issue, the Excel copy); existing files are never touched.

@@ -43,20 +43,20 @@ interface Counts {
 }
 
 /**
- * Reads the health endpoint and returns its counters.
+ * Reads the status route (behind the token) and returns its counters.
  *
  * @param request - Playwright API client bound to the test server
  */
 async function counts(request: APIRequestContext): Promise<Counts> {
-	const health = await request.get('/api/health');
-	expect(health.status()).toBe(200);
-	return ((await health.json()) as { counts: Counts }).counts;
+	const status = await request.get('/api/status', { headers: { authorization: `Bearer ${token}` } });
+	expect(status.status()).toBe(200);
+	return ((await status.json()) as { counts: Counts }).counts;
 }
 
 /**
  * Sums up all invoices the instance holds.
  *
- * @param value - counters as `/api/health` reports them
+ * @param value - counters as `/api/status` reports them
  */
 function total(value: Counts): number {
 	return value.draft + value.issued + value.cancelled;

@@ -76,10 +76,12 @@ describe('api => invoices', function () {
 		db.close();
 	});
 
-	it('health reports ok with counts', async () => {
+	it('health reports ok and keeps the document counts to the token (N2)', async () => {
 		const res = await request(app).get('/api/health').expect(200);
 		expect(res.body.status).to.equal('ok');
-		expect(res.body.counts.draft).to.equal(0);
+		expect(res.body).to.not.have.property('counts');
+		const status = await request(app).get('/api/status').expect(200);
+		expect(status.body.counts.draft).to.equal(0);
 	});
 
 	it('sends a same-origin CSP that keeps plain-HTTP LAN access working', async () => {
@@ -800,6 +802,42 @@ describe('api => auth', () => {
 		await request(closedApp).get('/api/invoices').expect(401);
 		await request(closedApp).post('/api/invoices').send({}).expect(401);
 		await request(closedApp).get('/api/invoices').set('Authorization', 'Bearer wrong').expect(401);
+		await request(closedApp).get('/api/invoices').set('Authorization', 'Bearer s3cret').expect(200);
+	});
+
+	it('throttles wrong tokens much harder than normal use, and never the plain "not signed in" (N1)', async () => {
+		const quiet = { info: (): void => undefined, error: (): void => undefined };
+		const stubStorage = {
+			write: (): Promise<void> => Promise.resolve(),
+			read: (): Promise<Buffer> => Promise.reject(new Error('empty')),
+		};
+		const guarded = createApiServer({
+			db,
+			storage: stubStorage,
+			log: quiet,
+			version: 'x',
+			authToken: 's3cret',
+			limits: { authFail: 3 },
+		});
+		// the right token works as often as needed
+		for (let i = 0; i < 6; i++) {
+			await request(guarded).get('/api/invoices').set('Authorization', 'Bearer s3cret').expect(200);
+		}
+		// asking without any token is just "not signed in": it never counts, however often it happens
+		for (let i = 0; i < 6; i++) {
+			await request(guarded).get('/api/invoices').expect(401);
+		}
+		// three wrong tokens use up the small budget …
+		await request(guarded).get('/api/invoices').set('Authorization', 'Bearer eins').expect(401);
+		await request(guarded).get('/api/invoices').set('Authorization', 'Bearer zwei').expect(401);
+		await request(guarded).get('/api/invoices').set('Authorization', 'Bearer drei').expect(401);
+		// … the next guess is refused before the token is looked at, the right one included
+		await request(guarded).get('/api/invoices').set('Authorization', 'Bearer vier').expect(429);
+		await request(guarded).get('/api/invoices').set('Authorization', 'Bearer s3cret').expect(429);
+		// but a client that sends nothing is still told it is not signed in, so the login page stays reachable
+		await request(guarded).get('/api/invoices').expect(401);
+		// the open health route and the other test app are not affected
+		await request(guarded).get('/api/health').expect(200);
 		await request(closedApp).get('/api/invoices').set('Authorization', 'Bearer s3cret').expect(200);
 	});
 
@@ -1649,7 +1687,7 @@ describe('api => attachments (R4)', function () {
 				.expect(201)
 		).body.id as string;
 		const countersBefore = db.exportData().counters;
-		const countsBefore = (await request(app).get('/api/health').expect(200)).body.counts;
+		const countsBefore = (await request(app).get('/api/status').expect(200)).body.counts;
 
 		const ok = await request(app).post(`/api/invoices/${complete}/validate`).expect(200);
 		expect(ok.body.formatErrors).to.deep.equal([]);
@@ -1670,7 +1708,7 @@ describe('api => attachments (R4)', function () {
 		}
 		// no number was used up and nothing changed state
 		expect(db.exportData().counters).to.deep.equal(countersBefore);
-		expect((await request(app).get('/api/health').expect(200)).body.counts).to.deep.equal(countsBefore);
+		expect((await request(app).get('/api/status').expect(200)).body.counts).to.deep.equal(countsBefore);
 		// every run is a report of its own
 		const again = await request(app).post(`/api/invoices/${complete}/validate`).expect(200);
 		expect(again.body.report.seq).to.equal(ok.body.report.seq + 1);

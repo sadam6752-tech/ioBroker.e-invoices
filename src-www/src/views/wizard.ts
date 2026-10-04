@@ -14,6 +14,7 @@ import { t } from '../i18n';
 import {
 	defaultTitle,
 	isQuote,
+	issueQuestion,
 	labels,
 	normalizeDocType,
 	QUOTE_VALIDITY_DAYS,
@@ -1014,7 +1015,7 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 		);
 		root.querySelector('#w-save')?.addEventListener('click', () => void save(false));
 		root.querySelector('#w-issue')?.addEventListener('click', () => {
-			if (!window.confirm(labels(s.docType).issueConfirm)) {
+			if (!window.confirm(issueQuestion(s.docType, s.issueDate))) {
 				return;
 			}
 			void save(true);

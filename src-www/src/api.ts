@@ -392,6 +392,12 @@ export interface RevenueReport {
 	total: { count: number; net: number; tax: number; gross: number };
 }
 
+/** Answer of the status route (needs the token). */
+export interface StatusCounts {
+	/** Documents per status. */
+	counts: Record<string, number>;
+}
+
 /** The answer of the repair of a document without files (M1). */
 export interface RepairResult {
 	/** The document after the repair. */
@@ -655,6 +661,8 @@ function exportQuery(params: Record<string, string>): string {
 }
 
 export const api = {
+	/** Document counts per status (needs the token). */
+	statusCounts: () => request<StatusCounts>('/api/status'),
 	health: () =>
 		request<{
 			/** Life cycle status. */
@@ -663,8 +671,6 @@ export const api = {
 			version: string;
 			/** Database schema version. */
 			schemaVersion: number;
-			/** Counts per status. */
-			counts: Record<string, number>;
 			/** Start language chosen in the admin (`auto`, `de`, `en`); public so the login page can use it. */
 			pwaLanguage?: string;
 		}>('/api/health'),

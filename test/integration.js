@@ -238,7 +238,7 @@ tests.integration(path.join(__dirname, '..'), {
 				if (!backupFile) {
 					throw new Error('info.lastBackup stayed empty after control.backup');
 				}
-				const issuedBefore = (await (await api('/api/health')).json()).counts.issued;
+				const issuedBefore = (await (await api('/api/status')).json()).counts.issued;
 
 				// a second invoice after the backup: the restore will take it away again
 				const draft = await (await postJson('/api/invoices', DRAFT)).json();
@@ -256,11 +256,11 @@ tests.integration(path.join(__dirname, '..'), {
 				if (harness.hasLog(/has to be type/)) {
 					throw new Error('writing a text state ran a command and failed to acknowledge it');
 				}
-				if ((await (await api('/api/health')).json()).counts.issued !== issuedBefore + 1) {
+				if ((await (await api('/api/status')).json()).counts.issued !== issuedBefore + 1) {
 					throw new Error('setting control.restoreId alone changed the data');
 				}
 				await press('control.restore');
-				if ((await (await api('/api/health')).json()).counts.issued !== issuedBefore) {
+				if ((await (await api('/api/status')).json()).counts.issued !== issuedBefore) {
 					throw new Error('the restore did not bring the issued count back');
 				}
 				await waitFor(
@@ -282,7 +282,7 @@ tests.integration(path.join(__dirname, '..'), {
 
 			it('refreshes the info states after a change through the API (PWA)', async function () {
 				this.timeout(60000);
-				const issuedBefore = (await (await api('/api/health')).json()).counts.issued;
+				const issuedBefore = (await (await api('/api/status')).json()).counts.issued;
 				const draft = await (await postJson('/api/invoices', DRAFT)).json();
 				const issued = await (await postJson(`/api/invoices/${draft.id}/issue`, {})).json();
 				// no button was pressed: the states follow on their own
@@ -342,7 +342,7 @@ tests.integration(path.join(__dirname, '..'), {
 
 			it('stops cleanly, frees the port and starts again with the same data', async function () {
 				this.timeout(120000);
-				const before = await (await api('/api/health')).json();
+				const before = await (await api('/api/status')).json();
 				await harness.stopAdapter();
 				await waitFor(async () => harness.didAdapterStop(), 'the adapter to stop', 30000);
 				// no error on the way down and the socket is released at once (no timer or server left behind)
@@ -373,7 +373,7 @@ tests.integration(path.join(__dirname, '..'), {
 					async () => (await read('info.connection')) === true,
 					'info.connection after the restart',
 				);
-				const after = await (await api('/api/health')).json();
+				const after = await (await api('/api/status')).json();
 				if (JSON.stringify(after.counts) !== JSON.stringify(before.counts)) {
 					throw new Error(
 						`the data changed over a restart: ${JSON.stringify(before.counts)} -> ${JSON.stringify(after.counts)}`,

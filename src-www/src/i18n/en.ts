@@ -33,7 +33,11 @@ export const en: Record<string, string> = {
 		'Distance of the top edge of the logo from the top edge of the sheet. Empty = 12.7 mm (the previous position).',
 	'Abstand des Textes (Absenderzeile, Empfänger, Rechnungsdaten) vom oberen Blattrand. Leer = direkt unter dem Logo.':
 		'Distance of the text (sender line, recipient, invoice data) from the top edge of the sheet. Empty = directly below the logo.',
+	'Achtung: Das Datum {date} liegt in einem früheren Jahr. Die Nummer folgt dem Jahr des Datums und setzt die Nummernreihe dieses Jahres fort — die Nummern sind dann zeitlich nicht aufsteigend. Trotzdem ausstellen?':
+		"Attention: the date {date} is in an earlier year. The number follows the year of the date and continues that year's number series — the numbers are then not in time order. Issue anyway?",
 	'Achtung: Wiederherstellen ersetzt die gesamte Datenbank.': 'Caution: restoring replaces the whole database.',
+	'Achtung: {n} davon tragen ein Datum aus einem früheren Jahr; sie setzen die Nummernreihe dieses Jahres fort, die Nummern sind dann zeitlich nicht aufsteigend.':
+		"Attention: {n} of them carry a date from an earlier year; they continue that year's number series, so the numbers are not in time order.",
 	'Adress-Tagline': 'Address tagline',
 	Aktion: 'Action',
 	Aktuell: 'Current',

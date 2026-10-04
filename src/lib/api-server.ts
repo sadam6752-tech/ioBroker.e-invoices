@@ -187,7 +187,7 @@ export interface ApiServerDeps {
 	 * Requests per minute and client (R3). Defaults are production values,
 	 * tests inject small numbers to reach the limit quickly.
 	 */
-	limits?: { api?: number; restore?: number };
+	limits?: { api?: number; restore?: number; authFail?: number };
 	/** Invoicing defaults from the instance config (read by the PWA). */
 	settings?: {
 		defaultVatRate: number;
@@ -496,6 +496,9 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	const limits = {
 		api: Math.max(1, Math.round(deps.limits?.api ?? 600)),
 		restore: Math.max(1, Math.round(deps.limits?.restore ?? 10)),
+		// N1: wrong tokens per minute and client — far below the general budget, so guessing the token is slow;
+		// twenty leaves room for the few requests a web app with a stale token fires at once
+		authFail: Math.max(1, Math.round(deps.limits?.authFail ?? 20)),
 	};
 	const app = express();
 	app.disable('x-powered-by');
@@ -586,15 +589,44 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		});
 	}
 
+	// failed token attempts per client (N1)
+	const authFailures = new Map<string, number[]>();
 	if (authToken) {
 		app.use('/api', (req, res, next) => {
 			if (req.path === '/health') {
 				next();
 				return;
 			}
-			if (req.headers.authorization && secretEquals(req.headers.authorization, `Bearer ${authToken}`)) {
+			// Only a token that is sent and wrong counts as a guess. A client that sends no token at all (the web
+			// app before the sign-in) is merely not signed in: it gets 401 and costs nothing, otherwise a user could
+			// lock themselves out of the login page just by opening it.
+			const sent = typeof req.headers.authorization === 'string' && req.headers.authorization !== '';
+			const now = Date.now();
+			const client = req.ip ?? 'unknown';
+			const recent = (authFailures.get(client) ?? []).filter(at => now - at < 60_000);
+			if (sent && recent.length >= limits.authFail) {
+				// over budget: no token is looked at any more, the right one included — otherwise the guessing would
+				// go on at full speed and only be told apart by the answer
+				authFailures.set(client, recent);
+				log.warn?.(`Too many failed sign-ins: ${req.method} ${req.path}`);
+				res.status(429).json({ error: 'Too many failed attempts' });
+				return;
+			}
+			if (sent && secretEquals(req.headers.authorization as string, `Bearer ${authToken}`)) {
 				next();
 				return;
+			}
+			if (sent) {
+				recent.push(now);
+				authFailures.set(client, recent);
+				// forget clients that stopped, so the map cannot grow without end
+				if (authFailures.size > 1000) {
+					for (const [key, stamps] of authFailures) {
+						if (stamps.every(at => now - at >= 60_000)) {
+							authFailures.delete(key);
+						}
+					}
+				}
 			}
 			res.status(401).json({ error: 'Unauthorized' });
 		});
@@ -620,9 +652,13 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			status: 'ok',
 			version,
 			schemaVersion: db.currentVersion(),
-			counts: db.countByStatus(),
 			pwaLanguage: settings.pwaLanguage,
 		});
+	});
+
+	// N2: the numbers of documents are no business of an anonymous visitor — they sit behind the token
+	app.get('/api/status', (_req, res) => {
+		res.json({ counts: db.countByStatus() });
 	});
 
 	// Defaults from the instance config so the wizard can prefill sensibly

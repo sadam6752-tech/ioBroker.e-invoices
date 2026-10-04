@@ -69,6 +69,7 @@ function buildRenderContext(db, invoice, attachments) {
   };
 }
 async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
+  var _a;
   const current = db.getInvoice(invoiceId);
   if (!current) {
     throw new Error(`Invoice not found: ${invoiceId}`);
@@ -92,6 +93,12 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
   const issued = db.issueDraft(invoiceId);
   const quote = (0, import_invoice_model.isQuote)(issued.docType);
   log.info(`${quote ? "Quotation" : "Invoice"} issued: ${issued.number} (${issued.id})`);
+  if (issued.issueDate.slice(0, 4) < (0, import_invoice_model.todayIso)().slice(0, 4)) {
+    (_a = log.warn) == null ? void 0 : _a.call(
+      log,
+      `${issued.number} carries the date ${issued.issueDate} of an earlier year: it continues that year's number circle, so the numbers are not in time order`
+    );
+  }
   const templateSnapshot = await freezeTemplate(storage, log, loaded);
   const attachments = db.listAttachments(invoiceId);
   const { xml, hybrid, xlsx, attachmentDocuments } = await buildArtifacts(db, issued, template, logo, attachments);

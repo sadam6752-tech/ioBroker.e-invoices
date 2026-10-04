@@ -271,7 +271,7 @@ function secretEquals(provided, expected) {
   return (0, import_node_crypto.timingSafeEqual)(a, b);
 }
 function createApiServer(deps) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
   const { db, storage, log, version, authToken } = deps;
   const settings = {
     defaultVatRate: import_invoice_model.ALLOWED_VAT_RATES.includes(Number((_a = deps.settings) == null ? void 0 : _a.defaultVatRate)) ? Number((_b = deps.settings) == null ? void 0 : _b.defaultVatRate) : 19,
@@ -288,7 +288,10 @@ function createApiServer(deps) {
   };
   const limits = {
     api: Math.max(1, Math.round((_r = (_q = deps.limits) == null ? void 0 : _q.api) != null ? _r : 600)),
-    restore: Math.max(1, Math.round((_t = (_s = deps.limits) == null ? void 0 : _s.restore) != null ? _t : 10))
+    restore: Math.max(1, Math.round((_t = (_s = deps.limits) == null ? void 0 : _s.restore) != null ? _t : 10)),
+    // N1: wrong tokens per minute and client — far below the general budget, so guessing the token is slow;
+    // twenty leaves room for the few requests a web app with a stale token fires at once
+    authFail: Math.max(1, Math.round((_v = (_u = deps.limits) == null ? void 0 : _u.authFail) != null ? _v : 20))
   };
   const app = (0, import_express.default)();
   app.disable("x-powered-by");
@@ -371,15 +374,38 @@ function createApiServer(deps) {
       next();
     });
   }
+  const authFailures = /* @__PURE__ */ new Map();
   if (authToken) {
     app.use("/api", (req, res, next) => {
+      var _a2, _b2, _c2;
       if (req.path === "/health") {
         next();
         return;
       }
-      if (req.headers.authorization && secretEquals(req.headers.authorization, `Bearer ${authToken}`)) {
+      const sent = typeof req.headers.authorization === "string" && req.headers.authorization !== "";
+      const now = Date.now();
+      const client = (_a2 = req.ip) != null ? _a2 : "unknown";
+      const recent = ((_b2 = authFailures.get(client)) != null ? _b2 : []).filter((at) => now - at < 6e4);
+      if (sent && recent.length >= limits.authFail) {
+        authFailures.set(client, recent);
+        (_c2 = log.warn) == null ? void 0 : _c2.call(log, `Too many failed sign-ins: ${req.method} ${req.path}`);
+        res.status(429).json({ error: "Too many failed attempts" });
+        return;
+      }
+      if (sent && secretEquals(req.headers.authorization, `Bearer ${authToken}`)) {
         next();
         return;
+      }
+      if (sent) {
+        recent.push(now);
+        authFailures.set(client, recent);
+        if (authFailures.size > 1e3) {
+          for (const [key, stamps] of authFailures) {
+            if (stamps.every((at) => now - at >= 6e4)) {
+              authFailures.delete(key);
+            }
+          }
+        }
       }
       res.status(401).json({ error: "Unauthorized" });
     });
@@ -399,9 +425,11 @@ function createApiServer(deps) {
       status: "ok",
       version,
       schemaVersion: db.currentVersion(),
-      counts: db.countByStatus(),
       pwaLanguage: settings.pwaLanguage
     });
+  });
+  app.get("/api/status", (_req, res) => {
+    res.json({ counts: db.countByStatus() });
   });
   app.get("/api/settings", (_req, res) => {
     res.json(settings);

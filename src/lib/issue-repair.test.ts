@@ -188,3 +188,32 @@ describe('issue => completing a document without files (M1)', function () {
 		}
 	});
 });
+
+describe('issue => date of an earlier year (N4)', function () {
+	this.timeout(60000);
+
+	it('warns in the log when the date is in an earlier year and stays quiet otherwise', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			const warnings: string[] = [];
+			const loud = {
+				info: (): void => undefined,
+				error: (): void => undefined,
+				warn: (m: string): number => warnings.push(m),
+			};
+			const old = db.createDraft({ ...draft, issueDate: '2020-05-05', deliveryDate: '2020-05-05' });
+			const issued = await issueInvoiceWithArtifacts(db, loud, old.id, store(new Map()));
+			expect(issued.invoice.number).to.match(/^2020-/);
+			expect(warnings).to.have.length(1);
+			expect(warnings[0]).to.contain('earlier year').and.to.contain(issued.invoice.number!);
+
+			const today = new Date().toISOString().slice(0, 10);
+			const current = db.createDraft({ ...draft, issueDate: today, deliveryDate: today });
+			await issueInvoiceWithArtifacts(db, loud, current.id, store(new Map()));
+			expect(warnings).to.have.length(1);
+		} finally {
+			db.close();
+		}
+	});
+});

@@ -118,7 +118,7 @@ export interface StoredInvoice {
 	remindedAt: string | null;
 	/** How many reminders were already sent. */
 	reminderLevel: number;
-	/** Earliest legal deletion date (§ 147 AO / § 14b UStG). */
+	/** Earliest deletion date: ten years after the issue year (cautious; the statutory minimum for invoices is eight, § 147 AO / § 14b UStG). */
 	retainUntil: string | null;
 	/** Quotation only: last day the offer stands (R8). */
 	validUntil: string | null;
@@ -1399,7 +1399,7 @@ export class InvoiceDatabase {
 				.run(
 					number,
 					JSON.stringify(calcTotals(current.lines)),
-					// § 147 AO / § 14b UStG: ten years, computed once at issuance.
+					// § 147 AO / § 14b UStG: eight years for invoices since 2025; ten are kept to be on the safe side, computed once at issuance.
 					// A quotation is no booking record, so it carries no
 					// retention date at all (R8).
 					isQuote(docType) ? null : retentionUntil(current.issueDate),
