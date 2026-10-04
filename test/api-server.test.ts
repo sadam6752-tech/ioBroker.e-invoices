@@ -245,6 +245,65 @@ describe('api => invoices', function () {
 		await request(app).get('/api/reports/revenue-by-company?year=abc').expect(400);
 	});
 
+	it('proposes the next dunning step with the text filled in and never sends or marks by itself (R6.4)', async () => {
+		const created = await request(app)
+			.post('/api/invoices')
+			.send({ ...draftBody, issueDate: '2020-01-01', deliveryDate: '2020-01-01', dueDate: '2020-01-15' })
+			.expect(201);
+		await request(app).post(`/api/invoices/${created.body.id}/issue`).expect(200);
+
+		const list = (await request(app).get('/api/dunning/suggestions').expect(200)).body as {
+			invoiceId: string;
+			level: number;
+			subject: string;
+			text: string;
+		}[];
+		const mine = list.find(item => item.invoiceId === created.body.id)!;
+		expect(mine.level).to.equal(1);
+		expect(mine.subject).to.contain('Zahlungserinnerung');
+		expect(mine.text).to.not.match(/\{\w+\}/);
+		// looking changes nothing
+		expect((await request(app).get(`/api/invoices/${created.body.id}`).expect(200)).body.reminderLevel).to.equal(0);
+
+		const pdf = await request(app)
+			.get('/api/dunning/suggestions.pdf')
+			.buffer(true)
+			.parse((res, callback) => {
+				const chunks: Buffer[] = [];
+				res.on('data', (chunk: Buffer) => chunks.push(chunk));
+				res.on('end', () => callback(null, Buffer.concat(chunks)));
+			})
+			.expect(200);
+		expect(String(pdf.headers['content-type'])).to.contain('application/pdf');
+		expect((pdf.body as Buffer).subarray(0, 4).toString()).to.equal('%PDF');
+		const csv = await request(app).get('/api/dunning/suggestions.csv').buffer(true).expect(200);
+		expect(csv.text).to.contain(mine.subject.split(' ').pop());
+
+		// marking is the user's act; the same day nothing is proposed again
+		await request(app).post(`/api/invoices/${created.body.id}/reminded`).expect(200);
+		const after = (await request(app).get('/api/dunning/suggestions').expect(200)).body as { invoiceId: string }[];
+		expect(after.some(item => item.invoiceId === created.body.id)).to.equal(false);
+	});
+
+	it('edits, validates and resets the dunning texts (R6.4)', async () => {
+		const texts = (await request(app).get('/api/dunning/texts').expect(200)).body as {
+			level: number;
+			isDefault: boolean;
+		}[];
+		expect(texts.map(entry => entry.level)).to.deep.equal([1, 2, 3]);
+		const saved = await request(app)
+			.put('/api/dunning/texts/2')
+			.send({ subject: 'Mahnung {number}', deadlineDays: 10 })
+			.expect(200);
+		expect(saved.body[1]).to.include({ subject: 'Mahnung {number}', deadlineDays: 10, isDefault: false });
+		await request(app).put('/api/dunning/texts/2').send({ days: 3 }).expect(400);
+		await request(app).put('/api/dunning/texts/9').send({ subject: 'x' }).expect(400);
+		await request(app).put('/api/dunning/texts/2').send({ body: '' }).expect(400);
+		const reset = await request(app).delete('/api/dunning/texts/2').expect(200);
+		expect(reset.body[1].isDefault).to.equal(true);
+		await request(app).delete('/api/dunning/texts/0').expect(400);
+	});
+
 	it('refuses to re-render a draft', async () => {
 		const created = await request(app).post('/api/invoices').send(draftBody).expect(201);
 		await request(app).post(`/api/invoices/${created.body.id}/rerender`).expect(400);

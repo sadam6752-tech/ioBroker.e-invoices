@@ -257,6 +257,50 @@ export interface RevenueReport {
 	total: { count: number; net: number; tax: number; gross: number };
 }
 
+/** One level of the dunning process (R6.4). */
+export interface DunningText {
+	/** 1 = reminder, 2 = first, 3 = second dunning letter. */
+	level: number;
+	/** Subject line with placeholders. */
+	subject: string;
+	/** Body with placeholders. */
+	body: string;
+	/** Overdue days from which the level is suggested. */
+	days: number;
+	/** Payment deadline in days. */
+	deadlineDays: number;
+	/** True for the built-in text. */
+	isDefault: boolean;
+}
+
+/** The next dunning step of one invoice, text filled in (R6.4). */
+export interface DunningSuggestion {
+	/** Invoice UUID. */
+	invoiceId: string;
+	/** Invoice number. */
+	number: string;
+	/** Customer name. */
+	customer: string;
+	/** Customer e-mail, empty when unknown. */
+	email: string;
+	/** Level of this step. */
+	level: number;
+	/** Days past the due date. */
+	overdueDays: number;
+	/** Open gross amount in EUR. */
+	amount: number;
+	/** ISO due date. */
+	dueDate: string;
+	/** ISO payment deadline of the letter. */
+	deadline: string;
+	/** Skonto still possible. */
+	skontoActive: boolean;
+	/** Subject, ready to send. */
+	subject: string;
+	/** Letter text, ready to send. */
+	text: string;
+}
+
 /** One issued invoice that is overdue and due for a dunning reminder. */
 export interface ReminderCandidate {
 	/** The invoice itself. */
@@ -534,6 +578,15 @@ export const api = {
 	revenue: (year?: number) => request<RevenueReport>(`/api/reports/revenue-by-company${year ? `?year=${year}` : ''}`),
 	revenueCsvUrl: (year?: number) => `/api/reports/revenue-by-company.csv${year ? `?year=${year}` : ''}`,
 	revenueXlsxUrl: (year?: number) => `/api/reports/revenue-by-company.xlsx${year ? `?year=${year}` : ''}`,
+	dunning: {
+		texts: () => request<DunningText[]>('/api/dunning/texts'),
+		saveText: (level: number, patch: Partial<Pick<DunningText, 'subject' | 'body' | 'days' | 'deadlineDays'>>) =>
+			request<DunningText[]>(`/api/dunning/texts/${level}`, { method: 'PUT', body: JSON.stringify(patch) }),
+		resetText: (level: number) => request<DunningText[]>(`/api/dunning/texts/${level}`, { method: 'DELETE' }),
+		suggestions: () => request<DunningSuggestion[]>('/api/dunning/suggestions'),
+		csvUrl: () => '/api/dunning/suggestions.csv',
+		pdfUrl: () => '/api/dunning/suggestions.pdf',
+	},
 	reminders: () => request<ReminderCandidate[]>('/api/reminders'),
 	reminded: (id: string) => request<Invoice>(`/api/invoices/${id}/reminded`, { method: 'POST' }),
 	invoiceTemplates: {

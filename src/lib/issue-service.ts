@@ -260,9 +260,6 @@ export interface ReminderCandidate {
 	skontoActive: boolean;
 }
 
-/** Day from which an unpaid invoice is chased. */
-const REMINDER_GRACE_DAYS = 5;
-
 /**
  * Collects issued, unpaid invoices that are overdue and not yet chased today.
  *
@@ -275,6 +272,8 @@ const REMINDER_GRACE_DAYS = 5;
  */
 export function collectReminderCandidates(db: InvoiceDatabase, today: string = todayIso()): ReminderCandidate[] {
 	const out: ReminderCandidate[] = [];
+	// R6.4: the first dunning level says from which day an unpaid invoice is chased
+	const graceDays = db.listDunningTexts()[0].days;
 	for (const invoice of db.allInvoices()) {
 		if (invoice.status !== 'issued' || invoice.paid || !invoice.dueDate) {
 			continue;
@@ -283,12 +282,16 @@ export function collectReminderCandidates(db: InvoiceDatabase, today: string = t
 		if (isQuote(invoice.docType)) {
 			continue;
 		}
+		// A credit note (Storno or titled Gutschrift) is no claim either.
+		if (invoice.stornoOfId != null || invoice.documentTitle === 'Gutschrift') {
+			continue;
+		}
 		// A Storno reverses an original, chasing the original makes no sense.
 		if (db.listInvoices({ status: 'cancelled' }).some(c => c.stornoOfId === invoice.id)) {
 			continue;
 		}
 		const overdueDays = daysBetween(invoice.dueDate, today);
-		if (overdueDays < REMINDER_GRACE_DAYS) {
+		if (overdueDays < graceDays) {
 			continue;
 		}
 		// Never send two reminders on the same day.

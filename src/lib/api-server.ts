@@ -46,10 +46,19 @@ import {
 } from './issue-service';
 import { createBackup, previewRestore, restoreBackup } from './backup';
 import { attachmentDisposition } from './attachments';
-import { renderDatevHead, renderDatevRows, renderInvoiceListCsv, renderOpenItemsCsv, renderRevenueCsv } from './csv';
+import {
+	renderDatevHead,
+	renderDatevRows,
+	renderInvoiceListCsv,
+	renderOpenItemsCsv,
+	renderRevenueCsv,
+	renderDunningCsv,
+} from './csv';
 import { renderInvoiceListWorkbook, renderOpenItemsWorkbook, renderRevenueWorkbook } from './excel';
 import { evaluateOpenItems, type OpenItemsOptions } from './open-items';
 import { evaluateRevenueByCompany, type RevenueReport } from './revenue-report';
+import { buildDunningSuggestions } from './dunning';
+import { renderDunningPdf } from './dunning-pdf';
 import { paymentCheckDuty } from './invoice-model';
 import { renderInvoicePdf } from './pdf';
 import { validateTemplate, type LayoutTemplate } from './templates';
@@ -1202,6 +1211,69 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		'/api/reminders',
 		route((_req, res) => {
 			res.json(collectReminderCandidates(db));
+		}),
+	);
+
+	// R6.4: dunning. The adapter proposes the next level with the text filled in; sending it and
+	// marking the invoice as reminded stay the user's acts. No XML is created on this path.
+	app.get(
+		'/api/dunning/texts',
+		route((_req, res) => {
+			res.json(db.listDunningTexts());
+		}),
+	);
+
+	app.put(
+		'/api/dunning/texts/:level',
+		route((req, res) => {
+			try {
+				res.json(
+					db.saveDunningText(Number(routeParam(req, 'level')), (req.body ?? {}) as Record<string, unknown>),
+				);
+			} catch (error) {
+				res.status(400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	app.delete(
+		'/api/dunning/texts/:level',
+		route((req, res) => {
+			try {
+				res.json(db.resetDunningText(Number(routeParam(req, 'level'))));
+			} catch (error) {
+				res.status(400).json({ error: (error as Error).message });
+			}
+		}),
+	);
+
+	const dunningSuggestions = (): ReturnType<typeof buildDunningSuggestions> => {
+		return buildDunningSuggestions(collectReminderCandidates(db), db.listDunningTexts(), todayIso());
+	};
+
+	app.get(
+		'/api/dunning/suggestions',
+		route((_req, res) => {
+			res.json(dunningSuggestions());
+		}),
+	);
+
+	app.get(
+		'/api/dunning/suggestions.csv',
+		route((_req, res) => {
+			res.type('text/csv; charset=utf-8');
+			res.set('Content-Disposition', attachmentDisposition('mahnvorschlaege.csv'));
+			res.send(renderDunningCsv(dunningSuggestions(), todayIso()));
+		}),
+	);
+
+	app.get(
+		'/api/dunning/suggestions.pdf',
+		route(async (_req, res) => {
+			const buffer = await renderDunningPdf(dunningSuggestions(), todayIso());
+			res.type('application/pdf');
+			res.set('Content-Disposition', attachmentDisposition('mahnungen.pdf'));
+			res.send(buffer);
 		}),
 	);
 

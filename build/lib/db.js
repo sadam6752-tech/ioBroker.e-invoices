@@ -41,6 +41,7 @@ var import_node_path = require("node:path");
 var import_attachments = require("./attachments");
 var import_invoice_model = require("./invoice-model");
 var import_migrations = require("./migrations");
+var import_dunning = require("./dunning");
 var import_templates = require("./templates");
 function nowIso() {
   return (/* @__PURE__ */ new Date()).toISOString();
@@ -1195,6 +1196,7 @@ class InvoiceDatabase {
       companies: this.listCompanyProfiles(),
       customers: this.listCustomers(),
       products: this.listProducts(),
+      dunningTexts: this.storedDunningTexts(),
       attachments: attachments.map((row) => ({
         id: row.id,
         invoiceId: row.invoice_id,
@@ -1225,7 +1227,7 @@ class InvoiceDatabase {
     }
     const has = (key) => Array.isArray(dump[key]);
     const run = this.db.transaction(() => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y;
       this.db.prepare(`DELETE FROM attachments`).run();
       this.db.prepare(`DELETE FROM invoices`).run();
       this.db.prepare(`DELETE FROM counters`).run();
@@ -1239,9 +1241,21 @@ class InvoiceDatabase {
       if (has("products")) {
         this.db.prepare(`DELETE FROM products`).run();
       }
+      if (has("dunningTexts")) {
+        this.db.prepare(`DELETE FROM dunning_texts`).run();
+        for (const row of (_a = dump.dunningTexts) != null ? _a : []) {
+          const errors = (0, import_dunning.validateDunningPatch)(row.level, row);
+          if (errors.length > 0) {
+            throw new Error(`Corrupt dunning text in dump: ${errors.join(" | ")}`);
+          }
+          this.db.prepare(
+            `INSERT INTO dunning_texts (level, subject, body, days, deadline_days, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+          ).run(row.level, row.subject, row.body, row.days, row.deadlineDays, nowIso());
+        }
+      }
       const mergedCounters = /* @__PURE__ */ new Map();
-      for (const counter of (_a = dump.counters) != null ? _a : []) {
-        const employee = (0, import_invoice_model.normalizeEmployeeCode)((_b = counter.employee) != null ? _b : "00");
+      for (const counter of (_b = dump.counters) != null ? _b : []) {
+        const employee = (0, import_invoice_model.normalizeEmployeeCode)((_c = counter.employee) != null ? _c : "00");
         const docType = (0, import_invoice_model.normalizeDocumentType)(counter.doc_type);
         const key = `${counter.year}/${employee}/${docType}`;
         const prev = mergedCounters.get(key);
@@ -1295,38 +1309,38 @@ class InvoiceDatabase {
           invoice.templateId,
           invoice.documentTitle,
           invoice.notes,
-          (_c = invoice.paymentTerms) != null ? _c : null,
-          (_d = invoice.employeeCode) != null ? _d : null,
+          (_d = invoice.paymentTerms) != null ? _d : null,
+          (_e = invoice.employeeCode) != null ? _e : null,
           invoice.xml,
           invoice.pdfPath,
           invoice.xlsxPath,
           invoice.paid ? 1 : 0,
-          (_e = invoice.paidAt) != null ? _e : null,
-          (_f = invoice.stornoOfId) != null ? _f : null,
+          (_f = invoice.paidAt) != null ? _f : null,
+          (_g = invoice.stornoOfId) != null ? _g : null,
           Number(invoice.skontoPercent) || 0,
-          (_g = invoice.skontoDueDate) != null ? _g : null,
-          (_h = invoice.sentAt) != null ? _h : null,
-          (_i = invoice.sendChannel) != null ? _i : null,
-          (_j = invoice.paymentCheck) != null ? _j : null,
-          (_k = invoice.paymentCheckedAt) != null ? _k : null,
-          (_l = invoice.remindedAt) != null ? _l : null,
-          (_m = invoice.reminderLevel) != null ? _m : 0,
+          (_h = invoice.skontoDueDate) != null ? _h : null,
+          (_i = invoice.sentAt) != null ? _i : null,
+          (_j = invoice.sendChannel) != null ? _j : null,
+          (_k = invoice.paymentCheck) != null ? _k : null,
+          (_l = invoice.paymentCheckedAt) != null ? _l : null,
+          (_m = invoice.remindedAt) != null ? _m : null,
+          (_n = invoice.reminderLevel) != null ? _n : 0,
           // a dump from before R8 has no retention date: recomputing it
           // keeps ten years of § 147 AO. A quotation never gets one.
-          (_n = invoice.retainUntil) != null ? _n : (0, import_invoice_model.isQuote)(invoice.docType) ? null : retentionUntil(invoice.issueDate),
+          (_o = invoice.retainUntil) != null ? _o : (0, import_invoice_model.isQuote)(invoice.docType) ? null : retentionUntil(invoice.issueDate),
           invoice.createdAt,
           invoice.updatedAt,
           (0, import_invoice_model.normalizeDocumentType)(invoice.docType),
-          (_o = invoice.validUntil) != null ? _o : null,
-          (_p = invoice.sourceDocumentId) != null ? _p : null,
-          (_q = invoice.acceptedAt) != null ? _q : null,
-          (_r = invoice.rejectedAt) != null ? _r : null,
-          (_s = invoice.rejectionReason) != null ? _s : null,
+          (_p = invoice.validUntil) != null ? _p : null,
+          (_q = invoice.sourceDocumentId) != null ? _q : null,
+          (_r = invoice.acceptedAt) != null ? _r : null,
+          (_s = invoice.rejectedAt) != null ? _s : null,
+          (_t = invoice.rejectionReason) != null ? _t : null,
           invoice.templateSnapshot ? JSON.stringify(invoice.templateSnapshot) : null,
-          (_t = invoice.companyId) != null ? _t : null
+          (_u = invoice.companyId) != null ? _u : null
         );
       }
-      for (const company of (_u = dump.companies) != null ? _u : []) {
+      for (const company of (_v = dump.companies) != null ? _v : []) {
         this.db.prepare(
           `INSERT INTO company_profiles (id, name, profile_json, is_default, created_at, updated_at)
 						VALUES (?, ?, ?, ?, ?, ?)`
@@ -1339,7 +1353,7 @@ class InvoiceDatabase {
           company.updatedAt
         );
       }
-      for (const customer of (_v = dump.customers) != null ? _v : []) {
+      for (const customer of (_w = dump.customers) != null ? _w : []) {
         this.db.prepare(
           `INSERT INTO customers (id, name, profile_json, created_at, updated_at)
 						VALUES (?, ?, ?, ?, ?)`
@@ -1351,7 +1365,7 @@ class InvoiceDatabase {
           customer.updatedAt
         );
       }
-      for (const product of (_w = dump.products) != null ? _w : []) {
+      for (const product of (_x = dump.products) != null ? _x : []) {
         this.db.prepare(
           `INSERT INTO products (id, sku, name, details, unit, unit_price_net, vat_rate, created_at, updated_at)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -1367,7 +1381,7 @@ class InvoiceDatabase {
           product.updatedAt
         );
       }
-      for (const attachment of (_x = dump.attachments) != null ? _x : []) {
+      for (const attachment of (_y = dump.attachments) != null ? _y : []) {
         this.db.prepare(
           `INSERT INTO attachments (invoice_id, filename, mime, size, data, created_at)
 						VALUES (?, ?, ?, ?, ?, ?)`
@@ -1541,6 +1555,77 @@ class InvoiceDatabase {
       throw new Error(`Invoice not found: ${id}`);
     }
     return updated;
+  }
+  /**
+   * The dunning levels the user changed, as stored.
+   */
+  storedDunningTexts() {
+    const rows = this.db.prepare(`SELECT * FROM dunning_texts ORDER BY level`).all();
+    return rows.map((row) => ({
+      level: row.level,
+      subject: row.subject,
+      body: row.body,
+      days: row.days,
+      deadlineDays: row.deadline_days
+    }));
+  }
+  /**
+   * The three dunning levels: the user's text where one was saved, the built-in one else.
+   */
+  listDunningTexts() {
+    const stored = new Map(this.storedDunningTexts().map((row) => [row.level, row]));
+    return import_dunning.DEFAULT_DUNNING_TEXTS.map((fallback) => {
+      const row = stored.get(fallback.level);
+      return row ? { ...row, isDefault: false } : { ...fallback };
+    });
+  }
+  /**
+   * Changes one dunning level. The days must stay in rising order across the levels,
+   * otherwise the second level could be suggested before the first.
+   *
+   * @param level - Level 1 to 3.
+   * @param patch - Fields to change.
+   * @returns All three levels.
+   */
+  saveDunningText(level, patch) {
+    const errors = (0, import_dunning.validateDunningPatch)(level, patch);
+    if (errors.length > 0) {
+      throw new Error(`Invalid dunning text: ${errors.join(" | ")}`);
+    }
+    const levels = this.listDunningTexts();
+    const current = levels.find((entry) => entry.level === level);
+    const next = {
+      ...current,
+      subject: typeof patch.subject === "string" ? patch.subject.trim() : current.subject,
+      body: typeof patch.body === "string" ? patch.body.trim() : current.body,
+      days: typeof patch.days === "number" ? patch.days : current.days,
+      deadlineDays: typeof patch.deadlineDays === "number" ? patch.deadlineDays : current.deadlineDays,
+      isDefault: false
+    };
+    const before = levels.find((entry) => entry.level === level - 1);
+    const after = levels.find((entry) => entry.level === level + 1);
+    if (before && next.days <= before.days || after && next.days >= after.days) {
+      throw new Error("Invalid dunning text: the days must rise from level to level");
+    }
+    this.db.prepare(
+      `INSERT INTO dunning_texts (level, subject, body, days, deadline_days, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+				 ON CONFLICT(level) DO UPDATE SET subject = excluded.subject, body = excluded.body, days = excluded.days,
+				 deadline_days = excluded.deadline_days, updated_at = excluded.updated_at`
+    ).run(level, next.subject, next.body, next.days, next.deadlineDays, nowIso());
+    return this.listDunningTexts();
+  }
+  /**
+   * Takes a level back to the built-in text.
+   *
+   * @param level - Level 1 to 3.
+   * @returns All three levels.
+   */
+  resetDunningText(level) {
+    if (!Number.isInteger(level) || level < 1 || level > import_dunning.MAX_DUNNING_LEVEL) {
+      throw new Error(`Invalid dunning text: level must be 1 to ${import_dunning.MAX_DUNNING_LEVEL}`);
+    }
+    this.db.prepare(`DELETE FROM dunning_texts WHERE level = ?`).run(level);
+    return this.listDunningTexts();
   }
   /**
    * Counts and remembers a dunning step.

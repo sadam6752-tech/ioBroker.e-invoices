@@ -50,6 +50,8 @@ var import_csv = require("./csv");
 var import_excel = require("./excel");
 var import_open_items = require("./open-items");
 var import_revenue_report = require("./revenue-report");
+var import_dunning = require("./dunning");
+var import_dunning_pdf = require("./dunning-pdf");
 var import_invoice_model2 = require("./invoice-model");
 var import_pdf = require("./pdf");
 var import_templates = require("./templates");
@@ -940,6 +942,61 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice"))}`)
     "/api/reminders",
     route((_req, res) => {
       res.json((0, import_issue_service.collectReminderCandidates)(db));
+    })
+  );
+  app.get(
+    "/api/dunning/texts",
+    route((_req, res) => {
+      res.json(db.listDunningTexts());
+    })
+  );
+  app.put(
+    "/api/dunning/texts/:level",
+    route((req, res) => {
+      var _a2;
+      try {
+        res.json(
+          db.saveDunningText(Number(routeParam(req, "level")), (_a2 = req.body) != null ? _a2 : {})
+        );
+      } catch (error) {
+        res.status(400).json({ error: error.message });
+      }
+    })
+  );
+  app.delete(
+    "/api/dunning/texts/:level",
+    route((req, res) => {
+      try {
+        res.json(db.resetDunningText(Number(routeParam(req, "level"))));
+      } catch (error) {
+        res.status(400).json({ error: error.message });
+      }
+    })
+  );
+  const dunningSuggestions = () => {
+    return (0, import_dunning.buildDunningSuggestions)((0, import_issue_service.collectReminderCandidates)(db), db.listDunningTexts(), (0, import_invoice_model.todayIso)());
+  };
+  app.get(
+    "/api/dunning/suggestions",
+    route((_req, res) => {
+      res.json(dunningSuggestions());
+    })
+  );
+  app.get(
+    "/api/dunning/suggestions.csv",
+    route((_req, res) => {
+      res.type("text/csv; charset=utf-8");
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("mahnvorschlaege.csv"));
+      res.send((0, import_csv.renderDunningCsv)(dunningSuggestions(), (0, import_invoice_model.todayIso)()));
+    })
+  );
+  app.get(
+    "/api/dunning/suggestions.pdf",
+    route(async (_req, res) => {
+      const buffer = await (0, import_dunning_pdf.renderDunningPdf)(dunningSuggestions(), (0, import_invoice_model.todayIso)());
+      res.type("application/pdf");
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("mahnungen.pdf"));
+      res.send(buffer);
     })
   );
   app.post(

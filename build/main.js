@@ -29,6 +29,7 @@ var import_api_server = require("./lib/api-server");
 var import_backup = require("./lib/backup");
 var import_db = require("./lib/db");
 var import_invoice_model = require("./lib/invoice-model");
+var import_dunning = require("./lib/dunning");
 var import_issue_service = require("./lib/issue-service");
 const MOUNT_POINT = "storage";
 const STATUS_FILE = "status.json";
@@ -232,6 +233,17 @@ class EInvoices extends utils.Adapter {
         id: "info.overdueList",
         common: {
           name: "Overdue invoices as JSON (number, customer, days, level)",
+          type: "string",
+          role: "text",
+          read: true,
+          write: false
+        },
+        native: {}
+      },
+      {
+        id: "info.reminderSuggestions",
+        common: {
+          name: "Dunning suggestions as JSON (id, number, level, days, subject, text)",
           type: "string",
           role: "text",
           read: true,
@@ -591,6 +603,23 @@ class EInvoices extends utils.Adapter {
           days: c.overdueDays,
           level: c.level,
           skonto: c.skontoActive
+        }))
+      ),
+      true
+    );
+    await this.setState(
+      "info.reminderSuggestions",
+      JSON.stringify(
+        (0, import_dunning.buildDunningSuggestions)(candidates, this.db.listDunningTexts(), (0, import_invoice_model.todayIso)()).map((item) => ({
+          id: item.invoiceId,
+          number: item.number,
+          customer: item.customer,
+          level: item.level,
+          days: item.overdueDays,
+          amount: item.amount,
+          deadline: item.deadline,
+          subject: item.subject,
+          text: item.text
         }))
       ),
       true

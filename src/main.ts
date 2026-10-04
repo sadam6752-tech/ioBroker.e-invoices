@@ -17,7 +17,9 @@ import {
 	DEFAULT_NUMBER_FORMAT,
 	DEFAULT_QUOTE_NUMBER_FORMAT,
 	normalizeNumberFormat,
+	todayIso,
 } from './lib/invoice-model';
+import { buildDunningSuggestions } from './lib/dunning';
 import { collectReminderCandidates, issueInvoiceWithArtifacts } from './lib/issue-service';
 
 const MOUNT_POINT = 'storage';
@@ -241,6 +243,17 @@ class EInvoices extends utils.Adapter {
 				id: 'info.overdueList',
 				common: {
 					name: 'Overdue invoices as JSON (number, customer, days, level)',
+					type: 'string',
+					role: 'text',
+					read: true,
+					write: false,
+				},
+				native: {},
+			},
+			{
+				id: 'info.reminderSuggestions',
+				common: {
+					name: 'Dunning suggestions as JSON (id, number, level, days, subject, text)',
 					type: 'string',
 					role: 'text',
 					read: true,
@@ -627,6 +640,25 @@ class EInvoices extends utils.Adapter {
 					days: c.overdueDays,
 					level: c.level,
 					skonto: c.skontoActive,
+				})),
+			),
+			true,
+		);
+		// R6.4: the next step per invoice, with the words — a dashboard or script can show or
+		// forward it; the adapter itself still sends nothing
+		await this.setState(
+			'info.reminderSuggestions',
+			JSON.stringify(
+				buildDunningSuggestions(candidates, this.db.listDunningTexts(), todayIso()).map(item => ({
+					id: item.invoiceId,
+					number: item.number,
+					customer: item.customer,
+					level: item.level,
+					days: item.overdueDays,
+					amount: item.amount,
+					deadline: item.deadline,
+					subject: item.subject,
+					text: item.text,
 				})),
 			),
 			true,

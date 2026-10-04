@@ -9,6 +9,7 @@ import { detail } from './views/detail';
 import { invoiceTemplates } from './views/invoice-templates';
 import { login, logout } from './views/login';
 import { offers } from './views/offers';
+import { dunning } from './views/dunning';
 import { openItems } from './views/open-items';
 import { revenue } from './views/revenue';
 import { products } from './views/products';
@@ -27,6 +28,7 @@ function shell(route: string): void {
 		['#/', t('Rechnungen')],
 		['#/offers', t('Angebote')],
 		['#/open-items', t('Offene Posten')],
+		['#/dunning', t('Mahnwesen')],
 		['#/revenue', t('Umsatz')],
 		['#/templates', t('Druckvorlagen')],
 		['#/company', t('Firma')],
@@ -52,6 +54,8 @@ async function route(): Promise<void> {
 		await offers(v);
 	} else if (hash === '#/open-items') {
 		await openItems(v);
+	} else if (hash === '#/dunning') {
+		await dunning(v);
 	} else if (hash === '#/revenue') {
 		await revenue(v);
 	} else if (hash === '#/new' || hash === '#/new/quote') {

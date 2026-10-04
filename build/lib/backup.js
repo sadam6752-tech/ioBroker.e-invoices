@@ -307,6 +307,7 @@ async function readAndVerifyBackup(zipData, limits) {
     companies: (_g = dumpJson.companies) != null ? _g : [],
     customers: (_h = dumpJson.customers) != null ? _h : [],
     products: (_i = dumpJson.products) != null ? _i : [],
+    dunningTexts: dumpJson.dunningTexts,
     attachments: ((_j = dumpJson.attachments) != null ? _j : []).map((attachment) => {
       var _a2;
       return {

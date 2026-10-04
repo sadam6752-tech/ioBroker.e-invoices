@@ -185,6 +185,26 @@ credit note and an invoice made from a quotation take over the company of the or
 - The **invoice number stays one circle for all companies** — nothing about the numbering
   changed, no existing number moved.
 
+### Dunning (Mahnwesen)
+
+The page "Mahnwesen" shows, for every overdue unpaid invoice, the **next step** with the
+text already filled in: payment reminder, 1st dunning letter, 2nd dunning letter. A step is
+suggested from a day after the due date (defaults: 5, 19 and 33 days) and sets a payment
+deadline (7, 7 and 5 days). The three texts, the days and the deadlines can be edited on the
+same page (placeholders `{number}`, `{customer}`, `{issueDate}`, `{dueDate}`, `{amount}`,
+`{days}`, `{deadline}`, `{seller}`) and taken back to the built-in text.
+
+- **The adapter sends nothing.** Copy the text, open it in your mail program (`mailto:` link when the
+  customer has an e-mail address) or print the letters of all invoices as one PDF (one page per
+  invoice); a CSV list is available as well. Then press **"Mark as reminded"** — only that
+  moves the invoice to the next level; the invoice shows level and date.
+- A letter is no e-invoice: **no XML is created**, the PDF makes no PDF/A claim.
+- Fees and default interest are **not** preset — that is a legal decision of the sender.
+- Paid invoices, offers, Storno credit notes and cancelled originals are never chased; nothing is
+  suggested twice on the same day and after the 2nd dunning letter there is no template left.
+- For dashboards and scripts the state `info.reminderSuggestions` holds the suggestions as JSON;
+  the API offers `GET /api/dunning/suggestions` (also `.csv`, `.pdf`) and `/api/dunning/texts`.
+
 ### Open items (Offene Posten)
 
 The tab *Offene Posten* lists the unpaid, issued invoices with their age and adds
@@ -348,6 +368,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) Dunning (Mahnwesen): the new page shows the next dunning step per overdue invoice with the text filled in (reminder, 1st and 2nd dunning letter), editable texts, days and payment deadlines (new table `dunning_texts`, migration v15, part of the backup), all letters as one PDF and as CSV, state `info.reminderSuggestions`. The adapter still sends nothing and creates no XML; "Mark as reminded" moves the level on and the invoice shows level and date. Fix: a Storno credit note is no longer proposed for a reminder.
+
 ### 0.8.8 (2026-10-03)
 
 * (alex) Fix: lint error in the web app (braces around the re-render button loop) that kept release 0.8.7 from passing the checks. Same content as 0.8.7.

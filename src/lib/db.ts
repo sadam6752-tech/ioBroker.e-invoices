@@ -38,6 +38,13 @@ import {
 } from './invoice-model';
 import { LATEST_SCHEMA_VERSION, MIGRATIONS } from './migrations';
 import {
+	DEFAULT_DUNNING_TEXTS,
+	MAX_DUNNING_LEVEL,
+	validateDunningPatch,
+	type DunningText,
+	type DunningTextPatch,
+} from './dunning';
+import {
 	DEFAULT_TEMPLATE,
 	stripCleared,
 	validateTemplate,
@@ -763,6 +770,22 @@ export interface DatabaseDump {
 	customers: StoredCustomer[];
 	/** All catalog products. */
 	products: StoredProduct[];
+	/** Dunning levels the user changed (R6.4); missing = keep what is stored. */
+	dunningTexts?: DunningTextRow[];
+}
+
+/** A dunning level as stored (R6.4). */
+export interface DunningTextRow {
+	/** Level 1 to 3. */
+	level: number;
+	/** Subject line. */
+	subject: string;
+	/** Letter body. */
+	body: string;
+	/** Overdue days from which the level is suggested. */
+	days: number;
+	/** Payment deadline in days. */
+	deadlineDays: number;
 }
 
 /** Backup log entry. */
@@ -1944,6 +1967,7 @@ export class InvoiceDatabase {
 			companies: this.listCompanyProfiles(),
 			customers: this.listCustomers(),
 			products: this.listProducts(),
+			dunningTexts: this.storedDunningTexts(),
 			attachments: attachments.map(row => ({
 				id: row.id,
 				invoiceId: row.invoice_id,
@@ -1987,6 +2011,20 @@ export class InvoiceDatabase {
 			}
 			if (has('products')) {
 				this.db.prepare(`DELETE FROM products`).run();
+			}
+			if (has('dunningTexts')) {
+				this.db.prepare(`DELETE FROM dunning_texts`).run();
+				for (const row of dump.dunningTexts ?? []) {
+					const errors = validateDunningPatch(row.level, row);
+					if (errors.length > 0) {
+						throw new Error(`Corrupt dunning text in dump: ${errors.join(' | ')}`);
+					}
+					this.db
+						.prepare(
+							`INSERT INTO dunning_texts (level, subject, body, days, deadline_days, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+						)
+						.run(row.level, row.subject, row.body, row.days, row.deadlineDays, nowIso());
+				}
 			}
 			// Counters are keyed by normalized employee code *and* document type,
 			// but older databases may hold the same employee twice ("1" and "01"
@@ -2364,6 +2402,89 @@ export class InvoiceDatabase {
 			throw new Error(`Invoice not found: ${id}`);
 		}
 		return updated;
+	}
+
+	/**
+	 * The dunning levels the user changed, as stored.
+	 */
+	public storedDunningTexts(): DunningTextRow[] {
+		const rows = this.db.prepare(`SELECT * FROM dunning_texts ORDER BY level`).all() as {
+			level: number;
+			subject: string;
+			body: string;
+			days: number;
+			deadline_days: number;
+		}[];
+		return rows.map(row => ({
+			level: row.level,
+			subject: row.subject,
+			body: row.body,
+			days: row.days,
+			deadlineDays: row.deadline_days,
+		}));
+	}
+
+	/**
+	 * The three dunning levels: the user's text where one was saved, the built-in one else.
+	 */
+	public listDunningTexts(): DunningText[] {
+		const stored = new Map(this.storedDunningTexts().map(row => [row.level, row]));
+		return DEFAULT_DUNNING_TEXTS.map(fallback => {
+			const row = stored.get(fallback.level);
+			return row ? { ...row, isDefault: false } : { ...fallback };
+		});
+	}
+
+	/**
+	 * Changes one dunning level. The days must stay in rising order across the levels,
+	 * otherwise the second level could be suggested before the first.
+	 *
+	 * @param level - Level 1 to 3.
+	 * @param patch - Fields to change.
+	 * @returns All three levels.
+	 */
+	public saveDunningText(level: number, patch: DunningTextPatch): DunningText[] {
+		const errors = validateDunningPatch(level, patch);
+		if (errors.length > 0) {
+			throw new Error(`Invalid dunning text: ${errors.join(' | ')}`);
+		}
+		const levels = this.listDunningTexts();
+		const current = levels.find(entry => entry.level === level)!;
+		const next: DunningText = {
+			...current,
+			subject: typeof patch.subject === 'string' ? patch.subject.trim() : current.subject,
+			body: typeof patch.body === 'string' ? patch.body.trim() : current.body,
+			days: typeof patch.days === 'number' ? patch.days : current.days,
+			deadlineDays: typeof patch.deadlineDays === 'number' ? patch.deadlineDays : current.deadlineDays,
+			isDefault: false,
+		};
+		const before = levels.find(entry => entry.level === level - 1);
+		const after = levels.find(entry => entry.level === level + 1);
+		if ((before && next.days <= before.days) || (after && next.days >= after.days)) {
+			throw new Error('Invalid dunning text: the days must rise from level to level');
+		}
+		this.db
+			.prepare(
+				`INSERT INTO dunning_texts (level, subject, body, days, deadline_days, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+				 ON CONFLICT(level) DO UPDATE SET subject = excluded.subject, body = excluded.body, days = excluded.days,
+				 deadline_days = excluded.deadline_days, updated_at = excluded.updated_at`,
+			)
+			.run(level, next.subject, next.body, next.days, next.deadlineDays, nowIso());
+		return this.listDunningTexts();
+	}
+
+	/**
+	 * Takes a level back to the built-in text.
+	 *
+	 * @param level - Level 1 to 3.
+	 * @returns All three levels.
+	 */
+	public resetDunningText(level: number): DunningText[] {
+		if (!Number.isInteger(level) || level < 1 || level > MAX_DUNNING_LEVEL) {
+			throw new Error(`Invalid dunning text: level must be 1 to ${MAX_DUNNING_LEVEL}`);
+		}
+		this.db.prepare(`DELETE FROM dunning_texts WHERE level = ?`).run(level);
+		return this.listDunningTexts();
 	}
 
 	/**

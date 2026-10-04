@@ -294,6 +294,23 @@ export const MIGRATIONS: Migration[] = [
 			`CREATE INDEX IF NOT EXISTS idx_invoices_company ON invoices(company_id)`,
 		],
 	},
+	{
+		version: 15,
+		name: 'dunning-texts',
+		sql: [
+			// R6.4: the words, the day and the deadline of a dunning level belong together,
+			// so they are one row. Only levels the user changed are stored; the built-in
+			// texts live in code and apply until a row exists.
+			`CREATE TABLE IF NOT EXISTS dunning_texts (
+				level INTEGER PRIMARY KEY CHECK (level BETWEEN 1 AND 3),
+				subject TEXT NOT NULL,
+				body TEXT NOT NULL,
+				days INTEGER NOT NULL,
+				deadline_days INTEGER NOT NULL,
+				updated_at TEXT NOT NULL
+			)`,
+		],
+	},
 ];
 
 /** Highest schema version defined. */

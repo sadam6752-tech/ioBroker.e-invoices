@@ -531,6 +531,7 @@ async function readAndVerifyBackup(
 		companies: dumpJson.companies ?? [],
 		customers: dumpJson.customers ?? [],
 		products: dumpJson.products ?? [],
+		dunningTexts: dumpJson.dunningTexts,
 		attachments: (dumpJson.attachments ?? []).map(attachment => ({
 			id: attachment.id,
 			invoiceId: attachment.invoiceId,

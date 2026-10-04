@@ -11,6 +11,7 @@
  */
 import type { StoredInvoice } from './db';
 import { AGE_BUCKET_LABELS, AGE_BUCKETS, type OpenItemsReport } from './open-items';
+import type { DunningSuggestion } from './dunning';
 import type { RevenueReport } from './revenue-report';
 
 /** Notice printed as the first comment line of every CSV export. */
@@ -319,5 +320,53 @@ export function renderRevenueCsv(report: RevenueReport): string {
 	}
 	const total = report.total;
 	lines.push(['Summe', String(total.count), de(total.net), de(total.tax), de(total.gross)].map(csvField).join(';'));
+	return `${UTF8_BOM}${lines.join('\r\n')}\r\n`;
+}
+
+/**
+ * The dunning suggestions as a semicolon CSV (R6.4).
+ *
+ * @param suggestions - Result of `buildDunningSuggestions`.
+ * @param today - ISO reference day.
+ * @returns CSV text including the BOM.
+ */
+export function renderDunningCsv(suggestions: DunningSuggestion[], today: string): string {
+	const lines: string[] = [];
+	lines.push(csvField(CSV_COPY_NOTICE));
+	lines.push(csvField(`Mahnvorschläge zum ${today}`));
+	lines.push(
+		[
+			'Rechnungsnummer',
+			'Kunde',
+			'E-Mail',
+			'Stufe',
+			'Tage ueberfaellig',
+			'Faellig am',
+			'Zahlungsziel',
+			'Offener Betrag EUR',
+		]
+			.map(csvField)
+			.join(';'),
+	);
+	let sum = 0;
+	for (const item of suggestions) {
+		sum += item.amount;
+		lines.push(
+			[
+				item.number,
+				item.customer,
+				item.email,
+				String(item.level),
+				String(item.overdueDays),
+				item.dueDate,
+				item.deadline,
+				de(item.amount),
+			]
+				.map(csvField)
+				.join(';'),
+		);
+	}
+	lines.push('');
+	lines.push(['Summe', String(suggestions.length), de(Math.round(sum * 100) / 100)].map(csvField).join(';'));
 	return `${UTF8_BOM}${lines.join('\r\n')}\r\n`;
 }

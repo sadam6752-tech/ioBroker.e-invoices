@@ -325,6 +325,7 @@ export async function dashboard(root: HTMLElement): Promise<void> {
 			remindersEl.innerHTML = `<div class="card"><div class="row">
 				<strong>${t('Überfällig')}: ${due.length}</strong>
 				<span class="muted">${t('Zahlungserinnerung – der Versand bleibt eine bewusste Handlung.')}</span>
+				<a href="#/dunning">${t('Mahnwesen')}</a>
 			</div><div class="row">${due
 				.map(
 					c => `<div class="card" style="flex:1">

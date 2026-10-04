@@ -21,6 +21,7 @@ __export(csv_exports, {
   CSV_COPY_NOTICE: () => CSV_COPY_NOTICE,
   renderDatevHead: () => renderDatevHead,
   renderDatevRows: () => renderDatevRows,
+  renderDunningCsv: () => renderDunningCsv,
   renderInvoiceListCsv: () => renderInvoiceListCsv,
   renderOpenItemsCsv: () => renderOpenItemsCsv,
   renderRevenueCsv: () => renderRevenueCsv,
@@ -212,11 +213,49 @@ function renderRevenueCsv(report) {
   return `${UTF8_BOM}${lines.join("\r\n")}\r
 `;
 }
+function renderDunningCsv(suggestions, today) {
+  const lines = [];
+  lines.push(csvField(CSV_COPY_NOTICE));
+  lines.push(csvField(`Mahnvorschl\xE4ge zum ${today}`));
+  lines.push(
+    [
+      "Rechnungsnummer",
+      "Kunde",
+      "E-Mail",
+      "Stufe",
+      "Tage ueberfaellig",
+      "Faellig am",
+      "Zahlungsziel",
+      "Offener Betrag EUR"
+    ].map(csvField).join(";")
+  );
+  let sum = 0;
+  for (const item of suggestions) {
+    sum += item.amount;
+    lines.push(
+      [
+        item.number,
+        item.customer,
+        item.email,
+        String(item.level),
+        String(item.overdueDays),
+        item.dueDate,
+        item.deadline,
+        de(item.amount)
+      ].map(csvField).join(";")
+    );
+  }
+  lines.push("");
+  lines.push(["Summe", String(suggestions.length), de(Math.round(sum * 100) / 100)].map(csvField).join(";"));
+  return `${UTF8_BOM}${lines.join("\r\n")}\r
+`;
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   CSV_COPY_NOTICE,
   renderDatevHead,
   renderDatevRows,
+  renderDunningCsv,
   renderInvoiceListCsv,
   renderOpenItemsCsv,
   renderRevenueCsv,

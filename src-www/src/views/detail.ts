@@ -145,7 +145,7 @@ ${!quote ? `<button class="secondary" id="d-as-tpl" title="${t('Legt eine Rechnu
 			${inv.status === 'issued' && inv.pdfPath ? `<button class="secondary" id="d-mail">${t('E-Mail (PDF)')}</button>` : ''}
 			${inv.xml ? `<button class="secondary" data-dl="xml">XML ↓</button>` : ''}
 			${inv.xlsxPath ? `<button class="secondary" data-dl="xlsx">Excel ↓</button>` : ''}
-			</div><div id="d-out"></div>${inv.templateSnapshot ? `<p class="muted" id="d-frozen">${t('Ausgestellt mit Layout „{name}“ (Version {version}), eingefroren am {date}.', { name: esc(inv.templateSnapshot.templateName), version: String(inv.templateSnapshot.templateVersion ?? '–'), date: esc(inv.templateSnapshot.frozenAt.slice(0, 10)) })}</p>` : ''}<div id="d-duty"></div><div id="d-history"></div><div id="d-reports"></div><div id="d-attachments"></div><div id="d-links"></div></div>`;
+			</div><div id="d-out"></div>${inv.reminderLevel > 0 ? `<p class="muted" id="d-reminded">${t('Gemahnt: Stufe {level} am {date}.', { level: String(inv.reminderLevel), date: esc((inv.remindedAt ?? '').slice(0, 10)) })}</p>` : ''}${inv.templateSnapshot ? `<p class="muted" id="d-frozen">${t('Ausgestellt mit Layout „{name}“ (Version {version}), eingefroren am {date}.', { name: esc(inv.templateSnapshot.templateName), version: String(inv.templateSnapshot.templateVersion ?? '–'), date: esc(inv.templateSnapshot.frozenAt.slice(0, 10)) })}</p>` : ''}<div id="d-duty"></div><div id="d-history"></div><div id="d-reports"></div><div id="d-attachments"></div><div id="d-links"></div></div>`;
 
 		const out = root.querySelector('#d-out')!;
 		const fail = (e: unknown): void => {

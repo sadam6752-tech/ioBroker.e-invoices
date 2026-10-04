@@ -155,10 +155,10 @@ async function issueInvoiceBatch(db, log, invoiceIds, storage) {
   }
   return { issued, failed };
 }
-const REMINDER_GRACE_DAYS = 5;
 function collectReminderCandidates(db, today = (0, import_invoice_model.todayIso)()) {
   var _a, _b;
   const out = [];
+  const graceDays = db.listDunningTexts()[0].days;
   for (const invoice of db.allInvoices()) {
     if (invoice.status !== "issued" || invoice.paid || !invoice.dueDate) {
       continue;
@@ -166,11 +166,14 @@ function collectReminderCandidates(db, today = (0, import_invoice_model.todayIso
     if ((0, import_invoice_model.isQuote)(invoice.docType)) {
       continue;
     }
+    if (invoice.stornoOfId != null || invoice.documentTitle === "Gutschrift") {
+      continue;
+    }
     if (db.listInvoices({ status: "cancelled" }).some((c) => c.stornoOfId === invoice.id)) {
       continue;
     }
     const overdueDays = (0, import_invoice_model.daysBetween)(invoice.dueDate, today);
-    if (overdueDays < REMINDER_GRACE_DAYS) {
+    if (overdueDays < graceDays) {
       continue;
     }
     if (((_a = invoice.remindedAt) == null ? void 0 : _a.slice(0, 10)) === today) {
