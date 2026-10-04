@@ -392,6 +392,14 @@ export interface RevenueReport {
 	total: { count: number; net: number; tax: number; gross: number };
 }
 
+/** The answer of the repair of a document without files (M1). */
+export interface RepairResult {
+	/** The document after the repair. */
+	invoice: Invoice;
+	/** The files that were made. */
+	created: string[];
+}
+
 /** An issued document that lacks files (M1). */
 export interface IncompleteDocument {
 	/** Document UUID. */
@@ -771,8 +779,7 @@ export const api = {
 	 *
 	 * @param id - Document UUID.
 	 */
-	repair: (id: string) =>
-		request<{ invoice: Invoice; created: string[] }>(`/api/invoices/${id}/repair`, { method: 'POST' }),
+	repair: (id: string) => request<RepairResult>(`/api/invoices/${id}/repair`, { method: 'POST' }),
 	/** Overdue invoices that are due for a dunning step. */
 	reminders: () => request<ReminderCandidate[]>('/api/reminders'),
 	reminded: (id: string) => request<Invoice>(`/api/invoices/${id}/reminded`, { method: 'POST' }),
