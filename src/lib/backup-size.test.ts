@@ -30,7 +30,11 @@ function memory(): {
 	};
 }
 
-/** A PNG signature followed by filler, so the attachment check accepts it and it has a chosen size. */
+/**
+ * A PNG signature followed by filler, so the attachment check accepts it and it has a chosen size.
+ *
+ * @param bytes - Size of the file.
+ */
 function png(bytes: number): Buffer {
 	const head = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49]);
 	return Buffer.concat([head, Buffer.alloc(Math.max(0, bytes - head.length), 7)]);
