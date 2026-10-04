@@ -4,7 +4,7 @@
  * follows the device). It is a separate file because the content security policy of the app
  * allows only its own scripts, no inline ones.
  */
-/* global window, document, localStorage */
+/* global window, document */
 (function () {
 	try {
 		var choice = localStorage.getItem('e-invoices.theme');
