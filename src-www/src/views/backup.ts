@@ -18,8 +18,8 @@ function baseName(path: string): string {
  * first. The preview is mandatory: there is no way to skip it.
  *
  * @param source - Stored filename or an uploaded file.
- * @param source.filename
- * @param source.dataBase64
+ * @param source.filename - File name.
+ * @param source.dataBase64 - File content, base64 encoded.
  * @returns Whether the user confirmed the restore.
  */
 async function confirmRestore(source: { filename?: string; dataBase64?: string }): Promise<boolean> {
@@ -62,7 +62,7 @@ async function confirmRestore(source: { filename?: string; dataBase64?: string }
 /**
  * Backup page: create, list, download, restore.
  *
- * @param root
+ * @param root - Element the page is rendered into.
  */
 export async function backup(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">${t('Lade Backups…')}</div>`;

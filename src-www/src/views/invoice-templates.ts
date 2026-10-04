@@ -14,7 +14,7 @@ interface TemplateLine {
 /**
  * Reads the reusable content out of a stored template body.
  *
- * @param body
+ * @param body - Request body.
  */
 function readBody(body: Record<string, unknown>): {
 	lines: TemplateLine[];
@@ -34,7 +34,7 @@ function readBody(body: Record<string, unknown>): {
 /**
  * Net sum of a template, shown so the user recognises what they saved.
  *
- * @param lines
+ * @param lines - Lines of the document.
  */
 function netOf(lines: TemplateLine[]): number {
 	return lines.reduce((sum, l) => {
@@ -47,9 +47,9 @@ function netOf(lines: TemplateLine[]): number {
 /**
  * A line as a form row, so it can be saved back.
  *
- * @param l
- * @param i
- * @param vatRates
+ * @param l - One line of the document.
+ * @param i - Index.
+ * @param vatRates - Allowed VAT rates.
  */
 function lineRow(l: TemplateLine, i: number, vatRates: number[]): string {
 	return `<div class="card line" style="background:var(--bg)">
@@ -79,7 +79,7 @@ const VAT_RATES = [19, 7, 0];
  * They carry positions, terms, notes and cash discount — never the customer
  * and never a date, because those differ per invoice.
  *
- * @param root
+ * @param root - Element the page is rendered into.
  */
 export async function invoiceTemplates(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">${t('Lade Rechnungsvorlagen…')}</div>`;

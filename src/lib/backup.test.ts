@@ -293,7 +293,11 @@ describe('backup => corrupt input', () => {
 			await seedIssued(dbA, storeA);
 			const backup = await createBackup(dbA, storeA, quiet, '0.0.0-test');
 
-			/** The same backup with one record field changed and every checksum matching. */
+			/**
+			 * The same backup with one record field changed and every checksum matching.
+			 *
+			 * @param change - Change to apply to the dump.
+			 */
 			const craft = async (change: (dump: { invoices: Record<string, unknown>[] }) => void): Promise<Buffer> => {
 				const zip = await JSZip.loadAsync(backup.data);
 				const dump = JSON.parse(await zip.file('dump.json')!.async('string'));

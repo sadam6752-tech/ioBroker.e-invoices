@@ -12,7 +12,11 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 const token = process.env.E2E_TOKEN ?? 'e2e-token-2026';
 const auth = { authorization: `Bearer ${token}` };
 
-/** What the page shows for an amount (`eur()` of the web app). */
+/**
+ * What the page shows for an amount (`eur()` of the web app).
+ *
+ * @param value - Amount in EUR.
+ */
 const eur = (value: number): string => `${value.toFixed(2)} EUR`;
 
 /**

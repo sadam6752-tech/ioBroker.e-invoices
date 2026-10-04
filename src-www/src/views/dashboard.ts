@@ -5,7 +5,7 @@ import { statusLabel } from '../labels';
 /**
  * Cash discount amount for an invoice, in EUR.
  *
- * @param i
+ * @param i - Index.
  */
 function skontoOf(i: Invoice): number {
 	return Math.round(((i.totals.grossTotal * (Number(i.skontoPercent) || 0)) / 100) * 100) / 100;
@@ -18,7 +18,7 @@ function badge(status: Invoice['status']): string {
 /**
  * Dashboard: invoice list with status filter and search.
  *
- * @param root
+ * @param root - Element the page is rendered into.
  */
 export async function dashboard(root: HTMLElement): Promise<void> {
 	// Two lines instead of one crowded row: the filters read as one group, the

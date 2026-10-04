@@ -12,7 +12,7 @@ function field(obj: Party, key: keyof Party, label: string): string {
 /**
  * Company page: seller master data, used as wizard default.
  *
- * @param root
+ * @param root - Element the page is rendered into.
  */
 export async function company(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">${t('Lade Firmendaten…')}</div>`;

@@ -21,7 +21,11 @@ const seller = {
 	vatId: 'DE123456789',
 };
 
-/** What the page shows for an amount (`eur()` of the web app). */
+/**
+ * What the page shows for an amount (`eur()` of the web app).
+ *
+ * @param value - Amount in EUR.
+ */
 const eur = (value: number): string => `${value.toFixed(2)} EUR`;
 
 /** The part of the report this spec compares. */

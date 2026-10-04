@@ -425,6 +425,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) Fix: the file-based migration tests got a 30 s mocha timeout (they timed out on slow CI runners). Code documentation: all JSDoc warnings of the web app and the tests are fixed, `npm run lint` reports nothing. No functional change.
+
 ### 0.9.0 (2026-10-04)
 
 * (alex) Test print of the print templates with three sample documents: full invoice (two VAT rates, line discount, Skonto), small business (§ 19 UStG) and credit note.

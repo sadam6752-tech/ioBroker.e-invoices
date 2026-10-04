@@ -4,7 +4,7 @@ import { t } from '../i18n';
 /**
  * Products page: catalog of positions, products and services.
  *
- * @param root
+ * @param root - Element the page is rendered into.
  */
 export async function products(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">${t('Lade Positionen…')}</div>`;

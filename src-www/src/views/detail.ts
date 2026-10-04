@@ -30,7 +30,7 @@ function round2(value: number): number {
 /**
  * Formats `2026-10-01` or `2026-10-01..2026-10-31` for display.
  *
- * @param value
+ * @param value - Value to process.
  */
 function deliveryDe(value: string): string {
 	const raw = (value ?? '').trim();
@@ -45,8 +45,8 @@ function deliveryDe(value: string): string {
 /**
  * Invoice detail: fields, validation, downloads, issue action.
  *
- * @param root
- * @param id
+ * @param root - Element the page is rendered into.
+ * @param id - UUID of the entry.
  */
 export async function detail(root: HTMLElement, id: string): Promise<void> {
 	root.innerHTML = `<div class="card">${t('Lade…')}</div>`;

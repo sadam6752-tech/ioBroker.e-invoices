@@ -341,6 +341,7 @@ async function nextArchivePath(storage: IssueStorage, base: string, start: numbe
  * @param invoiceId - Issued invoice UUID.
  * @param storage - Artifact file backend.
  * @param reason - Free text stored in the render history.
+ * @param options - Which layout to use: `current` (default) or `issued` (R7.8).
  */
 export async function rerenderInvoicePdf(
 	db: InvoiceDatabase,

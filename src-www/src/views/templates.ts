@@ -47,7 +47,7 @@ const logoPositions = (): { value: 'left' | 'center' | 'right'; label: string }[
 /**
  * Layout studio: list, edit, logo upload, PDF preview.
  *
- * @param root
+ * @param root - Element the page is rendered into.
  */
 export async function templates(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">${t('Lade Vorlagen…')}</div>`;

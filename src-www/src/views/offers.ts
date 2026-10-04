@@ -11,7 +11,7 @@ import { labels, quoteState, quoteStateLabel, type QuoteState } from '../labels'
  * derived from the stored dates by `quoteState()` (the same rules the server
  * applies), so a state filter costs no extra endpoint.
  *
- * @param root
+ * @param root - Element the page is rendered into.
  */
 export async function offers(root: HTMLElement): Promise<void> {
 	const lbl = labels('quote');
@@ -63,7 +63,7 @@ export async function offers(root: HTMLElement): Promise<void> {
 	/**
 	 * Surfaces an error above the list without throwing the view away.
 	 *
-	 * @param e
+	 * @param e - The caught error.
 	 */
 	function fail(e: unknown): void {
 		errEl.innerHTML = `<div class="card error">${esc((e as Error).message)}</div>`;
@@ -72,7 +72,7 @@ export async function offers(root: HTMLElement): Promise<void> {
 	/**
 	 * One row: number, state, customer, amount, validity and the actions.
 	 *
-	 * @param o
+	 * @param o - Option to render.
 	 */
 	function row(o: Invoice): string {
 		const state = quoteState(o);
@@ -143,8 +143,8 @@ export async function offers(root: HTMLElement): Promise<void> {
 	/**
 	 * Runs one action, refreshes the list and reports the outcome.
 	 *
-	 * @param run
-	 * @param done
+	 * @param run - Function to run.
+	 * @param done - Called when finished.
 	 */
 	async function act(run: () => Promise<unknown>, done: string): Promise<void> {
 		errEl.innerHTML = `<div class="card muted">${esc(done)}</div>`;

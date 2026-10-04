@@ -1,77 +1,145 @@
 /** Typed client for the adapter /api (same origin, served on :8093). */
 import { t } from './i18n';
 
+/** A party (seller, buyer, company or customer) as the API sends it. */
 export interface Party {
+	/** Name. */
 	name: string;
+	/** Street and house number. */
 	street: string;
+	/** Postal code. */
 	zip: string;
+	/** City. */
 	city: string;
+	/** Country code (ISO 3166-1 alpha-2). */
 	country: string;
+	/** VAT identification number. */
 	vatId?: string;
+	/** National tax number. */
 	taxNumber?: string;
+	/** E-mail address. */
 	email?: string;
+	/** Phone number. */
 	phone?: string;
+	/** Website. */
 	website?: string;
+	/** Customer number (BT-10). */
 	customerNumber?: string;
+	/** Contact person. */
 	contactName?: string;
+	/** Name of the bank. */
 	bankName?: string;
+	/** Footer boxes of the print layout. */
 	footerBoxes?: string[];
+	/** Alignment of the footer boxes. */
 	footerAlign?: ('left' | 'center' | 'right')[];
+	/** IBAN. */
 	iban?: string;
+	/** BIC. */
 	bic?: string;
 }
 
+/** One line of a document. */
 export interface InvoiceLine {
+	/** Text of the position. */
 	description: string;
+	/** Article number. */
 	sku?: string;
+	/** Additional details. */
 	details?: string;
+	/** Quantity. */
 	quantity: number;
+	/** Unit, e.g. Stk or Std. */
 	unit: string;
+	/** Net unit price in EUR. */
 	unitPriceNet: number;
+	/** VAT rate in percent. */
 	vatRate: number;
+	/** Reason for a tax exemption. */
 	exemptionReason?: string;
+	/** Tax category of a 0 % line. */
 	exemptionCategory?: 'E' | 'AE' | 'K' | 'G' | 'O';
+	/** Line discount in percent. */
 	discountPercent?: number;
 }
 
+/** Computed totals of a document. */
 export interface InvoiceTotals {
+	/** Net total in EUR. */
 	netTotal: number;
+	/** VAT total in EUR. */
 	taxTotal: number;
+	/** Gross total in EUR. */
 	grossTotal: number;
+	/** Breakdown per VAT rate. */
 	breakdown: {
+		/** VAT rate in percent. */
 		vatRate: number;
+		/** Net amount in EUR. */
 		net: number;
+		/** VAT amount in EUR. */
 		tax: number;
+		/** Gross amount in EUR. */
 		gross: number;
 	}[];
 }
 
+/** A document as the API returns it. */
 export interface Invoice {
+	/** UUID. */
 	id: string;
+	/** Document number, null for a draft. */
 	number: string | null;
+	/** ISO issue date. */
 	issueDate: string;
+	/** ISO delivery date or period. */
 	deliveryDate: string;
+	/** ISO due date. */
 	dueDate: string | null;
+	/** Seller. */
 	seller: Party;
+	/** Buyer. */
 	buyer: Party;
+	/** Lines of the document. */
 	lines: InvoiceLine[];
+	/** Computed totals. */
 	totals: InvoiceTotals;
+	/** ZUGFeRD profile or party data. */
 	profile: string;
+	/** Life cycle status. */
 	status: 'draft' | 'issued' | 'cancelled';
+	/** Id of the print template. */
 	templateId: string | null;
 	/** R6.3: company profile the document was written for, null for older documents. */
 	companyId?: string | null;
 	/** The layout the document was issued with, frozen (R7.8); null for older documents. */
-	templateSnapshot?: { templateName: string; templateVersion: number | null; frozenAt: string } | null;
+	templateSnapshot?: {
+		/** Name of the template at the time. */
+		templateName: string;
+		/** Version of the template at the time. */
+		templateVersion: number | null;
+		/** ISO timestamp of the freeze. */
+		frozenAt: string;
+	} | null;
+	/** Employee code of the number circle. */
 	employeeCode: string | null;
+	/** Title shown on the document. */
 	documentTitle: string;
+	/** Free-text notes. */
 	notes: string | null;
+	/** Payment terms text. */
 	paymentTerms: string | null;
+	/** The CII XML, null until issued. */
 	xml: string | null;
+	/** Path of the PDF in the storage. */
 	pdfPath: string | null;
+	/** Path of the Excel copy in the storage. */
 	xlsxPath: string | null;
+	/** True when the invoice was paid. */
 	paid: boolean;
+	/** ISO date of the payment. */
 	paidAt: string | null;
+	/** Id of the invoice a Storno reverses. */
 	stornoOfId: string | null;
 	/** R8: `invoice` or `quote` — the type decides number circle and artifacts. */
 	docType: string;
@@ -85,7 +153,9 @@ export interface Invoice {
 	rejectedAt: string | null;
 	/** R8: free-text reason of a rejection. */
 	rejectionReason: string | null;
+	/** Cash discount in percent. */
 	skontoPercent: number;
+	/** Last day for the cash discount. */
 	skontoDueDate: string | null;
 	/** ISO time of the handover to the customer, null while unsent. */
 	sentAt: string | null;
@@ -93,29 +163,47 @@ export interface Invoice {
 	sendChannel: string | null;
 	/** § 16 Abs. 2 Nr. 2 UStG check outcome. */
 	paymentCheck: string | null;
+	/** When the payment method was checked. */
 	paymentCheckedAt: string | null;
 	/** Last dunning step. */
 	remindedAt: string | null;
+	/** Reminders already marked. */
 	reminderLevel: number;
 	/** Earliest legal deletion date (§ 147 AO). */
 	retainUntil: string | null;
+	/** ISO creation timestamp. */
 	createdAt: string;
+	/** ISO timestamp of the last change. */
 	updatedAt: string;
 }
 
+/** Content of a draft that is created or changed. */
 export interface DraftInput {
+	/** Seller. */
 	seller: Party;
+	/** Buyer. */
 	buyer: Party;
+	/** Lines of the document. */
 	lines: InvoiceLine[];
+	/** ISO issue date. */
 	issueDate: string;
+	/** ISO delivery date or period. */
 	deliveryDate: string;
+	/** ISO due date. */
 	dueDate?: string;
+	/** Currency, EUR only. */
 	currency?: string;
+	/** Employee code of the number circle. */
 	employeeCode?: string;
+	/** Title shown on the document. */
 	documentTitle?: string;
+	/** Free-text notes. */
 	notes?: string;
+	/** Payment terms text. */
 	paymentTerms?: string;
+	/** Cash discount in percent. */
 	skontoPercent?: number;
+	/** Last day for the cash discount. */
 	skontoDueDate?: string;
 	/** R8: `invoice` (default) or `quote` — decides number circle and artifacts. */
 	docType?: string;
@@ -125,40 +213,64 @@ export interface DraftInput {
 	companyId?: string | null;
 }
 
+/** A company profile. */
 export interface CompanyProfile {
+	/** UUID. */
 	id: string;
+	/** Name. */
 	name: string;
+	/** Data of the party. */
 	profile: Party;
+	/** True for the default entry. */
 	isDefault: boolean;
 }
 
+/** A catalog product. */
 export interface Product {
+	/** UUID. */
 	id: string;
+	/** Article number. */
 	sku: string;
+	/** Name. */
 	name: string;
+	/** Additional details. */
 	details: string;
+	/** Unit, e.g. Stk or Std. */
 	unit: string;
+	/** Net unit price in EUR. */
 	unitPriceNet: number;
+	/** VAT rate in percent. */
 	vatRate: number;
 }
 
+/** Result of a validation run. */
 export interface ValidationOutcome {
+	/** Number of schema (format) errors. */
 	formatErrors: string[];
+	/** Number of business rule errors. */
 	businessErrors: string[];
 	/** Report of this run as stored next to the artifacts, null when the file failed. */
 	report: {
+		/** Sequence number. */
 		seq: number;
+		/** Path in the storage. */
 		path: string;
+		/** ISO creation timestamp. */
 		createdAt: string;
 	} | null;
 }
 
 /** One stored validation report (R2). */
 export interface ValidationReport {
+	/** Sequence number. */
 	seq: number;
+	/** Path of the stored report. */
 	reportPath: string;
+	/** Number of schema (format) errors. */
 	formatErrors: number;
+	/** Number of business rule errors. */
 	businessErrors: number;
+	/** ISO creation timestamp. */
 	createdAt: string;
 }
 
@@ -177,40 +289,63 @@ export type AgeBucket = 'notDue' | 'd1to30' | 'd31to60' | 'd61to90' | 'over90';
 
 /** One unpaid invoice with its age. */
 export interface OpenItem {
+	/** UUID. */
 	id: string;
+	/** Document number, null for a draft. */
 	number: string;
+	/** Customer name. */
 	customer: string;
+	/** Customer number (BT-10). */
 	customerNumber: string;
+	/** ISO issue date. */
 	issueDate: string;
+	/** ISO due date. */
 	dueDate: string;
+	/** Amount in EUR. */
 	amount: number;
+	/** Days past the due date. */
 	overdueDays: number;
+	/** Age bucket. */
 	bucket: AgeBucket;
+	/** Cash discount in percent. */
 	skontoPercent: number;
+	/** Reminders already marked. */
 	reminderLevel: number;
+	/** True when handed to the customer. */
 	sent: boolean;
 }
 
 /** Count and sum of a group. */
 export interface OpenSubtotal {
+	/** Number of entries. */
 	count: number;
+	/** Amount in EUR. */
 	amount: number;
 }
 
 /** The evaluation of `GET /api/open-items`. */
 export interface OpenItemsReport {
+	/** Reference day. */
 	asOf: string;
+	/** Only overdue items. */
 	onlyOverdue: boolean;
+	/** Entries. */
 	items: OpenItem[];
+	/** Count and sum per age bucket. */
 	buckets: Record<AgeBucket, OpenSubtotal>;
+	/** Total. */
 	total: OpenSubtotal;
+	/** Overdue part. */
 	overdue: OpenSubtotal;
+	/** Sums per customer. */
 	customers: (OpenSubtotal & { customer: string; customerNumber: string })[];
 }
 
 /** Filters of the open-items routes. */
 export interface OpenItemsParams {
+	/** Reference day. */
 	asOf?: string;
+	/** Only overdue items. */
 	onlyOverdue?: boolean;
 }
 
@@ -378,6 +513,7 @@ export interface AttachmentMeta {
 /** API token storage (localStorage, set on the login page). */
 const TOKEN_KEY = 'einv-token';
 
+/** Reads the API token stored in this browser. */
 export function getToken(): string | null {
 	try {
 		return localStorage.getItem(TOKEN_KEY);
@@ -386,6 +522,11 @@ export function getToken(): string | null {
 	}
 }
 
+/**
+ * Stores or clears the API token in this browser.
+ *
+ * @param token - The token, null to clear it.
+ */
 export function setToken(token: string | null): void {
 	try {
 		if (token) {
@@ -492,21 +633,32 @@ function exportQuery(params: Record<string, string>): string {
 export const api = {
 	health: () =>
 		request<{
+			/** Life cycle status. */
 			status: string;
+			/** Version. */
 			version: string;
+			/** Database schema version. */
 			schemaVersion: number;
+			/** Counts per status. */
 			counts: Record<string, number>;
 			/** Start language chosen in the admin (`auto`, `de`, `en`); public so the login page can use it. */
 			pwaLanguage?: string;
 		}>('/api/health'),
 	settings: () =>
 		request<{
+			/** Default VAT rate. */
 			defaultVatRate: number;
+			/** Default payment terms. */
 			defaultPaymentTerms: string;
+			/** Invoice number format. */
 			numberFormat: string;
+			/** Offer number format. */
 			quoteNumberFormat: string;
+			/** Name of the storage mount. */
 			storageMount: string;
+			/** Automatic backup interval in minutes. */
 			backupIntervalMinutes: number;
+			/** Language setting of the web app. */
 			pwaLanguage: string;
 		}>('/api/settings'),
 	list: (params: Record<string, string> = {}) => {
@@ -520,9 +672,13 @@ export const api = {
 	issue: (id: string) => request<Invoice>(`/api/invoices/${id}/issue`, { method: 'POST' }),
 	issueBatch: (ids: string[]) =>
 		request<{
+			/** Documents issued. */
 			issued: Invoice[];
+			/** Documents that failed. */
 			failed: {
+				/** UUID. */
 				id: string;
+				/** Error message. */
 				error: string;
 			}[];
 		}>('/api/invoices/issue-batch', {
@@ -532,14 +688,14 @@ export const api = {
 	/**
 	 * Deletes a draft. Issued invoices must be cancelled with a Storno.
 	 *
-	 * @param id
+	 * @param id - UUID of the entry.
 	 */
 	deleteDraft: (id: string) => request<void>(`/api/invoices/${id}`, { method: 'DELETE' }),
 	/**
 	 * Records the handover of an issued invoice to the customer.
 	 *
-	 * @param id
-	 * @param channel
+	 * @param id - UUID of the entry.
+	 * @param channel - Channel the invoice was handed over by.
 	 */
 	markSent: (id: string, channel?: string) =>
 		request<Invoice>(`/api/invoices/${id}/sent`, {
@@ -550,13 +706,16 @@ export const api = {
 	 * Reports the § 16 Abs. 2 Nr. 2 UStG duty, or stores the outcome when one
 	 * is passed.
 	 *
-	 * @param id
-	 * @param outcome
+	 * @param id - UUID of the entry.
+	 * @param outcome - Result of the payment-method check.
 	 */
 	paymentCheck: (id: string, outcome?: string) =>
 		request<{
+			/** The invoice. */
 			invoice: Invoice;
+			/** Whether the payment method has to be checked. */
 			duty: PaymentCheckDuty;
+			/** True when it was checked. */
 			checked: boolean;
 		}>(`/api/invoices/${id}/payment-check`, {
 			method: 'POST',
@@ -599,7 +758,9 @@ export const api = {
 		update: (
 			id: string,
 			patch: {
+				/** Name. */
 				name?: string;
+				/** Body of the entry. */
 				body?: unknown;
 			},
 		) =>
@@ -616,7 +777,9 @@ export const api = {
 		}),
 	storno: (id: string, reason?: string) =>
 		request<{
+			/** The credit note. */
 			reversal: Invoice;
+			/** The reversed original. */
 			original: Invoice;
 		}>(`/api/invoices/${id}/storno`, {
 			method: 'POST',
@@ -626,8 +789,8 @@ export const api = {
 	/**
 	 * R8: records the customer's "yes" — the first decision counts.
 	 *
-	 * @param id
-	 * @param at
+	 * @param id - UUID of the entry.
+	 * @param at - ISO date.
 	 */
 	quoteAccept: (id: string, at?: string) =>
 		request<Invoice>(`/api/invoices/${id}/quote-accept`, {
@@ -637,8 +800,8 @@ export const api = {
 	/**
 	 * R8: records the customer's "no", with a free-text reason.
 	 *
-	 * @param id
-	 * @param reason
+	 * @param id - UUID of the entry.
+	 * @param reason - Free-text reason, stored for the audit trail.
 	 */
 	quoteReject: (id: string, reason?: string) =>
 		request<Invoice>(`/api/invoices/${id}/quote-reject`, {
@@ -649,8 +812,8 @@ export const api = {
 	 * R8: turns an offer into an invoice *draft* — the number falls on issue.
 	 * `requireAccepted: false` covers the deal agreed by phone.
 	 *
-	 * @param id
-	 * @param requireAccepted
+	 * @param id - UUID of the entry.
+	 * @param requireAccepted - Only convert an accepted offer.
 	 */
 	convert: (id: string, requireAccepted = true) =>
 		request<Invoice>(`/api/invoices/${id}/convert`, {
@@ -660,8 +823,8 @@ export const api = {
 	/**
 	 * Copies the content of an invoice into a new template (no customer, no dates).
 	 *
-	 * @param id
-	 * @param name
+	 * @param id - UUID of the entry.
+	 * @param name - Display name.
 	 */
 	asTemplate: (id: string, name: string) =>
 		request<InvoiceTemplate>(`/api/invoices/${id}/as-template`, {
@@ -670,7 +833,9 @@ export const api = {
 		}),
 	rerender: (id: string, reason?: string, layout?: 'issued' | 'current') =>
 		request<{
+			/** The invoice. */
 			invoice: Invoice;
+			/** Path of the archived original. */
 			archivedPath: string | null;
 		}>(`/api/invoices/${id}/rerender`, {
 			method: 'POST',
@@ -680,14 +845,14 @@ export const api = {
 	/**
 	 * Reports of earlier validation runs, newest first (R2).
 	 *
-	 * @param id
+	 * @param id - UUID of the entry.
 	 */
 	validationReports: (id: string) => request<ValidationReport[]>(`/api/invoices/${id}/validation`),
 	/**
 	 * Download URL of one stored validation report.
 	 *
-	 * @param id
-	 * @param seq
+	 * @param id - UUID of the entry.
+	 * @param seq - Sequence number of the report.
 	 */
 	validationReportUrl: (id: string, seq: number) => `/api/invoices/${id}/validation/${seq}.json`,
 	/**
@@ -699,8 +864,11 @@ export const api = {
 		add: (
 			id: string,
 			file: {
+				/** File name. */
 				filename: string;
+				/** MIME type. */
 				mime: string;
+				/** File content, base64 encoded. */
 				dataBase64: string;
 			},
 		) =>
@@ -726,7 +894,9 @@ export const api = {
 		update: (
 			id: string,
 			patch: {
+				/** Name. */
 				name?: string;
+				/** Data of the party. */
 				profile?: Party;
 			},
 		) => request<CompanyProfile>(`/api/company-profiles/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
@@ -735,7 +905,7 @@ export const api = {
 		/**
 		 * `q` enables the fuzzy search over name, number and city.
 		 *
-		 * @param q
+		 * @param q - Search text.
 		 */
 		list: (q?: string) => request<CompanyProfile[]>(`/api/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
 		create: (name: string, profile: Party) =>
@@ -743,42 +913,59 @@ export const api = {
 		update: (
 			id: string,
 			patch: {
+				/** Name. */
 				name?: string;
+				/** Data of the party. */
 				profile?: Party;
 			},
 		) => request<CompanyProfile>(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
 		remove: (id: string) =>
 			request<{
+				/** True when the call succeeded. */
 				ok: boolean;
 			}>(`/api/customers/${id}`, { method: 'DELETE' }),
 		assignNumbers: () =>
 			request<{
+				/** Number of entries changed. */
 				updated: number;
 			}>('/api/customers/number-assign', { method: 'POST' }),
 	},
 	products: {
 		list: () => request<Product[]>('/api/products'),
 		create: (item: {
+			/** Article number. */
 			sku?: string;
+			/** Name. */
 			name: string;
+			/** Additional details. */
 			details?: string;
+			/** Unit, e.g. Stk or Std. */
 			unit?: string;
+			/** Net unit price in EUR. */
 			unitPriceNet?: number;
+			/** VAT rate in percent. */
 			vatRate?: number;
 		}) => request<Product>('/api/products', { method: 'POST', body: JSON.stringify(item) }),
 		update: (
 			id: string,
 			patch: {
+				/** Article number. */
 				sku?: string;
+				/** Name. */
 				name?: string;
+				/** Additional details. */
 				details?: string;
+				/** Unit, e.g. Stk or Std. */
 				unit?: string;
+				/** Net unit price in EUR. */
 				unitPriceNet?: number;
+				/** VAT rate in percent. */
 				vatRate?: number;
 			},
 		) => request<Product>(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
 		remove: (id: string) =>
 			request<{
+				/** True when the call succeeded. */
 				ok: boolean;
 			}>(`/api/products/${id}`, { method: 'DELETE' }),
 	},
@@ -786,20 +973,20 @@ export const api = {
 	/**
 	 * Semicolon CSV for the accounting department.
 	 *
-	 * @param params
+	 * @param params - Filter parameters.
 	 */
 	csvUrl: (params: Record<string, string> = {}) => `/api/invoices/export.csv?${exportQuery(params)}`,
 	/**
 	 * DATEV booking lines.
 	 *
-	 * @param params
+	 * @param params - Filter parameters.
 	 */
 	datevUrl: (params: Record<string, string> = {}) => `/api/invoices/export.datev?${exportQuery(params)}`,
 	/**
 	 * What a restore would change, without writing anything.
 	 *
-	 * @param filename
-	 * @param dataBase64
+	 * @param filename - File name.
+	 * @param dataBase64 - File content, base64 encoded.
 	 */
 	restorePreview: (filename?: string, dataBase64?: string) =>
 		request<RestorePreview>('/api/restore/preview', {
@@ -837,7 +1024,7 @@ export function fileToBase64(file: File): Promise<string> {
 /**
  * Minimal HTML escaping for user data.
  *
- * @param value
+ * @param value - Value to process.
  */
 export function esc(value: string | number | null | undefined): string {
 	return String(value ?? '').replace(
@@ -849,7 +1036,7 @@ export function esc(value: string | number | null | undefined): string {
 /**
  * EUR formatting mirrored from the backend.
  *
- * @param value
+ * @param value - Value to process.
  */
 export function eur(value: number): string {
 	return `${Number(value).toFixed(2)} EUR`;

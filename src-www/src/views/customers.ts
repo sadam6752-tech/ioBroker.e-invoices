@@ -18,8 +18,8 @@ const sortOptions = (): { value: SortKey; label: string }[] => [
  * Compares two customer numbers: numerically when both end in digits
  * (K-00002 before K-00010), alphabetically otherwise (KD-4711).
  *
- * @param a
- * @param b
+ * @param a - First value.
+ * @param b - Second value.
  */
 function compareNumbers(a: string, b: string): number {
 	const na = Number(a.replace(/\D+/g, ''));
@@ -53,7 +53,7 @@ function field(obj: Party, key: keyof Party, label: string): string {
 /**
  * Customers page: buyer master data list, create, edit, delete.
  *
- * @param root
+ * @param root - Element the page is rendered into.
  */
 export async function customers(root: HTMLElement): Promise<void> {
 	root.innerHTML = `<div class="card">${t('Lade Kunden…')}</div>`;

@@ -59,8 +59,8 @@ const OWN_TERMS = '__own__';
 /**
  * Adds days to an ISO date, returning the input unchanged when it is invalid.
  *
- * @param iso
- * @param days
+ * @param iso - ISO date.
+ * @param days - Number of days.
  */
 function addDays(iso: string, days: number): string {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
@@ -74,7 +74,7 @@ function addDays(iso: string, days: number): string {
 /**
  * True when the text is not one of the presets (so the own field shows).
  *
- * @param value
+ * @param value - Value to process.
  */
 function isCustomTerms(value?: string | null): boolean {
 	return !!value && !isPreset(value);
@@ -83,7 +83,7 @@ function isCustomTerms(value?: string | null): boolean {
 /**
  * True when the text is one of the three presets.
  *
- * @param value
+ * @param value - Value to process.
  */
 function isPreset(value?: string | null): boolean {
 	return !!value && PAYMENT_TERMS_PRESETS.some(p => p.text === value);
@@ -92,7 +92,7 @@ function isPreset(value?: string | null): boolean {
 /**
  * The day offset of a preset text, or null for free text.
  *
- * @param value
+ * @param value - Value to process.
  */
 function presetDays(value?: string | null): number | null {
 	return PAYMENT_TERMS_PRESETS.find(p => p.text === value)?.days ?? null;
@@ -135,7 +135,7 @@ function syncValidUntil(state: WizardState, previousIssueDate: string): void {
 /**
  * Rounds to cents without the float trap of a bare Math.round (544 × 19 % = 103,36 → 103).
  *
- * @param value
+ * @param value - Value to process.
  */
 function round2(value: number): number {
 	return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -144,7 +144,7 @@ function round2(value: number): number {
 /**
  * Line net exactly as the server computes it (one rounding, quantity × price × discount).
  *
- * @param line
+ * @param line - One line of the document.
  */
 function lineNet(line: InvoiceLine): number {
 	const quantity = Number(line.quantity) || 0;
@@ -156,7 +156,7 @@ function lineNet(line: InvoiceLine): number {
 /**
  * Start day of a stored delivery value (`YYYY-MM-DD` or `from..to`).
  *
- * @param value
+ * @param value - Value to process.
  */
 function deliveryStart(value: string): string {
 	return (value ?? '').trim().split('..')[0] ?? '';
@@ -165,7 +165,7 @@ function deliveryStart(value: string): string {
 /**
  * End day of a stored delivery value, empty for a single day.
  *
- * @param value
+ * @param value - Value to process.
  */
 function deliveryEnd(value: string): string {
 	const parts = (value ?? '').trim().split('..');
@@ -320,9 +320,9 @@ const exemptionLabels = (): Record<string, string> => ({
 /**
  * Multi-step invoice wizard: seller -> buyer -> lines -> review/issue.
  *
- * @param root
- * @param editId
- * @param docType
+ * @param root - Element the page is rendered into.
+ * @param editId - Id of the draft being edited.
+ * @param docType - Document type.
  */
 export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'invoice'): void {
 	let s = freshState();

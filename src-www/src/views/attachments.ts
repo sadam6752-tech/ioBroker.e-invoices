@@ -80,7 +80,7 @@ function toBase64(data: ArrayBuffer): string {
  * @param host - Leerer Container, der den Bereich aufnimmt.
  * @param invoiceId - Rechnungs-UUID (Entwurf oder ausgestellt).
  * @param options - `readOnly` für ausgestellte Rechnungen (GoBD: eingefroren).
- * @param options.readOnly
+ * @param options.readOnly - True when the field is read-only.
  */
 export function mountAttachments(host: HTMLElement, invoiceId: string, options: { readOnly: boolean }): void {
 	let files: AttachmentMeta[] = [];
