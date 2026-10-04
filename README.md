@@ -73,12 +73,12 @@ details with validation, attachments and downloads, layout templates with PDF
 preview and the **System** page. The header bar carries the tabs only — the
 "+ Neu" buttons sit where their lists are.
 
-The **System** page holds what is rarely needed, one below the other: the status (app
-name, version, schema, counters), backup and restore, the company data (filled in once),
-the print templates and the appearance (light, dark or follow the device). It replaces
-the former tabs "Backup", "Firma", "Druckvorlagen" and "Status"; the old addresses
-`#/backup`, `#/company`, `#/templates` and `#/status` still open it and scroll to their
-part.
+The **System** page holds what is rarely needed, behind a row of tabs inside the page, one
+topic at a time: **Status** (app name, version, schema, counters, and the appearance — light,
+dark or follow the device), **Backup** (backup and restore), **Firma** (the company data,
+filled in once) and **Druckvorlagen** (print templates). It replaces the former header tabs
+"Backup", "Firma", "Druckvorlagen" and "Status"; their old addresses `#/backup`, `#/company`,
+`#/templates` and `#/status` are the tabs of the page, so old bookmarks keep working.
 
 ### Print templates: fine-tuning the header
 
@@ -499,6 +499,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) System page: the topics are tabs inside the page (*Status*, *Backup*, *Firma*, *Druckvorlagen*) and only the chosen one is shown, instead of one long page with everything below each other.
+
 ### 1.0.1 (2026-10-04)
 
 * (alex) External validation of the generated e-invoices is automated: `npm run validate` makes the sample cases over the real API stack and checks every XML with the KoSIT validator (EN 16931, CII; tools downloaded once and pinned by SHA-256); the GitHub workflow `Validate invoices` runs it monthly and on changes of the XML/PDF code, and checks the PDF files with veraPDF (PDF/A-3b). It is not part of the release workflow.
