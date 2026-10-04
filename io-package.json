@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "0.9.5",
+    "version": "1.0.0",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.0.0": {
+        "en": "First stable release: ZUGFeRD / EN 16931 e-invoices with offers, Storno, attachments, print templates, several companies, open items, dunning, exports with a date range, automatic backup and a German/English web app in a light or dark appearance. No functional change compared with 0.9.5.",
+        "de": "Erste stabile Version: ZUGFeRD-/EN-16931-E-Rechnungen mit Angeboten, Storno, Anlagen, Druckvorlagen, mehreren Firmen, Offenen Posten, Mahnwesen, Exporten mit Zeitraum, automatischem Backup und einer deutsch-englischen Web-App in hellem oder dunklem Design. Keine funktionale Änderung gegenüber 0.9.5.",
+        "ru": "Первая стабильная версия: электронные счета ZUGFeRD / EN 16931 с предложениями, сторно, вложениями, шаблонами печати, несколькими компаниями, открытыми позициями, напоминаниями об оплате, экспортом за период, автоматическим резервным копированием и веб-приложением на немецком и английском языках в светлой или тёмной теме. Функциональных изменений по сравнению с 0.9.5 нет.",
+        "pt": "Primeira versão estável: faturas eletrónicas ZUGFeRD / EN 16931 com propostas, estorno, anexos, modelos de impressão, várias empresas, itens em aberto, lembretes de pagamento, exportações por período, cópia de segurança automática e uma aplicação web em alemão e inglês com aspeto claro ou escuro. Sem alterações funcionais em relação à 0.9.5.",
+        "nl": "Eerste stabiele versie: ZUGFeRD-/EN 16931-e-facturen met offertes, storno, bijlagen, afdruksjablonen, meerdere bedrijven, openstaande posten, betalingsherinneringen, exports per periode, automatische back-up en een Duits/Engelse web-app in een lichte of donkere weergave. Geen functionele wijzigingen ten opzichte van 0.9.5.",
+        "fr": "Première version stable : factures électroniques ZUGFeRD / EN 16931 avec devis, annulation (Storno), pièces jointes, modèles d'impression, plusieurs entreprises, postes ouverts, relances, exports par période, sauvegarde automatique et une application web en allemand et en anglais en thème clair ou sombre. Aucun changement fonctionnel par rapport à la 0.9.5.",
+        "it": "Prima versione stabile: fatture elettroniche ZUGFeRD / EN 16931 con offerte, storno, allegati, modelli di stampa, più aziende, partite aperte, solleciti, esportazioni per periodo, backup automatico e una web app in tedesco e inglese con aspetto chiaro o scuro. Nessuna modifica funzionale rispetto alla 0.9.5.",
+        "es": "Primera versión estable: facturas electrónicas ZUGFeRD / EN 16931 con ofertas, anulación (Storno), anexos, plantillas de impresión, varias empresas, partidas abiertas, recordatorios de pago, exportaciones por período, copia de seguridad automática y una aplicación web en alemán e inglés con aspecto claro u oscuro. Sin cambios funcionales respecto a la 0.9.5.",
+        "pl": "Pierwsza stabilna wersja: e-faktury ZUGFeRD / EN 16931 z ofertami, storno, załącznikami, szablonami wydruku, wieloma firmami, otwartymi pozycjami, monitami płatności, eksportami za okres, automatyczną kopią zapasową oraz aplikacją webową po niemiecku i angielsku w jasnym lub ciemnym wyglądzie. Brak zmian funkcjonalnych w stosunku do 0.9.5.",
+        "uk": "Перша стабільна версія: електронні рахунки ZUGFeRD / EN 16931 з пропозиціями, сторно, вкладеннями, шаблонами друку, кількома компаніями, відкритими позиціями, нагадуваннями про оплату, експортом за період, автоматичним резервним копіюванням і вебзастосунком німецькою та англійською мовами у світлій або темній темі. Функціональних змін порівняно з 0.9.5 немає.",
+        "zh-cn": "首个稳定版本：支持 ZUGFeRD / EN 16931 电子发票，包括报价、冲销（Storno）、附件、打印模板、多家公司、未结项目、催款、按期间导出、自动备份，以及支持浅色或深色外观的德语/英语网页应用。与 0.9.5 相比没有功能变化。"
+      },
       "0.9.5": {
         "en": "Dark appearance of the web app: the status page offers *System* (follows the device, default), *Hell* and *Dunkel*. The choice is kept per device, applied before the first paint and, with *System*, follows the device while the app is open. PDFs and Excel files are not affected.",
         "de": "Dunkle Web-App: Die Statusseite bietet *System* (folgt dem Gerät, Standard), *Hell* und *Dunkel*. Die Auswahl gilt pro Gerät, vor der ersten Farbe und mit *System* folgt dem Gerät, solange die App geöffnet ist. PDF und Excel sind nicht betroffen.",
@@ -101,19 +114,6 @@
         "pl": "Wydruk testowy szablonów druku z trzema przykładowymi dokumentami: pełna faktura (dwie stawki VAT, rabat liniowy, Skonto), mała firma (§ 19 UStG) i nota kredytowa.\nREADME: pierwsze kroki, e-faktury w pigułce, retencja i GoBD, czym adapter nie jest. Nowe „docs/performance.md” (pomiary do 5000 faktur) i raport Lighthouse („docs/validierung”: PWA 100, dostępność 100).\nPoprawka: czek dunning przeszukał anulowane dokumenty raz na zaległą fakturę (powoli z wieloma fakturami, a zobaczył tylko 50 najnowszych); teraz jest to pojedyncza przepustka. Testy dla całego łańcucha migracji (każda wersja schematu v1—v14 uaktualnia się do najnowszej i zachowuje liczbę i licznik).\nDunning (Mahnwesen): nowa strona pokazuje następny krok wyrzucania na zaległą fakturę z wypełnionym tekstem (przypomnienie, pierwszy i drugi list dunning), edytowalnymi tekstami, dniami i terminami płatności (nowa tabela `dunning_texts`, migracja v15, część kopii zapasowej), wszystkie litery w jednym pliku PDF i jako CSV, stan `info.ReminderSuggestions`. Adapter nadal nic nie wysyła i nie tworzy XML; „Oznacz jako przypomniane” przesuwa poziom, a faktura pokazuje poziom i datę. Poprawka: nota kredytowa Storno nie jest już proponowana jako przypomnienie.",
         "uk": "Тестовий друк шаблонів друку з трьома зразками документів: повний рахунок-фактура (дві ставки ПДВ, лінійна знижка, Skonto), малий бізнес (§ 19 UStG) та кредитна нота.\nREADME: перші кроки, електронні рахунки-фактури в двох словах, збереження та GoBD, чим не є адаптер. Новий `docs/performance.md` (вимірювання до 5 000 рахунків-фактур) та звіт Lighthouse (`документи/валідиерung`: PWA 100, доступність 100).\nВиправлено: перевірка обшивки перевіряла скасовані документи один раз за прострочений рахунок-фактуру (повільно з багатьма рахунками-фактурами, і він бачив лише 50 найновіших); зараз це один прохід. Тести для всього ланцюжка міграції (кожна схема версії v1—v14 оновлюється до останньої та зберігає кількість та лічильник).\nDunning (Mahnwesen): на новій сторінці відображається наступний крок заповнення за простроченою рахунку-фактурою із заповненим текстом (нагадування, 1-й та 2-й листи заповнення), редаговані тексти, дні та терміни оплати (нова таблиця `dunning_texts`, міграція v15, частина резервної копії), усі листи як один PDF та як CSV, стан `info.нагадування`. Адаптер все ще нічого не надсилає і не створює XML; «Позначити як нагадування» переміщує рівень ввімкнено, а рахунок-фактура показує рівень та дату. Виправлення: кредитна нота Storno більше не пропонується для нагадування.",
         "zh-cn": "使用三个示例文档测试打印模板的打印：完整发票（两种增值税税率、专线折扣、Skonto）、小型企业（§ 19 USTG）和信用票据。\n自述文件：第一步，简而言之，电子发票，保留和GoBD，适配器不是什么。新的 “docs/performance.md”（测量最多 5 000 张发票）和 Lighthouse 报告（`docs/validierung`：PWA 100，可访问性 100）。\n修复：催款支票每张逾期发票对取消的文件搜索一次（发票很多，速度很慢，只看到最新的50个）；现在是单次通行证。测试整个迁移链（每个架构版本 v1—v14 都升级到最新版本并保留数字和计数器）。\n催款（Mahnwesen）：新页面显示了每张逾期发票的下一个催款步骤，其中填写了文本（提醒，第一和第二封催款信）、可编辑的文本、日期和付款截止日期（新表 “dunning_texts”、迁移 v15，备份的一部分），所有信件均为一个 PDF 和 CSV，注明 “info.ReminderSuggestions”。适配器仍然不发送任何内容，也不会创建 XML；“标记为已提醒” 会打开关卡，发票显示级别和日期。修复：不再建议使用Storno信用票据作为提醒。"
-      },
-      "0.8.8": {
-        "en": "Fix: lint error in the web app (braces around the re-render button loop) that kept release 0.8.7 from passing the checks. Same content as 0.8.7.",
-        "de": "Fix: Lint-Fehler in der Web-App (Klammern um den Render-Button), der Version 0.8.7 verhinderte. Inhalt wie 0.8.7.",
-        "ru": "Исправлено: ошибка lint в веб-приложении (скобки вокруг цикла кнопки повторного рендеринга), из-за которой версия 0.8.7 не могла пройти проверки. То же содержимое, что и в версии 0.8.7.",
-        "pt": "Correção: erro de lint no aplicativo web (chaves no botão de renderização) que impedia a versão 0.8.7 de passar nas verificações. Conteúdo igual ao 0.8.7.",
-        "nl": "Opgelost: een pluisfout in de webapp (accolades rond de lus van de herrenderknop) waardoor release 0.8.7 niet door de controles heen kwam. Zelfde inhoud als 0.8.7.",
-        "fr": "Correctif : erreur Lint dans l'appli Web (crochets autour du bouton de rendu) qui empêchait la version 0.8.7 de passer les tests. Même contenu que la 0.8.7.",
-        "it": "Correzione: errore di lint nell'app web che impediva alla release 0.8.7 di superare i controlli. Contenuto di 0.8.7.",
-        "es": "Corrección: error de lint en la aplicación web (entre corchetes) que impedía que la versión 0.8.7 pasara las comprobaciones. Mismo contenido que 0.8.7.",
-        "pl": "Poprawka: błąd kłaczków w aplikacji internetowej (szelki wokół pętli przycisku ponownego renderowania), który uniemożliwiał zwolnienie 0.8.7 przed przejściem kontroli. Ta sama zawartość co 0.8.7.",
-        "uk": "Виправлено: помилка lint у веб-додатку (дужки навколо циклу кнопок повторного рендеринга), яка утримує випуск 0.8.7 від проходження перевірок. Той самий вміст, що і 0.8.7.",
-        "zh-cn": "修复：Web 应用程序中的 lint 错误（重新渲染按钮循环周围的括号）导致版本 0.8.7 无法通过检查。与 0.8.7 相同的内容。"
       }
     },
     "titleLang": {

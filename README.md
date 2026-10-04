@@ -475,7 +475,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.0 (2026-10-04)
 
 * (alex) First stable release: ZUGFeRD / EN 16931 e-invoices with offers, Storno, attachments, print templates, several companies, open items, dunning, exports with a date range, automatic backup and a German/English web app in a light or dark appearance. No functional change compared with 0.9.5; the changelog was shortened (older entries are in `CHANGELOG_OLD.md`).
 
