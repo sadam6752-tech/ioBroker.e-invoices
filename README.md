@@ -475,7 +475,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.9.5 (2026-10-04)
 
 * (alex) Dark appearance of the web app: the status page offers *System* (follows the device, default), *Hell* and *Dunkel*. The choice is kept per device, applied before the first paint and, with *System*, follows the device while the app is open. PDFs and Excel files are not affected.
 
