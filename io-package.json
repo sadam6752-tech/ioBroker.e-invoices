@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.0.2": {
+        "en": "System page: the topics are tabs inside the page (Status, Backup, Company, Print templates) and only the chosen one is shown, instead of one long page with everything below each other.",
+        "de": "Systemseite: Die Themen sind Reiter innerhalb der Seite (Status, Backup, Firma, Druckvorlagen), und es wird nur das gewählte angezeigt – statt einer langen Seite mit allem untereinander.",
+        "ru": "Страница «Система»: темы теперь вкладки внутри страницы (Состояние, Резервные копии, Компания, Шаблоны печати), и показывается только выбранная, а не одна длинная страница со всем подряд.",
+        "pt": "Página Sistema: os temas são separadores dentro da página (Estado, Cópia de segurança, Empresa, Modelos de impressão) e só é mostrado o escolhido, em vez de uma página longa com tudo em sequência.",
+        "nl": "Pagina Systeem: de onderwerpen zijn tabbladen binnen de pagina (Status, Back-up, Bedrijf, Afdruksjablonen) en alleen het gekozen onderwerp wordt getoond, in plaats van één lange pagina met alles onder elkaar.",
+        "fr": "Page Système : les thèmes sont des onglets à l'intérieur de la page (État, Sauvegarde, Entreprise, Modèles d'impression) et seul le thème choisi s'affiche, au lieu d'une longue page avec tout les uns sous les autres.",
+        "it": "Pagina Sistema: gli argomenti sono schede all'interno della pagina (Stato, Backup, Azienda, Modelli di stampa) e viene mostrato solo quello scelto, invece di un'unica pagina lunga con tutto uno sotto l'altro.",
+        "es": "Página Sistema: los temas son pestañas dentro de la página (Estado, Copia de seguridad, Empresa, Plantillas de impresión) y solo se muestra el elegido, en lugar de una página larga con todo uno debajo de otro.",
+        "pl": "Strona System: tematy są kartami wewnątrz strony (Stan, Kopia zapasowa, Firma, Szablony wydruku) i wyświetlany jest tylko wybrany, zamiast jednej długiej strony ze wszystkim jedno pod drugim.",
+        "uk": "Сторінка «Система»: теми тепер вкладки всередині сторінки (Стан, Резервні копії, Компанія, Шаблони друку), і показується лише обрана, а не одна довга сторінка з усім підряд.",
+        "zh-cn": "“系统”页面：各主题现在是页面内的标签页（状态、备份、公司、打印模板），只显示所选内容，而不是把所有内容依次排成一页很长的页面。"
+      },
       "1.0.1": {
         "en": "New System page (status, backup, company data, print templates, appearance) with fewer tabs. Issuing is checked before a number is taken, and documents left without files can be rebuilt. A backup that could not be restored is no longer created. Wrong tokens are throttled, the health route no longer shows document counts, and a date in an earlier year asks first. External validation (KoSIT, veraPDF) runs automatically.",
         "de": "Neue Systemseite (Status, Backup, Firmendaten, Druckvorlagen, Darstellung) mit weniger Reitern. Das Ausstellen wird geprüft, bevor eine Nummer vergeben wird, und Belege ohne Dateien lassen sich nachbauen. Ein Backup, das sich nicht wiederherstellen ließe, wird nicht mehr angelegt. Falsche Tokens werden gedrosselt, die Health-Route zeigt keine Belegzahlen mehr, und bei einem Datum aus einem früheren Jahr wird zuerst nachgefragt. Die externe Validierung (KoSIT, veraPDF) läuft automatisch.",
@@ -101,19 +114,6 @@
         "pl": "Automatyczna kopia zapasowa jest domyślnie włączona (codziennie) i zachowuje 7 najnowszych kopii automatycznych; gdy brak aktualnej kopii, pojawia się ostrzeżenie. Kopia zapasowa ioBroker (BackItUp) nie zawiera bazy faktur bez kopii adaptera.",
         "uk": "Автоматичне резервне копіювання за замовчуванням увімкнено (щодня), зберігаються 7 останніх автоматичних копій; якщо актуальної копії немає, показується попередження. Резервна копія ioBroker (BackItUp) не містить бази рахунків без резервної копії адаптера.",
         "zh-cn": "自动备份默认开启（每天一次），并保留最新的 7 份自动备份；没有最新备份时会显示警告。没有适配器备份时，ioBroker 备份（BackItUp）不包含发票数据库。"
-      },
-      "0.9.1": {
-        "en": "Fix: longer timeout for the file-based tests on slow CI runners; code documentation completed. No functional change.",
-        "de": "Fehlerbehebung: längeres Timeout für die dateibasierten Tests auf langsamen CI-Runnern; Code-Dokumentation vervollständigt. Keine funktionale Änderung.",
-        "ru": "Исправление: увеличен тайм-аут файловых тестов на медленных CI-раннерах; дополнена документация кода. Функциональных изменений нет.",
-        "pt": "Correção: tempo limite maior para os testes baseados em ficheiros em runners de CI lentos; documentação do código completada. Sem alterações funcionais.",
-        "nl": "Oplossing: langere time-out voor de bestandsgebaseerde tests op trage CI-runners; codedocumentatie aangevuld. Geen functionele wijziging.",
-        "fr": "Correctif : délai plus long pour les tests basés sur des fichiers sur des runners CI lents ; documentation du code complétée. Aucun changement fonctionnel.",
-        "it": "Correzione: timeout più lungo per i test basati su file su runner CI lenti; documentazione del codice completata. Nessuna modifica funzionale.",
-        "es": "Corrección: tiempo de espera más largo para las pruebas basadas en archivos en runners de CI lentos; documentación del código completada. Sin cambios funcionales.",
-        "pl": "Poprawka: dłuższy limit czasu dla testów opartych na plikach na wolnych runnerach CI; uzupełniona dokumentacja kodu. Brak zmian funkcjonalnych.",
-        "uk": "Виправлення: збільшено тайм-аут файлових тестів на повільних CI-раннерах; доповнено документацію коду. Функціональних змін немає.",
-        "zh-cn": "修复：在较慢的 CI 运行器上为基于文件的测试延长超时时间；补全代码文档。无功能变化。"
       }
     },
     "titleLang": {
