@@ -1,7 +1,8 @@
 /**
  * Generates the PWA icons (192, 512, maskable-512) from the adapter logo
- * `admin/e-invoices.svg`, so the admin icon, the installed app and the
- * favicon always show the same picture.
+ * `admin/e-invoices.png` (512 x 512, the master picture), so the admin icon, the
+ * installed app and the favicon always show the same picture. The PNG is the
+ * source and not the SVG: the SVG is a traced copy with small artefacts at the edges.
  *
  * It renders the SVG in the Chromium that Playwright already brings for the
  * browser tests (`@playwright/test` is resolved from the adapter root).
@@ -17,8 +18,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'public', 'icons');
 mkdirSync(outDir, { recursive: true });
 
-const svg = readFileSync(join(root, '..', 'admin', 'e-invoices.svg'));
-const dataUri = `data:image/svg+xml;base64,${svg.toString('base64')}`;
+const logo = readFileSync(join(root, '..', 'admin', 'e-invoices.png'));
+const dataUri = `data:image/png;base64,${logo.toString('base64')}`;
 
 /**
  * Renders the logo into a square PNG.
