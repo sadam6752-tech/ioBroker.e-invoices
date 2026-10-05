@@ -495,11 +495,12 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.4 (2026-10-05)
 
 * (alex) New adapter logo (invoice with euro coin and check mark) in the admin, the installed web app and the favicon. The web app icons are made from the PNG master `admin/e-invoices.png` (`node src-www/scripts/make-icons.mjs`), `admin/e-invoices.svg` is the vector copy.
 
 -->
+
 ### 1.0.3 (2026-10-04)
 
 * (alex) Repository checker findings: the README is English only (the German disclaimer moved to `docs/haftungsausschluss.md`, German UI names in the text are translated), and the translations of the web app (`src-www/src/i18n`) are part of the npm package.
@@ -521,10 +522,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ### 1.0.0 (2026-10-04)
 
 * (alex) First stable release: ZUGFeRD / EN 16931 e-invoices with offers, Storno, attachments, print templates, several companies, open items, dunning, exports with a date range, automatic backup and a German/English web app in a light or dark appearance. No functional change compared with 0.9.5; the changelog was shortened (older entries are in `CHANGELOG_OLD.md`).
-
-### 0.9.5 (2026-10-04)
-
-* (alex) Dark appearance of the web app: the status page offers *System* (follows the device, default), *Hell* and *Dunkel*. The choice is kept per device, applied before the first paint and, with *System*, follows the device while the app is open. PDFs and Excel files are not affected.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

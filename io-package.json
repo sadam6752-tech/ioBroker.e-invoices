@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.0.4": {
+        "en": "New adapter logo (invoice with euro coin and check mark) in the admin, the installed web app and the favicon.",
+        "de": "Neues Adapter-Logo (Rechnung mit Euro-Münze und Haken) in der Admin-Oberfläche, der installierten Web-App und im Favicon.",
+        "ru": "Новый логотип адаптера (счёт с монетой евро и галочкой) в админке, в установленном веб-приложении и в favicon.",
+        "pt": "Novo logótipo do adaptador (fatura com moeda de euro e visto) na administração, na aplicação web instalada e no favicon.",
+        "nl": "Nieuw adapterlogo (factuur met euromunt en vinkje) in de admin, de geïnstalleerde web-app en het favicon.",
+        "fr": "Nouveau logo de l'adaptateur (facture avec pièce d'euro et coche) dans l'administration, l'application web installée et le favicon.",
+        "it": "Nuovo logo dell'adattatore (fattura con moneta da euro e segno di spunta) nell'amministrazione, nella web app installata e nella favicon.",
+        "es": "Nuevo logotipo del adaptador (factura con moneda de euro y marca de verificación) en la administración, la aplicación web instalada y el favicon.",
+        "pl": "Nowe logo adaptera (faktura z monetą euro i znacznikiem wyboru) w panelu administracyjnym, zainstalowanej aplikacji internetowej i favikonie.",
+        "uk": "Новий логотип адаптера (рахунок із монетою євро та галочкою) в адмінці, встановленому вебзастосунку та favicon.",
+        "zh-cn": "新的适配器徽标（带欧元硬币和对勾的发票）：用于管理界面、已安装的网页应用和网站图标。"
+      },
       "1.0.3": {
         "en": "Repository checker findings: the README is English only (the German disclaimer moved to docs/haftungsausschluss.md) and the translations of the web app are part of the npm package.",
         "de": "Befunde des Repository-Checkers: Die README ist nur noch englisch (der deutsche Haftungsausschluss liegt jetzt in docs/haftungsausschluss.md), und die Übersetzungen der Web-App sind Teil des npm-Pakets.",
@@ -101,19 +114,6 @@
         "pl": "Lista faktur: filtr okresu znajduje się teraz w tym samym wierszu co pozostałe filtry.",
         "uk": "Список рахунків: фільтр за періодом тепер розташований в одному рядку з іншими фільтрами.",
         "zh-cn": "发票列表：期间筛选现在与其他筛选项位于同一行。"
-      },
-      "0.9.3": {
-        "en": "Date range (from/to) for the invoice list and the Excel, CSV and DATEV exports. Exports are no longer cut at 500 invoices and never contain drafts.",
-        "de": "Zeitraum (von/bis) für die Rechnungsliste und die Exporte nach Excel, CSV und DATEV. Exporte werden nicht mehr bei 500 Rechnungen abgeschnitten und enthalten nie Entwürfe.",
-        "ru": "Период (с/по) для списка счетов и экспорта в Excel, CSV и DATEV. Экспорт больше не обрезается на 500 счетах и никогда не содержит черновиков.",
-        "pt": "Período (de/até) para a lista de faturas e para as exportações para Excel, CSV e DATEV. As exportações já não são cortadas nas 500 faturas e nunca contêm rascunhos.",
-        "nl": "Periode (van/tot) voor de factuurlijst en de exports naar Excel, CSV en DATEV. Exports worden niet meer bij 500 facturen afgekapt en bevatten nooit concepten.",
-        "fr": "Période (du/au) pour la liste des factures et les exports Excel, CSV et DATEV. Les exports ne sont plus tronqués à 500 factures et ne contiennent jamais de brouillons.",
-        "it": "Periodo (dal/al) per l'elenco delle fatture e per le esportazioni in Excel, CSV e DATEV. Le esportazioni non vengono più troncate a 500 fatture e non contengono mai bozze.",
-        "es": "Período (desde/hasta) para la lista de facturas y las exportaciones a Excel, CSV y DATEV. Las exportaciones ya no se cortan en 500 facturas y nunca incluyen borradores.",
-        "pl": "Okres (od/do) dla listy faktur oraz eksportów do Excela, CSV i DATEV. Eksporty nie są już ucinane przy 500 fakturach i nigdy nie zawierają szkiców.",
-        "uk": "Період (від/до) для списку рахунків та експорту в Excel, CSV і DATEV. Експорт більше не обрізається на 500 рахунках і ніколи не містить чернеток.",
-        "zh-cn": "发票列表以及 Excel、CSV 和 DATEV 导出支持日期范围（起/止）。导出不再在 500 张发票处被截断，也不再包含草稿。"
       }
     },
     "titleLang": {
