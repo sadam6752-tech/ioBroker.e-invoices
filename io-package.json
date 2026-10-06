@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.0.5": {
+        "en": "The adapter logo is now a clean vector graphic that matches the PNG, including the colour gradient; the PNG is a new 512 px version.",
+        "de": "Das Adapter-Logo ist jetzt eine saubere Vektorgrafik, die dem PNG entspricht, einschließlich Farbverlauf; das PNG liegt neu in 512 px vor.",
+        "ru": "Логотип адаптера теперь представляет собой чистую векторную графику, соответствующую PNG, включая цветовой градиент; PNG обновлён до размера 512 пикселей.",
+        "pt": "O logótipo do adaptador é agora um gráfico vetorial limpo que corresponde ao PNG, incluindo o gradiente de cor; o PNG é uma nova versão de 512 px.",
+        "nl": "Het adapterlogo is nu een schone vectorafbeelding die overeenkomt met de PNG, inclusief de kleurverloop; de PNG is een nieuwe versie van 512 px.",
+        "fr": "Le logo de l'adaptateur est désormais un graphique vectoriel propre, identique au PNG, dégradé de couleurs compris ; le PNG est une nouvelle version de 512 px.",
+        "it": "Il logo dell'adattatore è ora una grafica vettoriale pulita che corrisponde al PNG, sfumatura di colore inclusa; il PNG è una nuova versione da 512 px.",
+        "es": "El logotipo del adaptador es ahora un gráfico vectorial limpio que coincide con el PNG, incluido el degradado de color; el PNG es una nueva versión de 512 px.",
+        "pl": "Logo adaptera jest teraz czystą grafiką wektorową odpowiadającą plikowi PNG, wraz z gradientem kolorów; PNG ma nową wersję 512 px.",
+        "uk": "Логотип адаптера тепер є чистою векторною графікою, що відповідає PNG, разом із кольоровим градієнтом; PNG має нову версію 512 пікселів.",
+        "zh-cn": "适配器徽标现在是与 PNG 一致的干净矢量图，包括颜色渐变；PNG 为新的 512 像素版本。"
+      },
       "1.0.4": {
         "en": "New adapter logo (invoice with euro coin and check mark) in the admin, the installed web app and the favicon.",
         "de": "Neues Adapter-Logo (Rechnung mit Euro-Münze und Haken) in der Admin-Oberfläche, der installierten Web-App und im Favicon.",
@@ -101,19 +114,6 @@
         "pl": "Ciemny wygląd aplikacji internetowej: System (zgodnie z urządzeniem), Jasny lub Ciemny, wybierany na stronie stanu i zapamiętywany dla urządzenia. Pliki PDF i Excel pozostają bez zmian.",
         "uk": "Темне оформлення вебзастосунку: «Система» (як на пристрої), «Світле» або «Темне» — вибирається на сторінці стану й зберігається для кожного пристрою. Файли PDF і Excel не змінюються.",
         "zh-cn": "网页应用的深色外观：系统（跟随设备）、浅色或深色，在状态页面选择并按设备保存。PDF 和 Excel 文件不受影响。"
-      },
-      "0.9.4": {
-        "en": "Invoice list: the period filter now sits in the same row as the other filters.",
-        "de": "Rechnungsliste: Der Zeitraumfilter steht jetzt in derselben Zeile wie die übrigen Filter.",
-        "ru": "Список счетов: фильтр по периоду теперь находится в одной строке с остальными фильтрами.",
-        "pt": "Lista de faturas: o filtro de período fica agora na mesma linha que os outros filtros.",
-        "nl": "Factuurlijst: het periodefilter staat nu in dezelfde rij als de andere filters.",
-        "fr": "Liste des factures : le filtre de période se trouve désormais sur la même ligne que les autres filtres.",
-        "it": "Elenco delle fatture: il filtro del periodo si trova ora nella stessa riga degli altri filtri.",
-        "es": "Lista de facturas: el filtro de período está ahora en la misma fila que los demás filtros.",
-        "pl": "Lista faktur: filtr okresu znajduje się teraz w tym samym wierszu co pozostałe filtry.",
-        "uk": "Список рахунків: фільтр за періодом тепер розташований в одному рядку з іншими фільтрами.",
-        "zh-cn": "发票列表：期间筛选现在与其他筛选项位于同一行。"
       }
     },
     "titleLang": {

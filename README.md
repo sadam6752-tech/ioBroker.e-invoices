@@ -495,7 +495,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.5 (2026-10-06)
 
 * (alex) The logo is now a clean hand-built vector (`admin/e-invoices.svg`) that matches the PNG, including the colour gradient; the PNG is the new 512 px version.
 
@@ -520,10 +520,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 * (alex) Backup: a backup that the restore would refuse (ZIP, `dump.json`, unpacked size or number of files above the restore limits) is no longer created without notice — it is refused with a message that names the limit. Attachments count as base64 in `dump.json`.
 * (alex) New **System** page: status, backup and restore, company data, print templates and appearance on one page, so the header bar loses the tabs "Backup", "Firma", "Druckvorlagen" and "Status" (twelve entries became eight; the old addresses still work).
 * (alex) Issuing is checked before the number is taken: the documents are made once with a placeholder number first, so a defect stops there with the draft untouched. A document that is still left without its files shows up on the dashboard and *Rebuild files* makes only the missing ones from the stored data (the XML from the record, the PDF with the layout frozen at issue, the Excel copy); existing files are never touched.
-
-### 1.0.0 (2026-10-04)
-
-* (alex) First stable release: ZUGFeRD / EN 16931 e-invoices with offers, Storno, attachments, print templates, several companies, open items, dunning, exports with a date range, automatic backup and a German/English web app in a light or dark appearance. No functional change compared with 0.9.5; the changelog was shortened (older entries are in `CHANGELOG_OLD.md`).
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

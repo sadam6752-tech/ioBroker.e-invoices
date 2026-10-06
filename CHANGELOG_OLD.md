@@ -228,6 +228,10 @@ that came out of the tag pipeline (npm provenance via Trusted Publishing) is
 * (alex) initial release
 * (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
   when the sRGB profile for PDF/A-3 is missing
+## 1.0.0 (2026-10-04)
+
+* (alex) First stable release: ZUGFeRD / EN 16931 e-invoices with offers, Storno, attachments, print templates, several companies, open items, dunning, exports with a date range, automatic backup and a German/English web app in a light or dark appearance. No functional change compared with 0.9.5; the changelog was shortened (older entries are in `CHANGELOG_OLD.md`).
+
 ## 0.9.5 (2026-10-04)
 
 * (alex) Dark appearance of the web app: the status page offers *System* (follows the device, default), *Hell* and *Dunkel*. The choice is kept per device, applied before the first paint and, with *System*, follows the device while the app is open. PDFs and Excel files are not affected.
