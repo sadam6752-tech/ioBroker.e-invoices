@@ -283,7 +283,7 @@ describe('pwa => logo', () => {
 		return readFileSync(file).readUInt8(25);
 	}
 
-	it('uses the logo for the admin and its opaque version for the installed web app, the favicon and iOS', () => {
+	it('uses one logo for the admin, the installed web app and the favicon, and an opaque one on iOS', () => {
 		expect(pngSize('admin/e-invoices.png')).to.deep.equal({ width: 512, height: 512 });
 		expect(pngSize('src-www/public/icons/icon-192.png')).to.deep.equal({ width: 192, height: 192 });
 		expect(pngSize('src-www/public/icons/icon-512.png')).to.deep.equal({ width: 512, height: 512 });
@@ -297,9 +297,18 @@ describe('pwa => logo', () => {
 			),
 		).to.equal(true);
 		expect(pngColorType('src-www/public/icons/apple-touch-icon.png')).to.not.equal(6);
-		// the phone icons come from one opaque master, the admin keeps the transparent logo
+		// the iOS icon comes from an opaque master (logo on a gradient); the other icons keep the transparent logo
+		expect(pngColorType('src-www/public/icons/icon-192.png')).to.equal(6);
 		expect(pngSize('src-www/icon-app.png')).to.deep.equal({ width: 512, height: 512 });
 		expect(pngColorType('src-www/icon-app.png')).to.not.equal(6);
+		// iOS fetches an apple-touch-icon with a connection of its own, which fails over HTTPS with a certificate it
+		// does not trust: the build puts the picture into the page itself
+		if (existsSync('www/index.html')) {
+			const touch = readFileSync('src-www/public/icons/apple-touch-icon.png').toString('base64');
+			expect(readFileSync('www/index.html', 'utf8')).to.contain(
+				`rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,${touch}"`,
+			);
+		}
 		expect(readFileSync('src-www/index.html', 'utf8')).to.contain(
 			'rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png"',
 		);
@@ -307,7 +316,9 @@ describe('pwa => logo', () => {
 		const svg = readFileSync('admin/e-invoices.svg', 'utf8');
 		expect(svg).to.match(/viewBox="0 0 \d+ \d+"/);
 		// the icons come from it, the script says so
-		expect(readFileSync('src-www/scripts/make-icons.mjs', 'utf8')).to.contain('icon-app.png');
+		const generator = readFileSync('src-www/scripts/make-icons.mjs', 'utf8');
+		expect(generator).to.contain('admin');
+		expect(generator).to.contain('icon-app.png');
 		// io-package.json names exactly the files that exist
 		const ioPackage = JSON.parse(readFileSync('io-package.json', 'utf8')) as { common: { icon: string } };
 		expect(ioPackage.common.icon).to.equal('e-invoices.png');
