@@ -544,6 +544,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) The home screen icon on iOS: a dedicated opaque 180 px `apple-touch-icon.png` (linked in the page and also served at the root, where iOS looks on its own) instead of the transparent 192 px icon, which iOS paints black or ignores.
+
 ### 1.0.7 (2026-10-06)
 
 * (alex) **HTTPS in the adapter itself:** the instance settings offer "Use HTTPS" with the public certificate, private key and optional chain from the ioBroker certificate collection (the one the web adapter uses), so the web app can be installed on an iPhone or iPad without a reverse proxy. An unusable certificate keeps the web app off instead of falling back to plain HTTP; the instance link switches to `https`; no HSTS header. The web app carries the iOS standalone tags.

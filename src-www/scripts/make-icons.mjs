@@ -47,6 +47,11 @@ try {
 	writeFileSync(join(outDir, 'icon-512.png'), await render(browser, 512, 1, 'transparent'));
 	// maskable: opaque, the logo inside the 80 % safe zone of the mask
 	writeFileSync(join(outDir, 'maskable-512.png'), await render(browser, 512, 0.7, '#ffffff'));
+	// iOS home screen: 180 px and OPAQUE — iOS paints transparent areas black and ignores the manifest icons.
+	// The same file lies at the root as well, because iOS asks for /apple-touch-icon.png on its own.
+	const touch = await render(browser, 180, 0.84, '#ffffff');
+	writeFileSync(join(outDir, 'apple-touch-icon.png'), touch);
+	writeFileSync(join(root, 'public', 'apple-touch-icon.png'), touch);
 } finally {
 	await browser.close();
 }

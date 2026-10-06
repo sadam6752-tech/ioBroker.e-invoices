@@ -274,11 +274,32 @@ describe('pwa => logo', () => {
 		return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
 	}
 
+	/**
+	 * PNG colour type of a file: 2 = RGB, 6 = RGBA (with an alpha channel).
+	 *
+	 * @param file - Path of the PNG file.
+	 */
+	function pngColorType(file: string): number {
+		return readFileSync(file).readUInt8(25);
+	}
+
 	it('uses one logo for the admin, the installed web app and the favicon', () => {
 		expect(pngSize('admin/e-invoices.png')).to.deep.equal({ width: 512, height: 512 });
 		expect(pngSize('src-www/public/icons/icon-192.png')).to.deep.equal({ width: 192, height: 192 });
 		expect(pngSize('src-www/public/icons/icon-512.png')).to.deep.equal({ width: 512, height: 512 });
 		expect(pngSize('src-www/public/icons/maskable-512.png')).to.deep.equal({ width: 512, height: 512 });
+		// iOS: 180 px, opaque (transparent areas turn black on the home screen), linked, and also at the root
+		// where iOS looks on its own
+		expect(pngSize('src-www/public/icons/apple-touch-icon.png')).to.deep.equal({ width: 180, height: 180 });
+		expect(
+			readFileSync('src-www/public/apple-touch-icon.png').equals(
+				readFileSync('src-www/public/icons/apple-touch-icon.png'),
+			),
+		).to.equal(true);
+		expect(pngColorType('src-www/public/icons/apple-touch-icon.png')).to.not.equal(6);
+		expect(readFileSync('src-www/index.html', 'utf8')).to.contain(
+			'rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png"',
+		);
 		// the vector logo scales: it carries its own viewBox
 		const svg = readFileSync('admin/e-invoices.svg', 'utf8');
 		expect(svg).to.match(/viewBox="0 0 \d+ \d+"/);
@@ -287,7 +308,12 @@ describe('pwa => logo', () => {
 		// io-package.json names exactly the files that exist
 		const ioPackage = JSON.parse(readFileSync('io-package.json', 'utf8')) as { common: { icon: string } };
 		expect(ioPackage.common.icon).to.equal('e-invoices.png');
-		for (const built of ['www/icons/icon-192.png', 'www/icons/icon-512.png', 'www/icons/maskable-512.png']) {
+		for (const built of [
+			'www/icons/icon-192.png',
+			'www/icons/icon-512.png',
+			'www/icons/maskable-512.png',
+			'www/icons/apple-touch-icon.png',
+		]) {
 			if (existsSync(built)) {
 				expect(readFileSync(built).equals(readFileSync(built.replace('www/', 'src-www/public/')))).to.equal(
 					true,
