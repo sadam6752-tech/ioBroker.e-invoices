@@ -544,7 +544,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.7 (2026-10-06)
 
 * (alex) **HTTPS in the adapter itself:** the instance settings offer "Use HTTPS" with the public certificate, private key and optional chain from the ioBroker certificate collection (the one the web adapter uses), so the web app can be installed on an iPhone or iPad without a reverse proxy. An unusable certificate keeps the web app off instead of falling back to plain HTTP; the instance link switches to `https`; no HSTS header. The web app carries the iOS standalone tags.
 
@@ -566,10 +566,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 * (alex) Repository checker findings: the README is English only (the German disclaimer moved to `docs/haftungsausschluss.md`, German UI names in the text are translated), and the translations of the web app (`src-www/src/i18n`) are part of the npm package.
 
 -->
-
-### 1.0.2 (2026-10-04)
-
-* (alex) System page: the topics are tabs inside the page (*Status*, *Backup*, *Firma*, *Druckvorlagen*) and only the chosen one is shown, instead of one long page with everything below each other.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

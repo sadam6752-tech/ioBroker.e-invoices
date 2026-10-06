@@ -228,6 +228,10 @@ that came out of the tag pipeline (npm provenance via Trusted Publishing) is
 * (alex) initial release
 * (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
   when the sRGB profile for PDF/A-3 is missing
+## 1.0.2 (2026-10-04)
+
+* (alex) System page: the topics are tabs inside the page (*Status*, *Backup*, *Firma*, *Druckvorlagen*) and only the chosen one is shown, instead of one long page with everything below each other.
+
 ## 1.0.1 (2026-10-04)
 
 * (alex) External validation of the generated e-invoices is automated: `npm run validate` makes the sample cases over the real API stack and checks every XML with the KoSIT validator (EN 16931, CII; tools downloaded once and pinned by SHA-256); the GitHub workflow `Validate invoices` runs it monthly and on changes of the XML/PDF code, and checks the PDF files with veraPDF (PDF/A-3b). It is not part of the release workflow.

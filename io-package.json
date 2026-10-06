@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.0.7": {
+        "en": "HTTPS in the adapter itself: the instance settings offer \"Use HTTPS\" with a certificate from the ioBroker certificate collection, so the web app can be installed on an iPhone or iPad. A missing certificate keeps the web app off instead of falling back to plain HTTP.",
+        "de": "HTTPS im Adapter selbst: Die Instanz-Einstellungen bieten „HTTPS verwenden“ mit einem Zertifikat aus der Zertifikatsverwaltung von ioBroker, damit sich die Web-App auf einem iPhone oder iPad installieren lässt. Fehlt das Zertifikat, bleibt die Web-App aus, statt auf einfaches HTTP zurückzufallen.",
+        "ru": "HTTPS в самом адаптере: в настройках экземпляра появился пункт «Использовать HTTPS» с сертификатом из хранилища сертификатов ioBroker, чтобы веб-приложение можно было установить на iPhone или iPad. При отсутствии сертификата веб-приложение остаётся выключенным, а не переходит на обычный HTTP.",
+        "pt": "HTTPS no próprio adaptador: as definições da instância oferecem «Usar HTTPS» com um certificado da coleção de certificados do ioBroker, para que a aplicação web possa ser instalada num iPhone ou iPad. Se faltar o certificado, a aplicação web fica desligada em vez de voltar a HTTP simples.",
+        "nl": "HTTPS in de adapter zelf: de instantie-instellingen bieden «HTTPS gebruiken» met een certificaat uit de certificaatverzameling van ioBroker, zodat de web-app op een iPhone of iPad kan worden geïnstalleerd. Ontbreekt het certificaat, dan blijft de web-app uit in plaats van terug te vallen op gewoon HTTP.",
+        "fr": "HTTPS dans l'adaptateur lui-même : les paramètres de l'instance proposent « Utiliser HTTPS » avec un certificat de la collection de certificats d'ioBroker, afin que l'application web puisse être installée sur un iPhone ou un iPad. Si le certificat manque, l'application web reste désactivée au lieu de revenir à un HTTP simple.",
+        "it": "HTTPS nell'adattatore stesso: le impostazioni dell'istanza offrono «Usa HTTPS» con un certificato della raccolta certificati di ioBroker, così l'app web si può installare su un iPhone o iPad. Se manca il certificato, l'app web resta spenta invece di tornare a HTTP semplice.",
+        "es": "HTTPS en el propio adaptador: los ajustes de la instancia ofrecen «Usar HTTPS» con un certificado de la colección de certificados de ioBroker, para poder instalar la aplicación web en un iPhone o iPad. Si falta el certificado, la aplicación web queda apagada en lugar de volver a HTTP simple.",
+        "pl": "HTTPS w samym adapterze: ustawienia instancji oferują «Używaj HTTPS» z certyfikatem z kolekcji certyfikatów ioBroker, aby aplikację internetową można było zainstalować na iPhonie lub iPadzie. Gdy brakuje certyfikatu, aplikacja internetowa pozostaje wyłączona zamiast wracać do zwykłego HTTP.",
+        "uk": "HTTPS у самому адаптері: у налаштуваннях екземпляра з'явився пункт «Використовувати HTTPS» із сертифікатом зі сховища сертифікатів ioBroker, щоб вебзастосунок можна було встановити на iPhone чи iPad. За відсутності сертифіката вебзастосунок лишається вимкненим, а не повертається до звичайного HTTP.",
+        "zh-cn": "适配器自带 HTTPS：实例设置提供“使用 HTTPS”，证书来自 ioBroker 的证书集合，使网页应用可以安装到 iPhone 或 iPad。缺少证书时网页应用保持关闭，而不会退回普通 HTTP。"
+      },
       "1.0.6": {
         "en": "XRechnung for public-sector customers: a second invoice format next to ZUGFeRD, as a standalone XML file with the Leitweg-ID as buyer reference. Choose it per invoice in the wizard or set the default in the instance settings.",
         "de": "XRechnung für öffentliche Auftraggeber: ein zweites Rechnungsformat neben ZUGFeRD, als eigenständige XML-Datei mit der Leitweg-ID als Käuferreferenz. Die Wahl erfolgt je Rechnung im Assistenten, der Standard in den Instanz-Einstellungen.",
@@ -101,19 +114,6 @@
         "pl": "Nowa strona System (stan, kopia zapasowa, dane firmy, szablony wydruku, wygląd) z mniejszą liczbą kart. Wystawianie jest sprawdzane przed nadaniem numeru, a dokumenty pozostawione bez plików można odbudować. Kopia zapasowa, której nie dałoby się przywrócić, nie jest już tworzona. Błędne tokeny są ograniczane, trasa health nie pokazuje już liczby dokumentów, a data z wcześniejszego roku wymaga potwierdzenia. Zewnętrzna walidacja (KoSIT, veraPDF) działa automatycznie.",
         "uk": "Нова сторінка «Система» (стан, резервні копії, дані компанії, шаблони друку, оформлення) — вкладок стало менше. Випуск документа перевіряється до присвоєння номера, а документи без файлів можна відновити. Резервна копія, яку неможливо було б відновити, більше не створюється. Неправильні токени обмежуються за частотою, маршрут health більше не показує кількість документів, а за дати з минулого року спершу ставиться запитання. Зовнішня перевірка (KoSIT, veraPDF) виконується автоматично.",
         "zh-cn": "新增“系统”页面（状态、备份、公司数据、打印模板、外观），标签页更少。开具文档前会先检查再分配编号，没有文件的文档可以重新生成。无法恢复的备份将不再创建。错误令牌会被限速，health 路由不再显示文档数量，使用更早年份的日期时会先询问。外部验证（KoSIT、veraPDF）自动运行。"
-      },
-      "1.0.0": {
-        "en": "First stable release: ZUGFeRD / EN 16931 e-invoices with offers, Storno, attachments, print templates, several companies, open items, dunning, exports with a date range, automatic backup and a German/English web app in a light or dark appearance. No functional change compared with 0.9.5.",
-        "de": "Erste stabile Version: ZUGFeRD-/EN-16931-E-Rechnungen mit Angeboten, Storno, Anlagen, Druckvorlagen, mehreren Firmen, Offenen Posten, Mahnwesen, Exporten mit Zeitraum, automatischem Backup und einer deutsch-englischen Web-App in hellem oder dunklem Design. Keine funktionale Änderung gegenüber 0.9.5.",
-        "ru": "Первая стабильная версия: электронные счета ZUGFeRD / EN 16931 с предложениями, сторно, вложениями, шаблонами печати, несколькими компаниями, открытыми позициями, напоминаниями об оплате, экспортом за период, автоматическим резервным копированием и веб-приложением на немецком и английском языках в светлой или тёмной теме. Функциональных изменений по сравнению с 0.9.5 нет.",
-        "pt": "Primeira versão estável: faturas eletrónicas ZUGFeRD / EN 16931 com propostas, estorno, anexos, modelos de impressão, várias empresas, itens em aberto, lembretes de pagamento, exportações por período, cópia de segurança automática e uma aplicação web em alemão e inglês com aspeto claro ou escuro. Sem alterações funcionais em relação à 0.9.5.",
-        "nl": "Eerste stabiele versie: ZUGFeRD-/EN 16931-e-facturen met offertes, storno, bijlagen, afdruksjablonen, meerdere bedrijven, openstaande posten, betalingsherinneringen, exports per periode, automatische back-up en een Duits/Engelse web-app in een lichte of donkere weergave. Geen functionele wijzigingen ten opzichte van 0.9.5.",
-        "fr": "Première version stable : factures électroniques ZUGFeRD / EN 16931 avec devis, annulation (Storno), pièces jointes, modèles d'impression, plusieurs entreprises, postes ouverts, relances, exports par période, sauvegarde automatique et une application web en allemand et en anglais en thème clair ou sombre. Aucun changement fonctionnel par rapport à la 0.9.5.",
-        "it": "Prima versione stabile: fatture elettroniche ZUGFeRD / EN 16931 con offerte, storno, allegati, modelli di stampa, più aziende, partite aperte, solleciti, esportazioni per periodo, backup automatico e una web app in tedesco e inglese con aspetto chiaro o scuro. Nessuna modifica funzionale rispetto alla 0.9.5.",
-        "es": "Primera versión estable: facturas electrónicas ZUGFeRD / EN 16931 con ofertas, anulación (Storno), anexos, plantillas de impresión, varias empresas, partidas abiertas, recordatorios de pago, exportaciones por período, copia de seguridad automática y una aplicación web en alemán e inglés con aspecto claro u oscuro. Sin cambios funcionales respecto a la 0.9.5.",
-        "pl": "Pierwsza stabilna wersja: e-faktury ZUGFeRD / EN 16931 z ofertami, storno, załącznikami, szablonami wydruku, wieloma firmami, otwartymi pozycjami, monitami płatności, eksportami za okres, automatyczną kopią zapasową oraz aplikacją webową po niemiecku i angielsku w jasnym lub ciemnym wyglądzie. Brak zmian funkcjonalnych w stosunku do 0.9.5.",
-        "uk": "Перша стабільна версія: електронні рахунки ZUGFeRD / EN 16931 з пропозиціями, сторно, вкладеннями, шаблонами друку, кількома компаніями, відкритими позиціями, нагадуваннями про оплату, експортом за період, автоматичним резервним копіюванням і вебзастосунком німецькою та англійською мовами у світлій або темній темі. Функціональних змін порівняно з 0.9.5 немає.",
-        "zh-cn": "首个稳定版本：支持 ZUGFeRD / EN 16931 电子发票，包括报价、冲销（Storno）、附件、打印模板、多家公司、未结项目、催款、按期间导出、自动备份，以及支持浅色或深色外观的德语/英语网页应用。与 0.9.5 相比没有功能变化。"
       }
     },
     "titleLang": {
