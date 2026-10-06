@@ -544,7 +544,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.8 (2026-10-06)
 
 * (alex) The home screen icon: the logo on a colour gradient as an opaque square for the installed web app, the favicon and iOS. iOS gets a dedicated 180 px `apple-touch-icon.png` (linked in the page and also served at the root, where iOS looks on its own) instead of the transparent 192 px icon, which iOS paints black or ignores. The admin keeps the transparent logo.
 
@@ -564,12 +564,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ### 1.0.4 (2026-10-05)
 
 * (alex) New adapter logo (invoice with euro coin and check mark) in the admin, the installed web app and the favicon. The web app icons are made from the PNG master `admin/e-invoices.png` (`node src-www/scripts/make-icons.mjs`), `admin/e-invoices.svg` is the vector copy.
-
-### 1.0.3 (2026-10-04)
-
-* (alex) Repository checker findings: the README is English only (the German disclaimer moved to `docs/haftungsausschluss.md`, German UI names in the text are translated), and the translations of the web app (`src-www/src/i18n`) are part of the npm package.
-
--->
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
