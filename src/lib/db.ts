@@ -28,6 +28,8 @@ import {
 	quoteState,
 	renderInvoiceNumber,
 	todayIso,
+	normalizeInvoiceProfile,
+	storedInvoiceProfile,
 	validateInvoiceForIssue,
 	type DocumentType,
 	type InvoiceDraftInput,
@@ -1105,7 +1107,7 @@ export class InvoiceDatabase {
 			.prepare(
 				`INSERT INTO invoices
 				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, doc_type, template_id, document_title, notes, payment_terms, employee_code, skonto_percent, skonto_due_date, valid_until, source_document_id, company_id, created_at, updated_at)
-				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.run(
 				id,
@@ -1116,6 +1118,8 @@ export class InvoiceDatabase {
 				JSON.stringify(input.buyer),
 				JSON.stringify(input.lines),
 				JSON.stringify(totals),
+				// R6.1: an unknown profile is refused here, a quotation never has one
+				isQuote(kind) ? 'EN16931' : normalizeInvoiceProfile(input.profile),
 				kind,
 				input.documentTitle?.trim() || defaultDocumentTitle(kind),
 				input.notes ?? null,
@@ -1267,6 +1271,31 @@ export class InvoiceDatabase {
 	}
 
 	/**
+	 * The Pflichtangaben a draft still lacks to be issued, in plain words; empty means issuable.
+	 * Used by `issueDraft` and — before the documents are probed — by the issue service, so the
+	 * message names the rule instead of a library detail.
+	 *
+	 * @param current - The stored draft.
+	 */
+	public issueProblems(current: StoredInvoice): string[] {
+		return validateInvoiceForIssue({
+			seller: current.seller,
+			buyer: current.buyer,
+			lines: current.lines,
+			issueDate: current.issueDate,
+			deliveryDate: current.deliveryDate,
+			dueDate: current.dueDate ?? undefined,
+			currency: 'EUR',
+			docType: current.docType,
+			employeeCode: current.employeeCode ?? undefined,
+			documentTitle: current.documentTitle,
+			notes: current.notes ?? undefined,
+			validUntil: current.validUntil ?? undefined,
+			profile: storedInvoiceProfile(current.profile),
+		});
+	}
+
+	/**
 	 * Updates a draft; issued/cancelled invoices are immutable.
 	 *
 	 * @param id - Invoice UUID.
@@ -1307,6 +1336,10 @@ export class InvoiceDatabase {
 			validUntil: pick(patch.validUntil, current.validUntil),
 			// R6.3: missing keeps the binding, null or empty unbinds it
 			companyId: patch.companyId === undefined ? current.companyId : patch.companyId,
+			profile:
+				patch.profile === undefined
+					? storedInvoiceProfile(current.profile)
+					: normalizeInvoiceProfile(patch.profile),
 		};
 		const companyId = this.checkedCompanyId(merged.companyId);
 		const totals = calcTotals(merged.lines.length > 0 ? merged.lines : []);
@@ -1314,7 +1347,7 @@ export class InvoiceDatabase {
 			.prepare(
 				`UPDATE invoices SET issue_date = ?, delivery_date = ?, due_date = ?, seller_json = ?, buyer_json = ?,
 				lines_json = ?, totals_json = ?, document_title = ?, notes = ?, payment_terms = ?, employee_code = ?,
-				skonto_percent = ?, skonto_due_date = ?, doc_type = ?, valid_until = ?, company_id = ?, updated_at = ? WHERE id = ?`,
+				skonto_percent = ?, skonto_due_date = ?, doc_type = ?, valid_until = ?, company_id = ?, profile = ?, updated_at = ? WHERE id = ?`,
 			)
 			.run(
 				merged.issueDate,
@@ -1333,6 +1366,7 @@ export class InvoiceDatabase {
 				normalizeDocumentType(merged.docType),
 				merged.validUntil?.trim() || null,
 				companyId,
+				isQuote(merged.docType) ? 'EN16931' : (merged.profile ?? 'EN16931'),
 				nowIso(),
 				id,
 			);
@@ -1366,20 +1400,7 @@ export class InvoiceDatabase {
 		}
 		// invoice and quotation have separate number circles (R8)
 		const docType = normalizeDocumentType(current.docType);
-		const errors = validateInvoiceForIssue({
-			seller: current.seller,
-			buyer: current.buyer,
-			lines: current.lines,
-			issueDate: current.issueDate,
-			deliveryDate: current.deliveryDate,
-			dueDate: current.dueDate ?? undefined,
-			currency: 'EUR',
-			docType: current.docType,
-			employeeCode: current.employeeCode ?? undefined,
-			documentTitle: current.documentTitle,
-			notes: current.notes ?? undefined,
-			validUntil: current.validUntil ?? undefined,
-		});
+		const errors = this.issueProblems(current);
 		if (errors.length > 0) {
 			throw new Error(`Invoice not issuable: ${errors.join(' | ')}`);
 		}
@@ -1631,6 +1652,8 @@ export class InvoiceDatabase {
 			currency: 'EUR',
 			employeeCode: original.employeeCode ?? undefined,
 			companyId: original.companyId,
+			// the credit note is the same kind of e-invoice as the invoice it reverses
+			profile: storedInvoiceProfile(original.profile),
 			paymentTerms: original.paymentTerms ?? undefined,
 			skontoPercent: original.skontoPercent,
 			skontoDueDate: original.skontoDueDate ?? undefined,

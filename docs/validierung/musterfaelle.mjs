@@ -96,8 +96,10 @@ async function issue(body) {
  * @param slug - file name without extension
  * @param invoice - invoice as the API reports it
  * @param markers - strings the CII XML has to contain
+ * @param xrechnung - true for an XRechnung: the PDF is a plain view (no embedded XML, no PDF/A-3), so it is
+ *   checked for that and not kept for the PDF/A validation
  */
-async function save(slug, invoice, markers) {
+async function save(slug, invoice, markers, xrechnung = false) {
 	const xml = await bytes(`/api/invoices/${invoice.id}.xml`);
 	const pdf = await bytes(`/api/invoices/${invoice.id}.pdf`);
 	const text = xml.toString('utf8');
@@ -105,8 +107,13 @@ async function save(slug, invoice, markers) {
 	if (missing.length) {
 		throw new Error(`${slug}: XML ohne ${missing.join(', ')}`);
 	}
+	if (xrechnung && /EmbeddedFile|AFRelationship/.test(pdf.toString('latin1'))) {
+		throw new Error(`${slug}: die PDF einer XRechnung darf kein XML enthalten`);
+	}
 	await writeFile(join(target, `${slug}.xml`), xml);
-	await writeFile(join(target, `${slug}.pdf`), pdf);
+	if (!xrechnung) {
+		await writeFile(join(target, `${slug}.pdf`), pdf);
+	}
 	const line = `${slug.padEnd(28)} ${String(invoice.number).padEnd(12)} brutto ${String(invoice.totals.grossTotal).padStart(9)} EUR   xml ${xml.length} B   pdf ${pdf.length} B`;
 	console.log(`  ${line}`);
 }
@@ -252,6 +259,100 @@ try {
 } catch (error) {
 	failed++;
 	console.error(`  rechnung-mit-skonto: ${error.message}`);
+}
+
+// XRechnung (B2G, R6.1): the XML alone with the Leitweg-ID as buyer reference. The seller needs a contact
+// person, phone and e-mail, the buyer an e-mail — the Pflichtangaben of the XRechnung.
+const sellerB2g = {
+	...seller,
+	contactName: 'Erika Mustermann',
+	phone: '030 1234567',
+	email: 'rechnung@muster.example',
+};
+const buyerB2g = {
+	name: 'Stadt Beispielhausen',
+	street: 'Rathausplatz 1',
+	zip: '80331',
+	city: 'München',
+	country: 'DE',
+	email: 'rechnungseingang@beispielhausen.example',
+	leitwegId: '991-01234-44',
+};
+const xrechnungMarkers = [
+	'urn:xeinkauf.de:kosit:xrechnung_3.0',
+	'urn:fdc:peppol.eu:2017:poacc:billing:01:1.0',
+	'<ram:BuyerReference>991-01234-44</ram:BuyerReference>',
+];
+try {
+	const issued = await issue({
+		profile: 'XRECHNUNG',
+		seller: sellerB2g,
+		buyer: buyerB2g,
+		lines: [
+			{ description: 'Beratung Verwaltungsprozesse', quantity: 3, unit: 'Std', unitPriceNet: 120, vatRate: 19 },
+			{ description: 'Handbuch', quantity: 2, unit: 'Stk', unitPriceNet: 25, vatRate: 7 },
+		],
+		issueDate: '2026-09-28',
+		deliveryDate: '2026-09-27',
+		dueDate: '2026-10-28',
+		documentTitle: 'Rechnung',
+	});
+	await save('xrechnung-b2g', issued, xrechnungMarkers, true);
+} catch (error) {
+	failed++;
+	console.error(`  xrechnung-b2g: ${error.message}`);
+}
+
+// XRechnung with an attachment: no PDF container, so the file goes into the XML (BG-24) only.
+try {
+	const png = Buffer.from(
+		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+		'base64',
+	);
+	const draft = await json('POST', '/api/invoices', {
+		profile: 'XRECHNUNG',
+		seller: sellerB2g,
+		buyer: buyerB2g,
+		lines: [{ description: 'Leistung mit Nachweis', quantity: 1, unit: 'Std', unitPriceNet: 80, vatRate: 19 }],
+		issueDate: '2026-09-28',
+		deliveryDate: '2026-09-27',
+		documentTitle: 'Rechnung',
+	});
+	await json('POST', `/api/invoices/${draft.id}/attachments`, {
+		filename: 'leistungsnachweis.png',
+		mime: 'image/png',
+		dataBase64: png.toString('base64'),
+	});
+	const issued = await json('POST', `/api/invoices/${draft.id}/issue`);
+	await save('xrechnung-mit-anlage-bg24', issued, [...xrechnungMarkers, 'AttachmentBinaryObject'], true);
+} catch (error) {
+	failed++;
+	console.error(`  xrechnung-mit-anlage-bg24: ${error.message}`);
+}
+
+// Without the Leitweg-ID the server has to refuse the issue, and the draft stays a draft.
+try {
+	const draft = await json('POST', '/api/invoices', {
+		profile: 'XRECHNUNG',
+		seller: sellerB2g,
+		buyer: { ...buyerB2g, leitwegId: '' },
+		lines: [{ description: 'Beratung', quantity: 1, unit: 'Std', unitPriceNet: 100, vatRate: 19 }],
+		issueDate: '2026-09-28',
+		deliveryDate: '2026-09-27',
+		documentTitle: 'Rechnung',
+	});
+	const response = await fetch(`${base}/api/invoices/${draft.id}/issue`, {
+		method: 'POST',
+		headers: { authorization: `Bearer ${token}` },
+	});
+	const text = await response.text();
+	if (response.ok || !text.includes('Leitweg-ID') || !text.includes('BR-DE-15')) {
+		throw new Error(`eine XRechnung ohne Leitweg-ID wurde nicht abgelehnt (${response.status}: ${text})`);
+	}
+	console.log('  xrechnung ohne Leitweg-ID    abgelehnt, wie vorgesehen');
+} catch (error) {
+	failed++;
+	console.error(`  xrechnung-ohne-leitweg-id: ${error.message}`);
 }
 
 console.log(

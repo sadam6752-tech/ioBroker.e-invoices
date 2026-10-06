@@ -22,6 +22,7 @@ __export(zugferd_exports, {
   applyAdditionalDocuments: () => applyAdditionalDocuments,
   applyBillingPeriod: () => applyBillingPeriod,
   embedHybridPdf: () => embedHybridPdf,
+  flavorFor: () => flavorFor,
   generateInvoiceXml: () => generateInvoiceXml,
   mapDocumentTypeCode: () => mapDocumentTypeCode,
   mapUnitCode: () => mapUnitCode,
@@ -37,10 +38,13 @@ function resolveProfile(profile) {
   if (profile === "BASIC") {
     return import_factur_x.Profile.BASIC;
   }
-  if (profile === "EN16931") {
+  if (profile === "EN16931" || profile === "XRECHNUNG") {
     return import_factur_x.Profile.EN16931;
   }
-  throw new Error(`Profile not supported in v1 (need BASIC or EN16931): ${profile}`);
+  throw new Error(`Profile not supported in v1 (need BASIC, EN16931 or XRECHNUNG): ${profile}`);
+}
+function flavorFor(profile) {
+  return (0, import_invoice_model.isXRechnung)(profile) ? import_factur_x.Flavor.XRECHNUNG : import_factur_x.Flavor.ZUGFERD;
 }
 function mapUnitCode(unit) {
   const u = unit.trim().toLowerCase();
@@ -100,7 +104,7 @@ function mapDocumentTypeCode(documentTitle) {
   return import_factur_x.DocumentTypeCode.COMMERCIAL_INVOICE;
 }
 function toFacturXInput(invoice) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B;
   if ((0, import_invoice_model.isQuote)(invoice.docType)) {
     throw new Error("Angebote sind keine E-Rechnungen (R8): f\xFCr ein Angebot wird kein ZUGFeRD-/CII-XML erzeugt.");
   }
@@ -144,7 +148,10 @@ function toFacturXInput(invoice) {
       issueDate: invoice.issueDate,
       typeCode: mapDocumentTypeCode(invoice.documentTitle),
       dueDate: (_i = invoice.dueDate) != null ? _i : void 0,
-      buyerReference: ((_j = invoice.buyer.customerNumber) == null ? void 0 : _j.trim()) || void 0,
+      // BT-10: the Leitweg-ID for a public-sector buyer (XRechnung), else the customer number
+      buyerReference: (0, import_invoice_model.isXRechnung)(invoice.profile) ? ((_j = invoice.buyer.leitwegId) == null ? void 0 : _j.trim()) || void 0 : ((_k = invoice.buyer.customerNumber) == null ? void 0 : _k.trim()) || void 0,
+      // BT-23 (Peppol billing process) is mandatory for XRechnung
+      businessProcessId: (0, import_invoice_model.isXRechnung)(invoice.profile) ? (0, import_factur_x.resolveBusinessProcessUrn)({}, import_factur_x.Flavor.XRECHNUNG) : void 0,
       notes: notes.length > 0 ? notes : void 0
     },
     seller: {
@@ -156,10 +163,12 @@ function toFacturXInput(invoice) {
         country: invoice.seller.country || "DE"
       },
       taxRegistrations: sellerTax.length > 0 ? sellerTax : void 0,
-      electronicAddress: ((_k = invoice.seller.email) == null ? void 0 : _k.trim()) ? { value: invoice.seller.email.trim(), schemeID: "EM" } : void 0,
-      contact: ((_l = invoice.seller.email) == null ? void 0 : _l.trim()) || ((_m = invoice.seller.phone) == null ? void 0 : _m.trim()) ? {
-        email: ((_n = invoice.seller.email) == null ? void 0 : _n.trim()) || void 0,
-        phone: ((_o = invoice.seller.phone) == null ? void 0 : _o.trim()) || void 0
+      electronicAddress: ((_l = invoice.seller.email) == null ? void 0 : _l.trim()) ? { value: invoice.seller.email.trim(), schemeID: "EM" } : void 0,
+      contact: ((_m = invoice.seller.email) == null ? void 0 : _m.trim()) || ((_n = invoice.seller.phone) == null ? void 0 : _n.trim()) || ((_o = invoice.seller.contactName) == null ? void 0 : _o.trim()) ? {
+        // BT-41/42/43 — mandatory for an XRechnung (BR-DE-5/6/7), harmless in a ZUGFeRD
+        name: ((_p = invoice.seller.contactName) == null ? void 0 : _p.trim()) || void 0,
+        email: ((_q = invoice.seller.email) == null ? void 0 : _q.trim()) || void 0,
+        phone: ((_r = invoice.seller.phone) == null ? void 0 : _r.trim()) || void 0
       } : void 0
     },
     buyer: {
@@ -171,10 +180,10 @@ function toFacturXInput(invoice) {
         country: invoice.buyer.country || "DE"
       },
       taxRegistrations: buyerTax.length > 0 ? buyerTax : void 0,
-      electronicAddress: ((_p = invoice.buyer.email) == null ? void 0 : _p.trim()) ? { value: invoice.buyer.email.trim(), schemeID: "EM" } : void 0,
-      contact: ((_q = invoice.buyer.email) == null ? void 0 : _q.trim()) || ((_r = invoice.buyer.phone) == null ? void 0 : _r.trim()) ? {
-        email: ((_s = invoice.buyer.email) == null ? void 0 : _s.trim()) || void 0,
-        phone: ((_t = invoice.buyer.phone) == null ? void 0 : _t.trim()) || void 0
+      electronicAddress: ((_s = invoice.buyer.email) == null ? void 0 : _s.trim()) ? { value: invoice.buyer.email.trim(), schemeID: "EM" } : void 0,
+      contact: ((_t = invoice.buyer.email) == null ? void 0 : _t.trim()) || ((_u = invoice.buyer.phone) == null ? void 0 : _u.trim()) ? {
+        email: ((_v = invoice.buyer.email) == null ? void 0 : _v.trim()) || void 0,
+        phone: ((_w = invoice.buyer.phone) == null ? void 0 : _w.trim()) || void 0
       } : void 0
     },
     lines: invoice.lines.map((line, index) => {
@@ -233,29 +242,30 @@ function toFacturXInput(invoice) {
     }),
     payment: {
       meansCode: "58",
-      iban: ((_u = invoice.seller.iban) == null ? void 0 : _u.trim()) || void 0,
-      bic: ((_v = invoice.seller.bic) == null ? void 0 : _v.trim()) || void 0,
+      iban: ((_x = invoice.seller.iban) == null ? void 0 : _x.trim()) || void 0,
+      bic: ((_y = invoice.seller.bic) == null ? void 0 : _y.trim()) || void 0,
       paymentReference: invoice.number,
-      dueDate: (_w = invoice.dueDate) != null ? _w : void 0,
-      termsDescription: (_x = invoice.paymentTerms) != null ? _x : void 0
+      dueDate: (_z = invoice.dueDate) != null ? _z : void 0,
+      termsDescription: (_A = invoice.paymentTerms) != null ? _A : void 0
     },
     delivery: {
       // validated at issue time; for a period only BT-72 goes through the
       // library, BT-74 is added by applyDeliveryPeriodEnd()
-      date: (_y = (0, import_invoice_model.parseDeliveryPeriod)(invoice.deliveryDate)) == null ? void 0 : _y.start
+      date: (_B = (0, import_invoice_model.parseDeliveryPeriod)(invoice.deliveryDate)) == null ? void 0 : _B.start
     }
   };
 }
 async function generateInvoiceXml(invoice, attachments = []) {
   const profile = resolveProfile(invoice.profile);
+  const flavor = flavorFor(invoice.profile);
   const input = toFacturXInput(invoice);
-  const inputCheck = (0, import_factur_x.validateInput)(input, profile, import_factur_x.Flavor.ZUGFERD);
+  const inputCheck = (0, import_factur_x.validateInput)(input, profile, flavor);
   if (!inputCheck.valid) {
     throw new Error(
       `Factur-X input invalid: ${inputCheck.errors.map((e) => `${e.field}: ${e.message}`).join(" | ")}`
     );
   }
-  const xml = (0, import_factur_x.buildXml)(input, profile, import_factur_x.Flavor.ZUGFERD);
+  const xml = (0, import_factur_x.buildXml)(input, profile, flavor);
   const withPeriod = applyBillingPeriod(xml, (0, import_invoice_model.parseDeliveryPeriod)(invoice.deliveryDate));
   const embeddable = profile === import_factur_x.Profile.EN16931 ? attachments : [];
   const withDocuments = applyAdditionalDocuments(withPeriod, embeddable);
@@ -300,6 +310,9 @@ function applyBillingPeriod(xml, period) {
   return `${xml.slice(0, insertAt)}${node}${xml.slice(insertAt)}`;
 }
 async function embedHybridPdf(pdfBytes, xml, profileName, title) {
+  if ((0, import_invoice_model.isXRechnung)(profileName)) {
+    throw new Error("An XRechnung is a standalone XML file: it is never embedded into a PDF.");
+  }
   const profile = resolveProfile(profileName);
   const iccProfile = (0, import_fonts.loadIccProfile)();
   if (!iccProfile) {
@@ -327,6 +340,7 @@ async function embedHybridPdf(pdfBytes, xml, profileName, title) {
   applyAdditionalDocuments,
   applyBillingPeriod,
   embedHybridPdf,
+  flavorFor,
   generateInvoiceXml,
   mapDocumentTypeCode,
   mapUnitCode,

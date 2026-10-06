@@ -282,6 +282,22 @@
 					"lg": 3,
 					"xl": 3
 				},
+				"defaultProfile": {
+					"type": "select",
+					"label": "Default invoice format",
+					"help": "ZUGFeRD is a PDF with the invoice data inside. XRechnung is the XML file alone, for public-sector customers (it needs their Leitweg-ID). The wizard can change it per document.",
+					"options": [
+						{ "label": "ZUGFeRD (PDF + XML)", "value": "EN16931" },
+						{ "label": "XRechnung (XML)", "value": "XRECHNUNG" }
+					],
+					"default": "EN16931",
+					"newLine": false,
+					"xs": 12,
+					"sm": 12,
+					"md": 9,
+					"lg": 4,
+					"xl": 4
+				},
 				"defaultPaymentTerms": {
 					"type": "select",
 					"label": "Default payment terms",

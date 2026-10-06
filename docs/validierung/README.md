@@ -144,13 +144,30 @@ _Hinweis zum Aufruf:_ der KoSIT-Validator prüft beim Start, ob Daten über stdi
 - **Abschlag/Teilzahlung ist kein eigener Fall** — das Datenmodell kennt Skonto und
   Zahlungsstatus (`paid`), aber keine Abschlags-/Teilrechnung. Offen für R4/R6.
 
+## XRechnung (R6.1, 06.10.2026)
+
+Zwei zusätzliche Musterfälle mit dem Format `XRECHNUNG` (B2G): `xrechnung-b2g` (zwei Steuersätze,
+Leitweg-ID als BT-10) und `xrechnung-mit-anlage-bg24` (eine Anlage als BG-24 im XML). Beide gehen über
+den echten API-Stack (`npm run validate`), das XML liegt unter `musterfaelle/`, der Prüfbericht daneben.
+
+- KoSIT-Validator 1.6.3, Konfiguration XRechnung 3.0.2 (2026-08-31): Szenario
+  **„EN16931 XRechnung (CII)"**, Ergebnis `rep:accept`, keine Fehler und keine Warnungen.
+- Die PDFs dieser Fälle sind bewusst **nicht** Teil der PDF/A-3b-Prüfung: Eine XRechnung ist reines
+  XML, die PDF ist eine Ansicht ohne eingebettetes XML. `musterfaelle.mjs` prüft stattdessen, dass die
+  PDF weder `EmbeddedFile` noch `AFRelationship` enthält.
+- Ein Beleg **ohne Leitweg-ID** wird beim Ausstellen abgelehnt (Meldung mit BR-DE-15), der Entwurf bleibt
+  ein Entwurf und es wird keine Nummer verbraucht (Test im selben Lauf).
+- Nicht geprüft: die Annahme bei einer konkreten Behörde (Portal, Peppol-Zugangspunkt, eigene Zusatzregeln).
+
 ## Grenzen / Restrisiko
 
 - Geprüft sind **Syntax (CII D16B)**, die **EN-16931-Regeln (CEN 1.3.16)** und das
   **PDF/A-3b-Profil**. Keine Aussage über Satz/Lesbarkeit des PDF — dafür stehen die
   Struktur-Checks und Musterprüfungen der E2E-Suite.
-- Das Konfigurationspaket bringt auch die XRechnung-CIUS-Szenarien mit; ausgeführt wird
-  bewusst nur **„EN16931 (CII)"** (Factur-X ist keine XRechnung).
+- Das Konfigurationspaket bringt auch die XRechnung-CIUS-Szenarien mit. Die ZUGFeRD-Musterfälle
+  laufen im Szenario **„EN16931 (CII)"** (Factur-X ist keine XRechnung); die beiden XRechnung-Fälle
+  (siehe unten) im Szenario **„EN16931 XRechnung (CII)"**, das der Validator über die
+  XRechnung-Kennung im XML selbst wählt.
 - Regelstand ist CEN 1.3.16 (2026-04-13). Ein neues CEN- oder Factur-X-Release verlangt
   einen erneuten Lauf mit dem dann gültigen Konfigurationspaket.
 - Das Ergebnis gilt für den **geprüften Stand**: `alle-belege.verapdf-3b.txt` nennt die

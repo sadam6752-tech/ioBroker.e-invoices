@@ -77,6 +77,10 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
   if (current.status !== "draft") {
     throw new Error("Only drafts can be issued");
   }
+  const problems = db.issueProblems(current);
+  if (problems.length > 0) {
+    throw new Error(`Invoice not issuable: ${problems.join(" | ")}`);
+  }
   const loaded = await loadRenderTemplate(db, log, storage);
   const { template, templateId, logo } = loaded;
   try {
@@ -105,7 +109,7 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
   const base = `invoices/${issued.issueDate.slice(0, 4)}/${issued.number}`;
   if (attachments.length > 0) {
     log.info(
-      quote ? `Attachments: ${attachments.length} listed in the quotation PDF (not embedded, R8)` : `Attachments: ${attachments.length} embedded in the PDF, ${attachmentDocuments} written into the XML (BG-24)`
+      quote ? `Attachments: ${attachments.length} listed in the quotation PDF (not embedded, R8)` : (0, import_invoice_model.isXRechnung)(issued.profile) ? `Attachments: ${attachments.length} ${attachmentDocuments === attachments.length ? "written into the XRechnung XML (BG-24)" : "kept next to the XRechnung"}` : `Attachments: ${attachments.length} embedded in the PDF, ${attachmentDocuments} written into the XML (BG-24)`
     );
   }
   const written = /* @__PURE__ */ new Set();
@@ -121,7 +125,7 @@ async function issueInvoiceWithArtifacts(db, log, invoiceId, storage) {
   try {
     await storage.write(`${base}.pdf`, Buffer.from(hybrid));
     written.add(`${base}.pdf`);
-    log.info(`${quote ? "PDF" : "Hybrid PDF"} stored: ${base}.pdf`);
+    log.info(`${quote || (0, import_invoice_model.isXRechnung)(issued.profile) ? "PDF" : "Hybrid PDF"} stored: ${base}.pdf`);
   } catch (error) {
     log.error(`Cannot write PDF file ${base}.pdf: ${error.message}`);
   }
@@ -155,7 +159,7 @@ async function buildArtifacts(db, doc, template, logo, attachments) {
   const generated = (0, import_invoice_model.isQuote)(doc.docType) ? null : await (0, import_zugferd.generateInvoiceXml)(doc, attachments);
   const xml = (_a = generated == null ? void 0 : generated.xml) != null ? _a : null;
   const sight = await (0, import_pdf.renderInvoicePdf)(doc, template, logo, buildRenderContext(db, doc, attachments));
-  const hybrid = xml ? await (0, import_zugferd.embedHybridPdf)(
+  const hybrid = xml && !(0, import_invoice_model.isXRechnung)(doc.profile) ? await (0, import_zugferd.embedHybridPdf)(
     await (0, import_pdf_attachments.embedPdfAttachments)(sight, attachments),
     xml,
     doc.profile,
@@ -339,7 +343,7 @@ async function rerenderInvoicePdf(db, log, invoiceId, storage, reason, options =
     }
   }
   const sight = await (0, import_pdf.renderInvoicePdf)(invoice, template, logo, buildRenderContext(db, invoice, attachments));
-  const hybrid = xml ? await (0, import_zugferd.embedHybridPdf)(
+  const hybrid = xml && !(0, import_invoice_model.isXRechnung)(invoice.profile) ? await (0, import_zugferd.embedHybridPdf)(
     await (0, import_pdf_attachments.embedPdfAttachments)(sight, attachments),
     xml,
     invoice.profile,
@@ -347,7 +351,7 @@ async function rerenderInvoicePdf(db, log, invoiceId, storage, reason, options =
   ) : sight;
   if (attachments.length > 0) {
     log.info(
-      quote ? `Attachments re-listed: ${attachments.length} in the quotation PDF (R8)` : `Attachments re-embedded: ${attachments.length} in the PDF, XML (BG-24) kept as issued`
+      quote ? `Attachments re-listed: ${attachments.length} in the quotation PDF (R8)` : (0, import_invoice_model.isXRechnung)(invoice.profile) ? `Attachments re-listed: ${attachments.length} in the sight PDF, XML (BG-24) kept as issued` : `Attachments re-embedded: ${attachments.length} in the PDF, XML (BG-24) kept as issued`
     );
   }
   const base = `invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}`;

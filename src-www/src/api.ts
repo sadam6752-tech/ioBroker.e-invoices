@@ -25,6 +25,8 @@ export interface Party {
 	website?: string;
 	/** Customer number (BT-10). */
 	customerNumber?: string;
+	/** Leitweg-ID of a public-sector buyer (BT-10 of an XRechnung). */
+	leitwegId?: string;
 	/** Contact person. */
 	contactName?: string;
 	/** Name of the bank. */
@@ -177,8 +179,13 @@ export interface Invoice {
 	updatedAt: string;
 }
 
+/** What a document can be issued as: the ZUGFeRD hybrid or the XRechnung XML (R6.1). */
+export type InvoiceFormat = 'EN16931' | 'XRECHNUNG';
+
 /** Content of a draft that is created or changed. */
 export interface DraftInput {
+	/** Format of the e-invoice (R6.1); empty keeps the ZUGFeRD default. */
+	profile?: InvoiceFormat;
 	/** Seller. */
 	seller: Party;
 	/** Buyer. */
@@ -680,6 +687,8 @@ export const api = {
 			defaultVatRate: number;
 			/** Default payment terms. */
 			defaultPaymentTerms: string;
+			/** Format a new invoice starts with (R6.1). */
+			defaultProfile?: InvoiceFormat;
 			/** Invoice number format. */
 			numberFormat: string;
 			/** Offer number format. */

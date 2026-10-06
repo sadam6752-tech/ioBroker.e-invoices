@@ -111,7 +111,8 @@ async function renderInvoicePdf(invoice, template = import_templates.DEFAULT_TEM
       info: {
         Title: `${invoice.documentTitle} ${invoice.number}`,
         Author: invoice.seller.name,
-        Subject: labels.subject,
+        // R6.1: an XRechnung is the XML file; its PDF only says so, it does not claim to be a ZUGFeRD
+        Subject: (0, import_invoice_model.isXRechnung)(invoice.profile) ? "XRechnung \u2013 Sichtansicht (ma\xDFgeblich ist die XML-Datei)" : labels.subject,
         Creator: "ioBroker.e-invoices"
       }
     });

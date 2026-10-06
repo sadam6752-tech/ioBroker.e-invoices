@@ -57,6 +57,8 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 		// and the state of an offer is derived the way the server derives it.
 		const lbl = labels(inv.docType);
 		const quote = isQuote(inv.docType);
+		// R6.1: an XRechnung is the XML alone; the PDF is a view and is not mailed as the invoice
+		const xrechnung = !quote && inv.profile === 'XRECHNUNG';
 		const state = quoteState(inv);
 		const lines = Array.isArray(inv.lines) ? inv.lines : [];
 		const rows = lines.map(l => {
@@ -141,11 +143,11 @@ ${!quote ? `<button class="secondary" id="d-as-tpl" title="${t('Legt eine Rechnu
 				${quote && inv.status === 'issued' && !inv.acceptedAt && !inv.rejectedAt ? `<button id="d-accept">${t('Annehmen')}</button><button class="secondary" id="d-reject">${t('Ablehnen')}</button>` : ''}
 				${quote && inv.status === 'issued' ? `<button class="secondary" id="d-convert" title="${t('Erstellt einen Rechnungsentwurf mit Verweis auf dieses Angebot. Die Rechnungsnummer fällt erst beim Ausstellen.')}">${t('In Rechnung umwandeln')}</button>` : ''}
 			${inv.pdfPath ? `<button class="secondary" data-view="pdf">${t('PDF ansehen')}</button>` : ''}
-			${inv.pdfPath ? `<button class="secondary" data-dl="pdf">PDF ↓</button>` : ''}
-			${inv.status === 'issued' && inv.pdfPath ? `<button class="secondary" id="d-mail">${t('E-Mail (PDF)')}</button>` : ''}
-			${inv.xml ? `<button class="secondary" data-dl="xml">XML ↓</button>` : ''}
+			${inv.pdfPath ? `<button class="secondary" data-dl="pdf">${xrechnung ? t('PDF (Ansicht) ↓') : 'PDF ↓'}</button>` : ''}
+			${inv.status === 'issued' && inv.pdfPath && !xrechnung ? `<button class="secondary" id="d-mail">${t('E-Mail (PDF)')}</button>` : ''}
+			${inv.xml ? `<button class="secondary" data-dl="xml">${xrechnung ? t('XRechnung (XML) ↓') : 'XML ↓'}</button>` : ''}
 			${inv.xlsxPath ? `<button class="secondary" data-dl="xlsx">Excel ↓</button>` : ''}
-			</div><div id="d-out"></div>${inv.reminderLevel > 0 ? `<p class="muted" id="d-reminded">${t('Gemahnt: Stufe {level} am {date}.', { level: String(inv.reminderLevel), date: esc((inv.remindedAt ?? '').slice(0, 10)) })}</p>` : ''}${inv.templateSnapshot ? `<p class="muted" id="d-frozen">${t('Ausgestellt mit Layout „{name}“ (Version {version}), eingefroren am {date}.', { name: esc(inv.templateSnapshot.templateName), version: String(inv.templateSnapshot.templateVersion ?? '–'), date: esc(inv.templateSnapshot.frozenAt.slice(0, 10)) })}</p>` : ''}<div id="d-duty"></div><div id="d-history"></div><div id="d-reports"></div><div id="d-attachments"></div><div id="d-links"></div></div>`;
+			</div>${xrechnung ? `<p class="muted" id="d-xrechnung">${t('XRechnung: Die XML-Datei ist die Rechnung — sie geht an den Auftraggeber (z. B. über sein Portal). Die PDF ist nur eine Ansicht ohne eingebettetes XML.')}</p>` : ''}<div id="d-out"></div>${inv.reminderLevel > 0 ? `<p class="muted" id="d-reminded">${t('Gemahnt: Stufe {level} am {date}.', { level: String(inv.reminderLevel), date: esc((inv.remindedAt ?? '').slice(0, 10)) })}</p>` : ''}${inv.templateSnapshot ? `<p class="muted" id="d-frozen">${t('Ausgestellt mit Layout „{name}“ (Version {version}), eingefroren am {date}.', { name: esc(inv.templateSnapshot.templateName), version: String(inv.templateSnapshot.templateVersion ?? '–'), date: esc(inv.templateSnapshot.frozenAt.slice(0, 10)) })}</p>` : ''}<div id="d-duty"></div><div id="d-history"></div><div id="d-reports"></div><div id="d-attachments"></div><div id="d-links"></div></div>`;
 
 		const out = root.querySelector('#d-out')!;
 		const fail = (e: unknown): void => {

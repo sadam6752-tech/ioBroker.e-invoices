@@ -608,4 +608,20 @@ export const en: Record<string, string> = {
 	'– manuell eingeben –': '– enter manually –',
 	'„System“ folgt der Einstellung deines Geräts. Die Wahl gilt nur für dieses Gerät; PDF und Excel bleiben unverändert.':
 		'“System” follows the setting of your device. The choice applies to this device only; PDF and Excel stay unchanged.',
+	'Leitweg-ID (nur für öffentliche Auftraggeber)': 'Leitweg-ID (public-sector customers only)',
+	'z. B. 04011000-12345-67': 'e.g. 04011000-12345-67',
+	'PDF (Ansicht) ↓': 'PDF (view) ↓',
+	'XRechnung (XML) ↓': 'XRechnung (XML) ↓',
+	'XRechnung: Die XML-Datei ist die Rechnung — sie geht an den Auftraggeber (z. B. über sein Portal). Die PDF ist nur eine Ansicht ohne eingebettetes XML.':
+		'XRechnung: the XML file is the invoice — it goes to the customer (e.g. through their portal). The PDF is only a view without embedded XML.',
+	'Ansprechpartner (BT-41) *': 'Contact person (BT-41) *',
+	'Pflicht bei der XRechnung': 'Required for an XRechnung',
+	'Leitweg-ID (BT-10) *': 'Leitweg-ID (BT-10) *',
+	Kundennummer: 'Customer number',
+	Rechnungsformat: 'Invoice format',
+	'ZUGFeRD — PDF mit eingebettetem XML (Standard)': 'ZUGFeRD — PDF with embedded XML (default)',
+	'XRechnung — nur XML, für öffentliche Auftraggeber (Leitweg-ID nötig)':
+		'XRechnung — XML only, for public-sector customers (Leitweg-ID needed)',
+	'XRechnung: Es entsteht nur die XML-Datei (Standard XRechnung 3.0); die PDF dient als Ansicht und enthält kein XML. Anlagen gehen in die XML.':
+		'XRechnung: only the XML file is made (XRechnung 3.0 standard); the PDF is a view and contains no XML. Attachments go into the XML.',
 };

@@ -721,7 +721,7 @@ class EInvoices extends utils.Adapter {
    * socket for the PWA — see README for the W5049 reason).
    */
   startApiServer() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     if (!this.db) {
       return;
     }
@@ -735,13 +735,14 @@ class EInvoices extends utils.Adapter {
         onChange: () => this.scheduleStatsRefresh(),
         settings: {
           defaultVatRate: Number((_a = this.config.defaultVatRate) != null ? _a : 19),
-          defaultPaymentTerms: (_b = this.config.defaultPaymentTerms) != null ? _b : "",
-          pwaLanguage: (_c = this.config.pwaLanguage) != null ? _c : "auto",
-          numberFormat: (_e = (_d = this.db) == null ? void 0 : _d.effectiveNumberFormat()) != null ? _e : import_invoice_model.DEFAULT_NUMBER_FORMAT,
-          quoteNumberFormat: (_g = (_f = this.db) == null ? void 0 : _f.effectiveQuoteNumberFormat()) != null ? _g : import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
+          defaultProfile: (_b = this.config.defaultProfile) != null ? _b : "EN16931",
+          defaultPaymentTerms: (_c = this.config.defaultPaymentTerms) != null ? _c : "",
+          pwaLanguage: (_d = this.config.pwaLanguage) != null ? _d : "auto",
+          numberFormat: (_f = (_e = this.db) == null ? void 0 : _e.effectiveNumberFormat()) != null ? _f : import_invoice_model.DEFAULT_NUMBER_FORMAT,
+          quoteNumberFormat: (_h = (_g = this.db) == null ? void 0 : _g.effectiveQuoteNumberFormat()) != null ? _h : import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
           storageMount: this.mountId,
-          backupIntervalMinutes: Number((_h = this.config.backupIntervalMinutes) != null ? _h : 0),
-          backupKeep: Number((_i = this.config.backupKeep) != null ? _i : 0)
+          backupIntervalMinutes: Number((_i = this.config.backupIntervalMinutes) != null ? _i : 0),
+          backupKeep: Number((_j = this.config.backupKeep) != null ? _j : 0)
         }
       });
       const wwwDir = (0, import_node_path.join)(__dirname, "../www");

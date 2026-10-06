@@ -31,6 +31,8 @@ import {
 	isQuote,
 	normalizeDocumentType,
 	todayIso,
+	normalizeInvoiceProfile,
+	storedInvoiceProfile,
 	validateInvoiceForIssue,
 	type DateRange,
 	type DocumentType,
@@ -192,6 +194,8 @@ export interface ApiServerDeps {
 	settings?: {
 		defaultVatRate: number;
 		defaultPaymentTerms: string;
+		/** Format a new invoice starts with (`EN16931` or `XRECHNUNG`). */
+		defaultProfile?: string;
 		/** Start language of the web app (`auto`, `de`, `en`). */
 		pwaLanguage?: string;
 		numberFormat: string;
@@ -225,7 +229,7 @@ export function previewInvoice(draft: InvoiceDraftInput): StoredInvoice {
 		buyer: draft.buyer,
 		lines: draft.lines,
 		totals: calcTotals(draft.lines.length > 0 ? draft.lines : []),
-		profile: 'EN16931',
+		profile: normalizeInvoiceProfile(draft.profile),
 		status: 'draft',
 		templateId: null,
 		docType,
@@ -278,6 +282,7 @@ export function storedToDraft(invoice: StoredInvoice): InvoiceDraftInput {
 		// R8: without the type the re-validation would test invoice rules
 		// against a quotation (and vice versa).
 		docType: invoice.docType,
+		profile: storedInvoiceProfile(invoice.profile),
 		validUntil: invoice.validUntil ?? undefined,
 		employeeCode: invoice.employeeCode ?? undefined,
 		skontoPercent: invoice.skontoPercent,
@@ -481,6 +486,8 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			? Number(deps.settings?.defaultVatRate)
 			: 19,
 		defaultPaymentTerms: deps.settings?.defaultPaymentTerms?.trim() ?? '',
+		// anything but XRechnung is the ZUGFeRD default
+		defaultProfile: storedInvoiceProfile(deps.settings?.defaultProfile),
 		// only languages the web app really ships; anything else means "decide in the browser"
 		pwaLanguage: ['de', 'en'].includes(String(deps.settings?.pwaLanguage))
 			? String(deps.settings?.pwaLanguage)

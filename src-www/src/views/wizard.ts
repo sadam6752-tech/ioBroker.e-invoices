@@ -5,6 +5,7 @@ import {
 	type CompanyProfile,
 	type DraftInput,
 	type Invoice,
+	type InvoiceFormat,
 	type InvoiceLine,
 	type InvoiceTemplate,
 	type Party,
@@ -26,7 +27,11 @@ import { mountAttachments } from './attachments';
 /**
  * Invoicing defaults from the instance config (see admin/jsonConfig.json).
  */
-let settings = { defaultVatRate: 19, defaultPaymentTerms: '' };
+let settings: { defaultVatRate: number; defaultPaymentTerms: string; defaultProfile: InvoiceFormat } = {
+	defaultVatRate: 19,
+	defaultPaymentTerms: '',
+	defaultProfile: 'EN16931',
+};
 
 const emptyParty = (): Party => ({ name: '', street: '', zip: '', city: '', country: 'DE' });
 /**
@@ -191,6 +196,8 @@ interface WizardState {
 	step: number;
 	/** R8: what is being typed — decides number circle, labels and artifacts. */
 	docType: DocType;
+	/** R6.1: ZUGFeRD hybrid (default) or XRechnung XML; an offer has none. */
+	profile: InvoiceFormat;
 	seller: Party;
 	buyer: Party;
 	lines: InvoiceLine[];
@@ -229,6 +236,7 @@ function freshState(): WizardState {
 	return {
 		step: 0,
 		docType: 'invoice',
+		profile: settings.defaultProfile,
 		seller: emptyParty(),
 		buyer: emptyParty(),
 		lines: [emptyLine()],
@@ -278,7 +286,7 @@ function loadSaved(): WizardState | null {
 	}
 }
 
-function partyFields(prefix: string, p: Party, withTax: boolean): string {
+function partyFields(prefix: string, p: Party, withTax: boolean, xrechnung = false): string {
 	return `
 		<label>${t('Name')}<input data-p="${prefix}" data-f="name" value="${esc(p.name)}" /></label>
 		<label>${t('Straße')}<input data-p="${prefix}" data-f="street" value="${esc(p.street)}" /></label>
@@ -299,13 +307,21 @@ function partyFields(prefix: string, p: Party, withTax: boolean): string {
 			}
 		</div>
 		${
+			xrechnung && withTax
+				? `<label class="req">${t('Ansprechpartner (BT-41) *')}<input data-p="${prefix}" data-f="contactName" value="${esc(p.contactName)}" placeholder="${t('Pflicht bei der XRechnung')}" /></label>`
+				: ''
+		}
+		${
 			withTax
 				? `<div class="grid2">
 			<label>${t('USt-IdNr.')}<input data-p="${prefix}" data-f="vatId" value="${esc(p.vatId)}" /></label>
 			<label>${t('Steuernummer')}<input data-p="${prefix}" data-f="taxNumber" value="${esc(p.taxNumber)}" /></label>
 		</div>
 		<label>IBAN<input data-p="${prefix}" data-f="iban" value="${esc(p.iban)}" /></label>`
-				: `<label class="req">${t('Kundennummer (BT-10) *')}<input data-p="${prefix}" data-f="customerNumber" value="${esc(p.customerNumber)}" placeholder="${t('Pflicht im deutschen E-Rechnungs-Profil')}" /></label>`
+				: xrechnung
+					? `<label class="req">${t('Leitweg-ID (BT-10) *')}<input data-p="${prefix}" data-f="leitwegId" value="${esc(p.leitwegId)}" placeholder="${t('z. B. 04011000-12345-67')}" /></label>
+		<label>${t('Kundennummer')}<input data-p="${prefix}" data-f="customerNumber" value="${esc(p.customerNumber)}" /></label>`
+					: `<label class="req">${t('Kundennummer (BT-10) *')}<input data-p="${prefix}" data-f="customerNumber" value="${esc(p.customerNumber)}" placeholder="${t('Pflicht im deutschen E-Rechnungs-Profil')}" /></label>`
 		}`;
 }
 
@@ -353,7 +369,13 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 			settings = {
 				defaultVatRate: Number(cfg.defaultVatRate) || 19,
 				defaultPaymentTerms: cfg.defaultPaymentTerms ?? '',
+				defaultProfile: cfg.defaultProfile === 'XRECHNUNG' ? 'XRECHNUNG' : 'EN16931',
 			};
+			// a document that is still empty starts with the format chosen in the admin
+			if (!editId && !s.draftId && !s.dirty && s.profile !== settings.defaultProfile) {
+				s.profile = settings.defaultProfile;
+				render(true);
+			}
 		})
 		.catch(() => undefined);
 	if (editId) {
@@ -368,6 +390,7 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 				s = {
 					...freshState(),
 					docType: normalizeDocType(inv.docType),
+					profile: inv.profile === 'XRECHNUNG' ? 'XRECHNUNG' : 'EN16931',
 					seller: inv.seller,
 					selectedCompany: inv.companyId ?? null,
 					buyer: inv.buyer,
@@ -572,6 +595,8 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 			collect();
 		}
 		let body = '';
+		// R6.1: an XRechnung asks for a Leitweg-ID and a contact person; an offer never is one
+		const xrechnung = !isQuote(s.docType) && s.profile === 'XRECHNUNG';
 		if (s.step === 0) {
 			body = `<div class="card"><h3>${t('Verkäufer')}</h3>
 				${
@@ -585,6 +610,14 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 						</select></label>`
 				}
 				${
+					isQuote(s.docType)
+						? ''
+						: `<label>${t('Rechnungsformat')}<select id="w-profile">
+							<option value="EN16931" ${s.profile === 'EN16931' ? 'selected' : ''}>${t('ZUGFeRD — PDF mit eingebettetem XML (Standard)')}</option>
+							<option value="XRECHNUNG" ${s.profile === 'XRECHNUNG' ? 'selected' : ''}>${t('XRechnung — nur XML, für öffentliche Auftraggeber (Leitweg-ID nötig)')}</option>
+						</select></label>`
+				}
+				${
 					companies.length > 0
 						? `<label>${t('Aus Firma übernehmen')}<select id="w-company">
 							<option value="">${t('– manuell eingeben –')}</option>
@@ -592,7 +625,7 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 						</select></label>`
 						: `<p class="muted">${t('Tipp: Unter {link} einmal anlegen, dann hier auswählbar.', { link: `<a href="#/company">${t('Firma')}</a>` })}</p>`
 				}
-				${partyFields('seller', s.seller, true)}</div>`;
+				${partyFields('seller', s.seller, true, xrechnung)}</div>`;
 		}
 		if (s.step === 1) {
 			body = `<div class="card"><h3>${t('Käufer')}</h3>
@@ -610,7 +643,7 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 						<p class="muted">${t('Fehlt die Kundennummer (BT-10), trage sie unten ein — ohne sie ist die Rechnung nicht ausstellbar.')}</p>`
 						: `<p class="muted">${t('Tipp: Unter {link} einmal anlegen, dann hier auswählbar.', { link: `<a href="#/customers">${t('Kunden')}</a>` })}</p>`
 				}
-				${partyFields('buyer', s.buyer, false)}</div>`;
+				${partyFields('buyer', s.buyer, false, xrechnung)}</div>`;
 		}
 		if (s.step === 2) {
 			body = `<div class="card"><h3>${t('Positionen & Termine')}</h3>
@@ -804,7 +837,8 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 								s.validUntil || addDays(s.issueDate, QUOTE_VALIDITY_DAYS),
 							)} — ${t('ein Angebot ist keine E-Rechnung: es gibt kein XML und keine XSD-Prüfung.')}</p>
 					<p class="muted">${t('Ausstellen vergibt endgültig die Angebotsnummer aus dem eigenen Nummernkreis — die Rechnungsnummern bleiben davon unberührt.')}</p>`
-						: `<p class="muted">${t('Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.')}</p>
+						: `${xrechnung ? `<p class="muted">${t('XRechnung: Es entsteht nur die XML-Datei (Standard XRechnung 3.0); die PDF dient als Ansicht und enthält kein XML. Anlagen gehen in die XML.')}</p>` : ''}
+					<p class="muted">${t('Exakte Summen und Validierung (XSD, EN16931, BR-Regeln) erfolgen serverseitig beim Ausstellen.')}</p>
 					<p class="muted">${t('Ausstellen vergibt endgültig die Rechnungsnummer — danach ist keine Änderung mehr möglich (GoBD).')}</p>`
 				}
 			</div>`;
@@ -870,6 +904,13 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 		// R8: the type of a new document is chosen here; it decides the number
 		// circle, the wording and the review hints. An existing document keeps
 		// its type (the number circle hangs on it), so the field is not rendered.
+		// R6.1: the format decides which fields the next steps ask for
+		root.querySelector('#w-profile')?.addEventListener('change', event => {
+			collect();
+			s.profile = (event.target as HTMLSelectElement).value === 'XRECHNUNG' ? 'XRECHNUNG' : 'EN16931';
+			s.dirty = true;
+			render();
+		});
 		root.querySelector('#w-doctype')?.addEventListener('change', event => {
 			const next = normalizeDocType((event.target as HTMLSelectElement).value);
 			if (next === s.docType) {
@@ -1043,6 +1084,8 @@ export function wizard(root: HTMLElement, editId?: string, docType: DocType = 'i
 				// R8: the type travels with every write — it decides the number
 				// circle, the validation rules and the artifacts
 				docType: s.docType,
+				// R6.1: the format travels with every write, an offer has none
+				profile: isQuote(s.docType) ? undefined : s.profile,
 				// R6.3: the company the document is written for; null unbinds an edited draft
 				companyId: s.selectedCompany,
 				employeeCode: s.employee.trim() || undefined,

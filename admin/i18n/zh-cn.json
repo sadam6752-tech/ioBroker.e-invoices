@@ -13,6 +13,8 @@
     "Company name":  "公司名称",
     "Company street":  "公司街道",
     "Company zip code":  "公司邮编",
+    "Default invoice format":  "默认发票格式",
+    "ZUGFeRD is a PDF with the invoice data inside. XRechnung is the XML file alone, for public-sector customers (it needs their Leitweg-ID). The wizard can change it per document.":  "ZUGFeRD 是内含发票数据的 PDF。XRechnung 仅为 XML 文件，适用于公共部门客户（需要其 Leitweg-ID）。向导可针对每份单据更改。",
     "Default payment terms":  "默认付款条件",
     "Default VAT rate":  "默认增值税率",
     "e-invoices adapter settings":  "e-invoices的适配器设置",

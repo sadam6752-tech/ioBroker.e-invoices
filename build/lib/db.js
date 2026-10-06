@@ -432,7 +432,7 @@ class InvoiceDatabase {
     this.db.prepare(
       `INSERT INTO invoices
 				(id, number, issue_date, delivery_date, due_date, seller_json, buyer_json, lines_json, totals_json, profile, status, doc_type, template_id, document_title, notes, payment_terms, employee_code, skonto_percent, skonto_due_date, valid_until, source_document_id, company_id, created_at, updated_at)
-				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'EN16931', 'draft', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       id,
       input.issueDate,
@@ -442,6 +442,8 @@ class InvoiceDatabase {
       JSON.stringify(input.buyer),
       JSON.stringify(input.lines),
       JSON.stringify(totals),
+      // R6.1: an unknown profile is refused here, a quotation never has one
+      (0, import_invoice_model.isQuote)(kind) ? "EN16931" : (0, import_invoice_model.normalizeInvoiceProfile)(input.profile),
       kind,
       ((_b = input.documentTitle) == null ? void 0 : _b.trim()) || (0, import_invoice_model.defaultDocumentTitle)(kind),
       (_c = input.notes) != null ? _c : null,
@@ -574,13 +576,38 @@ class InvoiceDatabase {
     return rows.map(mapRow);
   }
   /**
+   * The Pflichtangaben a draft still lacks to be issued, in plain words; empty means issuable.
+   * Used by `issueDraft` and — before the documents are probed — by the issue service, so the
+   * message names the rule instead of a library detail.
+   *
+   * @param current - The stored draft.
+   */
+  issueProblems(current) {
+    var _a, _b, _c, _d;
+    return (0, import_invoice_model.validateInvoiceForIssue)({
+      seller: current.seller,
+      buyer: current.buyer,
+      lines: current.lines,
+      issueDate: current.issueDate,
+      deliveryDate: current.deliveryDate,
+      dueDate: (_a = current.dueDate) != null ? _a : void 0,
+      currency: "EUR",
+      docType: current.docType,
+      employeeCode: (_b = current.employeeCode) != null ? _b : void 0,
+      documentTitle: current.documentTitle,
+      notes: (_c = current.notes) != null ? _c : void 0,
+      validUntil: (_d = current.validUntil) != null ? _d : void 0,
+      profile: (0, import_invoice_model.storedInvoiceProfile)(current.profile)
+    });
+  }
+  /**
    * Updates a draft; issued/cancelled invoices are immutable.
    *
    * @param id - Invoice UUID.
    * @param patch - Partial draft content.
    */
   updateDraft(id, patch) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
     const current = this.getInvoice(id);
     if (!current) {
       throw new Error(`Invoice not found: ${id}`);
@@ -610,14 +637,15 @@ class InvoiceDatabase {
       skontoDueDate: pick(patch.skontoDueDate, current.skontoDueDate),
       validUntil: pick(patch.validUntil, current.validUntil),
       // R6.3: missing keeps the binding, null or empty unbinds it
-      companyId: patch.companyId === void 0 ? current.companyId : patch.companyId
+      companyId: patch.companyId === void 0 ? current.companyId : patch.companyId,
+      profile: patch.profile === void 0 ? (0, import_invoice_model.storedInvoiceProfile)(current.profile) : (0, import_invoice_model.normalizeInvoiceProfile)(patch.profile)
     };
     const companyId = this.checkedCompanyId(merged.companyId);
     const totals = (0, import_invoice_model.calcTotals)(merged.lines.length > 0 ? merged.lines : []);
     this.db.prepare(
       `UPDATE invoices SET issue_date = ?, delivery_date = ?, due_date = ?, seller_json = ?, buyer_json = ?,
 				lines_json = ?, totals_json = ?, document_title = ?, notes = ?, payment_terms = ?, employee_code = ?,
-				skonto_percent = ?, skonto_due_date = ?, doc_type = ?, valid_until = ?, company_id = ?, updated_at = ? WHERE id = ?`
+				skonto_percent = ?, skonto_due_date = ?, doc_type = ?, valid_until = ?, company_id = ?, profile = ?, updated_at = ? WHERE id = ?`
     ).run(
       merged.issueDate,
       merged.deliveryDate,
@@ -635,6 +663,7 @@ class InvoiceDatabase {
       (0, import_invoice_model.normalizeDocumentType)(merged.docType),
       ((_m = merged.validUntil) == null ? void 0 : _m.trim()) || null,
       companyId,
+      (0, import_invoice_model.isQuote)(merged.docType) ? "EN16931" : (_n = merged.profile) != null ? _n : "EN16931",
       nowIso(),
       id
     );
@@ -654,7 +683,6 @@ class InvoiceDatabase {
    * @param id - Draft UUID.
    */
   issueDraft(id) {
-    var _a, _b, _c, _d;
     const current = this.getInvoice(id);
     if (!current) {
       throw new Error(`Invoice not found: ${id}`);
@@ -667,27 +695,14 @@ class InvoiceDatabase {
       throw new Error(`Invalid issue year in ${current.issueDate}`);
     }
     const docType = (0, import_invoice_model.normalizeDocumentType)(current.docType);
-    const errors = (0, import_invoice_model.validateInvoiceForIssue)({
-      seller: current.seller,
-      buyer: current.buyer,
-      lines: current.lines,
-      issueDate: current.issueDate,
-      deliveryDate: current.deliveryDate,
-      dueDate: (_a = current.dueDate) != null ? _a : void 0,
-      currency: "EUR",
-      docType: current.docType,
-      employeeCode: (_b = current.employeeCode) != null ? _b : void 0,
-      documentTitle: current.documentTitle,
-      notes: (_c = current.notes) != null ? _c : void 0,
-      validUntil: (_d = current.validUntil) != null ? _d : void 0
-    });
+    const errors = this.issueProblems(current);
     if (errors.length > 0) {
       throw new Error(`Invoice not issuable: ${errors.join(" | ")}`);
     }
     const run = this.db.transaction(() => {
-      var _a2, _b2, _c2;
-      const number = this.nextDocumentNumber(docType, year, (_a2 = current.employeeCode) != null ? _a2 : void 0);
-      const validUntil = (0, import_invoice_model.isQuote)(docType) ? ((_b2 = current.validUntil) == null ? void 0 : _b2.trim()) || (0, import_invoice_model.defaultValidUntil)(current.issueDate) : (_c2 = current.validUntil) != null ? _c2 : null;
+      var _a, _b, _c;
+      const number = this.nextDocumentNumber(docType, year, (_a = current.employeeCode) != null ? _a : void 0);
+      const validUntil = (0, import_invoice_model.isQuote)(docType) ? ((_b = current.validUntil) == null ? void 0 : _b.trim()) || (0, import_invoice_model.defaultValidUntil)(current.issueDate) : (_c = current.validUntil) != null ? _c : null;
       this.db.prepare(
         `UPDATE invoices SET number = ?, status = 'issued', totals_json = ?, retain_until = ?, valid_until = ?, updated_at = ? WHERE id = ? AND status = 'draft'`
       ).run(
@@ -905,6 +920,8 @@ class InvoiceDatabase {
       currency: "EUR",
       employeeCode: (_b = original.employeeCode) != null ? _b : void 0,
       companyId: original.companyId,
+      // the credit note is the same kind of e-invoice as the invoice it reverses
+      profile: (0, import_invoice_model.storedInvoiceProfile)(original.profile),
       paymentTerms: (_c = original.paymentTerms) != null ? _c : void 0,
       skontoPercent: original.skontoPercent,
       skontoDueDate: (_d = original.skontoDueDate) != null ? _d : void 0,

@@ -208,7 +208,7 @@ try {
 	const jar = await fetchTool(VALIDATOR);
 	const config = await unpackConfig(await fetchTool(CONFIG));
 	await generateSamples();
-	console.log('\nKoSIT validator, scenario EN 16931 (CII):');
+	console.log('\nKoSIT validator, scenarios EN 16931 (CII) and XRechnung (CII):');
 	await validateXml(jar, config);
 } catch (error) {
 	console.error(`\nValidation failed: ${error.message}`);

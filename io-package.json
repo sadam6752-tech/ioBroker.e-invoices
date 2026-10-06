@@ -207,6 +207,7 @@
     "numberFormat": "{YYYY}-{EMPLOYEE}-{SEQ}",
     "quoteNumberFormat": "A-{YYYY}-{EMPLOYEE}-{SEQ}",
     "defaultVatRate": 19,
+    "defaultProfile": "EN16931",
     "defaultPaymentTerms": ""
   },
   "encryptedNative": [

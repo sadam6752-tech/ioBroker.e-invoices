@@ -115,7 +115,7 @@ function previewInvoice(draft) {
     buyer: draft.buyer,
     lines: draft.lines,
     totals: (0, import_invoice_model.calcTotals)(draft.lines.length > 0 ? draft.lines : []),
-    profile: "EN16931",
+    profile: (0, import_invoice_model.normalizeInvoiceProfile)(draft.profile),
     status: "draft",
     templateId: null,
     docType,
@@ -160,6 +160,7 @@ function storedToDraft(invoice) {
     // R8: without the type the re-validation would test invoice rules
     // against a quotation (and vice versa).
     docType: invoice.docType,
+    profile: (0, import_invoice_model.storedInvoiceProfile)(invoice.profile),
     validUntil: (_b = invoice.validUntil) != null ? _b : void 0,
     employeeCode: (_c = invoice.employeeCode) != null ? _c : void 0,
     skontoPercent: invoice.skontoPercent,
@@ -271,27 +272,29 @@ function secretEquals(provided, expected) {
   return (0, import_node_crypto.timingSafeEqual)(a, b);
 }
 function createApiServer(deps) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
   const { db, storage, log, version, authToken } = deps;
   const settings = {
     defaultVatRate: import_invoice_model.ALLOWED_VAT_RATES.includes(Number((_a = deps.settings) == null ? void 0 : _a.defaultVatRate)) ? Number((_b = deps.settings) == null ? void 0 : _b.defaultVatRate) : 19,
     defaultPaymentTerms: (_e = (_d = (_c = deps.settings) == null ? void 0 : _c.defaultPaymentTerms) == null ? void 0 : _d.trim()) != null ? _e : "",
+    // anything but XRechnung is the ZUGFeRD default
+    defaultProfile: (0, import_invoice_model.storedInvoiceProfile)((_f = deps.settings) == null ? void 0 : _f.defaultProfile),
     // only languages the web app really ships; anything else means "decide in the browser"
-    pwaLanguage: ["de", "en"].includes(String((_f = deps.settings) == null ? void 0 : _f.pwaLanguage)) ? String((_g = deps.settings) == null ? void 0 : _g.pwaLanguage) : "auto",
-    numberFormat: ((_i = (_h = deps.settings) == null ? void 0 : _h.numberFormat) == null ? void 0 : _i.trim()) || import_invoice_model.DEFAULT_NUMBER_FORMAT,
+    pwaLanguage: ["de", "en"].includes(String((_g = deps.settings) == null ? void 0 : _g.pwaLanguage)) ? String((_h = deps.settings) == null ? void 0 : _h.pwaLanguage) : "auto",
+    numberFormat: ((_j = (_i = deps.settings) == null ? void 0 : _i.numberFormat) == null ? void 0 : _j.trim()) || import_invoice_model.DEFAULT_NUMBER_FORMAT,
     // R8: quotations number in their own circle, so the PWA shows the
     // matching format next to the invoice one.
-    quoteNumberFormat: ((_k = (_j = deps.settings) == null ? void 0 : _j.quoteNumberFormat) == null ? void 0 : _k.trim()) || import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
-    storageMount: (_n = (_m = (_l = deps.settings) == null ? void 0 : _l.storageMount) == null ? void 0 : _m.trim()) != null ? _n : "",
-    backupIntervalMinutes: Math.max(0, Math.round(Number((_o = deps.settings) == null ? void 0 : _o.backupIntervalMinutes) || 0)),
-    backupKeep: Math.max(0, Math.round(Number((_p = deps.settings) == null ? void 0 : _p.backupKeep) || 0))
+    quoteNumberFormat: ((_l = (_k = deps.settings) == null ? void 0 : _k.quoteNumberFormat) == null ? void 0 : _l.trim()) || import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
+    storageMount: (_o = (_n = (_m = deps.settings) == null ? void 0 : _m.storageMount) == null ? void 0 : _n.trim()) != null ? _o : "",
+    backupIntervalMinutes: Math.max(0, Math.round(Number((_p = deps.settings) == null ? void 0 : _p.backupIntervalMinutes) || 0)),
+    backupKeep: Math.max(0, Math.round(Number((_q = deps.settings) == null ? void 0 : _q.backupKeep) || 0))
   };
   const limits = {
-    api: Math.max(1, Math.round((_r = (_q = deps.limits) == null ? void 0 : _q.api) != null ? _r : 600)),
-    restore: Math.max(1, Math.round((_t = (_s = deps.limits) == null ? void 0 : _s.restore) != null ? _t : 10)),
+    api: Math.max(1, Math.round((_s = (_r = deps.limits) == null ? void 0 : _r.api) != null ? _s : 600)),
+    restore: Math.max(1, Math.round((_u = (_t = deps.limits) == null ? void 0 : _t.restore) != null ? _u : 10)),
     // N1: wrong tokens per minute and client — far below the general budget, so guessing the token is slow;
     // twenty leaves room for the few requests a web app with a stale token fires at once
-    authFail: Math.max(1, Math.round((_v = (_u = deps.limits) == null ? void 0 : _u.authFail) != null ? _v : 20))
+    authFail: Math.max(1, Math.round((_w = (_v = deps.limits) == null ? void 0 : _v.authFail) != null ? _w : 20))
   };
   const app = (0, import_express.default)();
   app.disable("x-powered-by");

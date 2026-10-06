@@ -32,6 +32,8 @@ declare global {
 			/** Quotation number format; separate number circle (R8). */
 			quoteNumberFormat?: string;
 			defaultVatRate?: number;
+			/** Format a new invoice starts with: `EN16931` (ZUGFeRD) or `XRECHNUNG` (R6.1). */
+			defaultProfile?: string;
 			defaultPaymentTerms?: string;
 		}
 	}

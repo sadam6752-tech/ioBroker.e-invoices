@@ -793,6 +793,7 @@ class EInvoices extends utils.Adapter {
 				onChange: () => this.scheduleStatsRefresh(),
 				settings: {
 					defaultVatRate: Number(this.config.defaultVatRate ?? 19),
+					defaultProfile: this.config.defaultProfile ?? 'EN16931',
 					defaultPaymentTerms: this.config.defaultPaymentTerms ?? '',
 					pwaLanguage: this.config.pwaLanguage ?? 'auto',
 					numberFormat: this.db?.effectiveNumberFormat() ?? DEFAULT_NUMBER_FORMAT,

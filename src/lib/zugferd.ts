@@ -6,8 +6,10 @@
  * generates the structured XML, XSD-validates it offline (libxml2-wasm)
  * and embeds the hybrid PDF/A-3.
  *
- * Supported profiles in v1: BASIC and EN16931. MINIMUM and BASIC-WL are
- * rejected on purpose (no valid e-invoices under German fiscal law).
+ * Supported profiles in v1: BASIC and EN16931, and XRECHNUNG (R6.1: the EN 16931
+ * content with the XRechnung CIUS identifier, standalone XML without a PDF container).
+ * MINIMUM and BASIC-WL are rejected on purpose (no valid e-invoices under German
+ * fiscal law).
  */
 import {
 	DocumentTypeCode,
@@ -18,6 +20,7 @@ import {
 	buildXml,
 	embedFacturX,
 	escapeXml,
+	resolveBusinessProcessUrn,
 	validateInput,
 	validateXsd,
 	type FacturXInvoiceInput,
@@ -27,6 +30,7 @@ import {
 	calcTotals,
 	formatDeliveryDateDe,
 	isQuote,
+	isXRechnung,
 	lineNetUnitPrice,
 	parseDeliveryPeriod,
 	roundCents,
@@ -37,7 +41,7 @@ import type { StoredInvoice } from './db';
 import { loadIccProfile } from './fonts';
 
 /** Profiles this adapter can generate in v1. */
-export type SupportedProfile = 'BASIC' | 'EN16931';
+export type SupportedProfile = 'BASIC' | 'EN16931' | 'XRECHNUNG';
 
 /**
  * Resolves our stored profile string to the library enum.
@@ -49,10 +53,21 @@ export function resolveProfile(profile: string): Profile {
 	if (profile === 'BASIC') {
 		return Profile.BASIC;
 	}
-	if (profile === 'EN16931') {
+	// XRechnung is the EN 16931 content under another guideline identifier (the flavour, see `flavorFor`)
+	if (profile === 'EN16931' || profile === 'XRECHNUNG') {
 		return Profile.EN16931;
 	}
-	throw new Error(`Profile not supported in v1 (need BASIC or EN16931): ${profile}`);
+	throw new Error(`Profile not supported in v1 (need BASIC, EN16931 or XRECHNUNG): ${profile}`);
+}
+
+/**
+ * The library flavour of a stored profile: XRechnung writes the CIUS identifier (BT-24) and the
+ * Peppol business process (BT-23), everything else is a ZUGFeRD document.
+ *
+ * @param profile - Stored profile string.
+ */
+export function flavorFor(profile: string): Flavor {
+	return isXRechnung(profile) ? Flavor.XRECHNUNG : Flavor.ZUGFERD;
 }
 
 /**
@@ -204,7 +219,14 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 			issueDate: invoice.issueDate,
 			typeCode: mapDocumentTypeCode(invoice.documentTitle),
 			dueDate: invoice.dueDate ?? undefined,
-			buyerReference: invoice.buyer.customerNumber?.trim() || undefined,
+			// BT-10: the Leitweg-ID for a public-sector buyer (XRechnung), else the customer number
+			buyerReference: isXRechnung(invoice.profile)
+				? invoice.buyer.leitwegId?.trim() || undefined
+				: invoice.buyer.customerNumber?.trim() || undefined,
+			// BT-23 (Peppol billing process) is mandatory for XRechnung
+			businessProcessId: isXRechnung(invoice.profile)
+				? resolveBusinessProcessUrn({} as FacturXInvoiceInput, Flavor.XRECHNUNG)
+				: undefined,
 			notes: notes.length > 0 ? notes : undefined,
 		},
 		seller: {
@@ -220,8 +242,10 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 				? { value: invoice.seller.email.trim(), schemeID: 'EM' }
 				: undefined,
 			contact:
-				invoice.seller.email?.trim() || invoice.seller.phone?.trim()
+				invoice.seller.email?.trim() || invoice.seller.phone?.trim() || invoice.seller.contactName?.trim()
 					? {
+							// BT-41/42/43 — mandatory for an XRechnung (BR-DE-5/6/7), harmless in a ZUGFeRD
+							name: invoice.seller.contactName?.trim() || undefined,
 							email: invoice.seller.email?.trim() || undefined,
 							phone: invoice.seller.phone?.trim() || undefined,
 						}
@@ -341,16 +365,17 @@ export async function generateInvoiceXml(
 	attachments: XmlAttachment[] = [],
 ): Promise<GeneratedXml> {
 	const profile = resolveProfile(invoice.profile);
+	const flavor = flavorFor(invoice.profile);
 	const input = toFacturXInput(invoice);
 
-	const inputCheck = validateInput(input, profile, Flavor.ZUGFERD);
+	const inputCheck = validateInput(input, profile, flavor);
 	if (!inputCheck.valid) {
 		throw new Error(
 			`Factur-X input invalid: ${inputCheck.errors.map(e => `${e.field}: ${e.message}`).join(' | ')}`,
 		);
 	}
 
-	const xml = buildXml(input, profile, Flavor.ZUGFERD);
+	const xml = buildXml(input, profile, flavor);
 	const withPeriod = applyBillingPeriod(xml, parseDeliveryPeriod(invoice.deliveryDate));
 	// BG-24 lives in EN 16931 only. `FACTUR-X_BASIC.xsd` has no
 	// AdditionalReferencedDocument in its HeaderTradeAgreementType, so a BASIC
@@ -482,6 +507,9 @@ export async function embedHybridPdf(
 	profileName: string,
 	title: string,
 ): Promise<Uint8Array> {
+	if (isXRechnung(profileName)) {
+		throw new Error('An XRechnung is a standalone XML file: it is never embedded into a PDF.');
+	}
 	const profile = resolveProfile(profileName);
 	// PDF/A-3 requires an `/OutputIntents` entry (ISO 19005-3 § 6.2.4.3).
 	// Without the profile the library only writes its own log line, so the

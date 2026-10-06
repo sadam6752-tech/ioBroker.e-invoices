@@ -2047,3 +2047,147 @@ describe('api => quotations (R8)', function () {
 		expect(nonsense.text).to.equal(csv.text);
 	});
 });
+
+describe('api => XRechnung (R6.1)', function () {
+	this.timeout(60000);
+	let db: InvoiceDatabase;
+	let app: ReturnType<typeof createApiServer>;
+	let files: Map<string, Buffer>;
+	const quiet = { info: (): void => undefined, error: (): void => undefined };
+	const sellerB2g = { ...seller, contactName: 'Erika Mustermann', phone: '030 1234567' };
+	const buyerB2g = {
+		name: 'Stadt Beispielhausen',
+		street: 'Rathausplatz 1',
+		zip: '80331',
+		city: 'München',
+		country: 'DE',
+		email: 'rechnungseingang@beispielhausen.example',
+		leitwegId: '991-01234-44',
+	};
+	const xrBody = { ...draftBody, seller: sellerB2g, buyer: buyerB2g, profile: 'XRECHNUNG' };
+
+	beforeEach(() => {
+		db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		files = new Map<string, Buffer>();
+		app = createApiServer({
+			db,
+			storage: {
+				write: (path: string, data: string | Buffer): Promise<void> => {
+					files.set(path, Buffer.isBuffer(data) ? data : Buffer.from(data));
+					return Promise.resolve();
+				},
+				read: (path: string): Promise<Buffer> => {
+					const found = files.get(path);
+					return found ? Promise.resolve(found) : Promise.reject(new Error(`missing: ${path}`));
+				},
+			},
+			log: quiet,
+			version: '0.0.0-test',
+		});
+	});
+
+	afterEach(() => {
+		db.close();
+	});
+
+	it('keeps the format of a draft and refuses an unknown one', async () => {
+		const created = await request(app).post('/api/invoices').send(xrBody).expect(201);
+		expect(created.body.profile).to.equal('XRECHNUNG');
+		const plain = await request(app)
+			.post('/api/invoices')
+			.send({ ...draftBody, seller, buyer })
+			.expect(201);
+		expect(plain.body.profile).to.equal('EN16931');
+		const bad = await request(app)
+			.post('/api/invoices')
+			.send({ ...xrBody, profile: 'FACTURX' })
+			.expect(400);
+		expect(bad.body.error).to.contain('Unknown profile');
+		const switched = await request(app)
+			.patch(`/api/invoices/${plain.body.id as string}`)
+			.send({ profile: 'XRECHNUNG' })
+			.expect(200);
+		expect(switched.body.profile).to.equal('XRECHNUNG');
+	});
+
+	it('refuses to issue without a Leitweg-ID and names the rule, no number is used', async () => {
+		const created = await request(app)
+			.post('/api/invoices')
+			.send({ ...xrBody, buyer: { ...buyerB2g, leitwegId: '' } })
+			.expect(201);
+		const refused = await request(app)
+			.post(`/api/invoices/${created.body.id as string}/issue`)
+			.expect(400);
+		expect(refused.body.error).to.contain('Leitweg-ID').and.to.contain('BR-DE-15');
+		const stored = await request(app)
+			.get(`/api/invoices/${created.body.id as string}`)
+			.expect(200);
+		expect(stored.body.status).to.equal('draft');
+		expect(stored.body.number).to.equal(null);
+		expect(files.size).to.equal(0);
+	});
+
+	it('issues the XML with the XRechnung guideline and a plain PDF without embedded XML', async () => {
+		const created = await request(app).post('/api/invoices').send(xrBody).expect(201);
+		const id = created.body.id as string;
+		const issued = await request(app).post(`/api/invoices/${id}/issue`).expect(200);
+		expect(issued.body.profile).to.equal('XRECHNUNG');
+		const xml = await request(app).get(`/api/invoices/${id}.xml`).expect(200);
+		const text = xml.text || xml.body.toString('utf8');
+		expect(text).to.contain('urn:xeinkauf.de:kosit:xrechnung_3.0');
+		expect(text).to.contain('<ram:BuyerReference>991-01234-44</ram:BuyerReference>');
+		await request(app).get(`/api/invoices/${id}.pdf`).expect(200);
+		const stored = [...files.entries()].find(([path]) => path.endsWith('.pdf'));
+		const raw = (stored?.[1] ?? Buffer.alloc(0)).toString('latin1');
+		expect(raw.startsWith('%PDF')).to.equal(true);
+		expect(raw).to.not.match(/EmbeddedFile|AFRelationship/);
+		// the report of the validation route agrees
+		const report = await request(app).post(`/api/invoices/${id}/validate`).expect(200);
+		expect(report.body.businessErrors).to.deep.equal([]);
+		expect(report.body.formatErrors).to.deep.equal([]);
+	});
+
+	it('writes an attachment into the XRechnung XML (BG-24) and keeps the PDF plain', async () => {
+		const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48]);
+		const created = await request(app).post('/api/invoices').send(xrBody).expect(201);
+		const id = created.body.id as string;
+		await request(app)
+			.post(`/api/invoices/${id}/attachments`)
+			.send({ filename: 'nachweis.png', mime: 'image/png', dataBase64: png.toString('base64') })
+			.expect(201);
+		await request(app).post(`/api/invoices/${id}/issue`).expect(200);
+		const xml = await request(app).get(`/api/invoices/${id}.xml`).expect(200);
+		expect(xml.text || xml.body.toString('utf8')).to.contain('AttachmentBinaryObject');
+	});
+
+	it('hands the default format of the admin to the web app', async () => {
+		const settingsOf = (
+			defaultProfile?: string,
+		): NonNullable<Parameters<typeof createApiServer>[0]['settings']> => ({
+			defaultVatRate: 19,
+			defaultPaymentTerms: '',
+			defaultProfile,
+			numberFormat: '{YYYY}-{EMPLOYEE}-{SEQ}',
+			quoteNumberFormat: 'A-{YYYY}-{EMPLOYEE}-{SEQ}',
+			storageMount: '',
+			backupIntervalMinutes: 0,
+		});
+		for (const [configured, expected] of [
+			['XRECHNUNG', 'XRECHNUNG'],
+			['EN16931', 'EN16931'],
+			['BASIC', 'EN16931'],
+			[undefined, 'EN16931'],
+		] as const) {
+			const other = createApiServer({
+				db,
+				storage: { write: () => Promise.resolve(), read: () => Promise.reject(new Error('empty')) },
+				log: quiet,
+				version: 'x',
+				settings: settingsOf(configured),
+			});
+			const settings = await request(other).get('/api/settings').expect(200);
+			expect(settings.body.defaultProfile, `configured ${String(configured)}`).to.equal(expected);
+		}
+	});
+});

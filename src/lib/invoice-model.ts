@@ -30,6 +30,11 @@ export interface Party {
 	website?: string;
 	/** Customer number, mapped to BT-10 Buyer reference (optional, `-` fallback). */
 	customerNumber?: string;
+	/**
+	 * Leitweg-ID of a public-sector buyer (XRechnung, BT-10). Only used for documents with the
+	 * XRechnung profile, where it replaces the customer number as the buyer reference.
+	 */
+	leitwegId?: string;
 	/** Contact person (optional, header/meta display only). */
 	contactName?: string;
 	/** Bank name (optional, footer display only). */
@@ -133,6 +138,8 @@ export interface InvoiceDraftInput {
 	sourceDocumentId?: string;
 	/** Company profile this document is written for (R6.3); empty = none. */
 	companyId?: string | null;
+	/** E-invoice profile (R6.1): `EN16931` (ZUGFeRD hybrid, default) or `XRECHNUNG` (XML only, B2G). */
+	profile?: InvoiceProfile;
 	/** Payment terms text, e.g. Skonto (optional). */
 	paymentTerms?: string;
 	/** Cash discount in percent, 0-100 (optional, EN 16931 BT-147). */
@@ -332,6 +339,51 @@ export function documentLabels(docType?: string | null): DocumentLabels {
 
 /** Supported ZUGFeRD profiles (MINIMUM / BASIC-WL are rejected). */
 export type ZugferdProfile = 'BASIC' | 'EN16931' | 'EXTENDED' | 'XRECHNUNG';
+
+/** What a new document can be issued as (R6.1): the ZUGFeRD hybrid or the XRechnung XML. */
+export type InvoiceProfile = 'EN16931' | 'XRECHNUNG';
+
+/** The profiles a document can be issued as, default first. */
+export const INVOICE_PROFILES: InvoiceProfile[] = ['EN16931', 'XRECHNUNG'];
+
+/**
+ * Narrows an unknown value to an invoice profile; empty means the default.
+ * Anything else is rejected loudly, so a typo never silently issues the wrong format.
+ *
+ * @param value - Raw profile as typed by a user or sent through the API.
+ */
+export function normalizeInvoiceProfile(value?: string | null): InvoiceProfile {
+	const raw = (value ?? '').trim().toUpperCase();
+	if (raw === '') {
+		return 'EN16931';
+	}
+	if (raw === 'EN16931' || raw === 'XRECHNUNG') {
+		return raw;
+	}
+	throw new Error(`Unknown profile "${value}" — use EN16931 (ZUGFeRD) or XRECHNUNG.`);
+}
+
+/**
+ * The draft profile of a stored document: XRechnung stays XRechnung, everything else is the
+ * ZUGFeRD default. Tolerant on purpose — it reads what is in the database and never throws.
+ *
+ * @param profile - Stored profile string.
+ */
+export function storedInvoiceProfile(profile?: string | null): InvoiceProfile {
+	return isXRechnung(profile) ? 'XRECHNUNG' : 'EN16931';
+}
+
+/**
+ * True for the XRechnung profile (XML only, no PDF/A-3 container).
+ *
+ * @param profile - Stored profile string.
+ */
+export function isXRechnung(profile?: string | null): boolean {
+	return (profile ?? '').trim().toUpperCase() === 'XRECHNUNG';
+}
+
+/** Leitweg-ID syntax: letters, digits and hyphens, at most 46 characters (checksum is not checked). */
+export const LEITWEG_ID_PATTERN = /^[0-9A-Za-z][0-9A-Za-z-]{0,45}$/;
 
 /** Allowed VAT rates in v1. */
 export const ALLOWED_VAT_RATES: readonly number[] = [0, 7, 19];
@@ -591,7 +643,7 @@ export function calcSkonto(
 /**
  * Formats an automatically assigned customer number (BT-10).
  * BT-10 is a seller-assigned key with no prescribed format; only the public
- * sector Leitweg-ID has a mandatory layout, which this adapter does not use.
+ * sector Leitweg-ID has a mandatory layout — an XRechnung carries it instead (`Party.leitwegId`).
  *
  * @param seq - Sequence number.
  */
@@ -704,6 +756,42 @@ function isBlank(value: string | undefined): boolean {
 }
 
 /**
+ * The extra Pflichtangaben of an XRechnung (R6.1, XRechnung 3.0 / CIUS rules BR-DE-*). Only the syntax of the
+ * Leitweg-ID is checked — its checksum is defined for some federal states only, a stricter test would reject
+ * valid IDs.
+ *
+ * @param input - Invoice draft with the XRechnung profile.
+ */
+function xrechnungErrors(input: InvoiceDraftInput): string[] {
+	const errors: string[] = [];
+	const { seller, buyer } = input;
+	const leitweg = buyer.leitwegId?.trim() ?? '';
+	if (leitweg === '') {
+		errors.push('XRechnung: the buyer needs a Leitweg-ID (BT-10, BR-DE-15).');
+	} else if (!LEITWEG_ID_PATTERN.test(leitweg)) {
+		errors.push(
+			'XRechnung: the Leitweg-ID may only contain letters, digits and hyphens (at most 46 characters, BT-10).',
+		);
+	}
+	if (isBlank(buyer.email)) {
+		errors.push('XRechnung: the buyer needs an e-mail address (BT-49, PEPPOL-EN16931-R010).');
+	}
+	if (isBlank(seller.contactName)) {
+		errors.push('XRechnung: the seller needs a contact person (BT-41, BR-DE-5) — set it in the company data.');
+	}
+	if (isBlank(seller.phone)) {
+		errors.push('XRechnung: the seller needs a phone number (BT-42, BR-DE-6) — set it in the company data.');
+	}
+	if (isBlank(seller.email)) {
+		errors.push('XRechnung: the seller needs an e-mail address (BT-43, BR-DE-7) — set it in the company data.');
+	}
+	if (isBlank(seller.iban)) {
+		errors.push('XRechnung: the seller needs an IBAN for the payment instructions (BT-84, BR-DE-23).');
+	}
+	return errors;
+}
+
+/**
  * Validates a draft against the German Pflichtangaben for issue.
  * The required set depends on the document type (R8): a quotation needs no
  * BT-10 and no Skonto, an invoice does. Returns a list of human-readable
@@ -730,8 +818,12 @@ export function validateInvoiceForIssue(input: InvoiceDraftInput): string[] {
 	}
 	// BT-10 (Käuferreferenz) is mandatory in the German EN 16931 profile; without
 	// it the receiver's validation tooling rejects the invoice
-	if (!quote && isBlank(buyer.customerNumber)) {
+	const xrechnung = !quote && isXRechnung(input.profile);
+	if (!quote && !xrechnung && isBlank(buyer.customerNumber)) {
 		errors.push('Buyer needs a customer number (Kundennummer, BT-10) for the German e-invoice.');
+	}
+	if (xrechnung) {
+		errors.push(...xrechnungErrors(input));
 	}
 	if (isBlank(input.issueDate) || !isIsoDate(input.issueDate)) {
 		errors.push('Issue date must be a real calendar date in ISO format (YYYY-MM-DD).');

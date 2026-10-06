@@ -9,7 +9,7 @@
 import { createHash } from 'node:crypto';
 import type { InvoiceDatabase, StoredAttachmentMeta, StoredInvoice } from './db';
 import { renderInvoiceWorkbook } from './excel';
-import { daysBetween, isQuote, quoteState, todayIso } from './invoice-model';
+import { daysBetween, isQuote, isXRechnung, quoteState, todayIso } from './invoice-model';
 import { formatDeDate, renderInvoicePdf, type InvoiceRenderContext, type TemplateLogoImage } from './pdf';
 import { embedPdfAttachments } from './pdf-attachments';
 import { DEFAULT_TEMPLATE, type LayoutTemplate, type TemplateSnapshot } from './templates';
@@ -124,6 +124,12 @@ export async function issueInvoiceWithArtifacts(
 	if (current.status !== 'draft') {
 		throw new Error('Only drafts can be issued');
 	}
+	// the Pflichtangaben first: their message names the rule (e.g. the Leitweg-ID of an XRechnung), the probe
+	// below would only report what the XML library found missing
+	const problems = db.issueProblems(current);
+	if (problems.length > 0) {
+		throw new Error(`Invoice not issuable: ${problems.join(' | ')}`);
+	}
 	const loaded = await loadRenderTemplate(db, log, storage);
 	const { template, templateId, logo } = loaded;
 	// M1: make every document once with a placeholder number BEFORE the number is consumed. A defect of the
@@ -163,7 +169,9 @@ export async function issueInvoiceWithArtifacts(
 		log.info(
 			quote
 				? `Attachments: ${attachments.length} listed in the quotation PDF (not embedded, R8)`
-				: `Attachments: ${attachments.length} embedded in the PDF, ${attachmentDocuments} written into the XML (BG-24)`,
+				: isXRechnung(issued.profile)
+					? `Attachments: ${attachments.length} ${attachmentDocuments === attachments.length ? 'written into the XRechnung XML (BG-24)' : 'kept next to the XRechnung'}`
+					: `Attachments: ${attachments.length} embedded in the PDF, ${attachmentDocuments} written into the XML (BG-24)`,
 		);
 	}
 
@@ -183,7 +191,7 @@ export async function issueInvoiceWithArtifacts(
 	try {
 		await storage.write(`${base}.pdf`, Buffer.from(hybrid));
 		written.add(`${base}.pdf`);
-		log.info(`${quote ? 'PDF' : 'Hybrid PDF'} stored: ${base}.pdf`);
+		log.info(`${quote || isXRechnung(issued.profile) ? 'PDF' : 'Hybrid PDF'} stored: ${base}.pdf`);
 	} catch (error) {
 		log.error(`Cannot write PDF file ${base}.pdf: ${(error as Error).message}`);
 	}
@@ -250,14 +258,16 @@ async function buildArtifacts(
 	// `pdf-lib` appends to the existing /AF array, so the Factur-X step below
 	// stays the last writer: it owns the XMP packet, the output intent and the
 	// trailer /ID that PDF/A-3b is checked for.
-	const hybrid = xml
-		? await embedHybridPdf(
-				await embedPdfAttachments(sight, attachments),
-				xml,
-				doc.profile,
-				`${doc.documentTitle} ${doc.number}`,
-			)
-		: sight;
+	// R6.1: an XRechnung is the XML alone — the PDF stays a plain sight copy, nothing is embedded.
+	const hybrid =
+		xml && !isXRechnung(doc.profile)
+			? await embedHybridPdf(
+					await embedPdfAttachments(sight, attachments),
+					xml,
+					doc.profile,
+					`${doc.documentTitle} ${doc.number}`,
+				)
+			: sight;
 	const xlsx = await renderInvoiceWorkbook(doc);
 	return { xml, hybrid, xlsx, attachmentDocuments: generated?.attachmentDocuments ?? 0 };
 }
@@ -563,19 +573,23 @@ export async function rerenderInvoicePdf(
 		}
 	}
 	const sight = await renderInvoicePdf(invoice, template, logo, buildRenderContext(db, invoice, attachments));
-	const hybrid = xml
-		? await embedHybridPdf(
-				await embedPdfAttachments(sight, attachments),
-				xml,
-				invoice.profile,
-				`${invoice.documentTitle} ${invoice.number}`,
-			)
-		: sight;
+	// R6.1: an XRechnung is the XML alone, the PDF stays a plain sight copy
+	const hybrid =
+		xml && !isXRechnung(invoice.profile)
+			? await embedHybridPdf(
+					await embedPdfAttachments(sight, attachments),
+					xml,
+					invoice.profile,
+					`${invoice.documentTitle} ${invoice.number}`,
+				)
+			: sight;
 	if (attachments.length > 0) {
 		log.info(
 			quote
 				? `Attachments re-listed: ${attachments.length} in the quotation PDF (R8)`
-				: `Attachments re-embedded: ${attachments.length} in the PDF, XML (BG-24) kept as issued`,
+				: isXRechnung(invoice.profile)
+					? `Attachments re-listed: ${attachments.length} in the sight PDF, XML (BG-24) kept as issued`
+					: `Attachments re-embedded: ${attachments.length} in the PDF, XML (BG-24) kept as issued`,
 		);
 	}
 

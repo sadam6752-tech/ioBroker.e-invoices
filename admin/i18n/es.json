@@ -13,6 +13,8 @@
     "Company name":  "Nombre de la empresa",
     "Company street":  "Calle de la empresa",
     "Company zip code":  "Código postal de la empresa",
+    "Default invoice format":  "Formato de factura predeterminado",
+    "ZUGFeRD is a PDF with the invoice data inside. XRechnung is the XML file alone, for public-sector customers (it needs their Leitweg-ID). The wizard can change it per document.":  "ZUGFeRD es un PDF con los datos de la factura dentro. XRechnung es solo el archivo XML, para clientes del sector público (necesita su Leitweg-ID). El asistente puede cambiarlo en cada documento.",
     "Default payment terms":  "Condiciones de pago predeterminadas",
     "Default VAT rate":  "Tipo de IVA predeterminado",
     "e-invoices adapter settings":  "Ajustes del adaptador para e-invoices",

@@ -16,6 +16,7 @@ import {
 	documentLabels,
 	formatDeliveryDateDe,
 	isQuote,
+	isXRechnung,
 	lineNetAmount,
 	lineNetUnitPrice,
 } from './invoice-model';
@@ -221,7 +222,10 @@ export async function renderInvoicePdf(
 			info: {
 				Title: `${invoice.documentTitle} ${invoice.number}`,
 				Author: invoice.seller.name,
-				Subject: labels.subject,
+				// R6.1: an XRechnung is the XML file; its PDF only says so, it does not claim to be a ZUGFeRD
+				Subject: isXRechnung(invoice.profile)
+					? 'XRechnung – Sichtansicht (maßgeblich ist die XML-Datei)'
+					: labels.subject,
 				Creator: 'ioBroker.e-invoices',
 			},
 		});

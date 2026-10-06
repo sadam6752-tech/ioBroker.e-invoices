@@ -234,6 +234,31 @@ credit note and an invoice made from a quotation take over the company of the or
 - The **invoice number stays one circle for all companies** — nothing about the numbering
   changed, no existing number moved.
 
+### XRechnung (public-sector customers)
+
+Public authorities in Germany want an **XRechnung**: the XML file alone (standard XRechnung 3.0,
+CII syntax), no PDF container. The adapter creates it as the second format of an invoice, next to
+the ZUGFeRD default.
+
+- **Choose the format** per document in the wizard ("Rechnungsformat", first step), or set the
+  default for new invoices in the instance settings ("Default invoice format"). A draft can be
+  switched until it is issued; an issued document keeps its format.
+- **Leitweg-ID:** the buyer needs the routing ID of the authority (BT-10, rule BR-DE-15). The wizard
+  and the customer list have a field for it; an XRechnung without it is refused when issuing, and
+  no number is used up. Only the **syntax** is checked (letters, digits and hyphens, at most 46
+  characters) — the checksum exists for some federal states only, so a stricter test would reject
+  valid IDs.
+- **Mandatory data:** seller contact person, phone and e-mail (BT-41/42/43), seller IBAN, buyer e-mail
+  (BT-49). The missing ones are named with their rule before anything is created.
+- **What you get:** the XML with the XRechnung identifier and the Peppol business process (BT-23/24),
+  and a plain PDF as a view — it contains **no XML** and claims no PDF/A-3. The XML is the invoice:
+  send that to the authority (e.g. through its portal). The detail page labels the buttons
+  accordingly and has no "mail the PDF" button for an XRechnung. Attachments travel inside the XML
+  (BG-24); a credit note (Storno) keeps the format of its invoice.
+- **Checked:** the sample cases of `npm run validate` include two XRechnungen; the KoSIT validator
+  (scenario "EN16931 XRechnung (CII)", XRechnung configuration 2026-08-31) accepts them.
+- Offers never have a format: they are plain sight PDFs.
+
 ### Dunning (Mahnwesen)
 
 The page "Mahnwesen" shows, for every overdue unpaid invoice, the **next step** with the
@@ -340,9 +365,9 @@ duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML
 
 - **ZUGFeRD / Factur-X** (what this adapter creates): a PDF/A-3 file that carries the XML inside.
   People read the PDF, software reads the XML. **The XML is the leading document** — if the two
-  ever differ, the XML counts. The adapter offers the profiles BASIC and EN 16931.
+  ever differ, the XML counts. The adapter creates the EN 16931 profile.
 - **XRechnung** is a pure XML format used mainly towards public authorities (B2G). The adapter
-  does **not** create it in this version; B2G customers are not the target.
+  creates it too, as a second format next to ZUGFeRD — see "XRechnung (public-sector customers)".
 - Every issued invoice is checked against the XSD schema on issue; the PDF/A-3 structure and
   the XML were additionally validated with the KoSIT validator and veraPDF (see
   `docs/validierung`). Run your own acceptance check before productive use.
@@ -450,8 +475,10 @@ so it cannot share the compact process.
   leading part.
 - The offline XSD validation runs on every issue; the KoSIT online
   validator is a recommended manual acceptance step before productive use.
-- Only EUR, domestic B2B invoices and the BASIC/EN 16931 profiles are
-  supported in this version.
+- Only EUR, domestic B2B invoices and the EN 16931 profile (as ZUGFeRD or
+  XRechnung) are supported in this version. XRechnung is checked by the KoSIT validator, but how an
+  individual authority takes it in (portal, Peppol access point, its own extra rules) is up to
+  you to find out before the first invoice.
 
 ## Disclaimer
 
@@ -495,6 +522,11 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) **XRechnung (B2G):** a second invoice format next to ZUGFeRD — standalone XML with the XRechnung 3.0 identifier and the Peppol process, Leitweg-ID as buyer reference (syntax check only), the extra mandatory data named before issuing, a plain PDF view without embedded XML, attachments inside the XML. Choose it per invoice in the wizard or set the default in the instance settings; new "Leitweg-ID" field in the customer list. Checked with the KoSIT validator (XRechnung scenario).
+* (alex) The issue now checks the mandatory data before the documents are probed, so the message names the rule instead of a library detail.
+
 ### 1.0.5 (2026-10-06)
 
 * (alex) The logo is now a clean hand-built vector (`admin/e-invoices.svg`) that matches the PNG, including the colour gradient; the PNG is the new 512 px version.

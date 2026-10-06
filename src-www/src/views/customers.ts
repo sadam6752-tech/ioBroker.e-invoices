@@ -79,7 +79,8 @@ export async function customers(root: HTMLElement): Promise<void> {
 		<div class="grid2">${field(p, 'zip', t('PLZ'))}${field(p, 'city', t('Ort'))}</div>
 		<div class="grid2">${field(p, 'country', t('Land'))}${field(p, 'email', t('E-Mail'))}</div>
 		<div class="grid2">${field(p, 'phone', t('Telefon'))}${field(p, 'contactName', t('Ansprechpartner'))}</div>
-		<label>${t('Kundennr. (BT-10)')}<input data-f="customerNumber" value="${esc(p.customerNumber)}" placeholder="${t('wird beim Speichern automatisch vergeben')}" /></label>`;
+		<label>${t('Kundennr. (BT-10)')}<input data-f="customerNumber" value="${esc(p.customerNumber)}" placeholder="${t('wird beim Speichern automatisch vergeben')}" /></label>
+		<label>${t('Leitweg-ID (nur für öffentliche Auftraggeber)')}<input data-f="leitwegId" value="${esc(p.leitwegId)}" placeholder="${t('z. B. 04011000-12345-67')}" /></label>`;
 	}
 
 	function render(): void {

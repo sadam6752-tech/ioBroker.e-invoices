@@ -23,7 +23,9 @@ __export(invoice_model_exports, {
   DEFAULT_QUOTE_NUMBER_FORMAT: () => DEFAULT_QUOTE_NUMBER_FORMAT,
   DOCUMENT_TYPES: () => DOCUMENT_TYPES,
   EXEMPTION_CATEGORIES: () => EXEMPTION_CATEGORIES,
+  INVOICE_PROFILES: () => INVOICE_PROFILES,
   INVOICE_TITLES: () => INVOICE_TITLES,
+  LEITWEG_ID_PATTERN: () => LEITWEG_ID_PATTERN,
   QUOTE_TITLES: () => QUOTE_TITLES,
   QUOTE_VALIDITY_DAYS: () => QUOTE_VALIDITY_DAYS,
   addDaysIso: () => addDaysIso,
@@ -41,10 +43,12 @@ __export(invoice_model_exports, {
   formatInvoiceNumber: () => formatInvoiceNumber,
   isIsoDate: () => isIsoDate,
   isQuote: () => isQuote,
+  isXRechnung: () => isXRechnung,
   lineNetAmount: () => lineNetAmount,
   lineNetUnitPrice: () => lineNetUnitPrice,
   normalizeDocumentType: () => normalizeDocumentType,
   normalizeEmployeeCode: () => normalizeEmployeeCode,
+  normalizeInvoiceProfile: () => normalizeInvoiceProfile,
   normalizeNumberFormat: () => normalizeNumberFormat,
   parseDateRange: () => parseDateRange,
   parseDeliveryPeriod: () => parseDeliveryPeriod,
@@ -53,6 +57,7 @@ __export(invoice_model_exports, {
   quoteStateLabel: () => quoteStateLabel,
   renderInvoiceNumber: () => renderInvoiceNumber,
   roundCents: () => roundCents,
+  storedInvoiceProfile: () => storedInvoiceProfile,
   todayIso: () => todayIso,
   validateInvoiceForIssue: () => validateInvoiceForIssue
 });
@@ -133,6 +138,24 @@ function documentLabels(docType) {
     subject: "E-Rechnung Sichtkomponente (ZUGFeRD)"
   };
 }
+const INVOICE_PROFILES = ["EN16931", "XRECHNUNG"];
+function normalizeInvoiceProfile(value) {
+  const raw = (value != null ? value : "").trim().toUpperCase();
+  if (raw === "") {
+    return "EN16931";
+  }
+  if (raw === "EN16931" || raw === "XRECHNUNG") {
+    return raw;
+  }
+  throw new Error(`Unknown profile "${value}" \u2014 use EN16931 (ZUGFeRD) or XRECHNUNG.`);
+}
+function storedInvoiceProfile(profile) {
+  return isXRechnung(profile) ? "XRECHNUNG" : "EN16931";
+}
+function isXRechnung(profile) {
+  return (profile != null ? profile : "").trim().toUpperCase() === "XRECHNUNG";
+}
+const LEITWEG_ID_PATTERN = /^[0-9A-Za-z][0-9A-Za-z-]{0,45}$/;
 const ALLOWED_VAT_RATES = [0, 7, 19];
 function roundCents(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -313,6 +336,35 @@ function blankDraft(date = todayIso(), docType = "invoice") {
 function isBlank(value) {
   return value === void 0 || value.trim().length === 0;
 }
+function xrechnungErrors(input) {
+  var _a, _b;
+  const errors = [];
+  const { seller, buyer } = input;
+  const leitweg = (_b = (_a = buyer.leitwegId) == null ? void 0 : _a.trim()) != null ? _b : "";
+  if (leitweg === "") {
+    errors.push("XRechnung: the buyer needs a Leitweg-ID (BT-10, BR-DE-15).");
+  } else if (!LEITWEG_ID_PATTERN.test(leitweg)) {
+    errors.push(
+      "XRechnung: the Leitweg-ID may only contain letters, digits and hyphens (at most 46 characters, BT-10)."
+    );
+  }
+  if (isBlank(buyer.email)) {
+    errors.push("XRechnung: the buyer needs an e-mail address (BT-49, PEPPOL-EN16931-R010).");
+  }
+  if (isBlank(seller.contactName)) {
+    errors.push("XRechnung: the seller needs a contact person (BT-41, BR-DE-5) \u2014 set it in the company data.");
+  }
+  if (isBlank(seller.phone)) {
+    errors.push("XRechnung: the seller needs a phone number (BT-42, BR-DE-6) \u2014 set it in the company data.");
+  }
+  if (isBlank(seller.email)) {
+    errors.push("XRechnung: the seller needs an e-mail address (BT-43, BR-DE-7) \u2014 set it in the company data.");
+  }
+  if (isBlank(seller.iban)) {
+    errors.push("XRechnung: the seller needs an IBAN for the payment instructions (BT-84, BR-DE-23).");
+  }
+  return errors;
+}
 function validateInvoiceForIssue(input) {
   var _a;
   const errors = [];
@@ -327,8 +379,12 @@ function validateInvoiceForIssue(input) {
   if (isBlank(buyer.name) || isBlank(buyer.street) || isBlank(buyer.zip) || isBlank(buyer.city)) {
     errors.push("Buyer needs full name and address (name, street, zip, city).");
   }
-  if (!quote && isBlank(buyer.customerNumber)) {
+  const xrechnung = !quote && isXRechnung(input.profile);
+  if (!quote && !xrechnung && isBlank(buyer.customerNumber)) {
     errors.push("Buyer needs a customer number (Kundennummer, BT-10) for the German e-invoice.");
+  }
+  if (xrechnung) {
+    errors.push(...xrechnungErrors(input));
   }
   if (isBlank(input.issueDate) || !isIsoDate(input.issueDate)) {
     errors.push("Issue date must be a real calendar date in ISO format (YYYY-MM-DD).");
@@ -448,7 +504,9 @@ function dateRangeFileSuffix(range) {
   DEFAULT_QUOTE_NUMBER_FORMAT,
   DOCUMENT_TYPES,
   EXEMPTION_CATEGORIES,
+  INVOICE_PROFILES,
   INVOICE_TITLES,
+  LEITWEG_ID_PATTERN,
   QUOTE_TITLES,
   QUOTE_VALIDITY_DAYS,
   addDaysIso,
@@ -466,10 +524,12 @@ function dateRangeFileSuffix(range) {
   formatInvoiceNumber,
   isIsoDate,
   isQuote,
+  isXRechnung,
   lineNetAmount,
   lineNetUnitPrice,
   normalizeDocumentType,
   normalizeEmployeeCode,
+  normalizeInvoiceProfile,
   normalizeNumberFormat,
   parseDateRange,
   parseDeliveryPeriod,
@@ -478,6 +538,7 @@ function dateRangeFileSuffix(range) {
   quoteStateLabel,
   renderInvoiceNumber,
   roundCents,
+  storedInvoiceProfile,
   todayIso,
   validateInvoiceForIssue
 });
