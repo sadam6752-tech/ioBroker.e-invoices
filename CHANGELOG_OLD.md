@@ -228,6 +228,14 @@ that came out of the tag pipeline (npm provenance via Trusted Publishing) is
 * (alex) initial release
 * (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
   when the sRGB profile for PDF/A-3 is missing
+## 1.0.1 (2026-10-04)
+
+* (alex) External validation of the generated e-invoices is automated: `npm run validate` makes the sample cases over the real API stack and checks every XML with the KoSIT validator (EN 16931, CII; tools downloaded once and pinned by SHA-256); the GitHub workflow `Validate invoices` runs it monthly and on changes of the XML/PDF code, and checks the PDF files with veraPDF (PDF/A-3b). It is not part of the release workflow.
+* (alex) Hardening: wrong tokens are throttled separately (twenty per minute and client; asking without a token is not counted); the open health route no longer reports document counts (they moved to the authenticated `/api/status`). Issuing a document dated in an earlier year asks first, because the number follows the year of the date and the numbers are then not in time order (the log says so as well). The retention note now names the statutory minimum for invoices (eight years since 2025) next to the ten years the adapter keeps to be on the safe side. Dependabot no longer merges patches of the libraries that write the invoice (better-sqlite3, pdfkit, pdf-lib, jszip, express, factur-x) by itself.
+* (alex) Backup: a backup that the restore would refuse (ZIP, `dump.json`, unpacked size or number of files above the restore limits) is no longer created without notice — it is refused with a message that names the limit. Attachments count as base64 in `dump.json`.
+* (alex) New **System** page: status, backup and restore, company data, print templates and appearance on one page, so the header bar loses the tabs "Backup", "Firma", "Druckvorlagen" and "Status" (twelve entries became eight; the old addresses still work).
+* (alex) Issuing is checked before the number is taken: the documents are made once with a placeholder number first, so a defect stops there with the draft untouched. A document that is still left without its files shows up on the dashboard and *Rebuild files* makes only the missing ones from the stored data (the XML from the record, the PDF with the layout frozen at issue, the Excel copy); existing files are never touched.
+
 ## 1.0.0 (2026-10-04)
 
 * (alex) First stable release: ZUGFeRD / EN 16931 e-invoices with offers, Storno, attachments, print templates, several companies, open items, dunning, exports with a date range, automatic backup and a German/English web app in a light or dark appearance. No functional change compared with 0.9.5; the changelog was shortened (older entries are in `CHANGELOG_OLD.md`).

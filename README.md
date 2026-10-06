@@ -522,7 +522,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.6 (2026-10-06)
 
 * (alex) **XRechnung (B2G):** a second invoice format next to ZUGFeRD — standalone XML with the XRechnung 3.0 identifier and the Peppol process, Leitweg-ID as buyer reference (syntax check only), the extra mandatory data named before issuing, a plain PDF view without embedded XML, attachments inside the XML. Choose it per invoice in the wizard or set the default in the instance settings; new "Leitweg-ID" field in the customer list. Checked with the KoSIT validator (XRechnung scenario).
 * (alex) The issue now checks the mandatory data before the documents are probed, so the message names the rule instead of a library detail.
@@ -544,14 +544,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ### 1.0.2 (2026-10-04)
 
 * (alex) System page: the topics are tabs inside the page (*Status*, *Backup*, *Firma*, *Druckvorlagen*) and only the chosen one is shown, instead of one long page with everything below each other.
-
-### 1.0.1 (2026-10-04)
-
-* (alex) External validation of the generated e-invoices is automated: `npm run validate` makes the sample cases over the real API stack and checks every XML with the KoSIT validator (EN 16931, CII; tools downloaded once and pinned by SHA-256); the GitHub workflow `Validate invoices` runs it monthly and on changes of the XML/PDF code, and checks the PDF files with veraPDF (PDF/A-3b). It is not part of the release workflow.
-* (alex) Hardening: wrong tokens are throttled separately (twenty per minute and client; asking without a token is not counted); the open health route no longer reports document counts (they moved to the authenticated `/api/status`). Issuing a document dated in an earlier year asks first, because the number follows the year of the date and the numbers are then not in time order (the log says so as well). The retention note now names the statutory minimum for invoices (eight years since 2025) next to the ten years the adapter keeps to be on the safe side. Dependabot no longer merges patches of the libraries that write the invoice (better-sqlite3, pdfkit, pdf-lib, jszip, express, factur-x) by itself.
-* (alex) Backup: a backup that the restore would refuse (ZIP, `dump.json`, unpacked size or number of files above the restore limits) is no longer created without notice — it is refused with a message that names the limit. Attachments count as base64 in `dump.json`.
-* (alex) New **System** page: status, backup and restore, company data, print templates and appearance on one page, so the header bar loses the tabs "Backup", "Firma", "Druckvorlagen" and "Status" (twelve entries became eight; the old addresses still work).
-* (alex) Issuing is checked before the number is taken: the documents are made once with a placeholder number first, so a defect stops there with the draft untouched. A document that is still left without its files shows up on the dashboard and *Rebuild files* makes only the missing ones from the stored data (the XML from the record, the PDF with the layout frozen at issue, the Excel copy); existing files are never touched.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.0.6": {
+        "en": "XRechnung for public-sector customers: a second invoice format next to ZUGFeRD, as a standalone XML file with the Leitweg-ID as buyer reference. Choose it per invoice in the wizard or set the default in the instance settings.",
+        "de": "XRechnung für öffentliche Auftraggeber: ein zweites Rechnungsformat neben ZUGFeRD, als eigenständige XML-Datei mit der Leitweg-ID als Käuferreferenz. Die Wahl erfolgt je Rechnung im Assistenten, der Standard in den Instanz-Einstellungen.",
+        "ru": "XRechnung для государственных заказчиков: второй формат счёта наряду с ZUGFeRD, отдельный файл XML с Leitweg-ID в качестве ссылки покупателя. Формат выбирается для каждого счёта в мастере, значение по умолчанию задаётся в настройках экземпляра.",
+        "pt": "XRechnung para clientes do setor público: um segundo formato de fatura ao lado do ZUGFeRD, como ficheiro XML autónomo com o Leitweg-ID como referência do comprador. Escolhe-se por fatura no assistente ou define-se o padrão nas definições da instância.",
+        "nl": "XRechnung voor klanten in de publieke sector: een tweede factuurformaat naast ZUGFeRD, als zelfstandig XML-bestand met het Leitweg-ID als referentie van de koper. Kies het per factuur in de wizard of stel de standaard in bij de instantie-instellingen.",
+        "fr": "XRechnung pour les clients du secteur public : un second format de facture à côté de ZUGFeRD, sous forme de fichier XML autonome avec le Leitweg-ID comme référence de l'acheteur. Le format se choisit par facture dans l'assistant, le réglage par défaut se trouve dans les paramètres de l'instance.",
+        "it": "XRechnung per i clienti del settore pubblico: un secondo formato di fattura accanto a ZUGFeRD, come file XML autonomo con il Leitweg-ID come riferimento dell'acquirente. Si sceglie per ogni fattura nella procedura guidata, il predefinito si imposta nelle impostazioni dell'istanza.",
+        "es": "XRechnung para clientes del sector público: un segundo formato de factura junto a ZUGFeRD, como archivo XML independiente con el Leitweg-ID como referencia del comprador. Se elige por factura en el asistente o se fija el valor predeterminado en los ajustes de la instancia.",
+        "pl": "XRechnung dla klientów z sektora publicznego: drugi format faktury obok ZUGFeRD, jako samodzielny plik XML z Leitweg-ID jako odniesieniem nabywcy. Format wybiera się dla każdej faktury w kreatorze, a wartość domyślną ustawia w ustawieniach instancji.",
+        "uk": "XRechnung для замовників державного сектору: другий формат рахунку поряд із ZUGFeRD, окремий файл XML з Leitweg-ID як посиланням покупця. Формат обирається для кожного рахунку в майстрі, значення за замовчуванням задається в налаштуваннях екземпляра.",
+        "zh-cn": "面向公共部门客户的 XRechnung：除 ZUGFeRD 外的第二种发票格式，为独立的 XML 文件，以 Leitweg-ID 作为买方参考。可在向导中按发票选择，也可在实例设置中设定默认值。"
+      },
       "1.0.5": {
         "en": "The adapter logo is now a clean vector graphic that matches the PNG, including the colour gradient; the PNG is a new 512 px version.",
         "de": "Das Adapter-Logo ist jetzt eine saubere Vektorgrafik, die dem PNG entspricht, einschließlich Farbverlauf; das PNG liegt neu in 512 px vor.",
@@ -101,19 +114,6 @@
         "pl": "Pierwsza stabilna wersja: e-faktury ZUGFeRD / EN 16931 z ofertami, storno, załącznikami, szablonami wydruku, wieloma firmami, otwartymi pozycjami, monitami płatności, eksportami za okres, automatyczną kopią zapasową oraz aplikacją webową po niemiecku i angielsku w jasnym lub ciemnym wyglądzie. Brak zmian funkcjonalnych w stosunku do 0.9.5.",
         "uk": "Перша стабільна версія: електронні рахунки ZUGFeRD / EN 16931 з пропозиціями, сторно, вкладеннями, шаблонами друку, кількома компаніями, відкритими позиціями, нагадуваннями про оплату, експортом за період, автоматичним резервним копіюванням і вебзастосунком німецькою та англійською мовами у світлій або темній темі. Функціональних змін порівняно з 0.9.5 немає.",
         "zh-cn": "首个稳定版本：支持 ZUGFeRD / EN 16931 电子发票，包括报价、冲销（Storno）、附件、打印模板、多家公司、未结项目、催款、按期间导出、自动备份，以及支持浅色或深色外观的德语/英语网页应用。与 0.9.5 相比没有功能变化。"
-      },
-      "0.9.5": {
-        "en": "Dark appearance of the web app: System (follows the device), Light or Dark, chosen on the status page and kept per device. PDF and Excel files are not affected.",
-        "de": "Dunkle Darstellung der Web-App: System (folgt dem Gerät), Hell oder Dunkel, auf der Statusseite gewählt und pro Gerät gespeichert. PDF- und Excel-Dateien bleiben unverändert.",
-        "ru": "Тёмное оформление веб-приложения: «Система» (как на устройстве), «Светлое» или «Тёмное» — выбирается на странице состояния и сохраняется для каждого устройства. Файлы PDF и Excel не меняются.",
-        "pt": "Aspeto escuro da aplicação web: Sistema (segue o dispositivo), Claro ou Escuro, escolhido na página de estado e guardado por dispositivo. Os ficheiros PDF e Excel não são afetados.",
-        "nl": "Donkere weergave van de web-app: Systeem (volgt het apparaat), Licht of Donker, gekozen op de statuspagina en per apparaat bewaard. PDF- en Excel-bestanden blijven ongewijzigd.",
-        "fr": "Apparence sombre de l'application web : Système (suit l'appareil), Clair ou Sombre, choisie sur la page d'état et conservée par appareil. Les fichiers PDF et Excel ne sont pas modifiés.",
-        "it": "Aspetto scuro della web app: Sistema (segue il dispositivo), Chiaro o Scuro, scelto nella pagina di stato e memorizzato per dispositivo. I file PDF ed Excel non vengono modificati.",
-        "es": "Apariencia oscura de la aplicación web: Sistema (sigue al dispositivo), Claro u Oscuro, elegida en la página de estado y guardada por dispositivo. Los archivos PDF y Excel no se ven afectados.",
-        "pl": "Ciemny wygląd aplikacji internetowej: System (zgodnie z urządzeniem), Jasny lub Ciemny, wybierany na stronie stanu i zapamiętywany dla urządzenia. Pliki PDF i Excel pozostają bez zmian.",
-        "uk": "Темне оформлення вебзастосунку: «Система» (як на пристрої), «Світле» або «Темне» — вибирається на сторінці стану й зберігається для кожного пристрою. Файли PDF і Excel не змінюються.",
-        "zh-cn": "网页应用的深色外观：系统（跟随设备）、浅色或深色，在状态页面选择并按设备保存。PDF 和 Excel 文件不受影响。"
       }
     },
     "titleLang": {
