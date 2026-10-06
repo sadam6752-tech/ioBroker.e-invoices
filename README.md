@@ -544,7 +544,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.9 (2026-10-06)
 
 * (alex) iOS home screen icon over HTTPS: the 180 px icon is embedded in the page itself, so iOS needs no second request for it (that request fails with a certificate iOS does not trust, and the app was saved without its icon). The original transparent logo is back for the favicon and the installed web app; only the iOS icon keeps the opaque gradient version, because iOS paints transparent areas black.
 
@@ -564,10 +564,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ### 1.0.5 (2026-10-06)
 
 * (alex) The logo is now a clean hand-built vector (`admin/e-invoices.svg`) that matches the PNG, including the colour gradient; the PNG is the new 512 px version.
-
-### 1.0.4 (2026-10-05)
-
-* (alex) New adapter logo (invoice with euro coin and check mark) in the admin, the installed web app and the favicon. The web app icons are made from the PNG master `admin/e-invoices.png` (`node src-www/scripts/make-icons.mjs`), `admin/e-invoices.svg` is the vector copy.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.0.9": {
+        "en": "iOS home screen icon over HTTPS: the icon is now embedded in the page itself, so iOS needs no second request for it. The original transparent logo is back for the favicon and the installed web app.",
+        "de": "iOS-Home-Bildschirm-Symbol über HTTPS: Das Symbol ist jetzt in die Seite selbst eingebettet, sodass iOS keine zweite Abfrage dafür braucht. Das ursprüngliche transparente Logo ist für das Favicon und die installierte Web-App zurück.",
+        "ru": "Значок на главном экране iOS по HTTPS: значок теперь встроен в саму страницу, поэтому iOS не нужен второй запрос. Исходный прозрачный логотип снова используется для favicon и установленного веб-приложения.",
+        "pt": "Ícone do ecrã principal do iOS por HTTPS: o ícone está agora incorporado na própria página, por isso o iOS não precisa de um segundo pedido. O logótipo transparente original voltou para o favicon e para a aplicação web instalada.",
+        "nl": "Beginschermpictogram van iOS via HTTPS: het pictogram is nu in de pagina zelf ingebed, zodat iOS er geen tweede verzoek voor nodig heeft. Het oorspronkelijke transparante logo is terug voor het favicon en de geïnstalleerde web-app.",
+        "fr": "Icône d'écran d'accueil iOS en HTTPS : l'icône est désormais intégrée à la page elle-même, iOS n'a donc pas besoin d'une seconde requête. Le logo transparent d'origine est de retour pour le favicon et l'application web installée.",
+        "it": "Icona della schermata Home di iOS tramite HTTPS: l'icona è ora incorporata nella pagina stessa, così iOS non ha bisogno di una seconda richiesta. Il logo trasparente originale è tornato per la favicon e per l'app web installata.",
+        "es": "Icono de la pantalla de inicio de iOS por HTTPS: el icono ahora está incrustado en la propia página, así que iOS no necesita una segunda petición. El logotipo transparente original vuelve para el favicon y la aplicación web instalada.",
+        "pl": "Ikona ekranu głównego iOS przez HTTPS: ikona jest teraz osadzona w samej stronie, więc iOS nie potrzebuje drugiego żądania. Oryginalne przezroczyste logo wróciło do favicony i zainstalowanej aplikacji internetowej.",
+        "uk": "Піктограма головного екрана iOS через HTTPS: піктограму тепер вбудовано в саму сторінку, тож iOS не потрібен другий запит. Початковий прозорий логотип знову використовується для favicon і встановленого вебзастосунку.",
+        "zh-cn": "通过 HTTPS 的 iOS 主屏幕图标：图标现已嵌入页面本身，iOS 无需再发起第二次请求。favicon 和已安装的网页应用恢复使用原来的透明徽标。"
+      },
       "1.0.8": {
         "en": "New home screen icon: the logo on a colour gradient as an opaque square for the installed web app, the favicon and iOS (a dedicated 180 px touch icon).",
         "de": "Neues Home-Bildschirm-Symbol: das Logo auf einem Farbverlauf als deckendes Quadrat für die installierte Web-App, das Favicon und iOS (ein eigenes 180-px-Touch-Symbol).",
@@ -101,19 +114,6 @@
         "pl": "Uwagi weryfikatora repozytorium: README jest wyłącznie po angielsku (niemieckie zastrzeżenie prawne znajduje się teraz w docs/haftungsausschluss.md), a tłumaczenia aplikacji internetowej są częścią pakietu npm.",
         "uk": "Зауваження перевірки репозиторію: README тепер лише англійською (німецька відмова від відповідальності перенесена до docs/haftungsausschluss.md), а переклади вебзастосунку входять до пакета npm.",
         "zh-cn": "仓库检查器的发现：README 现在仅为英文（德文免责声明已移至 docs/haftungsausschluss.md），网页应用的翻译文件已包含在 npm 包中。"
-      },
-      "1.0.2": {
-        "en": "System page: the topics are tabs inside the page (Status, Backup, Company, Print templates) and only the chosen one is shown, instead of one long page with everything below each other.",
-        "de": "Systemseite: Die Themen sind Reiter innerhalb der Seite (Status, Backup, Firma, Druckvorlagen), und es wird nur das gewählte angezeigt – statt einer langen Seite mit allem untereinander.",
-        "ru": "Страница «Система»: темы теперь вкладки внутри страницы (Состояние, Резервные копии, Компания, Шаблоны печати), и показывается только выбранная, а не одна длинная страница со всем подряд.",
-        "pt": "Página Sistema: os temas são separadores dentro da página (Estado, Cópia de segurança, Empresa, Modelos de impressão) e só é mostrado o escolhido, em vez de uma página longa com tudo em sequência.",
-        "nl": "Pagina Systeem: de onderwerpen zijn tabbladen binnen de pagina (Status, Back-up, Bedrijf, Afdruksjablonen) en alleen het gekozen onderwerp wordt getoond, in plaats van één lange pagina met alles onder elkaar.",
-        "fr": "Page Système : les thèmes sont des onglets à l'intérieur de la page (État, Sauvegarde, Entreprise, Modèles d'impression) et seul le thème choisi s'affiche, au lieu d'une longue page avec tout les uns sous les autres.",
-        "it": "Pagina Sistema: gli argomenti sono schede all'interno della pagina (Stato, Backup, Azienda, Modelli di stampa) e viene mostrato solo quello scelto, invece di un'unica pagina lunga con tutto uno sotto l'altro.",
-        "es": "Página Sistema: los temas son pestañas dentro de la página (Estado, Copia de seguridad, Empresa, Plantillas de impresión) y solo se muestra el elegido, en lugar de una página larga con todo uno debajo de otro.",
-        "pl": "Strona System: tematy są kartami wewnątrz strony (Stan, Kopia zapasowa, Firma, Szablony wydruku) i wyświetlany jest tylko wybrany, zamiast jednej długiej strony ze wszystkim jedno pod drugim.",
-        "uk": "Сторінка «Система»: теми тепер вкладки всередині сторінки (Стан, Резервні копії, Компанія, Шаблони друку), і показується лише обрана, а не одна довга сторінка з усім підряд.",
-        "zh-cn": "“系统”页面：各主题现在是页面内的标签页（状态、备份、公司、打印模板），只显示所选内容，而不是把所有内容依次排成一页很长的页面。"
       }
     },
     "titleLang": {
