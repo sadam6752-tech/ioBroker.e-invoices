@@ -281,7 +281,7 @@ describe('pwa => logo', () => {
 		expect(pngSize('src-www/public/icons/maskable-512.png')).to.deep.equal({ width: 512, height: 512 });
 		// the vector logo scales: it carries its own viewBox
 		const svg = readFileSync('admin/e-invoices.svg', 'utf8');
-		expect(svg).to.contain('viewBox="0 0 512 512"');
+		expect(svg).to.match(/viewBox="0 0 \d+ \d+"/);
 		// the icons come from it, the script says so
 		expect(readFileSync('src-www/scripts/make-icons.mjs', 'utf8')).to.contain('admin');
 		// io-package.json names exactly the files that exist

@@ -495,11 +495,13 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) The logo is now a clean hand-built vector (`admin/e-invoices.svg`) that matches the PNG, including the colour gradient; the PNG is the new 512 px version.
+
 ### 1.0.4 (2026-10-05)
 
 * (alex) New adapter logo (invoice with euro coin and check mark) in the admin, the installed web app and the favicon. The web app icons are made from the PNG master `admin/e-invoices.png` (`node src-www/scripts/make-icons.mjs`), `admin/e-invoices.svg` is the vector copy.
-
--->
 
 ### 1.0.3 (2026-10-04)
 
