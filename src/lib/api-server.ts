@@ -541,6 +541,9 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				},
 			},
 			crossOriginEmbedderPolicy: false,
+			// HSTS is the operator's call (a reverse proxy sets it): the adapter must not pin a host to HTTPS for
+			// months, because switching HTTPS off again in the instance settings has to keep working
+			strictTransportSecurity: false,
 		}),
 	);
 	app.use(express.json({ limit: '25mb' }));

@@ -23,11 +23,11 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var utils = __toESM(require("@iobroker/adapter-core"));
 var import_node_path = require("node:path");
-var import_node_http = require("node:http");
 var import_package = require("../package.json");
 var import_api_server = require("./lib/api-server");
 var import_backup = require("./lib/backup");
 var import_db = require("./lib/db");
+var import_tls = require("./lib/tls");
 var import_invoice_model = require("./lib/invoice-model");
 var import_dunning = require("./lib/dunning");
 var import_issue_service = require("./lib/issue-service");
@@ -80,7 +80,7 @@ class EInvoices extends utils.Adapter {
       await this.refreshStats();
       await this.refreshOverdue();
       this.subscribeStates("control.*");
-      this.startApiServer();
+      await this.startApiServer();
       this.startBackupTimer();
       this.startReminderTimer();
       await this.setState("info.connection", true, true);
@@ -720,11 +720,20 @@ class EInvoices extends utils.Adapter {
    * Starts the PWA/API HTTP server on its own port (compact:false, own
    * socket for the PWA — see README for the W5049 reason).
    */
-  startApiServer() {
+  async startApiServer() {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     if (!this.db) {
       return;
     }
+    const decision = await (0, import_tls.decideTls)(
+      this.config,
+      (publicName, privateName, chainedName) => this.getCertificatesAsync(publicName, privateName, chainedName)
+    );
+    if (decision.mode === "unavailable") {
+      this.log.error(`${decision.reason} - the web app and the API stay unavailable`);
+      return;
+    }
+    const tls = decision.mode === "https" ? decision.tls : void 0;
     try {
       const app = (0, import_api_server.createApiServer)({
         db: this.db,
@@ -753,12 +762,12 @@ class EInvoices extends utils.Adapter {
       }
       const port = this.config.port || DEFAULT_API_PORT;
       const bind = this.config.bind || DEFAULT_API_BIND;
-      this.server = (0, import_node_http.createServer)(app);
+      this.server = (0, import_tls.createWebServer)(app, tls);
       this.server.on("error", (error) => {
         this.log.error(`API server error (port ${port}): ${error.message}`);
       });
       this.server.listen(port, bind, () => {
-        this.log.info(`API+PWA listening on ${bind}:${port}`);
+        this.log.info(`API+PWA listening on ${tls ? "https" : "http"}://${bind}:${port}`);
         if (!this.config.authToken) {
           this.log.warn(
             `No API token set \u2014 every client that can reach ${bind}:${port} may read, issue and RESTORE invoices. Set authToken in the instance config or bind to 127.0.0.1.`

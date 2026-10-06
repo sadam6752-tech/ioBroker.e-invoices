@@ -327,7 +327,10 @@ function createApiServer(deps) {
           "frame-ancestors": ["'none'"]
         }
       },
-      crossOriginEmbedderPolicy: false
+      crossOriginEmbedderPolicy: false,
+      // HSTS is the operator's call (a reverse proxy sets it): the adapter must not pin a host to HTTPS for
+      // months, because switching HTTPS off again in the instance settings has to keep working
+      strictTransportSecurity: false
     })
   );
   app.use(import_express.default.json({ limit: "25mb" }));

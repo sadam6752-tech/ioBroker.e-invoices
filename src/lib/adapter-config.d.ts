@@ -9,6 +9,14 @@ declare global {
 			authToken: string;
 			/** Start language of the web app: `auto` (browser), `de` or `en`. */
 			pwaLanguage?: string;
+			/** Serve the web app over HTTPS with a certificate of the ioBroker certificate collection (R9). */
+			secure?: boolean;
+			/** Name of the public certificate in the collection (HTTPS only). */
+			certPublic?: string;
+			/** Name of the private key in the collection (HTTPS only). */
+			certPrivate?: string;
+			/** Name of the certificate chain in the collection, optional (HTTPS only). */
+			certChained?: string;
 			/** ioBroker file mount for the artifacts, empty = own data directory. */
 			storageMount?: string;
 			/** Automatic backup interval in minutes, 0 = off. */

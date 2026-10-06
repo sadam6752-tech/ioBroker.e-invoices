@@ -96,6 +96,51 @@
 					"lg": 4,
 					"xl": 4
 				},
+				"secure": {
+					"type": "checkbox",
+					"label": "Use HTTPS",
+					"help": "the web app answers over HTTPS with a certificate of the ioBroker certificate collection (needed to install it on an iPhone or iPad); without a working certificate the web app stays unavailable",
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 6,
+					"lg": 4,
+					"xl": 4
+				},
+				"certPublic": {
+					"type": "certificate",
+					"certType": "public",
+					"label": "Public certificate",
+					"hidden": "!data.secure",
+					"newLine": true,
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 4,
+					"xl": 4
+				},
+				"certPrivate": {
+					"type": "certificate",
+					"certType": "private",
+					"label": "Private key",
+					"hidden": "!data.secure",
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 4,
+					"xl": 4
+				},
+				"certChained": {
+					"type": "certificate",
+					"certType": "chained",
+					"label": "Certificate chain (optional)",
+					"hidden": "!data.secure",
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 4,
+					"xl": 4
+				},
 				"authToken": {
 					"type": "password",
 					"label": "API token (optional)",

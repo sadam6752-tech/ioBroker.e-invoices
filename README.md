@@ -117,6 +117,27 @@ PDFs, the XML, the document titles (`Rechnung`, `Angebot`, …), the payment-ter
 presets and the text of the customer mail. Only their labels in the dropdowns
 follow the language of the page.
 
+### HTTPS and installing the web app on a phone
+
+A phone installs the web app only from a **secure origin** — iOS (iPhone, iPad) needs HTTPS for it; over plain
+HTTP it stays a bookmark. The adapter answers over HTTPS itself, with a certificate of the certificate collection
+of ioBroker, the same one the web adapter uses — no reverse proxy is needed.
+
+1. In the instance settings switch **Use HTTPS** on and choose the **public certificate**, the **private key** and,
+   if you have one, the **certificate chain**. The entries come from **Admin > Settings > Certificates**
+   (`defaultPublic` / `defaultPrivate` are the self-signed pair ioBroker creates itself; a Let's Encrypt
+   certificate is chosen the same way).
+2. Save — the instance restarts and the web app answers at `https://<host>:<port>/`. The link of the instance in
+   the admin switches to `https` on its own.
+3. On the iPhone or iPad open that address in Safari, then **Share > Add to Home Screen**.
+
+If the certificate is missing or cannot be read, the web app and the API do **not** fall back to plain HTTP: they
+stay unavailable and the log names the reason (an API token over an unencrypted line is what HTTPS was switched on
+to avoid). A self-signed certificate makes the browser warn, and the phone installs the app only when it **trusts**
+the certificate: install the certificate on the phone (iOS: also enable it under Settings > General > About >
+Certificate Trust Settings) or use a certificate of a real authority. The certificate must name the address you
+type (host name or IP). The adapter sends no HSTS header, so switching HTTPS off again keeps working.
+
 ### Light and dark appearance
 
 The web app has a light and a dark appearance. On the **status page**, *Darstellung* offers three choices:
@@ -430,8 +451,9 @@ duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML
   Policy (`default-src 'self'`, `frame-ancestors 'none'`), `X-Content-Type-Options:
   nosniff`, `Referrer-Policy: no-referrer` and without `X-Powered-By`.
   `X-Forwarded-*` headers are not trusted (`trust proxy` disabled) — the adapter
-  is meant to be reached directly; put it behind a reverse proxy only with HTTPS
-  and a token.
+  is meant to be reached directly — with "Use HTTPS" the adapter itself speaks TLS
+  (see "HTTPS and installing the web app on a phone"); put it behind a reverse proxy
+  only with HTTPS and a token.
 - **Restore safety:** before a restore replaces the database, the current state is
   written to `backups/e-invoices-prerestore-<time>.zip`; if that fails, nothing is
   restored. Number counters are never lowered, and every restore is appended to
@@ -522,6 +544,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) **HTTPS in the adapter itself:** the instance settings offer "Use HTTPS" with the public certificate, private key and optional chain from the ioBroker certificate collection (the one the web adapter uses), so the web app can be installed on an iPhone or iPad without a reverse proxy. An unusable certificate keeps the web app off instead of falling back to plain HTTP; the instance link switches to `https`; no HSTS header. The web app carries the iOS standalone tags.
+
 ### 1.0.6 (2026-10-06)
 
 * (alex) **XRechnung (B2G):** a second invoice format next to ZUGFeRD — standalone XML with the XRechnung 3.0 identifier and the Peppol process, Leitweg-ID as buyer reference (syntax check only), the extra mandatory data named before issuing, a plain PDF view without embedded XML, attachments inside the XML. Choose it per invoice in the wizard or set the default in the instance settings; new "Leitweg-ID" field in the customer list. Checked with the KoSIT validator (XRechnung scenario).

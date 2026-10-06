@@ -7,7 +7,8 @@
 // you need to create an adapter
 import * as utils from '@iobroker/adapter-core';
 import { join } from 'node:path';
-import { createServer, type Server } from 'node:http';
+import type { Server as HttpServer } from 'node:http';
+import type { Server as HttpsServer } from 'node:https';
 import { version as adapterVersion } from '../package.json';
 import { attachStatic, createApiServer } from './lib/api-server';
 import {
@@ -19,6 +20,7 @@ import {
 	selectBackupsToPrune,
 } from './lib/backup';
 import { InvoiceDatabase } from './lib/db';
+import { createWebServer, decideTls } from './lib/tls';
 import {
 	blankDraft,
 	DEFAULT_NUMBER_FORMAT,
@@ -48,7 +50,7 @@ class EInvoices extends utils.Adapter {
 	private db: InvoiceDatabase | null = null;
 	private mountId = '';
 	private filesAvailable = false;
-	private server: Server | null = null;
+	private server: HttpServer | HttpsServer | null = null;
 	/** Pending automatic backup, cancelled on unload. */
 	private backupTimer: ReturnType<EInvoices['setTimeout']> | undefined;
 	/** True once the backup warning was logged, so it is not repeated at every refresh. */
@@ -94,7 +96,7 @@ class EInvoices extends utils.Adapter {
 			await this.refreshOverdue();
 
 			this.subscribeStates('control.*');
-			this.startApiServer();
+			await this.startApiServer();
 			this.startBackupTimer();
 			this.startReminderTimer();
 			await this.setState('info.connection', true, true);
@@ -779,10 +781,20 @@ class EInvoices extends utils.Adapter {
 	 * Starts the PWA/API HTTP server on its own port (compact:false, own
 	 * socket for the PWA — see README for the W5049 reason).
 	 */
-	private startApiServer(): void {
+	private async startApiServer(): Promise<void> {
 		if (!this.db) {
 			return;
 		}
+		// HTTPS is a choice of the operator: with an unusable certificate the server stays off instead of
+		// falling back to plain HTTP (an API token over an unencrypted line is what was to be avoided)
+		const decision = await decideTls(this.config, (publicName, privateName, chainedName) =>
+			this.getCertificatesAsync(publicName, privateName, chainedName),
+		);
+		if (decision.mode === 'unavailable') {
+			this.log.error(`${decision.reason} - the web app and the API stay unavailable`);
+			return;
+		}
+		const tls = decision.mode === 'https' ? decision.tls : undefined;
 		try {
 			const app = createApiServer({
 				db: this.db,
@@ -811,12 +823,12 @@ class EInvoices extends utils.Adapter {
 			}
 			const port = this.config.port || DEFAULT_API_PORT;
 			const bind = this.config.bind || DEFAULT_API_BIND;
-			this.server = createServer(app);
+			this.server = createWebServer(app, tls);
 			this.server.on('error', (error: Error) => {
 				this.log.error(`API server error (port ${port}): ${error.message}`);
 			});
 			this.server.listen(port, bind, () => {
-				this.log.info(`API+PWA listening on ${bind}:${port}`);
+				this.log.info(`API+PWA listening on ${tls ? 'https' : 'http'}://${bind}:${port}`);
 				if (!this.config.authToken) {
 					this.log.warn(
 						`No API token set — every client that can reach ${bind}:${port} may read, issue and RESTORE invoices. Set authToken in the instance config or bind to 127.0.0.1.`,
