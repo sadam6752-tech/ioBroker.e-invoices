@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.0.11",
+    "version": "1.1.0",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.1.0": {
+        "en": "Real DATEV export (Buchungsstapel) with advisor and client number, chart of accounts and accounts from the new settings tab \"DATEV\". Fixes: commercial cent rounding of the VAT, the local calendar day after midnight, Storno of offers and credit notes, restore of backups bigger than 18 MB. Credit notes now reduce the revenue per company.",
+        "de": "Echter DATEV-Export (Buchungsstapel) mit Berater- und Mandantennummer, Kontenrahmen und Konten aus dem neuen Einstellungsreiter „DATEV“. Korrekturen: kaufmännische Cent-Rundung der Umsatzsteuer, das lokale Datum nach Mitternacht, Storno von Angeboten und Gutschriften, Wiederherstellung von Backups über 18 MB. Gutschriften mindern jetzt den Umsatz je Firma.",
+        "ru": "Настоящий экспорт DATEV (Buchungsstapel) с номером консультанта и клиента, планом счетов и счетами из новой вкладки настроек «DATEV». Исправления: коммерческое округление НДС до цента, местная дата после полуночи, сторно предложений и кредит-нот, восстановление резервных копий больше 18 МБ. Кредит-ноты теперь уменьшают выручку по фирме.",
+        "pt": "Exportação DATEV real (Buchungsstapel) com número de consultor e de cliente, plano de contas e contas do novo separador de definições «DATEV». Correções: arredondamento comercial do IVA ao cêntimo, a data local depois da meia-noite, estorno de propostas e notas de crédito, restauro de cópias de segurança acima de 18 MB. As notas de crédito reduzem agora a receita por empresa.",
+        "nl": "Echte DATEV-export (Buchungsstapel) met adviseurs- en cliëntnummer, rekeningschema en rekeningen uit het nieuwe instellingentabblad «DATEV». Correcties: commerciële centafronding van de btw, de lokale datum na middernacht, storno van offertes en creditnota's, herstel van back-ups groter dan 18 MB. Creditnota's verlagen nu de omzet per bedrijf.",
+        "fr": "Véritable export DATEV (Buchungsstapel) avec numéro de conseiller et de client, plan comptable et comptes issus du nouvel onglet de paramètres « DATEV ». Corrections : arrondi commercial de la TVA au centime, la date locale après minuit, l'annulation des offres et des avoirs, la restauration de sauvegardes de plus de 18 Mo. Les avoirs réduisent désormais le chiffre d'affaires par entreprise.",
+        "it": "Vera esportazione DATEV (Buchungsstapel) con numero del consulente e del cliente, piano dei conti e conti dalla nuova scheda delle impostazioni «DATEV». Correzioni: arrotondamento commerciale dell'IVA al centesimo, la data locale dopo mezzanotte, storno di offerte e note di credito, ripristino di backup oltre 18 MB. Le note di credito ora riducono il fatturato per azienda.",
+        "es": "Exportación DATEV real (Buchungsstapel) con número de asesor y de cliente, plan de cuentas y cuentas de la nueva pestaña de ajustes «DATEV». Correcciones: redondeo comercial del IVA al céntimo, la fecha local después de medianoche, anulación de ofertas y notas de crédito, restauración de copias de seguridad de más de 18 MB. Las notas de crédito ahora reducen la facturación por empresa.",
+        "pl": "Prawdziwy eksport DATEV (Buchungsstapel) z numerem doradcy i klienta, planem kont i kontami z nowej karty ustawień «DATEV». Poprawki: handlowe zaokrąglanie VAT do grosza, lokalna data po północy, storno ofert i faktur korygujących, przywracanie kopii zapasowych większych niż 18 MB. Faktury korygujące zmniejszają teraz przychód na firmę.",
+        "uk": "Справжній експорт DATEV (Buchungsstapel) з номером консультанта і клієнта, планом рахунків і рахунками з нової вкладки налаштувань «DATEV». Виправлення: комерційне округлення ПДВ до цента, місцева дата після півночі, сторно пропозицій і кредит-нот, відновлення резервних копій понад 18 МБ. Кредит-ноти тепер зменшують виручку за фірмою.",
+        "zh-cn": "真正的 DATEV 导出（Buchungsstapel），顾问编号、客户编号、会计科目表和账户来自新的“DATEV”设置选项卡。修复：增值税按商业规则四舍五入到分、午夜后的本地日期、报价和贷项通知单的冲销、大于 18 MB 的备份恢复。贷项通知单现在会减少各公司的收入。"
+      },
       "1.0.11": {
         "en": "New logo: the euro sign is orange now, in the admin, the installed web app, the favicon and the iOS home screen icon.",
         "de": "Neues Logo: Das Euro-Zeichen ist jetzt orange, im Admin, in der installierten Web-App, im Favicon und im iOS-Home-Bildschirm-Symbol.",
@@ -101,19 +114,6 @@
         "pl": "XRechnung dla klientów z sektora publicznego: drugi format faktury obok ZUGFeRD, jako samodzielny plik XML z Leitweg-ID jako odniesieniem nabywcy. Format wybiera się dla każdej faktury w kreatorze, a wartość domyślną ustawia w ustawieniach instancji.",
         "uk": "XRechnung для замовників державного сектору: другий формат рахунку поряд із ZUGFeRD, окремий файл XML з Leitweg-ID як посиланням покупця. Формат обирається для кожного рахунку в майстрі, значення за замовчуванням задається в налаштуваннях екземпляра.",
         "zh-cn": "面向公共部门客户的 XRechnung：除 ZUGFeRD 外的第二种发票格式，为独立的 XML 文件，以 Leitweg-ID 作为买方参考。可在向导中按发票选择，也可在实例设置中设定默认值。"
-      },
-      "1.0.5": {
-        "en": "The adapter logo is now a clean vector graphic that matches the PNG, including the colour gradient; the PNG is a new 512 px version.",
-        "de": "Das Adapter-Logo ist jetzt eine saubere Vektorgrafik, die dem PNG entspricht, einschließlich Farbverlauf; das PNG liegt neu in 512 px vor.",
-        "ru": "Логотип адаптера теперь представляет собой чистую векторную графику, соответствующую PNG, включая цветовой градиент; PNG обновлён до размера 512 пикселей.",
-        "pt": "O logótipo do adaptador é agora um gráfico vetorial limpo que corresponde ao PNG, incluindo o gradiente de cor; o PNG é uma nova versão de 512 px.",
-        "nl": "Het adapterlogo is nu een schone vectorafbeelding die overeenkomt met de PNG, inclusief de kleurverloop; de PNG is een nieuwe versie van 512 px.",
-        "fr": "Le logo de l'adaptateur est désormais un graphique vectoriel propre, identique au PNG, dégradé de couleurs compris ; le PNG est une nouvelle version de 512 px.",
-        "it": "Il logo dell'adattatore è ora una grafica vettoriale pulita che corrisponde al PNG, sfumatura di colore inclusa; il PNG è una nuova versione da 512 px.",
-        "es": "El logotipo del adaptador es ahora un gráfico vectorial limpio que coincide con el PNG, incluido el degradado de color; el PNG es una nueva versión de 512 px.",
-        "pl": "Logo adaptera jest teraz czystą grafiką wektorową odpowiadającą plikowi PNG, wraz z gradientem kolorów; PNG ma nową wersję 512 px.",
-        "uk": "Логотип адаптера тепер є чистою векторною графікою, що відповідає PNG, разом із кольоровим градієнтом; PNG має нову версію 512 пікселів.",
-        "zh-cn": "适配器徽标现在是与 PNG 一致的干净矢量图，包括颜色渐变；PNG 为新的 512 像素版本。"
       }
     },
     "titleLang": {

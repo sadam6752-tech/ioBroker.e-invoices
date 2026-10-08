@@ -575,7 +575,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.1.0 (2026-10-08)
 
 * (alex) fix: amounts are rounded commercially to the cent in every case. Before, an amount whose binary value lies just below half a cent was rounded down — 42.50 EUR at 19 % gave 8.07 EUR of VAT instead of 8.08 EUR (about one tax amount in a thousand).
 * (alex) fix: "today" is the local calendar day of the adapter host and of the browser, not the UTC day. Between midnight and 01:00/02:00 German time new documents got yesterday's date — on New Year's night even the old year's number circle.
@@ -601,10 +601,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ### 1.0.8 (2026-10-06)
 
 * (alex) The home screen icon: the logo on a colour gradient as an opaque square for the installed web app, the favicon and iOS. iOS gets a dedicated 180 px `apple-touch-icon.png` (linked in the page and also served at the root, where iOS looks on its own) instead of the transparent 192 px icon, which iOS paints black or ignores. The admin keeps the transparent logo.
-
-### 1.0.7 (2026-10-06)
-
-* (alex) **HTTPS in the adapter itself:** the instance settings offer "Use HTTPS" with the public certificate, private key and optional chain from the ioBroker certificate collection (the one the web adapter uses), so the web app can be installed on an iPhone or iPad without a reverse proxy. An unusable certificate keeps the web app off instead of falling back to plain HTTP; the instance link switches to `https`; no HSTS header. The web app carries the iOS standalone tags.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

@@ -228,6 +228,10 @@ that came out of the tag pipeline (npm provenance via Trusted Publishing) is
 * (alex) initial release
 * (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
   when the sRGB profile for PDF/A-3 is missing
+## 1.0.7 (2026-10-06)
+
+* (alex) **HTTPS in the adapter itself:** the instance settings offer "Use HTTPS" with the public certificate, private key and optional chain from the ioBroker certificate collection (the one the web adapter uses), so the web app can be installed on an iPhone or iPad without a reverse proxy. An unusable certificate keeps the web app off instead of falling back to plain HTTP; the instance link switches to `https`; no HSTS header. The web app carries the iOS standalone tags.
+
 ## 1.0.6 (2026-10-06)
 
 * (alex) **XRechnung (B2G):** a second invoice format next to ZUGFeRD — standalone XML with the XRechnung 3.0 identifier and the Peppol process, Leitweg-ID as buyer reference (syntax check only), the extra mandatory data named before issuing, a plain PDF view without embedded XML, attachments inside the XML. Choose it per invoice in the wizard or set the default in the instance settings; new "Leitweg-ID" field in the customer list. Checked with the KoSIT validator (XRechnung scenario).
