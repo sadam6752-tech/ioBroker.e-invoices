@@ -28,7 +28,7 @@ export async function revenue(root: HTMLElement): Promise<void> {
 				<button class="btn secondary" id="rv-xlsx" title="${t('Excel-Liste')}">Excel</button>
 				<button class="btn secondary" id="rv-csv" title="${t('CSV für die Buchhaltung')}">CSV</button>
 			</div>
-			<p class="muted">${t('Ausgestellte Rechnungen je Firma. Angebote, Entwürfe, Stornos und Gutschriften zählen nicht; eine stornierte Rechnung fällt heraus. Rechnungen von vor der Firmenzuordnung stehen in einer eigenen Zeile. Die Rechnungsnummer läuft für alle Firmen gemeinsam.')}</p>
+			<p class="muted">${t('Ausgestellte Rechnungen je Firma, abzüglich eigenständiger Gutschriften. Angebote, Entwürfe und Stornos zählen nicht; eine stornierte Rechnung fällt heraus. Rechnungen von vor der Firmenzuordnung stehen in einer eigenen Zeile. Die Rechnungsnummer läuft für alle Firmen gemeinsam.')}</p>
 		</div>
 		<div id="rv-err"></div>
 		<div class="card">

@@ -86,8 +86,8 @@ export const en: Record<string, string> = {
 	'Ausgestellt mit Layout „{name}“ (Version {version}), eingefroren am {date}.':
 		'Issued with layout “{name}” (version {version}), frozen on {date}.',
 	'Ausgestellt, aber ohne Datei: {n}': 'Issued but without file: {n}',
-	'Ausgestellte Rechnungen je Firma. Angebote, Entwürfe, Stornos und Gutschriften zählen nicht; eine stornierte Rechnung fällt heraus. Rechnungen von vor der Firmenzuordnung stehen in einer eigenen Zeile. Die Rechnungsnummer läuft für alle Firmen gemeinsam.':
-		'Issued invoices per company. Quotations, drafts, Storno documents and credit notes do not count; a cancelled invoice drops out. Invoices from before the company assignment have a row of their own. The invoice number runs across all companies.',
+	'Ausgestellte Rechnungen je Firma, abzüglich eigenständiger Gutschriften. Angebote, Entwürfe und Stornos zählen nicht; eine stornierte Rechnung fällt heraus. Rechnungen von vor der Firmenzuordnung stehen in einer eigenen Zeile. Die Rechnungsnummer läuft für alle Firmen gemeinsam.':
+		'Issued invoices per company, minus credit notes of their own. Quotations, drafts and Storno documents do not count; a cancelled invoice drops out. Invoices from before the company assignment have a row of their own. The invoice number runs across all companies.',
 	Ausrichtung: 'Alignment',
 	'Aussehen der PDF-Rechnung: Logo, Farben, Kopf- und Fußzeilen. Die inhaltlichen Positionen legst du unter {templates} oder {items} fest.':
 		'Look of the PDF invoice: logo, colors, header and footer. You define the content of the items under {templates} or {items}.',

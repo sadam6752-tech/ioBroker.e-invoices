@@ -20,7 +20,8 @@ var revenue_report_exports = {};
 __export(revenue_report_exports, {
   NO_COMPANY_LABEL: () => NO_COMPANY_LABEL,
   countsAsRevenue: () => countsAsRevenue,
-  evaluateRevenueByCompany: () => evaluateRevenueByCompany
+  evaluateRevenueByCompany: () => evaluateRevenueByCompany,
+  reducesRevenue: () => reducesRevenue
 });
 module.exports = __toCommonJS(revenue_report_exports);
 var import_invoice_model = require("./invoice-model");
@@ -29,15 +30,20 @@ function cents(value) {
   return Math.round(value * 100) / 100;
 }
 function countsAsRevenue(invoice) {
-  return !(0, import_invoice_model.isQuote)(invoice.docType) && invoice.status === "issued" && invoice.stornoOfId == null && invoice.documentTitle !== "Gutschrift";
+  return !(0, import_invoice_model.isQuote)(invoice.docType) && invoice.status === "issued" && invoice.stornoOfId == null && !(0, import_invoice_model.isCreditNoteTitle)(invoice.documentTitle);
+}
+function reducesRevenue(invoice) {
+  return !(0, import_invoice_model.isQuote)(invoice.docType) && invoice.status === "issued" && invoice.stornoOfId == null && (0, import_invoice_model.isCreditNoteTitle)(invoice.documentTitle);
 }
 function evaluateRevenueByCompany(invoices, names, year) {
   var _a;
   const groups = /* @__PURE__ */ new Map();
   for (const invoice of invoices) {
-    if (!countsAsRevenue(invoice)) {
+    const credit = reducesRevenue(invoice);
+    if (!credit && !countsAsRevenue(invoice)) {
       continue;
     }
+    const sign = credit ? -1 : 1;
     if (year !== void 0 && invoice.issueDate.slice(0, 4) !== String(year)) {
       continue;
     }
@@ -47,10 +53,10 @@ function evaluateRevenueByCompany(invoices, names, year) {
       group = { companyId: invoice.companyId, company: "", count: 0, net: 0, tax: 0, gross: 0, latest: "" };
       groups.set(key, group);
     }
-    group.count += 1;
-    group.net += invoice.totals.netTotal;
-    group.tax += invoice.totals.taxTotal;
-    group.gross += invoice.totals.grossTotal;
+    group.count += credit ? 0 : 1;
+    group.net += sign * invoice.totals.netTotal;
+    group.tax += sign * invoice.totals.taxTotal;
+    group.gross += sign * invoice.totals.grossTotal;
     if (invoice.issueDate >= group.latest) {
       group.latest = invoice.issueDate;
       group.company = invoice.seller.name;
@@ -90,6 +96,7 @@ function evaluateRevenueByCompany(invoices, names, year) {
 0 && (module.exports = {
   NO_COMPANY_LABEL,
   countsAsRevenue,
-  evaluateRevenueByCompany
+  evaluateRevenueByCompany,
+  reducesRevenue
 });
 //# sourceMappingURL=revenue-report.js.map

@@ -248,8 +248,9 @@ credit note and an invoice made from a quotation take over the company of the or
 - The invoice list gets a company filter as soon as there are two or more companies (also
   `?companyId=` on the list and export routes; `none` = documents without a company).
 - **Revenue** (`#/revenue`, `GET /api/reports/revenue-by-company`, also `.csv` and `.xlsx`)
-  adds the issued invoices up per company, for one year or for all of them. Offers, drafts,
-  Storno credit notes and credit notes do not count; a cancelled invoice drops out.
+  adds the issued invoices up per company, for one year or for all of them, minus the credit
+  notes of their own (e.g. for a short delivery). Offers, drafts and Storno documents do not
+  count; a cancelled invoice drops out, together with its Storno.
 - Documents from before the binding have no company and form their own row
   "without company", so the total always equals the sum of the single documents.
 - The **invoice number stays one circle for all companies** — nothing about the numbering
@@ -549,6 +550,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 * (alex) fix: amounts are rounded commercially to the cent in every case. Before, an amount whose binary value lies just below half a cent was rounded down — 42.50 EUR at 19 % gave 8.07 EUR of VAT instead of 8.08 EUR (about one tax amount in a thousand).
 * (alex) fix: "today" is the local calendar day of the adapter host and of the browser, not the UTC day. Between midnight and 01:00/02:00 German time new documents got yesterday's date — on New Year's night even the old year's number circle.
 * (alex) fix: a quotation can no longer be reversed through the API (that made a credit note for an offer and used up an invoice number), and the reversal of a credit note is an invoice instead of a second credit note.
+* (alex) Revenue per company: a credit note of its own (not a Storno) now reduces the revenue of its company; before, it was left out.
 * (alex) fix: a backup is uploaded for the restore as the ZIP itself; base64 inside JSON stopped at about 18 MB. A file that is no backup gets a clear 400 in the preview instead of a server error.
 
 ### 1.0.11 (2026-10-08)

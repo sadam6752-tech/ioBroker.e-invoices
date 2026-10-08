@@ -5,17 +5,17 @@
  * v14). This module adds the documents up per company. It is pure — no database, no
  * server — so the JSON view, the CSV and the Excel list share one calculation.
  *
- * What counts: an **issued invoice** that is no Storno credit note and no document titled
- * "Gutschrift". A cancelled original is not issued any more and drops out by its status,
- * so an invoice and its Storno cancel each other out. A credit note without a Storno link
- * has no allocation to the invoice it reduces, so — as in the open-items list — it is left
- * out instead of guessed. Offers and drafts are no revenue.
+ * What counts: an **issued invoice** that is no Storno document, minus an **issued credit note** of its
+ * own (a "Gutschrift" without Storno link, e.g. for a short delivery): it reduces the revenue of its company
+ * (decision of 08.10.2026). A cancelled original is not issued any more and drops out by its status, and its
+ * Storno document is left out too, so an invoice and its Storno cancel each other out. Offers and drafts are
+ * no revenue.
  *
  * Documents from before the binding exist (`company_id` is NULL): they form their own row
  * "without company", so the grand total always matches the individual documents.
  */
 import type { StoredInvoice } from './db';
-import { isQuote } from './invoice-model';
+import { isCreditNoteTitle, isQuote } from './invoice-model';
 
 /** Label of the row that collects documents without a company. */
 export const NO_COMPANY_LABEL = 'ohne Firmenzuordnung';
@@ -26,7 +26,7 @@ export interface CompanyRevenue {
 	companyId: string | null;
 	/** Company name (current profile name, else the seller of the newest document). */
 	company: string;
-	/** Number of invoices. */
+	/** Number of invoices (credit notes are not counted, their amounts are subtracted). */
 	count: number;
 	/** Sum of the net totals in EUR. */
 	net: number;
@@ -65,7 +65,21 @@ export function countsAsRevenue(invoice: StoredInvoice): boolean {
 		!isQuote(invoice.docType) &&
 		invoice.status === 'issued' &&
 		invoice.stornoOfId == null &&
-		invoice.documentTitle !== 'Gutschrift'
+		!isCreditNoteTitle(invoice.documentTitle)
+	);
+}
+
+/**
+ * True for a credit note of its own that reduces the revenue: issued, no Storno document.
+ *
+ * @param invoice - Stored document.
+ */
+export function reducesRevenue(invoice: StoredInvoice): boolean {
+	return (
+		!isQuote(invoice.docType) &&
+		invoice.status === 'issued' &&
+		invoice.stornoOfId == null &&
+		isCreditNoteTitle(invoice.documentTitle)
 	);
 }
 
@@ -89,9 +103,11 @@ export function evaluateRevenueByCompany(
 ): RevenueReport {
 	const groups = new Map<string, Group>();
 	for (const invoice of invoices) {
-		if (!countsAsRevenue(invoice)) {
+		const credit = reducesRevenue(invoice);
+		if (!credit && !countsAsRevenue(invoice)) {
 			continue;
 		}
+		const sign = credit ? -1 : 1;
 		if (year !== undefined && invoice.issueDate.slice(0, 4) !== String(year)) {
 			continue;
 		}
@@ -101,10 +117,10 @@ export function evaluateRevenueByCompany(
 			group = { companyId: invoice.companyId, company: '', count: 0, net: 0, tax: 0, gross: 0, latest: '' };
 			groups.set(key, group);
 		}
-		group.count += 1;
-		group.net += invoice.totals.netTotal;
-		group.tax += invoice.totals.taxTotal;
-		group.gross += invoice.totals.grossTotal;
+		group.count += credit ? 0 : 1;
+		group.net += sign * invoice.totals.netTotal;
+		group.tax += sign * invoice.totals.taxTotal;
+		group.gross += sign * invoice.totals.grossTotal;
 		if (invoice.issueDate >= group.latest) {
 			group.latest = invoice.issueDate;
 			group.company = invoice.seller.name;

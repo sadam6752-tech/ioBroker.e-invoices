@@ -223,6 +223,13 @@ describe('revenue per company (R6.3)', () => {
 			const all = evaluateRevenueByCompany(db.allInvoices(), names);
 			expect(all.year).to.equal(null);
 			expect(all.rows[0].count).to.equal(2);
+
+			// a credit note of its own (short delivery) reduces the revenue of its company and is not counted
+			db.issueDraft(db.createDraft(draft({ companyId: b.id, documentTitle: 'Gutschrift', lines: line(100) })).id);
+			const reduced = evaluateRevenueByCompany(db.allInvoices(), names, 2026);
+			const zweite = reduced.rows.find(r => r.company === 'Zweite KG');
+			expect(zweite).to.include({ count: 1, net: 200, tax: 38, gross: 238 });
+			expect(reduced.total.gross).to.equal(Math.round((report.total.gross - 119) * 100) / 100);
 		} finally {
 			db.close();
 		}
