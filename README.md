@@ -544,6 +544,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) New logo: the euro sign is orange now. Admin icon, installed web app, favicon, the iOS home screen icon and the vector logo `admin/e-invoices.svg` all follow.
+
 ### 1.0.10 (2026-10-08)
 
 * (alex) fix: an XRechnung titled "Schlussrechnung" now carries the type code 380 instead of 218 — the XRechnung rule BR-DE-17 does not list 218, the KoSIT validator warned about it. The ZUGFeRD invoice keeps 218.
