@@ -228,6 +228,10 @@ that came out of the tag pipeline (npm provenance via Trusted Publishing) is
 * (alex) initial release
 * (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
   when the sRGB profile for PDF/A-3 is missing
+## 1.0.5 (2026-10-06)
+
+* (alex) The logo is now a clean hand-built vector (`admin/e-invoices.svg`) that matches the PNG, including the colour gradient; the PNG is the new 512 px version.
+
 ## 1.0.4 (2026-10-05)
 
 * (alex) New adapter logo (invoice with euro coin and check mark) in the admin, the installed web app and the favicon. The web app icons are made from the PNG master `admin/e-invoices.png` (`node src-www/scripts/make-icons.mjs`), `admin/e-invoices.svg` is the vector copy.

@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.0.10": {
+        "en": "Fix: an XRechnung titled \"final invoice\" now carries the type code 380, as the XRechnung rules require. Dependencies updated, the weakness reported for uuid below exceljs is closed.",
+        "de": "Fix: Eine XRechnung mit dem Titel „Schlussrechnung“ trägt jetzt den Rechnungstyp 380, wie es die XRechnung-Regeln verlangen. Abhängigkeiten aktualisiert, die gemeldete Schwachstelle von uuid unter exceljs ist geschlossen.",
+        "ru": "Исправление: XRechnung с названием «Итоговый счёт» теперь имеет код типа 380, как требуют правила XRechnung. Зависимости обновлены, закрыта уязвимость uuid в exceljs.",
+        "pt": "Correção: uma XRechnung com o título «fatura final» passa a ter o código de tipo 380, como exigem as regras da XRechnung. Dependências atualizadas, a vulnerabilidade reportada em uuid dentro de exceljs foi fechada.",
+        "nl": "Fix: een XRechnung met de titel «eindfactuur» heeft nu typecode 380, zoals de XRechnung-regels vereisen. Afhankelijkheden bijgewerkt, de gemelde kwetsbaarheid van uuid onder exceljs is gedicht.",
+        "fr": "Correction : une XRechnung intitulée « facture finale » porte désormais le code de type 380, comme l'exigent les règles XRechnung. Dépendances mises à jour, la faille signalée pour uuid sous exceljs est corrigée.",
+        "it": "Correzione: una XRechnung intitolata «fattura finale» ora porta il codice tipo 380, come richiedono le regole XRechnung. Dipendenze aggiornate, la vulnerabilità segnalata per uuid sotto exceljs è chiusa.",
+        "es": "Corrección: una XRechnung titulada «factura final» ahora lleva el código de tipo 380, como exigen las reglas de XRechnung. Dependencias actualizadas, se cerró la vulnerabilidad notificada de uuid bajo exceljs.",
+        "pl": "Poprawka: XRechnung zatytułowana «faktura końcowa» ma teraz kod typu 380, zgodnie z regułami XRechnung. Zależności zaktualizowane, zgłoszona luka w uuid pod exceljs jest zamknięta.",
+        "uk": "Виправлення: XRechnung із назвою «підсумковий рахунок» тепер має код типу 380, як вимагають правила XRechnung. Залежності оновлено, закрито вразливість uuid в exceljs.",
+        "zh-cn": "修复：标题为“最终发票”的 XRechnung 现在使用类型代码 380，符合 XRechnung 规则。依赖已更新，已修复 exceljs 下 uuid 的已报告漏洞。"
+      },
       "1.0.9": {
         "en": "iOS home screen icon over HTTPS: the icon is now embedded in the page itself, so iOS needs no second request for it. The original transparent logo is back for the favicon and the installed web app.",
         "de": "iOS-Home-Bildschirm-Symbol über HTTPS: Das Symbol ist jetzt in die Seite selbst eingebettet, sodass iOS keine zweite Abfrage dafür braucht. Das ursprüngliche transparente Logo ist für das Favicon und die installierte Web-App zurück.",
@@ -101,19 +114,6 @@
         "pl": "Nowe logo adaptera (faktura z monetą euro i znacznikiem wyboru) w panelu administracyjnym, zainstalowanej aplikacji internetowej i favikonie.",
         "uk": "Новий логотип адаптера (рахунок із монетою євро та галочкою) в адмінці, встановленому вебзастосунку та favicon.",
         "zh-cn": "新的适配器徽标（带欧元硬币和对勾的发票）：用于管理界面、已安装的网页应用和网站图标。"
-      },
-      "1.0.3": {
-        "en": "Repository checker findings: the README is English only (the German disclaimer moved to docs/haftungsausschluss.md) and the translations of the web app are part of the npm package.",
-        "de": "Befunde des Repository-Checkers: Die README ist nur noch englisch (der deutsche Haftungsausschluss liegt jetzt in docs/haftungsausschluss.md), und die Übersetzungen der Web-App sind Teil des npm-Pakets.",
-        "ru": "Замечания проверки репозитория: README теперь только на английском (немецкий отказ от ответственности перенесён в docs/haftungsausschluss.md), а переводы веб-приложения входят в пакет npm.",
-        "pt": "Resultados do verificador do repositório: o README está apenas em inglês (o aviso legal em alemão passou para docs/haftungsausschluss.md) e as traduções da aplicação web fazem parte do pacote npm.",
-        "nl": "Bevindingen van de repository-checker: de README is alleen Engels (de Duitse disclaimer staat nu in docs/haftungsausschluss.md) en de vertalingen van de web-app maken deel uit van het npm-pakket.",
-        "fr": "Remarques du vérificateur de dépôt : le README est uniquement en anglais (l'avertissement juridique allemand se trouve désormais dans docs/haftungsausschluss.md) et les traductions de l'application web font partie du paquet npm.",
-        "it": "Rilievi del verificatore del repository: il README è solo in inglese (la dichiarazione di esclusione di responsabilità in tedesco si trova ora in docs/haftungsausschluss.md) e le traduzioni della web app fanno parte del pacchetto npm.",
-        "es": "Hallazgos del verificador del repositorio: el README está solo en inglés (el aviso legal en alemán está ahora en docs/haftungsausschluss.md) y las traducciones de la aplicación web forman parte del paquete npm.",
-        "pl": "Uwagi weryfikatora repozytorium: README jest wyłącznie po angielsku (niemieckie zastrzeżenie prawne znajduje się teraz w docs/haftungsausschluss.md), a tłumaczenia aplikacji internetowej są częścią pakietu npm.",
-        "uk": "Зауваження перевірки репозиторію: README тепер лише англійською (німецька відмова від відповідальності перенесена до docs/haftungsausschluss.md), а переклади вебзастосунку входять до пакета npm.",
-        "zh-cn": "仓库检查器的发现：README 现在仅为英文（德文免责声明已移至 docs/haftungsausschluss.md），网页应用的翻译文件已包含在 npm 包中。"
       }
     },
     "titleLang": {

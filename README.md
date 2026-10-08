@@ -544,7 +544,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.10 (2026-10-08)
 
 * (alex) fix: an XRechnung titled "Schlussrechnung" now carries the type code 380 instead of 218 — the XRechnung rule BR-DE-17 does not list 218, the KoSIT validator warned about it. The ZUGFeRD invoice keeps 218.
 * (alex) The validation run (`npm run validate`) now fails on KoSIT warnings too, not only on rejections, and covers an XRechnung for every document title (partial, final, credit note, reversal).
@@ -566,10 +566,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 
 * (alex) **XRechnung (B2G):** a second invoice format next to ZUGFeRD — standalone XML with the XRechnung 3.0 identifier and the Peppol process, Leitweg-ID as buyer reference (syntax check only), the extra mandatory data named before issuing, a plain PDF view without embedded XML, attachments inside the XML. Choose it per invoice in the wizard or set the default in the instance settings; new "Leitweg-ID" field in the customer list. Checked with the KoSIT validator (XRechnung scenario).
 * (alex) The issue now checks the mandatory data before the documents are probed, so the message names the rule instead of a library detail.
-
-### 1.0.5 (2026-10-06)
-
-* (alex) The logo is now a clean hand-built vector (`admin/e-invoices.svg`) that matches the PNG, including the colour gradient; the PNG is the new 512 px version.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
