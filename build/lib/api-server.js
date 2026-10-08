@@ -333,6 +333,13 @@ function createApiServer(deps) {
       strictTransportSecurity: false
     })
   );
+  app.use(
+    "/api/restore",
+    import_express.default.raw({
+      type: ["application/zip", "application/x-zip-compressed", "application/octet-stream"],
+      limit: import_backup.DEFAULT_BACKUP_LIMITS.zipBytes
+    })
+  );
   app.use(import_express.default.json({ limit: "25mb" }));
   const limiter = (limit, scope) => (0, import_express_rate_limit.rateLimit)({
     windowMs: 6e4,
@@ -526,7 +533,7 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice", ran
       return;
     }
     const invoices = filteredInvoices(db, req.query, "invoice", range, true);
-    const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    const stamp = (0, import_invoice_model.todayIso)();
     const period = (0, import_invoice_model.formatDateRange)(range);
     void (0, import_excel.renderInvoiceListWorkbook)(invoices, `Rechnungs\xFCbersicht ${stamp}${period ? ` (${period})` : ""}`).then(
       (buffer) => {
@@ -1481,56 +1488,50 @@ ${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice", ran
       }
     })
   );
+  async function restoreInput(req, res) {
+    var _a2, _b2;
+    if (Buffer.isBuffer(req.body)) {
+      if (req.body.length === 0) {
+        res.status(400).json({ error: "The uploaded backup is empty" });
+        return void 0;
+      }
+      return req.body;
+    }
+    const body = (_a2 = req.body) != null ? _a2 : {};
+    if (typeof body.dataBase64 === "string" && body.dataBase64.length > 0) {
+      return Buffer.from(body.dataBase64, "base64");
+    }
+    if (typeof body.filename === "string" && body.filename.length > 0) {
+      const name = ((_b2 = body.filename.split("/").pop()) != null ? _b2 : "").replace(/[^A-Za-z0-9_.-]/g, "");
+      try {
+        return await storage.read(`backups/${name}`);
+      } catch {
+        res.status(404).json({ error: "Backup file not found" });
+        return void 0;
+      }
+    }
+    res.status(400).json({ error: "Body needs filename or dataBase64, or the backup ZIP itself" });
+    return void 0;
+  }
   app.post(
     "/api/restore/preview",
     route(async (req, res) => {
-      var _a2, _b2;
-      const body = (_a2 = req.body) != null ? _a2 : {};
-      let data;
-      if (typeof body.dataBase64 === "string" && body.dataBase64.length > 0) {
-        try {
-          data = Buffer.from(body.dataBase64, "base64");
-        } catch {
-          res.status(400).json({ error: "dataBase64 is not valid base64" });
-          return;
-        }
-      } else if (typeof body.filename === "string" && body.filename.length > 0) {
-        try {
-          data = await storage.read(`backups/${(_b2 = body.filename.split("/").pop()) != null ? _b2 : ""}`);
-        } catch {
-          res.status(404).json({ error: "Backup file not found" });
-          return;
-        }
-      } else {
-        res.status(400).json({ error: "filename or dataBase64 is required" });
+      const data = await restoreInput(req, res);
+      if (!data) {
         return;
       }
-      res.json(await (0, import_backup.previewRestore)(db, data));
+      try {
+        res.json(await (0, import_backup.previewRestore)(db, data));
+      } catch (error) {
+        res.status(400).json({ error: error.message });
+      }
     })
   );
   app.post(
     "/api/restore",
     route(async (req, res) => {
-      var _a2, _b2;
-      const body = (_a2 = req.body) != null ? _a2 : {};
-      let data;
-      if (typeof body.dataBase64 === "string" && body.dataBase64.length > 0) {
-        try {
-          data = Buffer.from(body.dataBase64, "base64");
-        } catch {
-          res.status(400).json({ error: "dataBase64 is not valid base64" });
-          return;
-        }
-      } else if (typeof body.filename === "string" && body.filename.length > 0) {
-        const name = (_b2 = body.filename.split("/").pop()) != null ? _b2 : "";
-        try {
-          data = await storage.read(`backups/${name.replace(/[^A-Za-z0-9_.-]/g, "")}`);
-        } catch {
-          res.status(404).json({ error: "Backup file not found" });
-          return;
-        }
-      } else {
-        res.status(400).json({ error: "Body needs filename or dataBase64" });
+      const data = await restoreInput(req, res);
+      if (!data) {
         return;
       }
       try {

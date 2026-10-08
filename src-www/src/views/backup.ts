@@ -1,4 +1,4 @@
-import { api, apiFetch, downloadUrl, esc, fileToBase64, type RestorePreview } from '../api';
+import { api, apiFetch, downloadUrl, esc, type RestorePreview } from '../api';
 import { t } from '../i18n';
 
 interface BackupEntry {
@@ -38,13 +38,13 @@ function baseName(path: string): string {
  *
  * @param source - Stored filename or an uploaded file.
  * @param source.filename - File name.
- * @param source.dataBase64 - File content, base64 encoded.
+ * @param source.file - Uploaded backup ZIP.
  * @returns Whether the user confirmed the restore.
  */
-async function confirmRestore(source: { filename?: string; dataBase64?: string }): Promise<boolean> {
+async function confirmRestore(source: { filename?: string; file?: Blob }): Promise<boolean> {
 	let preview: RestorePreview;
 	try {
-		preview = await api.restorePreview(source.filename, source.dataBase64);
+		preview = source.file ? await api.restorePreviewFile(source.file) : await api.restorePreview(source.filename);
 	} catch (e) {
 		alert(t('Backup kann nicht gelesen werden: {message}', { message: (e as Error).message }));
 		return false;
@@ -225,25 +225,17 @@ export async function backup(root: HTMLElement): Promise<void> {
 				render();
 				return;
 			}
-			let dataBase64: string;
-			try {
-				dataBase64 = await fileToBase64(file);
-			} catch (e) {
-				message = (e as Error).message;
-				isError = true;
-				render();
-				return;
-			}
 			// The preview runs on the uploaded bytes, so a broken file is
 			// rejected before the current database is touched.
-			if (!(await confirmRestore({ dataBase64 }))) {
+			if (!(await confirmRestore({ file }))) {
 				return;
 			}
 			try {
+				// the ZIP goes as it is (no base64): a bigger backup would exceed the JSON limit of the server
 				const res = await apiFetch('/api/restore', {
 					method: 'POST',
-					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({ dataBase64 }),
+					headers: { 'content-type': 'application/zip' },
+					body: file,
 				});
 				if (!res.ok) {
 					throw new Error(

@@ -1265,6 +1265,47 @@ describe('api => backup', function () {
 		await request(app).post('/api/restore').send({ filename: 'does-not-exist.zip' }).expect(404);
 		await request(app).post('/api/restore').send({ dataBase64: 'bm90LXotemlw' }).expect(400);
 	});
+
+	it('takes an uploaded backup as the ZIP itself, also bigger than the 25 MB JSON limit', async () => {
+		const created = await request(app).post('/api/backups').expect(201);
+		const basename = String(created.body.filename).split('/').pop() ?? '';
+		const zip = (
+			await request(app)
+				.get(`/api/backups/file/${basename}`)
+				.buffer(true)
+				.parse((res, done) => {
+					const chunks: Buffer[] = [];
+					res.on('data', (chunk: Buffer) => chunks.push(chunk));
+					res.on('end', () => done(null, Buffer.concat(chunks)));
+				})
+				.expect(200)
+		).body as Buffer;
+		const preview = await request(app)
+			.post('/api/restore/preview')
+			.set('content-type', 'application/zip')
+			.send(zip)
+			.expect(200);
+		expect(preview.body.invoices).to.be.greaterThan(0);
+		const restored = await request(app)
+			.post('/api/restore')
+			.set('content-type', 'application/zip')
+			.send(zip)
+			.expect(200);
+		expect(restored.body.invoices).to.be.greaterThan(0);
+		// 30 MB of no ZIP get through the body limit and are refused by the ZIP check, not by the JSON limit (413)
+		const big = Buffer.alloc(30 * 1024 * 1024, 1);
+		const refused = await request(app)
+			.post('/api/restore/preview')
+			.set('content-type', 'application/zip')
+			.send(big)
+			.expect(400);
+		expect(refused.body.error).to.contain('ZIP');
+		await request(app)
+			.post('/api/restore')
+			.set('content-type', 'application/zip')
+			.send(Buffer.alloc(0))
+			.expect(400);
+	});
 });
 
 describe('api => templates', function () {

@@ -906,6 +906,10 @@ class InvoiceDatabase {
     if (original.status !== "issued") {
       throw new Error("Only issued invoices can be reversed (Storno).");
     }
+    if ((0, import_invoice_model.isQuote)(original.docType)) {
+      throw new Error("A quotation cannot be reversed (Storno) \u2014 it is no invoice.");
+    }
+    const reversesCredit = (0, import_invoice_model.isCreditNoteTitle)(original.documentTitle);
     const existing = this.listInvoices({ status: "draft" }).find((draft) => draft.stornoOfId === id);
     if (existing) {
       throw new Error(`A Storno draft for ${original.number} already exists (${existing.id}).`);
@@ -925,8 +929,8 @@ class InvoiceDatabase {
       paymentTerms: (_c = original.paymentTerms) != null ? _c : void 0,
       skontoPercent: original.skontoPercent,
       skontoDueDate: (_d = original.skontoDueDate) != null ? _d : void 0,
-      documentTitle: "Gutschrift",
-      notes: `Storno zu Rechnung ${original.number}${(reason == null ? void 0 : reason.trim()) ? ` \u2013 ${reason.trim()}` : ""}`
+      documentTitle: reversesCredit ? "Rechnung" : "Gutschrift",
+      notes: `Storno zu ${reversesCredit ? "Gutschrift" : "Rechnung"} ${original.number}${(reason == null ? void 0 : reason.trim()) ? ` \u2013 ${reason.trim()}` : ""}`
     });
     const run = this.db.transaction(() => {
       this.db.prepare(`UPDATE invoices SET status = 'cancelled', updated_at = ? WHERE id = ? AND status = 'issued'`).run(nowIso(), id);

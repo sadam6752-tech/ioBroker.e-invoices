@@ -331,7 +331,8 @@ describe('db => drafts and issue flow', () => {
 			expect(second.original.id).to.equal(issuedReversal.id);
 			expect(second.original.stornoOfId).to.equal(original.id);
 			expect(second.reversal.stornoOfId).to.equal(issuedReversal.id);
-			expect(second.reversal.documentTitle).to.equal('Gutschrift');
+			// reversing the credit note takes the amount back the other way: that is an invoice again
+			expect(second.reversal.documentTitle).to.equal('Rechnung');
 		} finally {
 			db.close();
 		}

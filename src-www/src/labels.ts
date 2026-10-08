@@ -193,7 +193,7 @@ export interface QuoteLifecycle {
  * @param quote - Stored offer.
  * @param today - Day to compare the validity against, defaults to today.
  */
-export function quoteState(quote: QuoteLifecycle, today: string = new Date().toISOString().slice(0, 10)): QuoteState {
+export function quoteState(quote: QuoteLifecycle, today: string = localToday()): QuoteState {
 	if (quote.acceptedAt) {
 		return 'accepted';
 	}

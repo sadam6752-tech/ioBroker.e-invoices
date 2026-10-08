@@ -159,6 +159,8 @@ export function mapDocumentTypeCode(documentTitle?: string): DocumentTypeCode {
  * commercial invoice (380) there — the KoSIT validator warns about 218.
  *
  * @param invoice - The document: its title and its profile decide.
+ * @param invoice.documentTitle - Display title of the document.
+ * @param invoice.profile - Stored profile string.
  */
 export function documentTypeCodeFor(invoice: { documentTitle?: string; profile: string }): DocumentTypeCode {
 	const code = mapDocumentTypeCode(invoice.documentTitle);

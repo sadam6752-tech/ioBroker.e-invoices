@@ -185,6 +185,17 @@ export function isQuote(docType?: string | null): boolean {
 }
 
 /**
+ * True for a credit note by its title (Gutschrift / credit note) — the same rule the e-invoice uses for the type
+ * code 381.
+ *
+ * @param documentTitle - Display title of the document.
+ */
+export function isCreditNoteTitle(documentTitle?: string | null): boolean {
+	const title = (documentTitle ?? '').toLowerCase();
+	return title.includes('gutschrift') || title.includes('credit');
+}
+
+/**
  * Display title used when the user did not type one.
  *
  * @param docType - Document type, defaults to invoice.
@@ -389,12 +400,17 @@ export const LEITWEG_ID_PATTERN = /^[0-9A-Za-z][0-9A-Za-z-]{0,45}$/;
 export const ALLOWED_VAT_RATES: readonly number[] = [0, 7, 19];
 
 /**
- * Round EUR amounts to cents (half away from zero via Math.round).
+ * Rounds an EUR amount to cents, commercially: half a cent away from zero.
+ *
+ * The amount is taken as the decimal it stands for: `8.075` is stored in binary as 8.07499999…, so a plain
+ * `Math.round(value * 100)` (or adding `Number.EPSILON`, which is below the precision of such numbers) rounds it
+ * down. Fifteen significant digits restore the decimal first — 42.50 € × 19 % is 8.08 € of VAT, not 8.07 €.
  *
  * @param value - Amount in EUR.
  */
 export function roundCents(value: number): number {
-	return Math.round((value + Number.EPSILON) * 100) / 100;
+	const sign = value < 0 ? -1 : 1;
+	return (sign * Math.round(Number((Math.abs(value) * 100).toPrecision(15)))) / 100;
 }
 
 /** Default invoice number pattern: year, employee code, sequence. */
@@ -660,7 +676,10 @@ export function formatCustomerNumber(seq: number): string {
  * @param date - Reference point, defaults to now.
  */
 export function todayIso(date = new Date()): string {
-	return date.toISOString().slice(0, 10);
+	// the local calendar day: between midnight and 01:00/02:00 German time the UTC day is still yesterday — on
+	// New Year's night that would even put a new invoice into the old year's number circle
+	const two = (value: number): string => String(value).padStart(2, '0');
+	return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
 }
 
 /**

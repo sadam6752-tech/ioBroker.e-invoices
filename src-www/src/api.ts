@@ -1043,6 +1043,18 @@ export const api = {
 			method: 'POST',
 			body: JSON.stringify({ filename, dataBase64 }),
 		}),
+	/**
+	 * What restoring an uploaded backup would change. The ZIP goes as it is: base64 inside JSON would hit the
+	 * request limit of the server for a bigger backup.
+	 *
+	 * @param file - The backup ZIP chosen by the user.
+	 */
+	restorePreviewFile: (file: Blob) =>
+		request<RestorePreview>('/api/restore/preview', {
+			method: 'POST',
+			headers: { 'content-type': 'application/zip' },
+			body: file,
+		}),
 };
 
 /**

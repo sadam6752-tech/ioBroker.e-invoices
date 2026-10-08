@@ -12,6 +12,7 @@ import {
 	type Product,
 } from '../api';
 import { t } from '../i18n';
+import { localToday } from '../range';
 import {
 	defaultTitle,
 	isQuote,
@@ -229,7 +230,8 @@ interface WizardState {
 }
 
 function today(): string {
-	return new Date().toISOString().slice(0, 10);
+	// the local calendar day: right after midnight the UTC day is still yesterday
+	return localToday();
 }
 
 function freshState(): WizardState {

@@ -544,6 +544,13 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) fix: amounts are rounded commercially to the cent in every case. Before, an amount whose binary value lies just below half a cent was rounded down — 42.50 EUR at 19 % gave 8.07 EUR of VAT instead of 8.08 EUR (about one tax amount in a thousand).
+* (alex) fix: "today" is the local calendar day of the adapter host and of the browser, not the UTC day. Between midnight and 01:00/02:00 German time new documents got yesterday's date — on New Year's night even the old year's number circle.
+* (alex) fix: a quotation can no longer be reversed through the API (that made a credit note for an offer and used up an invoice number), and the reversal of a credit note is an invoice instead of a second credit note.
+* (alex) fix: a backup is uploaded for the restore as the ZIP itself; base64 inside JSON stopped at about 18 MB. A file that is no backup gets a clear 400 in the preview instead of a server error.
+
 ### 1.0.11 (2026-10-08)
 
 * (alex) New logo: the euro sign is orange now. Admin icon, installed web app, favicon, the iOS home screen icon and the vector logo `admin/e-invoices.svg` all follow.

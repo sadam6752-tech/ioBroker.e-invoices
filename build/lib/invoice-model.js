@@ -41,6 +41,7 @@ __export(invoice_model_exports, {
   formatDateRange: () => formatDateRange,
   formatDeliveryDateDe: () => formatDeliveryDateDe,
   formatInvoiceNumber: () => formatInvoiceNumber,
+  isCreditNoteTitle: () => isCreditNoteTitle,
   isIsoDate: () => isIsoDate,
   isQuote: () => isQuote,
   isXRechnung: () => isXRechnung,
@@ -70,6 +71,10 @@ function normalizeDocumentType(value) {
 }
 function isQuote(docType) {
   return normalizeDocumentType(docType) === "quote";
+}
+function isCreditNoteTitle(documentTitle) {
+  const title = (documentTitle != null ? documentTitle : "").toLowerCase();
+  return title.includes("gutschrift") || title.includes("credit");
 }
 function defaultDocumentTitle(docType) {
   return isQuote(docType) ? "Angebot" : "Rechnung";
@@ -158,7 +163,8 @@ function isXRechnung(profile) {
 const LEITWEG_ID_PATTERN = /^[0-9A-Za-z][0-9A-Za-z-]{0,45}$/;
 const ALLOWED_VAT_RATES = [0, 7, 19];
 function roundCents(value) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  const sign = value < 0 ? -1 : 1;
+  return sign * Math.round(Number((Math.abs(value) * 100).toPrecision(15))) / 100;
 }
 const DEFAULT_NUMBER_FORMAT = "{YYYY}-{EMPLOYEE}-{SEQ}";
 const DEFAULT_QUOTE_NUMBER_FORMAT = "A-{YYYY}-{EMPLOYEE}-{SEQ}";
@@ -287,7 +293,8 @@ function formatCustomerNumber(seq) {
   return `K-${String(seq).padStart(5, "0")}`;
 }
 function todayIso(date = /* @__PURE__ */ new Date()) {
-  return date.toISOString().slice(0, 10);
+  const two = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
 }
 function daysBetween(from, to) {
   const a = Date.parse(`${from}T00:00:00Z`);
@@ -522,6 +529,7 @@ function dateRangeFileSuffix(range) {
   formatDateRange,
   formatDeliveryDateDe,
   formatInvoiceNumber,
+  isCreditNoteTitle,
   isIsoDate,
   isQuote,
   isXRechnung,

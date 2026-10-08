@@ -21,6 +21,7 @@ import {
 	defaultValidUntil,
 	formatCustomerNumber,
 	formatInvoiceNumber,
+	isCreditNoteTitle,
 	isQuote,
 	normalizeDocumentType,
 	normalizeEmployeeCode,
@@ -1638,6 +1639,14 @@ export class InvoiceDatabase {
 		if (original.status !== 'issued') {
 			throw new Error('Only issued invoices can be reversed (Storno).');
 		}
+		// R8: an offer is no booking record — there is nothing to reverse, and a credit note for it would use up an
+		// invoice number
+		if (isQuote(original.docType)) {
+			throw new Error('A quotation cannot be reversed (Storno) — it is no invoice.');
+		}
+		// reversing a credit note takes the amount back the other way: that document is an invoice, not a second
+		// credit note
+		const reversesCredit = isCreditNoteTitle(original.documentTitle);
 		const existing = this.listInvoices({ status: 'draft' }).find(draft => draft.stornoOfId === id);
 		if (existing) {
 			throw new Error(`A Storno draft for ${original.number} already exists (${existing.id}).`);
@@ -1657,8 +1666,8 @@ export class InvoiceDatabase {
 			paymentTerms: original.paymentTerms ?? undefined,
 			skontoPercent: original.skontoPercent,
 			skontoDueDate: original.skontoDueDate ?? undefined,
-			documentTitle: 'Gutschrift',
-			notes: `Storno zu Rechnung ${original.number}${reason?.trim() ? ` – ${reason.trim()}` : ''}`,
+			documentTitle: reversesCredit ? 'Rechnung' : 'Gutschrift',
+			notes: `Storno zu ${reversesCredit ? 'Gutschrift' : 'Rechnung'} ${original.number}${reason?.trim() ? ` – ${reason.trim()}` : ''}`,
 		});
 		const run = this.db.transaction((): { reversal: StoredInvoice; original: StoredInvoice } => {
 			this.db

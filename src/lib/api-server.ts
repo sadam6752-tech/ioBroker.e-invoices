@@ -52,7 +52,7 @@ import {
 	type ArtifactWriter,
 	type IssueLogger,
 } from './issue-service';
-import { backupStatus, createBackup, previewRestore, restoreBackup } from './backup';
+import { backupStatus, createBackup, DEFAULT_BACKUP_LIMITS, previewRestore, restoreBackup } from './backup';
 import { attachmentDisposition } from './attachments';
 import {
 	renderDatevHead,
@@ -546,6 +546,15 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			strictTransportSecurity: false,
 		}),
 	);
+	// A backup is uploaded as the ZIP itself (`application/zip`): base64 inside JSON would hit the JSON limit at
+	// about 18 MB, far below the size a backup may have. The restore checks the ZIP limits itself.
+	app.use(
+		'/api/restore',
+		express.raw({
+			type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'],
+			limit: DEFAULT_BACKUP_LIMITS.zipBytes,
+		}),
+	);
 	app.use(express.json({ limit: '25mb' }));
 	// Rate limits (R3): the API is reachable from the LAN, and a restore replaces
 	// the whole database — so restore gets a much smaller budget than the rest.
@@ -780,7 +789,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			return;
 		}
 		const invoices = filteredInvoices(db, req.query, 'invoice', range, true);
-		const stamp = new Date().toISOString().slice(0, 10);
+		const stamp = todayIso();
 		const period = formatDateRange(range);
 		void renderInvoiceListWorkbook(invoices, `Rechnungsübersicht ${stamp}${period ? ` (${period})` : ''}`).then(
 			buffer => {
@@ -1821,57 +1830,61 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		}),
 	);
 
+	/**
+	 * The backup a restore (or its preview) works on: the uploaded ZIP itself (`application/zip`), the older
+	 * base64 field, or a file of the backup folder by name. Answers the request itself when there is none.
+	 *
+	 * @param req - The request.
+	 * @param res - The response, used for the error answer.
+	 * @returns The ZIP bytes, or undefined when the request was already answered.
+	 */
+	async function restoreInput(req: Request, res: Response): Promise<Buffer | undefined> {
+		if (Buffer.isBuffer(req.body)) {
+			if (req.body.length === 0) {
+				res.status(400).json({ error: 'The uploaded backup is empty' });
+				return undefined;
+			}
+			return req.body;
+		}
+		const body = (req.body ?? {}) as { filename?: unknown; dataBase64?: unknown };
+		if (typeof body.dataBase64 === 'string' && body.dataBase64.length > 0) {
+			return Buffer.from(body.dataBase64, 'base64');
+		}
+		if (typeof body.filename === 'string' && body.filename.length > 0) {
+			const name = (body.filename.split('/').pop() ?? '').replace(/[^A-Za-z0-9_.-]/g, '');
+			try {
+				return await storage.read(`backups/${name}`);
+			} catch {
+				res.status(404).json({ error: 'Backup file not found' });
+				return undefined;
+			}
+		}
+		res.status(400).json({ error: 'Body needs filename or dataBase64, or the backup ZIP itself' });
+		return undefined;
+	}
+
 	app.post(
 		'/api/restore/preview',
 		route(async (req, res) => {
-			const body = (req.body ?? {}) as { filename?: unknown; dataBase64?: unknown };
-			let data: Buffer;
-			if (typeof body.dataBase64 === 'string' && body.dataBase64.length > 0) {
-				try {
-					data = Buffer.from(body.dataBase64, 'base64');
-				} catch {
-					res.status(400).json({ error: 'dataBase64 is not valid base64' });
-					return;
-				}
-			} else if (typeof body.filename === 'string' && body.filename.length > 0) {
-				try {
-					data = await storage.read(`backups/${body.filename.split('/').pop() ?? ''}`);
-				} catch {
-					res.status(404).json({ error: 'Backup file not found' });
-					return;
-				}
-			} else {
-				res.status(400).json({ error: 'filename or dataBase64 is required' });
+			const data = await restoreInput(req, res);
+			if (!data) {
 				return;
 			}
 			// A restore replaces the whole database, so the user sees the
-			// effect before anything is written.
-			res.json(await previewRestore(db, data));
+			// effect before anything is written. A file that is no usable backup is the caller's mistake (400).
+			try {
+				res.json(await previewRestore(db, data));
+			} catch (error) {
+				res.status(400).json({ error: (error as Error).message });
+			}
 		}),
 	);
 
 	app.post(
 		'/api/restore',
 		route(async (req, res) => {
-			const body = (req.body ?? {}) as { filename?: unknown; dataBase64?: unknown };
-			let data: Buffer;
-			if (typeof body.dataBase64 === 'string' && body.dataBase64.length > 0) {
-				try {
-					data = Buffer.from(body.dataBase64, 'base64');
-				} catch {
-					res.status(400).json({ error: 'dataBase64 is not valid base64' });
-					return;
-				}
-			} else if (typeof body.filename === 'string' && body.filename.length > 0) {
-				const name = body.filename.split('/').pop() ?? '';
-				try {
-					data = await storage.read(`backups/${name.replace(/[^A-Za-z0-9_.-]/g, '')}`);
-				} catch {
-					res.status(404).json({ error: 'Backup file not found' });
-					return;
-				}
-			} else {
-				res.status(400).json({ error: 'Body needs filename or dataBase64' });
+			const data = await restoreInput(req, res);
+			if (!data) {
 				return;
 			}
 			try {
