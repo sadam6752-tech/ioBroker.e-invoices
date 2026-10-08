@@ -362,6 +362,128 @@
 					"xl": 7
 				}
 			}
+		},
+		"datev": {
+			"type": "panel",
+			"label": "DATEV",
+			"items": {
+				"_datevHint": {
+					"type": "staticText",
+					"text": "The DATEV export (Buchungsstapel) needs the numbers of your tax advisor. Without advisor and client number the web app offers no DATEV file. Empty accounts take the default of the chart of accounts.",
+					"xs": 12,
+					"sm": 12,
+					"md": 12,
+					"lg": 12,
+					"xl": 12
+				},
+				"datevConsultant": {
+					"type": "text",
+					"label": "Advisor number (Beraternummer)",
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 4,
+					"xl": 4,
+					"newLine": true,
+					"help": "1001–9999999, from your tax advisor"
+				},
+				"datevClient": {
+					"type": "text",
+					"label": "Client number (Mandantennummer)",
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 4,
+					"xl": 4,
+					"help": "1–99999, from your tax advisor"
+				},
+				"datevChart": {
+					"type": "select",
+					"label": "Chart of accounts",
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 4,
+					"xl": 4,
+					"options": [
+						{
+							"label": "SKR03",
+							"value": "SKR03"
+						},
+						{
+							"label": "SKR04",
+							"value": "SKR04"
+						}
+					],
+					"default": "SKR03"
+				},
+				"datevAccountLength": {
+					"type": "number",
+					"label": "Account length (Sachkontenlänge)",
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 4,
+					"xl": 4,
+					"min": 4,
+					"max": 8,
+					"default": 4,
+					"newLine": true
+				},
+				"datevFiscalYearStart": {
+					"type": "number",
+					"label": "First month of the fiscal year",
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 4,
+					"xl": 4,
+					"min": 1,
+					"max": 12,
+					"default": 1
+				},
+				"datevDebtor": {
+					"type": "text",
+					"label": "Debtor account (collective)",
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 4,
+					"xl": 4,
+					"help": "empty = 10000 (with account length 4)"
+				},
+				"datevRevenue19": {
+					"type": "text",
+					"label": "Revenue account 19 %",
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 4,
+					"xl": 4,
+					"help": "empty = SKR03 8400 / SKR04 4400",
+					"newLine": true
+				},
+				"datevRevenue7": {
+					"type": "text",
+					"label": "Revenue account 7 %",
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 4,
+					"xl": 4,
+					"help": "empty = SKR03 8300 / SKR04 4300"
+				},
+				"datevRevenue0": {
+					"type": "text",
+					"label": "Revenue account 0 % (tax-exempt)",
+					"xs": 12,
+					"sm": 12,
+					"md": 4,
+					"lg": 4,
+					"xl": 4,
+					"help": "empty = SKR03 8100 / SKR04 4100"
+				}
+			}
 		}
 	}
 }

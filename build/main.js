@@ -721,7 +721,7 @@ class EInvoices extends utils.Adapter {
    * socket for the PWA — see README for the W5049 reason).
    */
   async startApiServer() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
     if (!this.db) {
       return;
     }
@@ -751,7 +751,18 @@ class EInvoices extends utils.Adapter {
           quoteNumberFormat: (_h = (_g = this.db) == null ? void 0 : _g.effectiveQuoteNumberFormat()) != null ? _h : import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
           storageMount: this.mountId,
           backupIntervalMinutes: Number((_i = this.config.backupIntervalMinutes) != null ? _i : 0),
-          backupKeep: Number((_j = this.config.backupKeep) != null ? _j : 0)
+          backupKeep: Number((_j = this.config.backupKeep) != null ? _j : 0),
+          datev: {
+            consultant: this.config.datevConsultant,
+            client: this.config.datevClient,
+            chart: this.config.datevChart,
+            accountLength: Number((_k = this.config.datevAccountLength) != null ? _k : 4),
+            fiscalYearStartMonth: Number((_l = this.config.datevFiscalYearStart) != null ? _l : 1),
+            debtor: this.config.datevDebtor,
+            revenue19: this.config.datevRevenue19,
+            revenue7: this.config.datevRevenue7,
+            revenue0: this.config.datevRevenue0
+          }
         }
       });
       const wwwDir = (0, import_node_path.join)(__dirname, "../www");

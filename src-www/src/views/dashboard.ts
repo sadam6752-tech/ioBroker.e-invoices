@@ -349,7 +349,7 @@ ${t('Achtung: {n} davon tragen ein Datum aus einem früheren Jahr; sie setzen di
 	});
 	root.querySelector('#f-datev')?.addEventListener('click', async () => {
 		try {
-			await downloadUrl(api.datevUrl(exportParams()), 'rechnungen.datev');
+			await downloadUrl(api.datevUrl(exportParams()), 'EXTF_Rechnungsausgang.csv');
 		} catch (e) {
 			fail(e);
 		}

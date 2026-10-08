@@ -813,6 +813,17 @@ class EInvoices extends utils.Adapter {
 					storageMount: this.mountId,
 					backupIntervalMinutes: Number(this.config.backupIntervalMinutes ?? 0),
 					backupKeep: Number(this.config.backupKeep ?? 0),
+					datev: {
+						consultant: this.config.datevConsultant,
+						client: this.config.datevClient,
+						chart: this.config.datevChart,
+						accountLength: Number(this.config.datevAccountLength ?? 4),
+						fiscalYearStartMonth: Number(this.config.datevFiscalYearStart ?? 1),
+						debtor: this.config.datevDebtor,
+						revenue19: this.config.datevRevenue19,
+						revenue7: this.config.datevRevenue7,
+						revenue0: this.config.datevRevenue0,
+					},
 				},
 			});
 			const wwwDir = join(__dirname, '../www');

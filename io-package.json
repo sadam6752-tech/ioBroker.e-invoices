@@ -212,6 +212,15 @@
     "quoteNumberFormat": "A-{YYYY}-{EMPLOYEE}-{SEQ}",
     "defaultVatRate": 19,
     "defaultProfile": "EN16931",
+    "datevConsultant": "",
+    "datevClient": "",
+    "datevChart": "SKR03",
+    "datevAccountLength": 4,
+    "datevFiscalYearStart": 1,
+    "datevDebtor": "",
+    "datevRevenue19": "",
+    "datevRevenue7": "",
+    "datevRevenue0": "",
     "defaultPaymentTerms": ""
   },
   "encryptedNative": [

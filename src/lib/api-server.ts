@@ -54,14 +54,8 @@ import {
 } from './issue-service';
 import { backupStatus, createBackup, DEFAULT_BACKUP_LIMITS, previewRestore, restoreBackup } from './backup';
 import { attachmentDisposition } from './attachments';
-import {
-	renderDatevHead,
-	renderDatevRows,
-	renderInvoiceListCsv,
-	renderOpenItemsCsv,
-	renderRevenueCsv,
-	renderDunningCsv,
-} from './csv';
+import { renderDatevExport, resolveDatevConfig, toWindows1252, type DatevConfig } from './datev';
+import { renderInvoiceListCsv, renderOpenItemsCsv, renderRevenueCsv, renderDunningCsv } from './csv';
 import { renderInvoiceListWorkbook, renderOpenItemsWorkbook, renderRevenueWorkbook } from './excel';
 import { evaluateOpenItems, type OpenItemsOptions } from './open-items';
 import { evaluateRevenueByCompany, type RevenueReport } from './revenue-report';
@@ -204,6 +198,8 @@ export interface ApiServerDeps {
 		backupIntervalMinutes: number;
 		/** Automatic backups kept (0 = all). */
 		backupKeep?: number;
+		/** DATEV settings: advisor and client number, chart of accounts, accounts. */
+		datev?: DatevConfig;
 	};
 }
 
@@ -769,17 +765,32 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		res.send(renderInvoiceListCsv(filteredInvoices(db, req.query, 'invoice', range, true)));
 	});
 
+	// DATEV Buchungsstapel (EXTF 700): only with advisor and client number from the instance settings — every user
+	// has an advisor of their own, and a file without them is no DATEV file. Offers are never booked.
 	app.get('/api/invoices/export.datev', (req, res) => {
 		const range = parseDateRange(req.query.from, req.query.to);
 		if (typeof range === 'string') {
 			res.status(400).json({ error: range });
 			return;
 		}
-		const company = db.getDefaultCompanyProfile()?.profile;
-		const head = renderDatevHead(company?.name ?? 'Firma', company?.taxNumber ?? '');
-		res.type('text/plain; charset=iso-8859-1');
-		res.set('Content-Disposition', attachmentDisposition(`rechnungen${dateRangeFileSuffix(range)}.datev`));
-		res.send(`${head}\n${renderDatevRows(filteredInvoices(db, req.query, 'invoice', range, true))}`);
+		const datev = resolveDatevConfig(deps.settings?.datev ?? {});
+		if ('problems' in datev) {
+			res.status(400).json({
+				error: `DATEV export needs these instance settings (tab DATEV): ${datev.problems.join(', ')}`,
+			});
+			return;
+		}
+		const invoices = filteredInvoices(db, { ...req.query, docType: 'invoice' }, 'invoice', range, true);
+		let content: string;
+		try {
+			content = renderDatevExport(invoices, datev.config);
+		} catch (error) {
+			res.status(400).json({ error: (error as Error).message });
+			return;
+		}
+		res.type('text/csv; charset=windows-1252');
+		res.set('Content-Disposition', attachmentDisposition(`EXTF_Rechnungsausgang${dateRangeFileSuffix(range)}.csv`));
+		res.send(toWindows1252(content));
 	});
 
 	app.get('/api/invoices/export.xlsx', (req, res) => {

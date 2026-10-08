@@ -35,6 +35,17 @@ const buyer = {
 	customerNumber: 'K-42',
 };
 
+/** Instance settings with the DATEV numbers, so the DATEV export can be tested. */
+const withDatev: NonNullable<Parameters<typeof createApiServer>[0]['settings']> = {
+	defaultVatRate: 19,
+	defaultPaymentTerms: '',
+	numberFormat: '{YYYY}-{EMPLOYEE}-{SEQ}',
+	quoteNumberFormat: 'A-{YYYY}-{EMPLOYEE}-{SEQ}',
+	storageMount: '',
+	backupIntervalMinutes: 0,
+	datev: { consultant: '1234567', client: '12345' },
+};
+
 const draftBody = {
 	seller,
 	buyer,
@@ -69,7 +80,7 @@ describe('api => invoices', function () {
 			},
 		};
 		const quiet = { info: (): void => undefined, error: (): void => undefined };
-		app = createApiServer({ db, storage: store, log: quiet, version: '0.0.0-test' });
+		app = createApiServer({ db, storage: store, log: quiet, version: '0.0.0-test', settings: withDatev });
 	});
 
 	after(() => {
@@ -362,7 +373,7 @@ describe('api => invoices', function () {
 		const to = await request(app)
 			.get(`/api/invoices/export.datev?companyId=${companyId}&to=2026-08-01`)
 			.expect(200);
-		expect(String(to.headers['content-disposition'])).to.contain('rechnungen_bis-2026-08-01.datev');
+		expect(String(to.headers['content-disposition'])).to.contain('EXTF_Rechnungsausgang_bis-2026-08-01.csv');
 		const xlsx = await request(app)
 			.get(`/api/invoices/export.xlsx?${base}`)
 			.buffer(true)
@@ -507,9 +518,27 @@ describe('api => invoices', function () {
 		expect(csv.headers['content-disposition']).to.contain('rechnungen.csv');
 		expect(csv.text).to.contain('Rechnungsnummer');
 
-		const datev = await request(app).get('/api/invoices/export.datev').expect(200);
-		expect(datev.headers['content-disposition']).to.contain('rechnungen.datev');
-		expect(datev.text).to.contain('EXTF');
+		// the invoices of this file span several years; DATEV takes one fiscal year per file
+		const spanning = await request(app).get('/api/invoices/export.datev').expect(400);
+		expect(spanning.body.error).to.contain('fiscal years');
+		const datev = await request(app)
+			.get('/api/invoices/export.datev?from=2026-01-01&to=2026-12-31')
+			.buffer(true)
+			.expect(200);
+		expect(datev.headers['content-disposition']).to.contain('EXTF_Rechnungsausgang_2026-01-01_2026-12-31.csv');
+		expect(datev.headers['content-type']).to.contain('windows-1252');
+		expect(datev.text).to.contain('"EXTF";700;21;"Buchungsstapel"');
+	});
+
+	it('offers no DATEV file without advisor and client number and says what is missing', async () => {
+		const bare = createApiServer({
+			db,
+			storage: { write: () => Promise.resolve(), read: () => Promise.reject(new Error('empty')) },
+			log: { info: (): void => undefined, error: (): void => undefined },
+			version: 'x',
+		});
+		const refused = await request(bare).get('/api/invoices/export.datev').expect(400);
+		expect(refused.body.error).to.contain('Beraternummer').and.to.contain('Mandantennummer');
 	});
 
 	it('marks every API response as non-cacheable', async () => {
@@ -1812,6 +1841,7 @@ describe('api => quotations (R8)', function () {
 			},
 			log: quiet,
 			version: '0.0.0-test',
+			settings: withDatev,
 		});
 	});
 
@@ -2072,13 +2102,12 @@ describe('api => quotations (R8)', function () {
 		expect(csv.text).to.equal(onlyInvoices.text);
 		const onlyQuotes = await request(app).get('/api/invoices/export.csv?docType=quote').expect(200);
 		expect(onlyQuotes.text).to.contain('A-2026-00-001');
-		const datev = await request(app).get('/api/invoices/export.datev').expect(200);
-		expect(datev.text).to.contain('EXTF');
-		expect(datev.text).to.not.contain('A-2026-00-001');
-		const datevInvoices = await request(app).get('/api/invoices/export.datev?docType=invoice').expect(200);
-		expect(datev.text).to.equal(datevInvoices.text);
-		const datevQuotes = await request(app).get('/api/invoices/export.datev?docType=quote').expect(200);
-		expect(datevQuotes.text).to.contain('A-2026-00-001');
+		// DATEV books invoices only: an offer is never a booking, whatever the parameter says — with nothing but
+		// offers there is nothing to export
+		for (const query of ['', '?docType=invoice', '?docType=quote', '?docType=all']) {
+			const datev = await request(app).get(`/api/invoices/export.datev${query}`).expect(400);
+			expect(datev.body.error, query).to.contain('nothing to export');
+		}
 		const xlsx = await request(app).get('/api/invoices/export.xlsx').expect(200);
 		expect(xlsx.headers['content-type']).to.contain('spreadsheetml');
 		await request(app).get('/api/invoices/export.xlsx?docType=all').expect(200);

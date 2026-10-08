@@ -19,8 +19,6 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var csv_exports = {};
 __export(csv_exports, {
   CSV_COPY_NOTICE: () => CSV_COPY_NOTICE,
-  renderDatevHead: () => renderDatevHead,
-  renderDatevRows: () => renderDatevRows,
   renderDunningCsv: () => renderDunningCsv,
   renderInvoiceListCsv: () => renderInvoiceListCsv,
   renderOpenItemsCsv: () => renderOpenItemsCsv,
@@ -99,60 +97,6 @@ function renderInvoiceListCsv(invoices) {
   }
   return `${UTF8_BOM}${lines.join("\r\n")}\r
 `;
-}
-function renderDatevHead(sellerName, taxNumber) {
-  const year = (/* @__PURE__ */ new Date()).getFullYear();
-  const parts = [
-    "EXTF",
-    "510",
-    // Mandant
-    sellerName,
-    "1",
-    // Konto (Ertrag)
-    "EUR",
-    "G",
-    "",
-    // Güterbereich
-    "",
-    "",
-    "",
-    year.toString()
-  ];
-  void taxNumber;
-  return parts.join(";");
-}
-function renderDatevRows(invoices) {
-  var _a;
-  const lines = [];
-  for (const invoice of invoices) {
-    const isCredit = invoice.documentTitle.toLowerCase().includes("gutschrift");
-    const sign = isCredit ? "-" : "";
-    const rows = toCsvRow(invoice);
-    lines.push(
-      [
-        "U",
-        invoice.number,
-        rows.issueDate,
-        rows.issueDate,
-        (_a = invoice.employeeCode) != null ? _a : "00",
-        "1026",
-        `${sign}${de(invoice.totals.grossTotal)}`,
-        "H",
-        invoice.documentTitle,
-        rows.customerNumber,
-        "",
-        rows.customerName.slice(0, 30),
-        "",
-        "",
-        "",
-        `${sign}${de(invoice.totals.taxTotal)}`,
-        "0",
-        "",
-        ""
-      ].join(";")
-    );
-  }
-  return lines.join("\n");
 }
 function renderOpenItemsCsv(report) {
   const lines = [];
@@ -253,8 +197,6 @@ function renderDunningCsv(suggestions, today) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   CSV_COPY_NOTICE,
-  renderDatevHead,
-  renderDatevRows,
   renderDunningCsv,
   renderInvoiceListCsv,
   renderOpenItemsCsv,

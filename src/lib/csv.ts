@@ -1,13 +1,9 @@
 /**
- * DATEV/CSV export for ioBroker.e-invoices.
+ * CSV export for ioBroker.e-invoices: a semicolon-separated list of the booking-relevant fields (German Excel
+ * default). The DATEV Buchungsstapel lives in `datev.ts`.
  *
- * Accounting departments in Germany rarely import a spreadsheet, they import
- * a flat list of booking-relevant fields. This module produces both a
- * semicolon-separated CSV (German Excel default) and the classic DATEV
- * "ExtKZ" head data, so the export can be fed into a ledger directly.
- *
- * Both formats are convenience copies only, never tax documents: the
- * ZUGFeRD hybrid PDF with its embedded XML stays the leading artefact.
+ * The lists are convenience copies only, never tax documents: the ZUGFeRD hybrid PDF with its embedded XML stays
+ * the leading artefact.
  */
 import type { StoredInvoice } from './db';
 import { AGE_BUCKET_LABELS, AGE_BUCKETS, type OpenItemsReport } from './open-items';
@@ -175,73 +171,6 @@ export function renderInvoiceListCsv(invoices: StoredInvoice[]): string {
 	// CRLF keeps Excel and the ledger importer happy across platforms.
 	// The BOM makes a German Excel open the semicolon list as a spreadsheet.
 	return `${UTF8_BOM}${lines.join('\r\n')}\r\n`;
-}
-
-/**
- * Renders the classic DATEV EXTF header ("Kopfinformationen"). The ledger
- * import expects these eleven fields in this exact order.
- *
- * @param sellerName - Name of the issuing company.
- * @param taxNumber - Tax number of the issuing company.
- * @returns The EXTF header line without a trailing newline.
- */
-export function renderDatevHead(sellerName: string, taxNumber: string): string {
-	const year = new Date().getFullYear();
-	const parts = [
-		'EXTF',
-		'510', // Mandant
-		sellerName,
-		'1', // Konto (Ertrag)
-		'EUR',
-		'G',
-		'', // Güterbereich
-		'',
-		'',
-		'',
-		year.toString(),
-	];
-	void taxNumber;
-	return parts.join(';');
-}
-
-/**
- * Renders one DATEV booking line per invoice ("Buchungssatz").
- *
- * @param invoices - Invoices to export.
- * @returns The lines joined by newline.
- */
-export function renderDatevRows(invoices: StoredInvoice[]): string {
-	const lines: string[] = [];
-	for (const invoice of invoices) {
-		// Credit note: a Storno must be booked as a negative amount.
-		const isCredit = invoice.documentTitle.toLowerCase().includes('gutschrift');
-		const sign = isCredit ? '-' : '';
-		const rows = toCsvRow(invoice);
-		lines.push(
-			[
-				'U',
-				invoice.number,
-				rows.issueDate,
-				rows.issueDate,
-				invoice.employeeCode ?? '00',
-				'1026',
-				`${sign}${de(invoice.totals.grossTotal)}`,
-				'H',
-				invoice.documentTitle,
-				rows.customerNumber,
-				'',
-				rows.customerName.slice(0, 30),
-				'',
-				'',
-				'',
-				`${sign}${de(invoice.totals.taxTotal)}`,
-				'0',
-				'',
-				'',
-			].join(';'),
-		);
-	}
-	return lines.join('\n');
 }
 
 /**

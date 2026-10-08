@@ -204,10 +204,10 @@ only offers with `GET /api/invoices?docType=quote`.
   overrides that — and a second open converted draft is refused. The offer
   itself is never touched.
 - **Not revenue:** offers are never dunned and stay out of the accounting
-  exports. CSV, DATEV and XLSX only export invoices unless the caller asks
+  exports. CSV and XLSX only export invoices unless the caller asks
   otherwise: without a `docType` parameter they are pinned to invoices, the
   explicit counter-word is `?docType=all` (and `?docType=quote` exports the
-  offers alone).
+  offers alone). DATEV never contains an offer.
 
 In the PWA, offers have their own tab (**Angebote**): the list shows the state
 (open, accepted, rejected, expired), records the customer's answer and turns an
@@ -221,6 +221,36 @@ The wording of every screen comes from one table per document type
 (`src-www/src/labels.ts`), which mirrors the server's `documentLabels()` — no
 offer screen says "Rechnung". The booking list and the three accounting exports
 stay pinned to `docType=invoice`, so the two document types never mix.
+
+### DATEV export
+
+The **DATEV** button of the invoice list writes a *Buchungsstapel* in the DATEV format (EXTF, format 700,
+category 21) that a tax advisor imports into DATEV Rechnungswesen. Every user has an advisor of their own,
+so the numbers that tie the file to the advisor's books come from the instance settings, tab **DATEV**:
+
+| Setting | Meaning |
+| --- | --- |
+| Advisor number / client number | *Beraternummer* and *Mandantennummer* from your tax advisor — **required** |
+| Chart of accounts | SKR03 (default) or SKR04 |
+| Account length | length of the general ledger accounts, 4 by default |
+| First month of the fiscal year | 1 = January |
+| Debtor account | collective debtor, empty = `10000` (with account length 4) |
+| Revenue accounts 19 % / 7 % / 0 % | empty = SKR03 `8400` / `8300` / `8100`, SKR04 `4400` / `4300` / `4100` |
+
+- Without advisor and client number there is **no DATEV file** — the export says what is missing. The CSV
+  and Excel lists work without them.
+- One line per invoice and VAT rate: the gross amount, debit the debtor account, credit the revenue account
+  of the rate (an *Automatikkonto* that takes the VAT out by itself, so no BU key is written). A credit note
+  is booked the other way round (*Haben*). A cancelled invoice and its Storno are both in the file and
+  cancel each other out. Offers and drafts are never booked.
+- One file holds **one fiscal year**: narrow the period when the invoices span more than one.
+- The file is `EXTF_Rechnungsausgang….csv`, Windows-1252, with the invoice number in *Belegfeld 1*
+  (characters DATEV does not take become `-`).
+- The revenue accounts are standard accounts. Reverse charge, intra-community supplies or exports need other
+  accounts — ask your advisor and set the 0 % account accordingly. One instance has one DATEV client; for
+  several companies with different clients filter the export by company and adjust the settings.
+- **Not verified against a real DATEV import** (no DATEV access here): the layout follows the published
+  format description. Let your advisor check the first import.
 
 ### Date range for lists and exports
 
@@ -550,6 +580,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 * (alex) fix: amounts are rounded commercially to the cent in every case. Before, an amount whose binary value lies just below half a cent was rounded down — 42.50 EUR at 19 % gave 8.07 EUR of VAT instead of 8.08 EUR (about one tax amount in a thousand).
 * (alex) fix: "today" is the local calendar day of the adapter host and of the browser, not the UTC day. Between midnight and 01:00/02:00 German time new documents got yesterday's date — on New Year's night even the old year's number circle.
 * (alex) fix: a quotation can no longer be reversed through the API (that made a credit note for an offer and used up an invoice number), and the reversal of a credit note is an invoice instead of a second credit note.
+* (alex) **DATEV export rebuilt:** a real Buchungsstapel (EXTF 700, category 21) with advisor and client number, chart of accounts (SKR03/SKR04), account length, fiscal year and accounts from the new instance settings tab "DATEV". Without advisor and client number there is no DATEV file. One booking line per invoice and VAT rate, credit notes as Haben, one fiscal year per file, Windows-1252. Before, the file had no valid DATEV header and could not be imported. Not verified against a real DATEV import — let your advisor check the first one.
 * (alex) Revenue per company: a credit note of its own (not a Storno) now reduces the revenue of its company; before, it was left out.
 * (alex) fix: a backup is uploaded for the restore as the ZIP itself; base64 inside JSON stopped at about 18 MB. A file that is no backup gets a clear 400 in the preview instead of a server error.
 

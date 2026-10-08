@@ -40,6 +40,24 @@ declare global {
 			/** Quotation number format; separate number circle (R8). */
 			quoteNumberFormat?: string;
 			defaultVatRate?: number;
+			/** DATEV advisor number (Beraternummer). */
+			datevConsultant?: string;
+			/** DATEV client number (Mandantennummer). */
+			datevClient?: string;
+			/** Chart of accounts: SKR03 or SKR04. */
+			datevChart?: string;
+			/** Length of the general ledger accounts (4–8). */
+			datevAccountLength?: number;
+			/** First month of the fiscal year (1–12). */
+			datevFiscalYearStart?: number;
+			/** Debtor account (Sammeldebitor), empty = default. */
+			datevDebtor?: string;
+			/** Revenue account 19 %, empty = default of the chart. */
+			datevRevenue19?: string;
+			/** Revenue account 7 %, empty = default of the chart. */
+			datevRevenue7?: string;
+			/** Revenue account 0 %, empty = default of the chart. */
+			datevRevenue0?: string;
 			/** Format a new invoice starts with: `EN16931` (ZUGFeRD) or `XRECHNUNG` (R6.1). */
 			defaultProfile?: string;
 			defaultPaymentTerms?: string;

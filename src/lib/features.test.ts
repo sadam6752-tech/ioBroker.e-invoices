@@ -9,7 +9,7 @@ import { expect } from 'chai';
 import { InvoiceDatabase, levenshtein, rankCustomers, retentionUntil } from './db';
 import { daysBetween, paymentCheckDuty } from './invoice-model';
 import { collectReminderCandidates, issueInvoiceBatch, type IssueStorage } from './issue-service';
-import { renderDatevHead, renderInvoiceListCsv } from './csv';
+import { renderInvoiceListCsv } from './csv';
 import type { InvoiceDraftInput } from './invoice-model';
 
 const seller = {
@@ -467,11 +467,6 @@ describe('csv => accounting export', () => {
 		} finally {
 			db.close();
 		}
-	});
-
-	it('writes a DATEV header', () => {
-		const head = renderDatevHead('Muster GmbH', '123/456/789');
-		expect(head.startsWith('EXTF;510;Muster GmbH;')).to.equal(true);
 	});
 });
 

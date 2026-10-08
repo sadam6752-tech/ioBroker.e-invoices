@@ -46,6 +46,7 @@ var import_invoice_model = require("./invoice-model");
 var import_issue_service = require("./issue-service");
 var import_backup = require("./backup");
 var import_attachments = require("./attachments");
+var import_datev = require("./datev");
 var import_csv = require("./csv");
 var import_excel = require("./excel");
 var import_open_items = require("./open-items");
@@ -513,18 +514,30 @@ function createApiServer(deps) {
     res.send((0, import_csv.renderInvoiceListCsv)(filteredInvoices(db, req.query, "invoice", range, true)));
   });
   app.get("/api/invoices/export.datev", (req, res) => {
-    var _a2, _b2, _c2;
+    var _a2, _b2;
     const range = (0, import_invoice_model.parseDateRange)(req.query.from, req.query.to);
     if (typeof range === "string") {
       res.status(400).json({ error: range });
       return;
     }
-    const company = (_a2 = db.getDefaultCompanyProfile()) == null ? void 0 : _a2.profile;
-    const head = (0, import_csv.renderDatevHead)((_b2 = company == null ? void 0 : company.name) != null ? _b2 : "Firma", (_c2 = company == null ? void 0 : company.taxNumber) != null ? _c2 : "");
-    res.type("text/plain; charset=iso-8859-1");
-    res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`rechnungen${(0, import_invoice_model.dateRangeFileSuffix)(range)}.datev`));
-    res.send(`${head}
-${(0, import_csv.renderDatevRows)(filteredInvoices(db, req.query, "invoice", range, true))}`);
+    const datev = (0, import_datev.resolveDatevConfig)((_b2 = (_a2 = deps.settings) == null ? void 0 : _a2.datev) != null ? _b2 : {});
+    if ("problems" in datev) {
+      res.status(400).json({
+        error: `DATEV export needs these instance settings (tab DATEV): ${datev.problems.join(", ")}`
+      });
+      return;
+    }
+    const invoices = filteredInvoices(db, { ...req.query, docType: "invoice" }, "invoice", range, true);
+    let content;
+    try {
+      content = (0, import_datev.renderDatevExport)(invoices, datev.config);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    res.type("text/csv; charset=windows-1252");
+    res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`EXTF_Rechnungsausgang${(0, import_invoice_model.dateRangeFileSuffix)(range)}.csv`));
+    res.send((0, import_datev.toWindows1252)(content));
   });
   app.get("/api/invoices/export.xlsx", (req, res) => {
     const range = (0, import_invoice_model.parseDateRange)(req.query.from, req.query.to);
