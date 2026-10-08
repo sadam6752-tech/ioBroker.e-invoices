@@ -1,6 +1,6 @@
 {
   "name": "iobroker.e-invoices",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Create ZUGFeRD e-invoices as PWA with PDF, Excel export and backup",
   "author": {
     "name": "alex",

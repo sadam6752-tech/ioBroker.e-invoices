@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.0.10",
+    "version": "1.0.11",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.0.11": {
+        "en": "New logo: the euro sign is orange now, in the admin, the installed web app, the favicon and the iOS home screen icon.",
+        "de": "Neues Logo: Das Euro-Zeichen ist jetzt orange, im Admin, in der installierten Web-App, im Favicon und im iOS-Home-Bildschirm-Symbol.",
+        "ru": "Новый логотип: знак евро теперь оранжевый — в admin, в установленном веб-приложении, в favicon и на значке главного экрана iOS.",
+        "pt": "Novo logótipo: o sinal do euro é agora laranja, no admin, na aplicação web instalada, no favicon e no ícone do ecrã principal do iOS.",
+        "nl": "Nieuw logo: het euroteken is nu oranje, in de admin, in de geïnstalleerde web-app, in het favicon en in het beginschermpictogram van iOS.",
+        "fr": "Nouveau logo : le signe euro est désormais orange, dans l'admin, dans l'application web installée, dans le favicon et dans l'icône d'écran d'accueil iOS.",
+        "it": "Nuovo logo: il simbolo dell'euro ora è arancione, nell'admin, nell'app web installata, nella favicon e nell'icona della schermata Home di iOS.",
+        "es": "Nuevo logotipo: el signo del euro ahora es naranja, en el admin, en la aplicación web instalada, en el favicon y en el icono de la pantalla de inicio de iOS.",
+        "pl": "Nowe logo: znak euro jest teraz pomarańczowy — w adminie, w zainstalowanej aplikacji internetowej, w faviconie i na ikonie ekranu głównego iOS.",
+        "uk": "Новий логотип: знак євро тепер помаранчевий — в admin, у встановленому вебзастосунку, у favicon та на піктограмі головного екрана iOS.",
+        "zh-cn": "新徽标：欧元符号现在为橙色，体现在管理界面、已安装的网页应用、favicon 以及 iOS 主屏幕图标中。"
+      },
       "1.0.10": {
         "en": "Fix: an XRechnung titled \"final invoice\" now carries the type code 380, as the XRechnung rules require. Dependencies updated, the weakness reported for uuid below exceljs is closed.",
         "de": "Fix: Eine XRechnung mit dem Titel „Schlussrechnung“ trägt jetzt den Rechnungstyp 380, wie es die XRechnung-Regeln verlangen. Abhängigkeiten aktualisiert, die gemeldete Schwachstelle von uuid unter exceljs ist geschlossen.",
@@ -101,19 +114,6 @@
         "pl": "Logo adaptera jest teraz czystą grafiką wektorową odpowiadającą plikowi PNG, wraz z gradientem kolorów; PNG ma nową wersję 512 px.",
         "uk": "Логотип адаптера тепер є чистою векторною графікою, що відповідає PNG, разом із кольоровим градієнтом; PNG має нову версію 512 пікселів.",
         "zh-cn": "适配器徽标现在是与 PNG 一致的干净矢量图，包括颜色渐变；PNG 为新的 512 像素版本。"
-      },
-      "1.0.4": {
-        "en": "New adapter logo (invoice with euro coin and check mark) in the admin, the installed web app and the favicon.",
-        "de": "Neues Adapter-Logo (Rechnung mit Euro-Münze und Haken) in der Admin-Oberfläche, der installierten Web-App und im Favicon.",
-        "ru": "Новый логотип адаптера (счёт с монетой евро и галочкой) в админке, в установленном веб-приложении и в favicon.",
-        "pt": "Novo logótipo do adaptador (fatura com moeda de euro e visto) na administração, na aplicação web instalada e no favicon.",
-        "nl": "Nieuw adapterlogo (factuur met euromunt en vinkje) in de admin, de geïnstalleerde web-app en het favicon.",
-        "fr": "Nouveau logo de l'adaptateur (facture avec pièce d'euro et coche) dans l'administration, l'application web installée et le favicon.",
-        "it": "Nuovo logo dell'adattatore (fattura con moneta da euro e segno di spunta) nell'amministrazione, nella web app installata e nella favicon.",
-        "es": "Nuevo logotipo del adaptador (factura con moneda de euro y marca de verificación) en la administración, la aplicación web instalada y el favicon.",
-        "pl": "Nowe logo adaptera (faktura z monetą euro i znacznikiem wyboru) w panelu administracyjnym, zainstalowanej aplikacji internetowej i favikonie.",
-        "uk": "Новий логотип адаптера (рахунок із монетою євро та галочкою) в адмінці, встановленому вебзастосунку та favicon.",
-        "zh-cn": "新的适配器徽标（带欧元硬币和对勾的发票）：用于管理界面、已安装的网页应用和网站图标。"
       }
     },
     "titleLang": {

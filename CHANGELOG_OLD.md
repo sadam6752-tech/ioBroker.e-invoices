@@ -228,6 +228,11 @@ that came out of the tag pipeline (npm provenance via Trusted Publishing) is
 * (alex) initial release
 * (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
   when the sRGB profile for PDF/A-3 is missing
+## 1.0.6 (2026-10-06)
+
+* (alex) **XRechnung (B2G):** a second invoice format next to ZUGFeRD — standalone XML with the XRechnung 3.0 identifier and the Peppol process, Leitweg-ID as buyer reference (syntax check only), the extra mandatory data named before issuing, a plain PDF view without embedded XML, attachments inside the XML. Choose it per invoice in the wizard or set the default in the instance settings; new "Leitweg-ID" field in the customer list. Checked with the KoSIT validator (XRechnung scenario).
+* (alex) The issue now checks the mandatory data before the documents are probed, so the message names the rule instead of a library detail.
+
 ## 1.0.5 (2026-10-06)
 
 * (alex) The logo is now a clean hand-built vector (`admin/e-invoices.svg`) that matches the PNG, including the colour gradient; the PNG is the new 512 px version.
