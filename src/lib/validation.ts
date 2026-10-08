@@ -8,7 +8,7 @@
  */
 import { validateXsd } from '@stackforge-eu/factur-x';
 import { calcTotals, roundCents } from './invoice-model';
-import { resolveProfile, mapDocumentTypeCode } from './zugferd';
+import { resolveProfile, documentTypeCodeFor } from './zugferd';
 import type { StoredInvoice } from './db';
 
 /** Split validation outcome. */
@@ -74,7 +74,7 @@ export async function validateArtifacts(invoice: StoredInvoice, xml: string): Pr
 	if (invoice.number && !xml.includes(xmlText(invoice.number))) {
 		businessErrors.push('Invoice number missing in XML');
 	}
-	const typeCode = mapDocumentTypeCode(invoice.documentTitle);
+	const typeCode = documentTypeCodeFor(invoice);
 	if (!xml.includes(`<ram:TypeCode>${typeCode}</ram:TypeCode>`)) {
 		businessErrors.push(`Document type code ${typeCode} missing in XML`);
 	}

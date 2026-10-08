@@ -330,6 +330,49 @@ try {
 	console.error(`  xrechnung-mit-anlage-bg24: ${error.message}`);
 }
 
+// The document types the wizard offers, as XRechnung: the XRechnung rule BR-DE-17 allows fewer type codes than
+// EN 16931 (380 invoice, 381 credit note, 326 partial invoice, 384, 389, 875-877), so each title is checked.
+for (const [slug, title, code] of [
+	['xrechnung-abschlagsrechnung', 'Abschlagsrechnung', '326'],
+	['xrechnung-schlussrechnung', 'Schlussrechnung', '380'],
+	['xrechnung-gutschrift', 'Gutschrift', '381'],
+]) {
+	try {
+		const issued = await issue({
+			profile: 'XRECHNUNG',
+			seller: sellerB2g,
+			buyer: buyerB2g,
+			lines: [{ description: 'Beratung', quantity: 2, unit: 'Std', unitPriceNet: 90, vatRate: 19 }],
+			issueDate: '2026-09-28',
+			deliveryDate: '2026-09-27',
+			documentTitle: title,
+		});
+		await save(slug, issued, [...xrechnungMarkers, `<ram:TypeCode>${code}</ram:TypeCode>`], true);
+	} catch (error) {
+		failed++;
+		console.error(`  ${slug}: ${error.message}`);
+	}
+}
+
+// The reversal of an XRechnung is an XRechnung, too.
+try {
+	const original = await issue({
+		profile: 'XRECHNUNG',
+		seller: sellerB2g,
+		buyer: buyerB2g,
+		lines: [{ description: 'Beratung', quantity: 1, unit: 'Std', unitPriceNet: 250, vatRate: 19 }],
+		issueDate: '2026-09-28',
+		deliveryDate: '2026-09-27',
+		documentTitle: 'Rechnung',
+	});
+	const reversal = await json('POST', `/api/invoices/${original.id}/storno`, { reason: 'Musterfall Storno' });
+	const issued = await json('POST', `/api/invoices/${reversal.reversal.id}/issue`);
+	await save('xrechnung-storno', issued, [...xrechnungMarkers, '<ram:TypeCode>381</ram:TypeCode>'], true);
+} catch (error) {
+	failed++;
+	console.error(`  xrechnung-storno: ${error.message}`);
+}
+
 // Without the Leitweg-ID the server has to refuse the issue, and the draft stays a draft.
 try {
 	const draft = await json('POST', '/api/invoices', {

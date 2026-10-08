@@ -192,9 +192,14 @@ async function validateXml(jar, config) {
 			failed++;
 			continue;
 		}
-		const verdict = /rep:(accept|reject)/.exec(readFileSync(reportPath, 'utf8'))?.[1] ?? 'unknown';
-		console.log(`  ${name.padEnd(34)} ${verdict === 'accept' ? 'accepted' : verdict.toUpperCase()}`);
-		if (verdict !== 'accept') {
+		const report = readFileSync(reportPath, 'utf8');
+		const verdict = /rep:(accept|reject)/.exec(report)?.[1] ?? 'unknown';
+		// "accept" can carry warnings (a rule that says "should"): they count as a finding of the sample case, too
+		const warnings = [...report.matchAll(/<rep:message [^>]*level="warning"[^>]*code="([^"]+)"/g)].map(m => m[1]);
+		console.log(
+			`  ${name.padEnd(34)} ${verdict === 'accept' ? 'accepted' : verdict.toUpperCase()}${warnings.length ? `  WARNINGS: ${warnings.join(', ')}` : ''}`,
+		);
+		if (verdict !== 'accept' || warnings.length > 0) {
 			failed++;
 		}
 	}

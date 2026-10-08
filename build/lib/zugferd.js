@@ -21,6 +21,7 @@ __export(zugferd_exports, {
   SUPPORTING_DOCUMENT_TYPE_CODE: () => SUPPORTING_DOCUMENT_TYPE_CODE,
   applyAdditionalDocuments: () => applyAdditionalDocuments,
   applyBillingPeriod: () => applyBillingPeriod,
+  documentTypeCodeFor: () => documentTypeCodeFor,
   embedHybridPdf: () => embedHybridPdf,
   flavorFor: () => flavorFor,
   generateInvoiceXml: () => generateInvoiceXml,
@@ -103,6 +104,10 @@ function mapDocumentTypeCode(documentTitle) {
   }
   return import_factur_x.DocumentTypeCode.COMMERCIAL_INVOICE;
 }
+function documentTypeCodeFor(invoice) {
+  const code = mapDocumentTypeCode(invoice.documentTitle);
+  return (0, import_invoice_model.isXRechnung)(invoice.profile) && code === import_factur_x.DocumentTypeCode.FINAL_PAYMENT_REQUEST ? import_factur_x.DocumentTypeCode.COMMERCIAL_INVOICE : code;
+}
 function toFacturXInput(invoice) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B;
   if ((0, import_invoice_model.isQuote)(invoice.docType)) {
@@ -146,7 +151,7 @@ function toFacturXInput(invoice) {
     document: {
       id: invoice.number,
       issueDate: invoice.issueDate,
-      typeCode: mapDocumentTypeCode(invoice.documentTitle),
+      typeCode: documentTypeCodeFor(invoice),
       dueDate: (_i = invoice.dueDate) != null ? _i : void 0,
       // BT-10: the Leitweg-ID for a public-sector buyer (XRechnung), else the customer number
       buyerReference: (0, import_invoice_model.isXRechnung)(invoice.profile) ? ((_j = invoice.buyer.leitwegId) == null ? void 0 : _j.trim()) || void 0 : ((_k = invoice.buyer.customerNumber) == null ? void 0 : _k.trim()) || void 0,
@@ -339,6 +344,7 @@ async function embedHybridPdf(pdfBytes, xml, profileName, title) {
   SUPPORTING_DOCUMENT_TYPE_CODE,
   applyAdditionalDocuments,
   applyBillingPeriod,
+  documentTypeCodeFor,
   embedHybridPdf,
   flavorFor,
   generateInvoiceXml,

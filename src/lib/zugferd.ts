@@ -154,6 +154,20 @@ export function mapDocumentTypeCode(documentTitle?: string): DocumentTypeCode {
 }
 
 /**
+ * The invoice type code (BT-3) of a stored document. Like `mapDocumentTypeCode`, with one difference for an
+ * XRechnung: its rule BR-DE-17 does not list 218 ("final payment request"), so a final invoice is a plain
+ * commercial invoice (380) there — the KoSIT validator warns about 218.
+ *
+ * @param invoice - The document: its title and its profile decide.
+ */
+export function documentTypeCodeFor(invoice: { documentTitle?: string; profile: string }): DocumentTypeCode {
+	const code = mapDocumentTypeCode(invoice.documentTitle);
+	return isXRechnung(invoice.profile) && code === DocumentTypeCode.FINAL_PAYMENT_REQUEST
+		? DocumentTypeCode.COMMERCIAL_INVOICE
+		: code;
+}
+
+/**
  * Maps a stored invoice to the Factur-X input object.
  * Throws when mandatory generation data (number, parties, lines) is missing,
  * and for a quotation: an offer is not an e-invoice (R8).
@@ -217,7 +231,7 @@ export function toFacturXInput(invoice: StoredInvoice): FacturXInvoiceInput {
 		document: {
 			id: invoice.number,
 			issueDate: invoice.issueDate,
-			typeCode: mapDocumentTypeCode(invoice.documentTitle),
+			typeCode: documentTypeCodeFor(invoice),
 			dueDate: invoice.dueDate ?? undefined,
 			// BT-10: the Leitweg-ID for a public-sector buyer (XRechnung), else the customer number
 			buyerReference: isXRechnung(invoice.profile)

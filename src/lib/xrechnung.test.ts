@@ -14,7 +14,7 @@ import {
 	type InvoiceDraftInput,
 	type Party,
 } from './invoice-model';
-import { embedHybridPdf, generateInvoiceXml } from './zugferd';
+import { documentTypeCodeFor, embedHybridPdf, generateInvoiceXml } from './zugferd';
 import { validateArtifacts } from './validation';
 
 const seller: Party = {
@@ -174,6 +174,24 @@ describe('xrechnung => document and XML', function () {
 		expect(xml).to.contain('<ram:BuyerReference>K-42</ram:BuyerReference>');
 		expect(xml).to.not.contain('xrechnung');
 		expect(xml).to.not.contain('peppol');
+	});
+
+	it('writes a final invoice as 380 in an XRechnung (BR-DE-17 has no 218) and keeps 218 in ZUGFeRD', async () => {
+		expect(String(documentTypeCodeFor({ documentTitle: 'Schlussrechnung', profile: 'XRECHNUNG' }))).to.equal('380');
+		expect(String(documentTypeCodeFor({ documentTitle: 'Schlussrechnung', profile: 'EN16931' }))).to.equal('218');
+		// the other titles the wizard offers keep their codes in both formats
+		for (const [title, code] of [
+			['Rechnung', '380'],
+			['Abschlagsrechnung', '326'],
+			['Gutschrift', '381'],
+		]) {
+			expect(String(documentTypeCodeFor({ documentTitle: title, profile: 'XRECHNUNG' })), title).to.equal(code);
+		}
+		const invoice = db.issueDraft(db.createDraft(draft({ documentTitle: 'Schlussrechnung' })).id);
+		const { xml } = await generateInvoiceXml(invoice);
+		expect(xml).to.contain('<ram:TypeCode>380</ram:TypeCode>');
+		const check = await validateArtifacts(invoice, xml);
+		expect(check.businessErrors).to.deep.equal([]);
 	});
 
 	it('refuses to put an XRechnung into a PDF', async () => {
