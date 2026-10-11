@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.1.2": {
+        "en": "Documentation in English: the documents of the repository are now in docs/en, the German originals in docs/de, as the ioBroker reviewers ask for.",
+        "de": "Dokumentation auf Englisch: Die Dokumente des Repositorys liegen jetzt in docs/en, die deutschen Originale in docs/de, wie es die ioBroker-Reviewer verlangen.",
+        "ru": "Документация на английском: документы репозитория теперь находятся в docs/en, немецкие оригиналы — в docs/de, как просят рецензенты ioBroker.",
+        "pt": "Documentação em inglês: os documentos do repositório estão agora em docs/en e os originais em alemão em docs/de, como pedem os revisores do ioBroker.",
+        "nl": "Documentatie in het Engels: de documenten van de repository staan nu in docs/en en de Duitse originelen in docs/de, zoals de ioBroker-reviewers vragen.",
+        "fr": "Documentation en anglais : les documents du dépôt se trouvent désormais dans docs/en et les originaux allemands dans docs/de, comme le demandent les relecteurs d'ioBroker.",
+        "it": "Documentazione in inglese: i documenti del repository si trovano ora in docs/en e gli originali tedeschi in docs/de, come chiedono i revisori di ioBroker.",
+        "es": "Documentación en inglés: los documentos del repositorio están ahora en docs/en y los originales en alemán en docs/de, como piden los revisores de ioBroker.",
+        "pl": "Dokumentacja po angielsku: dokumenty repozytorium znajdują się teraz w docs/en, a niemieckie oryginały w docs/de, zgodnie z prośbą recenzentów ioBroker.",
+        "uk": "Документація англійською: документи репозиторію тепер у docs/en, німецькі оригінали — у docs/de, як просять рецензенти ioBroker.",
+        "zh-cn": "英文文档：仓库的文档现在位于 docs/en，德语原文位于 docs/de，符合 ioBroker 审核人员的要求。"
+      },
       "1.1.1": {
         "en": "Documentation: the validator reports in the repository no longer contain paths of the machine they were made on.",
         "de": "Dokumentation: Die Prüfberichte im Repository enthalten keine Pfade des Rechners mehr, auf dem sie entstanden sind.",
@@ -101,19 +114,6 @@
         "pl": "Nowa ikona ekranu głównego: logo na kolorowym gradiencie jako nieprzezroczysty kwadrat dla zainstalowanej aplikacji internetowej, favicony i iOS (osobna ikona dotykowa 180 px).",
         "uk": "Нова піктограма головного екрана: логотип на кольоровому градієнті як непрозорий квадрат для встановленого вебзастосунку, favicon та iOS (окрема піктограма 180 px).",
         "zh-cn": "新的主屏幕图标：彩色渐变背景上的徽标，为已安装的网页应用、favicon 和 iOS 提供不透明方形图标（另有 180 像素的专用触控图标）。"
-      },
-      "1.0.7": {
-        "en": "HTTPS in the adapter itself: the instance settings offer \"Use HTTPS\" with a certificate from the ioBroker certificate collection, so the web app can be installed on an iPhone or iPad. A missing certificate keeps the web app off instead of falling back to plain HTTP.",
-        "de": "HTTPS im Adapter selbst: Die Instanz-Einstellungen bieten „HTTPS verwenden“ mit einem Zertifikat aus der Zertifikatsverwaltung von ioBroker, damit sich die Web-App auf einem iPhone oder iPad installieren lässt. Fehlt das Zertifikat, bleibt die Web-App aus, statt auf einfaches HTTP zurückzufallen.",
-        "ru": "HTTPS в самом адаптере: в настройках экземпляра появился пункт «Использовать HTTPS» с сертификатом из хранилища сертификатов ioBroker, чтобы веб-приложение можно было установить на iPhone или iPad. При отсутствии сертификата веб-приложение остаётся выключенным, а не переходит на обычный HTTP.",
-        "pt": "HTTPS no próprio adaptador: as definições da instância oferecem «Usar HTTPS» com um certificado da coleção de certificados do ioBroker, para que a aplicação web possa ser instalada num iPhone ou iPad. Se faltar o certificado, a aplicação web fica desligada em vez de voltar a HTTP simples.",
-        "nl": "HTTPS in de adapter zelf: de instantie-instellingen bieden «HTTPS gebruiken» met een certificaat uit de certificaatverzameling van ioBroker, zodat de web-app op een iPhone of iPad kan worden geïnstalleerd. Ontbreekt het certificaat, dan blijft de web-app uit in plaats van terug te vallen op gewoon HTTP.",
-        "fr": "HTTPS dans l'adaptateur lui-même : les paramètres de l'instance proposent « Utiliser HTTPS » avec un certificat de la collection de certificats d'ioBroker, afin que l'application web puisse être installée sur un iPhone ou un iPad. Si le certificat manque, l'application web reste désactivée au lieu de revenir à un HTTP simple.",
-        "it": "HTTPS nell'adattatore stesso: le impostazioni dell'istanza offrono «Usa HTTPS» con un certificato della raccolta certificati di ioBroker, così l'app web si può installare su un iPhone o iPad. Se manca il certificato, l'app web resta spenta invece di tornare a HTTP semplice.",
-        "es": "HTTPS en el propio adaptador: los ajustes de la instancia ofrecen «Usar HTTPS» con un certificado de la colección de certificados de ioBroker, para poder instalar la aplicación web en un iPhone o iPad. Si falta el certificado, la aplicación web queda apagada en lugar de volver a HTTP simple.",
-        "pl": "HTTPS w samym adapterze: ustawienia instancji oferują «Używaj HTTPS» z certyfikatem z kolekcji certyfikatów ioBroker, aby aplikację internetową można było zainstalować na iPhonie lub iPadzie. Gdy brakuje certyfikatu, aplikacja internetowa pozostaje wyłączona zamiast wracać do zwykłego HTTP.",
-        "uk": "HTTPS у самому адаптері: у налаштуваннях екземпляра з'явився пункт «Використовувати HTTPS» із сертифікатом зі сховища сертифікатів ioBroker, щоб вебзастосунок можна було встановити на iPhone чи iPad. За відсутності сертифіката вебзастосунок лишається вимкненим, а не повертається до звичайного HTTP.",
-        "zh-cn": "适配器自带 HTTPS：实例设置提供“使用 HTTPS”，证书来自 ioBroker 的证书集合，使网页应用可以安装到 iPhone 或 iPad。缺少证书时网页应用保持关闭，而不会退回普通 HTTP。"
       }
     },
     "titleLang": {

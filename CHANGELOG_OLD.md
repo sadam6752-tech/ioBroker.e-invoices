@@ -228,6 +228,10 @@ that came out of the tag pipeline (npm provenance via Trusted Publishing) is
 * (alex) initial release
 * (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
   when the sRGB profile for PDF/A-3 is missing
+## 1.0.9 (2026-10-06)
+
+* (alex) iOS home screen icon over HTTPS: the 180 px icon is embedded in the page itself, so iOS needs no second request for it (that request fails with a certificate iOS does not trust, and the app was saved without its icon). The original transparent logo is back for the favicon and the installed web app; only the iOS icon keeps the opaque gradient version, because iOS paints transparent areas black.
+
 ## 1.0.8 (2026-10-06)
 
 * (alex) The home screen icon: the logo on a colour gradient as an opaque square for the installed web app, the favicon and iOS. iOS gets a dedicated 180 px `apple-touch-icon.png` (linked in the page and also served at the root, where iOS looks on its own) instead of the transparent 192 px icon, which iOS paints black or ignores. The admin keeps the transparent logo.

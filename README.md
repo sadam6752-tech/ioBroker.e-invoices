@@ -575,7 +575,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.1.2 (2026-10-11)
 
 * (alex) Documentation in English: the documents in `docs/` are now in `docs/en/` (validation evidence, disclaimer, performance), the German originals in `docs/de/`, as the ioBroker reviewers ask for. The English validation document is up to date (13 sample cases, XRechnung, warnings fail the run); a test keeps German out of `docs/en/` and pairs every German file with an English one.
 
@@ -601,10 +601,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 * (alex) fix: an XRechnung titled "Schlussrechnung" now carries the type code 380 instead of 218 — the XRechnung rule BR-DE-17 does not list 218, the KoSIT validator warned about it. The ZUGFeRD invoice keeps 218.
 * (alex) The validation run (`npm run validate`) now fails on KoSIT warnings too, not only on rejections, and covers an XRechnung for every document title (partial, final, credit note, reversal).
 * (alex) Dependencies: `uuid` below `exceljs` is pinned to `^11.1.1` (`overrides`, closes the reported weakness), `@iobroker/testing` 6.3.0, `@stackforge-eu/factur-x` 1.4.3, `express-rate-limit` 8.7.1 and other patch updates; the web app build tools are free of known weaknesses again.
-
-### 1.0.9 (2026-10-06)
-
-* (alex) iOS home screen icon over HTTPS: the 180 px icon is embedded in the page itself, so iOS needs no second request for it (that request fails with a certificate iOS does not trust, and the app was saved without its icon). The original transparent logo is back for the favicon and the installed web app; only the iOS icon keeps the opaque gradient version, because iOS paints transparent areas black.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
