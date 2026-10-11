@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.1.1": {
+        "en": "Documentation: the validator reports in the repository no longer contain paths of the machine they were made on.",
+        "de": "Dokumentation: Die Prüfberichte im Repository enthalten keine Pfade des Rechners mehr, auf dem sie entstanden sind.",
+        "ru": "Документация: отчёты проверки в репозитории больше не содержат путей к компьютеру, на котором они были созданы.",
+        "pt": "Documentação: os relatórios de validação no repositório já não contêm caminhos do computador onde foram criados.",
+        "nl": "Documentatie: de validatierapporten in de repository bevatten geen paden meer van de computer waarop ze zijn gemaakt.",
+        "fr": "Documentation : les rapports de validation du dépôt ne contiennent plus de chemins de l'ordinateur sur lequel ils ont été créés.",
+        "it": "Documentazione: i rapporti di validazione nel repository non contengono più percorsi del computer su cui sono stati creati.",
+        "es": "Documentación: los informes de validación del repositorio ya no contienen rutas del equipo en el que se crearon.",
+        "pl": "Dokumentacja: raporty walidacji w repozytorium nie zawierają już ścieżek komputera, na którym powstały.",
+        "uk": "Документація: звіти перевірки в репозиторії більше не містять шляхів до комп'ютера, на якому їх створено.",
+        "zh-cn": "文档：仓库中的验证报告不再包含生成它们的计算机上的路径。"
+      },
       "1.1.0": {
         "en": "Real DATEV export (Buchungsstapel) with advisor and client number, chart of accounts and accounts from the new settings tab \"DATEV\". Fixes: commercial cent rounding of the VAT, the local calendar day after midnight, Storno of offers and credit notes, restore of backups bigger than 18 MB. Credit notes now reduce the revenue per company.",
         "de": "Echter DATEV-Export (Buchungsstapel) mit Berater- und Mandantennummer, Kontenrahmen und Konten aus dem neuen Einstellungsreiter „DATEV“. Korrekturen: kaufmännische Cent-Rundung der Umsatzsteuer, das lokale Datum nach Mitternacht, Storno von Angeboten und Gutschriften, Wiederherstellung von Backups über 18 MB. Gutschriften mindern jetzt den Umsatz je Firma.",
@@ -101,19 +114,6 @@
         "pl": "HTTPS w samym adapterze: ustawienia instancji oferują «Używaj HTTPS» z certyfikatem z kolekcji certyfikatów ioBroker, aby aplikację internetową można było zainstalować na iPhonie lub iPadzie. Gdy brakuje certyfikatu, aplikacja internetowa pozostaje wyłączona zamiast wracać do zwykłego HTTP.",
         "uk": "HTTPS у самому адаптері: у налаштуваннях екземпляра з'явився пункт «Використовувати HTTPS» із сертифікатом зі сховища сертифікатів ioBroker, щоб вебзастосунок можна було встановити на iPhone чи iPad. За відсутності сертифіката вебзастосунок лишається вимкненим, а не повертається до звичайного HTTP.",
         "zh-cn": "适配器自带 HTTPS：实例设置提供“使用 HTTPS”，证书来自 ioBroker 的证书集合，使网页应用可以安装到 iPhone 或 iPad。缺少证书时网页应用保持关闭，而不会退回普通 HTTP。"
-      },
-      "1.0.6": {
-        "en": "XRechnung for public-sector customers: a second invoice format next to ZUGFeRD, as a standalone XML file with the Leitweg-ID as buyer reference. Choose it per invoice in the wizard or set the default in the instance settings.",
-        "de": "XRechnung für öffentliche Auftraggeber: ein zweites Rechnungsformat neben ZUGFeRD, als eigenständige XML-Datei mit der Leitweg-ID als Käuferreferenz. Die Wahl erfolgt je Rechnung im Assistenten, der Standard in den Instanz-Einstellungen.",
-        "ru": "XRechnung для государственных заказчиков: второй формат счёта наряду с ZUGFeRD, отдельный файл XML с Leitweg-ID в качестве ссылки покупателя. Формат выбирается для каждого счёта в мастере, значение по умолчанию задаётся в настройках экземпляра.",
-        "pt": "XRechnung para clientes do setor público: um segundo formato de fatura ao lado do ZUGFeRD, como ficheiro XML autónomo com o Leitweg-ID como referência do comprador. Escolhe-se por fatura no assistente ou define-se o padrão nas definições da instância.",
-        "nl": "XRechnung voor klanten in de publieke sector: een tweede factuurformaat naast ZUGFeRD, als zelfstandig XML-bestand met het Leitweg-ID als referentie van de koper. Kies het per factuur in de wizard of stel de standaard in bij de instantie-instellingen.",
-        "fr": "XRechnung pour les clients du secteur public : un second format de facture à côté de ZUGFeRD, sous forme de fichier XML autonome avec le Leitweg-ID comme référence de l'acheteur. Le format se choisit par facture dans l'assistant, le réglage par défaut se trouve dans les paramètres de l'instance.",
-        "it": "XRechnung per i clienti del settore pubblico: un secondo formato di fattura accanto a ZUGFeRD, come file XML autonomo con il Leitweg-ID come riferimento dell'acquirente. Si sceglie per ogni fattura nella procedura guidata, il predefinito si imposta nelle impostazioni dell'istanza.",
-        "es": "XRechnung para clientes del sector público: un segundo formato de factura junto a ZUGFeRD, como archivo XML independiente con el Leitweg-ID como referencia del comprador. Se elige por factura en el asistente o se fija el valor predeterminado en los ajustes de la instancia.",
-        "pl": "XRechnung dla klientów z sektora publicznego: drugi format faktury obok ZUGFeRD, jako samodzielny plik XML z Leitweg-ID jako odniesieniem nabywcy. Format wybiera się dla każdej faktury w kreatorze, a wartość domyślną ustawia w ustawieniach instancji.",
-        "uk": "XRechnung для замовників державного сектору: другий формат рахунку поряд із ZUGFeRD, окремий файл XML з Leitweg-ID як посиланням покупця. Формат обирається для кожного рахунку в майстрі, значення за замовчуванням задається в налаштуваннях екземпляра.",
-        "zh-cn": "面向公共部门客户的 XRechnung：除 ZUGFeRD 外的第二种发票格式，为独立的 XML 文件，以 Leitweg-ID 作为买方参考。可在向导中按发票选择，也可在实例设置中设定默认值。"
       }
     },
     "titleLang": {
