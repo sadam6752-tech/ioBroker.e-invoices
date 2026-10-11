@@ -45,6 +45,7 @@ __export(backup_exports, {
 module.exports = __toCommonJS(backup_exports);
 var import_jszip = __toESM(require("jszip"));
 var import_node_crypto = require("node:crypto");
+var import_invoice_model = require("./invoice-model");
 var import_migrations = require("./migrations");
 const MANUAL_BACKUP_PREFIX = "backups/e-invoices-backup-";
 const AUTO_BACKUP_PREFIX = "backups/e-invoices-auto-";
@@ -125,7 +126,7 @@ function collectArtifactPaths(dump) {
     if (invoice.xlsxPath) {
       paths.add(invoice.xlsxPath);
     }
-    if (invoice.number) {
+    if (invoice.number && !(0, import_invoice_model.isQuote)(invoice.docType)) {
       paths.add(`invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}.xml`);
     }
     if ((_c = (_b = (_a = invoice.templateSnapshot) == null ? void 0 : _a.definition) == null ? void 0 : _b.logo) == null ? void 0 : _c.path) {
