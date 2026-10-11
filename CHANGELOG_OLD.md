@@ -228,6 +228,10 @@ that came out of the tag pipeline (npm provenance via Trusted Publishing) is
 * (alex) initial release
 * (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
   when the sRGB profile for PDF/A-3 is missing
+## 1.0.11 (2026-10-08)
+
+* (alex) New logo: the euro sign is orange now. Admin icon, installed web app, favicon, the iOS home screen icon and the vector logo `admin/e-invoices.svg` all follow.
+
 ## 1.0.10 (2026-10-08)
 
 * (alex) fix: an XRechnung titled "Schlussrechnung" now carries the type code 380 instead of 218 — the XRechnung rule BR-DE-17 does not list 218, the KoSIT validator warned about it. The ZUGFeRD invoice keeps 218.

@@ -581,7 +581,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.1.4 (2026-10-11)
 
 * (alex) fix: the backup no longer logs the error "Backup skips unreadable file ... .xml: Not exists" for every quotation. A quotation is no e-invoice and has no XML file, so the backup does not look for one any more (a missing file of a real invoice is still reported).
 
@@ -607,10 +607,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 * (alex) **DATEV export rebuilt:** a real Buchungsstapel (EXTF 700, category 21) with advisor and client number, chart of accounts (SKR03/SKR04), account length, fiscal year and accounts from the new instance settings tab "DATEV". Without advisor and client number there is no DATEV file. One booking line per invoice and VAT rate, credit notes as Haben, one fiscal year per file, Windows-1252. Before, the file had no valid DATEV header and could not be imported. Not verified against a real DATEV import — let your advisor check the first one.
 * (alex) Revenue per company: a credit note of its own (not a Storno) now reduces the revenue of its company; before, it was left out.
 * (alex) fix: a backup is uploaded for the restore as the ZIP itself; base64 inside JSON stopped at about 18 MB. A file that is no backup gets a clear 400 in the preview instead of a server error.
-
-### 1.0.11 (2026-10-08)
-
-* (alex) New logo: the euro sign is orange now. Admin icon, installed web app, favicon, the iOS home screen icon and the vector logo `admin/e-invoices.svg` all follow.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
