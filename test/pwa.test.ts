@@ -349,9 +349,10 @@ describe('pwa => liability clause', () => {
 		}
 		// the German original lives in its own document, the README only links to it: the repository checker
 		// wants an English README (E6015) and a German paragraph in it is exactly what it finds
-		expect(readme).to.contain('docs/haftungsausschluss.md');
+		expect(readme).to.contain('docs/de/haftungsausschluss.md');
+		expect(readme).to.contain('docs/en/disclaimer.md');
 		expect(readme).to.not.contain('**Haftungsausschluss.**');
-		const german = readFileSync('docs/haftungsausschluss.md', 'utf8');
+		const german = readFileSync('docs/de/haftungsausschluss.md', 'utf8');
 		expect(german).to.contain('**Haftungsausschluss.**');
 		for (const duty of ['UStG, GoBD', 'Datensicherungen']) {
 			expect(german, duty).to.contain(duty);
@@ -366,6 +367,48 @@ describe('pwa => liability clause', () => {
 		expect(readme.match(/[äöüÄÖÜß]/g) ?? [], 'umlauts in the README').to.deep.equal([]);
 		for (const phrase of ['Gültig bis', 'Fällig am', 'Haftungsausschluss.']) {
 			expect(readme, phrase).to.not.contain(phrase);
+		}
+	});
+});
+
+describe('docs => English documentation (ioBroker review)', () => {
+	/**
+	 * Markdown files directly below a directory.
+	 *
+	 * @param dir - Directory to read.
+	 */
+	function markdownIn(dir: string): string[] {
+		return readdirSync(dir)
+			.filter(name => name.endsWith('.md'))
+			.map(name => join(dir, name));
+	}
+
+	it('has an English file for every German one — the reviewers ask for docs/en next to docs/de', () => {
+		const german = markdownIn('docs/de');
+		expect(german.length).to.be.greaterThan(0);
+		// the German originals are moved to docs/de, nothing German lies loose in docs/ or in the evidence folder
+		expect(markdownIn('docs'), 'loose markdown files in docs/').to.deep.equal([]);
+		const english = markdownIn('docs/en').map(file => readFileSync(file, 'utf8'));
+		for (const file of german) {
+			const name = file.split(/[\\/]/).pop() ?? '';
+			// each German file points to its English counterpart
+			expect(readFileSync(file, 'utf8').includes('../en/'), `${name} points to its English version`).to.equal(
+				true,
+			);
+		}
+		expect(english.length).to.be.greaterThan(0);
+	});
+
+	it('keeps docs/en and the evidence README free of German words', () => {
+		const files = [...markdownIn('docs/en'), 'docs/validierung/README.md', 'CONTRIBUTING.md', 'CHANGELOG_OLD.md'];
+		// words that are German and not English; "die", "in", "an" are left out because English has them too
+		const german = /\b(und|nicht|oder|wird|werden|für|über|mit dem|ist ein|eine|einen|der Beleg|Rechnung(en)?)\b/;
+		for (const file of files) {
+			const text = readFileSync(file, 'utf8')
+				.replace(/`[^`]*`/g, '')
+				.replace(/"[^"]*"/g, '');
+			expect(text.match(/[äöüÄÖÜß]/g) ?? [], `umlauts in ${file}`).to.deep.equal([]);
+			expect(german.test(text), `German words in ${file}`).to.equal(false);
 		}
 	});
 });

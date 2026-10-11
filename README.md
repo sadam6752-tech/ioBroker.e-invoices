@@ -422,7 +422,7 @@ duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML
   creates it too, as a second format next to ZUGFeRD — see "XRechnung (public-sector customers)".
 - Every issued invoice is checked against the XSD schema on issue; the PDF/A-3 structure and
   the XML were additionally validated with the KoSIT validator and veraPDF (see
-  `docs/validierung`). Run your own acceptance check before productive use.
+  `docs/en/validation.md`). Run your own acceptance check before productive use.
 
 ## Retention and GoBD
 
@@ -541,7 +541,7 @@ so it cannot share the compact process.
 - compliance with the rules that apply to you (e.g. VAT law, GoBD, retention periods, GDPR),
 - regular backups – also outside the adapter – and testing that they can be restored.
 
-The German original of this disclaimer is in [docs/haftungsausschluss.md](docs/haftungsausschluss.md).
+This disclaimer is also in [docs/en/disclaimer.md](docs/en/disclaimer.md); the German original is in [docs/de/haftungsausschluss.md](docs/de/haftungsausschluss.md).
 
 ## Standards and references
 
@@ -575,6 +575,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) Documentation in English: the documents in `docs/` are now in `docs/en/` (validation evidence, disclaimer, performance), the German originals in `docs/de/`, as the ioBroker reviewers ask for. The English validation document is up to date (13 sample cases, XRechnung, warnings fail the run); a test keeps German out of `docs/en/` and pairs every German file with an English one.
+
 ### 1.1.1 (2026-10-11)
 
 * (alex) The validator reports in `docs/validierung` named the checked file by its full path on the machine they were made on (user name and disk layout). Those paths are replaced by placeholders, nothing else in the reports changed, and a test keeps new ones out.

@@ -1,6 +1,6 @@
 # Haftungsausschluss (deutsches Original)
 
-Dies ist die deutsche Fassung des Haftungsausschlusses aus der README von ioBroker.e-invoices; die README selbst ist englisch.
+Dies ist die deutsche Fassung des Haftungsausschlusses aus der README von ioBroker.e-invoices; die README selbst ist englisch. Englische Fassung: [docs/en/disclaimer.md](../en/disclaimer.md).
 
 **Haftungsausschluss.** Dieses Programm wird unentgeltlich und so bereitgestellt, wie es ist – ohne Gewähr und ohne Zusicherung einer bestimmten Beschaffenheit oder Eignung. Es ersetzt keine Steuer- oder Rechtsberatung. Soweit gesetzlich zulässig, ist die Haftung ausgeschlossen; unberührt bleibt die Haftung für Vorsatz und grobe Fahrlässigkeit sowie für Schäden an Leben, Körper und Gesundheit und nach zwingendem Recht. Du bist selbst verantwortlich für:
 

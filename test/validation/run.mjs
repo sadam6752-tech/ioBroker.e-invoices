@@ -10,7 +10,7 @@
  *   3. downloads the KoSIT validator and its configuration on the first run (pinned by SHA-256) into
  *      `.validation-tools/`, runs it over the XML files and fails when one of them is rejected.
  *
- * The PDF/A-3b check with veraPDF runs in the workflow (Docker image); locally, `docs/validierung/README.md`
+ * The PDF/A-3b check with veraPDF runs in the workflow (Docker image); locally, `docs/en/validation.md`
  * has the command. Environment: JAVA (default `java`), VALIDATION_OUT (default `.validation-out`),
  * VALIDATION_PORT (default 8098).
  */

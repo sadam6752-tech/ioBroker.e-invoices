@@ -1,7 +1,7 @@
 /**
  * Performance measurements (R7.6). Not part of the test suites — run on purpose:
  *
- *     npx ts-node test/perf/perf.ts > docs/performance-raw.md
+ *     npx ts-node test/perf/perf.ts > docs/en/performance-raw.md
  *
  * Every figure is the median of several runs on a throw-away in-memory database and an
  * in-memory file store, so the numbers show the adapter's own work, not the disk.
