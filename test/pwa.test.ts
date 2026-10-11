@@ -5,6 +5,7 @@
  */
 import { expect } from 'chai';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 describe('pwa => service worker', () => {
 	it('excludes /api from the navigation fallback (source)', () => {
@@ -366,6 +367,28 @@ describe('pwa => liability clause', () => {
 		for (const phrase of ['Gültig bis', 'Fällig am', 'Haftungsausschluss.']) {
 			expect(readme, phrase).to.not.contain(phrase);
 		}
+	});
+});
+
+describe('docs => no private paths', () => {
+	/**
+	 * All files below a directory.
+	 *
+	 * @param dir - Directory to walk.
+	 */
+	function walk(dir: string): string[] {
+		return readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
+			entry.isDirectory() ? walk(join(dir, entry.name)) : [join(dir, entry.name)],
+		);
+	}
+
+	it('keeps the evidence files free of paths of the machine they were made on', () => {
+		// the validator reports name the checked file by its full path; those paths carry the user name and the
+		// layout of a private disk and are replaced by [repo], [temp], [npm-cache] and [tools]
+		const found = walk('docs')
+			.filter(file => !/\.(png|pdf|zip)$/i.test(file))
+			.filter(file => /[A-Za-z]:[\\/]Users[\\/]/i.test(readFileSync(file, 'latin1')));
+		expect(found).to.deep.equal([]);
 	});
 });
 

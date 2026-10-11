@@ -159,6 +159,13 @@ den echten API-Stack (`npm run validate`), das XML liegt unter `musterfaelle/`, 
   ein Entwurf und es wird keine Nummer verbraucht (Test im selben Lauf).
 - Nicht geprüft: die Annahme bei einer konkreten Behörde (Portal, Peppol-Zugangspunkt, eigene Zusatzregeln).
 
+## Hinweis zu den Pfaden in den Berichten
+
+Die Prüfberichte nennen die geprüfte Datei mit ihrem vollen Pfad auf dem Rechner, auf dem sie entstanden sind.
+Diese Pfade (Benutzername, Plattenaufbau) sind durch `[repo]`, `[temp]`, `[npm-cache]` und `[tools]` ersetzt; sonst
+ist nichts an den Berichten geändert. Wer einen neuen Lauf hier ablegt, ersetzt die Pfade ebenso — ein Test
+(`test/pwa.test.ts`, „no private paths“) schlägt an, wenn ein Laufwerkspfad mit `Users` im Verzeichnis steht.
+
 ## Grenzen / Restrisiko
 
 - Geprüft sind **Syntax (CII D16B)**, die **EN-16931-Regeln (CEN 1.3.16)** und das

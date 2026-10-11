@@ -575,6 +575,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) The validator reports in `docs/validierung` named the checked file by its full path on the machine they were made on (user name and disk layout). Those paths are replaced by placeholders, nothing else in the reports changed, and a test keeps new ones out.
+
 ### 1.1.0 (2026-10-08)
 
 * (alex) fix: amounts are rounded commercially to the cent in every case. Before, an amount whose binary value lies just below half a cent was rounded down — 42.50 EUR at 19 % gave 8.07 EUR of VAT instead of 8.08 EUR (about one tax amount in a thousand).

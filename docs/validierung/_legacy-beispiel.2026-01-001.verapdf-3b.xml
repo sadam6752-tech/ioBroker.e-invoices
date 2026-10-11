@@ -8,7 +8,7 @@
   <jobs>
     <job>
       <item size="68738">
-        <name>c:\Users\alex\Documents\Opencode\projekte_3\ioBroker-invoices\ioBroker.e-invoices\.dev-server\default\iobroker-data\files\e-invoices.0.storage\invoices\2026\2026-01-001.pdf</name>
+        <name>[repo]\.dev-server\default\iobroker-data\files\e-invoices.0.storage\invoices\2026\2026-01-001.pdf</name>
       </item>
       <validationReport jobEndStatus="normal" profileName="PDF/A-3b validation profile" statement="PDF file is not compliant with Validation Profile requirements." isCompliant="false">
         <details passedRules="144" failedRules="2" passedChecks="3522" failedChecks="160">
