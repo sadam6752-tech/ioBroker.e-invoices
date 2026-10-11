@@ -581,7 +581,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.1.3 (2026-10-11)
 
 * (alex) **The web app speaks all eleven ioBroker languages:** besides German and English now Russian, Portuguese, Dutch, French, Italian, Spanish, Polish, Ukrainian and Chinese. The instance setting "Web app language" offers all of them; the dictionary of the language in use is loaded on demand. The legal terms (GoBD, UStG, Leitweg-ID, XRechnung, ZUGFeRD, DATEV) stay as they are, the documents themselves (PDF, XML) stay German. Have the wording checked by a native speaker where it matters.
 * (alex) The objects of the adapter (info and control states, the file storage) carry their names in all eleven ioBroker languages; an existing installation gets the new names on the next start.
@@ -607,12 +607,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ### 1.0.11 (2026-10-08)
 
 * (alex) New logo: the euro sign is orange now. Admin icon, installed web app, favicon, the iOS home screen icon and the vector logo `admin/e-invoices.svg` all follow.
-
-### 1.0.10 (2026-10-08)
-
-* (alex) fix: an XRechnung titled "Schlussrechnung" now carries the type code 380 instead of 218 — the XRechnung rule BR-DE-17 does not list 218, the KoSIT validator warned about it. The ZUGFeRD invoice keeps 218.
-* (alex) The validation run (`npm run validate`) now fails on KoSIT warnings too, not only on rejections, and covers an XRechnung for every document title (partial, final, credit note, reversal).
-* (alex) Dependencies: `uuid` below `exceljs` is pinned to `^11.1.1` (`overrides`, closes the reported weakness), `@iobroker/testing` 6.3.0, `@stackforge-eu/factur-x` 1.4.3, `express-rate-limit` 8.7.1 and other patch updates; the web app build tools are free of known weaknesses again.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.1.2",
+    "version": "1.1.3",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.1.3": {
+        "en": "The web app speaks all eleven ioBroker languages (new: Russian, Portuguese, Dutch, French, Italian, Spanish, Polish, Ukrainian, Chinese); the instance setting offers all of them. Object names in eleven languages. The control buttons act on true only.",
+        "de": "Die Web-App spricht alle elf ioBroker-Sprachen (neu: Russisch, Portugiesisch, Niederländisch, Französisch, Italienisch, Spanisch, Polnisch, Ukrainisch, Chinesisch); die Instanz-Einstellung bietet alle zur Auswahl. Objektnamen in elf Sprachen. Die Steuer-Knöpfe reagieren nur auf true.",
+        "ru": "Веб-приложение теперь на всех одиннадцати языках ioBroker (новые: русский, португальский, нидерландский, французский, итальянский, испанский, польский, украинский, китайский); в настройках экземпляра можно выбрать любой. Названия объектов на одиннадцати языках. Кнопки управления реагируют только на true.",
+        "pt": "A aplicação web fala os onze idiomas do ioBroker (novos: russo, português, neerlandês, francês, italiano, espanhol, polaco, ucraniano, chinês); a definição da instância oferece todos. Nomes de objetos em onze idiomas. Os botões de controlo só reagem a true.",
+        "nl": "De web-app spreekt alle elf ioBroker-talen (nieuw: Russisch, Portugees, Nederlands, Frans, Italiaans, Spaans, Pools, Oekraïens, Chinees); de instantie-instelling biedt ze allemaal aan. Objectnamen in elf talen. De besturingsknoppen reageren alleen op true.",
+        "fr": "L'application web parle les onze langues d'ioBroker (nouveau : russe, portugais, néerlandais, français, italien, espagnol, polonais, ukrainien, chinois) ; le paramètre de l'instance les propose toutes. Noms d'objets en onze langues. Les boutons de commande n'agissent que sur true.",
+        "it": "L'app web parla tutte e undici le lingue di ioBroker (nuove: russo, portoghese, olandese, francese, italiano, spagnolo, polacco, ucraino, cinese); l'impostazione dell'istanza le offre tutte. Nomi degli oggetti in undici lingue. I pulsanti di controllo agiscono solo su true.",
+        "es": "La aplicación web habla los once idiomas de ioBroker (nuevos: ruso, portugués, neerlandés, francés, italiano, español, polaco, ucraniano, chino); el ajuste de la instancia los ofrece todos. Nombres de objetos en once idiomas. Los botones de control solo actúan con true.",
+        "pl": "Aplikacja internetowa mówi we wszystkich jedenastu językach ioBroker (nowe: rosyjski, portugalski, niderlandzki, francuski, włoski, hiszpański, polski, ukraiński, chiński); ustawienie instancji oferuje je wszystkie. Nazwy obiektów w jedenastu językach. Przyciski sterujące reagują tylko na true.",
+        "uk": "Вебзастосунок розмовляє всіма одинадцятьма мовами ioBroker (нові: російська, португальська, нідерландська, французька, італійська, іспанська, польська, українська, китайська); налаштування екземпляра пропонує їх усі. Назви об'єктів одинадцятьма мовами. Кнопки керування реагують лише на true.",
+        "zh-cn": "网页应用支持 ioBroker 的全部十一种语言（新增：俄语、葡萄牙语、荷兰语、法语、意大利语、西班牙语、波兰语、乌克兰语、中文）；实例设置提供全部选项。对象名称提供十一种语言。控制按钮仅对 true 作出反应。"
+      },
       "1.1.2": {
         "en": "Documentation in English: the documents of the repository are now in docs/en, the German originals in docs/de, as the ioBroker reviewers ask for.",
         "de": "Dokumentation auf Englisch: Die Dokumente des Repositorys liegen jetzt in docs/en, die deutschen Originale in docs/de, wie es die ioBroker-Reviewer verlangen.",
@@ -101,19 +114,6 @@
         "pl": "Ikona ekranu głównego iOS przez HTTPS: ikona jest teraz osadzona w samej stronie, więc iOS nie potrzebuje drugiego żądania. Oryginalne przezroczyste logo wróciło do favicony i zainstalowanej aplikacji internetowej.",
         "uk": "Піктограма головного екрана iOS через HTTPS: піктограму тепер вбудовано в саму сторінку, тож iOS не потрібен другий запит. Початковий прозорий логотип знову використовується для favicon і встановленого вебзастосунку.",
         "zh-cn": "通过 HTTPS 的 iOS 主屏幕图标：图标现已嵌入页面本身，iOS 无需再发起第二次请求。favicon 和已安装的网页应用恢复使用原来的透明徽标。"
-      },
-      "1.0.8": {
-        "en": "New home screen icon: the logo on a colour gradient as an opaque square for the installed web app, the favicon and iOS (a dedicated 180 px touch icon).",
-        "de": "Neues Home-Bildschirm-Symbol: das Logo auf einem Farbverlauf als deckendes Quadrat für die installierte Web-App, das Favicon und iOS (ein eigenes 180-px-Touch-Symbol).",
-        "ru": "Новый значок на главном экране: логотип на цветном градиенте в виде непрозрачного квадрата для установленного веб-приложения, favicon и iOS (отдельный значок 180 px).",
-        "pt": "Novo ícone do ecrã principal: o logótipo sobre um gradiente de cor, como quadrado opaco, para a aplicação web instalada, o favicon e o iOS (um ícone de toque próprio de 180 px).",
-        "nl": "Nieuw beginschermpictogram: het logo op een kleurverloop als dekkend vierkant voor de geïnstalleerde web-app, het favicon en iOS (een eigen aanraakpictogram van 180 px).",
-        "fr": "Nouvelle icône d'écran d'accueil : le logo sur un dégradé de couleurs, en carré opaque, pour l'application web installée, le favicon et iOS (une icône tactile dédiée de 180 px).",
-        "it": "Nuova icona della schermata Home: il logo su uno sfondo sfumato come quadrato opaco per l'app web installata, la favicon e iOS (un'icona touch dedicata da 180 px).",
-        "es": "Nuevo icono de la pantalla de inicio: el logotipo sobre un degradado de color, como cuadrado opaco, para la aplicación web instalada, el favicon y iOS (un icono táctil propio de 180 px).",
-        "pl": "Nowa ikona ekranu głównego: logo na kolorowym gradiencie jako nieprzezroczysty kwadrat dla zainstalowanej aplikacji internetowej, favicony i iOS (osobna ikona dotykowa 180 px).",
-        "uk": "Нова піктограма головного екрана: логотип на кольоровому градієнті як непрозорий квадрат для встановленого вебзастосунку, favicon та iOS (окрема піктограма 180 px).",
-        "zh-cn": "新的主屏幕图标：彩色渐变背景上的徽标，为已安装的网页应用、favicon 和 iOS 提供不透明方形图标（另有 180 像素的专用触控图标）。"
       }
     },
     "titleLang": {
