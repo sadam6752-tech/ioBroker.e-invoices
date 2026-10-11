@@ -13,6 +13,7 @@
 import JSZip from 'jszip';
 import { createHash } from 'node:crypto';
 import type { InvoiceDatabase, DatabaseDump } from './db';
+import { isQuote } from './invoice-model';
 import { LATEST_SCHEMA_VERSION } from './migrations';
 
 /** File name prefix of backups the user asked for. */
@@ -231,7 +232,9 @@ export function collectArtifactPaths(dump: DatabaseDump): string[] {
 		if (invoice.xlsxPath) {
 			paths.add(invoice.xlsxPath);
 		}
-		if (invoice.number) {
+		// a quotation is no e-invoice and never has an XML file (R8): looking for one would log an error
+		// "unreadable file" in every backup
+		if (invoice.number && !isQuote(invoice.docType)) {
 			paths.add(`invoices/${invoice.issueDate.slice(0, 4)}/${invoice.number}.xml`);
 		}
 		if (invoice.templateSnapshot?.definition?.logo?.path) {

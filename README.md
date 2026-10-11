@@ -581,6 +581,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) fix: the backup no longer logs the error "Backup skips unreadable file ... .xml: Not exists" for every quotation. A quotation is no e-invoice and has no XML file, so the backup does not look for one any more (a missing file of a real invoice is still reported).
+
 ### 1.1.3 (2026-10-11)
 
 * (alex) **The web app speaks all eleven ioBroker languages:** besides German and English now Russian, Portuguese, Dutch, French, Italian, Spanish, Polish, Ukrainian and Chinese. The instance setting "Web app language" offers all of them; the dictionary of the language in use is loaded on demand. The legal terms (GoBD, UStG, Leitweg-ID, XRechnung, ZUGFeRD, DATEV) stay as they are, the documents themselves (PDF, XML) stay German. Have the wording checked by a native speaker where it matters.

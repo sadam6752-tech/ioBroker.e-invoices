@@ -4,7 +4,7 @@
 import { expect } from 'chai';
 import JSZip from 'jszip';
 import { createHash } from 'node:crypto';
-import { createBackup, previewRestore, restoreBackup, type BackupStorage } from './backup';
+import { collectArtifactPaths, createBackup, previewRestore, restoreBackup, type BackupStorage } from './backup';
 import { InvoiceDatabase } from './db';
 import { issueInvoiceWithArtifacts } from './issue-service';
 
@@ -203,6 +203,64 @@ describe('backup => roundtrip', function () {
 		} finally {
 			dbA.close();
 			dbB.close();
+		}
+	});
+});
+
+describe('backup => files of quotations', function () {
+	this.timeout(60000);
+
+	it('looks for no XML of a quotation and logs no error for it', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const storage = memoryStorage();
+		try {
+			db.ensureDefaultTemplate();
+			const draft = (docType: 'invoice' | 'quote'): string =>
+				db.createDraft({
+					seller,
+					buyer,
+					lines: [{ description: 'X', quantity: 1, unit: 'Stk', unitPriceNet: 10, vatRate: 19 }],
+					issueDate: '2026-09-28',
+					deliveryDate: '2026-09-28',
+					docType,
+				}).id;
+			const invoice = (await issueInvoiceWithArtifacts(db, quiet, draft('invoice'), storage)).invoice;
+			const quote = (await issueInvoiceWithArtifacts(db, quiet, draft('quote'), storage)).invoice;
+			expect(quote.number).to.match(/^A-/);
+			// the quotation has a PDF and an Excel copy, but no XML — the invoice has all three
+			const paths = collectArtifactPaths(db.exportData());
+			expect(paths).to.include(`invoices/2026/${invoice.number}.xml`);
+			expect(paths).to.include(`invoices/2026/${quote.number}.pdf`);
+			expect(paths).to.not.include(`invoices/2026/${quote.number}.xml`);
+			// and a backup with it reports nothing unreadable
+			const errors: string[] = [];
+			const result = await createBackup(
+				db,
+				storage,
+				{ info: (): void => undefined, error: m => errors.push(m) },
+				'test',
+			);
+			expect(errors).to.deep.equal([]);
+			expect(result.manifest.files.map(file => file.path)).to.include(`invoices/2026/${quote.number}.pdf`);
+		} finally {
+			db.close();
+		}
+	});
+
+	it('still reports a missing file of an invoice', async () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const storage = memoryStorage();
+		try {
+			const id = await seedIssued(db, storage);
+			const number = db.getInvoice(id)?.number ?? '';
+			storage.files.delete(`invoices/2026/${number}.xml`);
+			const errors: string[] = [];
+			await createBackup(db, storage, { info: (): void => undefined, error: m => errors.push(m) }, 'test');
+			expect(errors.join(' ')).to.contain(`${number}.xml`);
+		} finally {
+			db.close();
 		}
 	});
 });
