@@ -575,6 +575,11 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) The objects of the adapter (info and control states, the file storage) carry their names in all eleven ioBroker languages; an existing installation gets the new names on the next start.
+* (alex) fix: the control buttons (`control.createDraft`, `issue`, `refresh`, `backup`, `restore`) act on the value `true` only. Writing `false` or another value no longer starts an issue, a backup or a restore.
+
 ### 1.1.2 (2026-10-11)
 
 * (alex) Documentation in English: the documents in `docs/` are now in `docs/en/` (validation evidence, disclaimer, performance), the German originals in `docs/de/`, as the ioBroker reviewers ask for. The English validation document is up to date (13 sample cases, XRechnung, warnings fail the run); a test keeps German out of `docs/en/` and pairs every German file with an English one.

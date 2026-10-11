@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/lib/control-buttons.ts"],
+  "sourcesContent": ["/**\n * The control states that are buttons. `control.issueId` and `control.restoreId` are inputs of the buttons\n * `control.issue` and `control.restore`; writing them starts nothing.\n */\nexport const BUTTON_STATES: ReadonlySet<string> = new Set(['createDraft', 'issue', 'refresh', 'backup', 'restore']);\n\n/**\n * Whether a state change is a press on a control button: a command from outside (`ack` false), the value `true`\n * (writing `false` or anything else must not issue or restore anything), and one of the button states.\n *\n * @param namespace - Namespace of the instance, e.g. `e-invoices.0`.\n * @param id - Full id of the changed state.\n * @param state - The new state, or null when it was deleted.\n */\nexport function isButtonPress(\n\tnamespace: string,\n\tid: string,\n\tstate: { ack: boolean; val: unknown } | null | undefined,\n): boolean {\n\tconst prefix = `${namespace}.control.`;\n\treturn (\n\t\tBoolean(state) &&\n\t\tstate?.ack === false &&\n\t\tstate.val === true &&\n\t\tid.startsWith(prefix) &&\n\t\tBUTTON_STATES.has(id.slice(prefix.length))\n\t);\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAIO,MAAM,gBAAqC,oBAAI,IAAI,CAAC,eAAe,SAAS,WAAW,UAAU,SAAS,CAAC;AAU3G,SAAS,cACf,WACA,IACA,OACU;AACV,QAAM,SAAS,GAAG,SAAS;AAC3B,SACC,QAAQ,KAAK,MACb,+BAAO,SAAQ,SACf,MAAM,QAAQ,QACd,GAAG,WAAW,MAAM,KACpB,cAAc,IAAI,GAAG,MAAM,OAAO,MAAM,CAAC;AAE3C;",
+  "names": []
+}

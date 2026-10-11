@@ -235,7 +235,19 @@
       "_id": "info",
       "type": "channel",
       "common": {
-        "name": "Information"
+        "name": {
+          "en": "Information",
+          "de": "Information",
+          "ru": "Информация",
+          "pt": "Informação",
+          "nl": "Informatie",
+          "fr": "Informations",
+          "it": "Informazioni",
+          "es": "Información",
+          "pl": "Informacje",
+          "uk": "Інформація",
+          "zh-cn": "信息"
+        }
       },
       "native": {}
     },
@@ -244,7 +256,19 @@
       "type": "state",
       "common": {
         "role": "indicator.connected",
-        "name": "Device or service connected",
+        "name": {
+          "en": "Device or service connected",
+          "de": "Gerät oder Dienst verbunden",
+          "ru": "Устройство или служба подключены",
+          "pt": "Dispositivo ou serviço ligado",
+          "nl": "Apparaat of dienst verbonden",
+          "fr": "Appareil ou service connecté",
+          "it": "Dispositivo o servizio connesso",
+          "es": "Dispositivo o servicio conectado",
+          "pl": "Urządzenie lub usługa połączone",
+          "uk": "Пристрій або служба підключені",
+          "zh-cn": "设备或服务已连接"
+        },
         "type": "boolean",
         "read": true,
         "write": false,
@@ -257,7 +281,19 @@
       "type": "state",
       "common": {
         "role": "value",
-        "name": "Total invoices",
+        "name": {
+          "en": "Total invoices",
+          "de": "Rechnungen insgesamt",
+          "ru": "Всего счетов",
+          "pt": "Total de faturas",
+          "nl": "Totaal aantal facturen",
+          "fr": "Total des factures",
+          "it": "Totale fatture",
+          "es": "Total de facturas",
+          "pl": "Liczba faktur",
+          "uk": "Усього рахунків",
+          "zh-cn": "发票总数"
+        },
         "type": "number",
         "read": true,
         "write": false,
@@ -270,7 +306,19 @@
       "type": "state",
       "common": {
         "role": "value",
-        "name": "Draft invoices",
+        "name": {
+          "en": "Draft invoices",
+          "de": "Rechnungsentwürfe",
+          "ru": "Черновики счетов",
+          "pt": "Rascunhos de faturas",
+          "nl": "Conceptfacturen",
+          "fr": "Brouillons de factures",
+          "it": "Bozze di fatture",
+          "es": "Borradores de facturas",
+          "pl": "Szkice faktur",
+          "uk": "Чернетки рахунків",
+          "zh-cn": "发票草稿"
+        },
         "type": "number",
         "read": true,
         "write": false,
@@ -283,7 +331,19 @@
       "type": "state",
       "common": {
         "role": "value",
-        "name": "Issued invoices",
+        "name": {
+          "en": "Issued invoices",
+          "de": "Ausgestellte Rechnungen",
+          "ru": "Выставленные счета",
+          "pt": "Faturas emitidas",
+          "nl": "Uitgegeven facturen",
+          "fr": "Factures émises",
+          "it": "Fatture emesse",
+          "es": "Facturas emitidas",
+          "pl": "Wystawione faktury",
+          "uk": "Виставлені рахунки",
+          "zh-cn": "已开具发票"
+        },
         "type": "number",
         "read": true,
         "write": false,
@@ -296,7 +356,19 @@
       "type": "state",
       "common": {
         "role": "text",
-        "name": "Last issued number",
+        "name": {
+          "en": "Last issued number",
+          "de": "Zuletzt vergebene Nummer",
+          "ru": "Последний выданный номер",
+          "pt": "Último número atribuído",
+          "nl": "Laatst toegekende nummer",
+          "fr": "Dernier numéro attribué",
+          "it": "Ultimo numero assegnato",
+          "es": "Último número asignado",
+          "pl": "Ostatnio nadany numer",
+          "uk": "Останній виданий номер",
+          "zh-cn": "最近分配的编号"
+        },
         "type": "string",
         "read": true,
         "write": false
@@ -308,7 +380,19 @@
       "type": "state",
       "common": {
         "role": "text",
-        "name": "Last issue timestamp",
+        "name": {
+          "en": "Last issue timestamp",
+          "de": "Zeitpunkt der letzten Ausstellung",
+          "ru": "Время последнего выставления",
+          "pt": "Momento da última emissão",
+          "nl": "Tijdstip van de laatste uitgifte",
+          "fr": "Date de la dernière émission",
+          "it": "Momento dell'ultima emissione",
+          "es": "Momento de la última emisión",
+          "pl": "Czas ostatniego wystawienia",
+          "uk": "Час останнього виставлення",
+          "zh-cn": "最近开具时间"
+        },
         "type": "string",
         "read": true,
         "write": false
@@ -320,7 +404,19 @@
       "type": "state",
       "common": {
         "role": "value",
-        "name": "Database schema version",
+        "name": {
+          "en": "Database schema version",
+          "de": "Version des Datenbankschemas",
+          "ru": "Версия схемы базы данных",
+          "pt": "Versão do esquema da base de dados",
+          "nl": "Versie van het databaseschema",
+          "fr": "Version du schéma de base de données",
+          "it": "Versione dello schema del database",
+          "es": "Versión del esquema de la base de datos",
+          "pl": "Wersja schematu bazy danych",
+          "uk": "Версія схеми бази даних",
+          "zh-cn": "数据库架构版本"
+        },
         "type": "number",
         "read": true,
         "write": false,
@@ -333,7 +429,19 @@
       "type": "state",
       "common": {
         "role": "text",
-        "name": "Last backup filename",
+        "name": {
+          "en": "Last backup filename",
+          "de": "Dateiname des letzten Backups",
+          "ru": "Имя файла последней резервной копии",
+          "pt": "Nome do ficheiro da última cópia de segurança",
+          "nl": "Bestandsnaam van de laatste back-up",
+          "fr": "Nom du dernier fichier de sauvegarde",
+          "it": "Nome del file dell'ultimo backup",
+          "es": "Nombre del archivo de la última copia de seguridad",
+          "pl": "Nazwa pliku ostatniej kopii zapasowej",
+          "uk": "Ім'я файлу останньої резервної копії",
+          "zh-cn": "最近备份的文件名"
+        },
         "type": "string",
         "read": true,
         "write": false
@@ -344,7 +452,19 @@
       "_id": "control",
       "type": "channel",
       "common": {
-        "name": "Control commands"
+        "name": {
+          "en": "Control commands",
+          "de": "Steuerbefehle",
+          "ru": "Команды управления",
+          "pt": "Comandos de controlo",
+          "nl": "Besturingsopdrachten",
+          "fr": "Commandes de contrôle",
+          "it": "Comandi di controllo",
+          "es": "Comandos de control",
+          "pl": "Polecenia sterujące",
+          "uk": "Команди керування",
+          "zh-cn": "控制命令"
+        }
       },
       "native": {}
     },
@@ -353,7 +473,19 @@
       "type": "state",
       "common": {
         "role": "button",
-        "name": "Create empty draft",
+        "name": {
+          "en": "Create empty draft",
+          "de": "Leeren Entwurf anlegen",
+          "ru": "Создать пустой черновик",
+          "pt": "Criar rascunho vazio",
+          "nl": "Leeg concept aanmaken",
+          "fr": "Créer un brouillon vide",
+          "it": "Crea bozza vuota",
+          "es": "Crear borrador vacío",
+          "pl": "Utwórz pusty szkic",
+          "uk": "Створити порожню чернетку",
+          "zh-cn": "创建空草稿"
+        },
         "type": "boolean",
         "read": false,
         "write": true,
@@ -366,7 +498,19 @@
       "type": "state",
       "common": {
         "role": "text",
-        "name": "Last created draft id",
+        "name": {
+          "en": "Last created draft id",
+          "de": "ID des zuletzt angelegten Entwurfs",
+          "ru": "ID последнего созданного черновика",
+          "pt": "ID do último rascunho criado",
+          "nl": "ID van het laatst aangemaakte concept",
+          "fr": "ID du dernier brouillon créé",
+          "it": "ID dell'ultima bozza creata",
+          "es": "ID del último borrador creado",
+          "pl": "ID ostatnio utworzonego szkicu",
+          "uk": "ID останньої створеної чернетки",
+          "zh-cn": "最近创建的草稿 ID"
+        },
         "type": "string",
         "read": true,
         "write": false
@@ -378,7 +522,19 @@
       "type": "state",
       "common": {
         "role": "text",
-        "name": "Draft id to issue",
+        "name": {
+          "en": "Draft id to issue",
+          "de": "ID des auszustellenden Entwurfs",
+          "ru": "ID черновика для выставления",
+          "pt": "ID do rascunho a emitir",
+          "nl": "ID van het uit te geven concept",
+          "fr": "ID du brouillon à émettre",
+          "it": "ID della bozza da emettere",
+          "es": "ID del borrador a emitir",
+          "pl": "ID szkicu do wystawienia",
+          "uk": "ID чернетки для виставлення",
+          "zh-cn": "待开具草稿的 ID"
+        },
         "type": "string",
         "read": true,
         "write": true
@@ -390,7 +546,19 @@
       "type": "state",
       "common": {
         "role": "button",
-        "name": "Issue draft from issueId",
+        "name": {
+          "en": "Issue draft from issueId",
+          "de": "Entwurf aus issueId ausstellen",
+          "ru": "Выставить черновик из issueId",
+          "pt": "Emitir o rascunho de issueId",
+          "nl": "Concept uit issueId uitgeven",
+          "fr": "Émettre le brouillon de issueId",
+          "it": "Emetti la bozza da issueId",
+          "es": "Emitir el borrador de issueId",
+          "pl": "Wystaw szkic z issueId",
+          "uk": "Виставити чернетку з issueId",
+          "zh-cn": "开具 issueId 中的草稿"
+        },
         "type": "boolean",
         "read": false,
         "write": true,
@@ -403,7 +571,19 @@
       "type": "state",
       "common": {
         "role": "button",
-        "name": "Refresh stats and status file",
+        "name": {
+          "en": "Refresh stats and status file",
+          "de": "Statistik und Statusdatei aktualisieren",
+          "ru": "Обновить статистику и файл состояния",
+          "pt": "Atualizar estatísticas e ficheiro de estado",
+          "nl": "Statistieken en statusbestand vernieuwen",
+          "fr": "Actualiser les statistiques et le fichier d'état",
+          "it": "Aggiorna statistiche e file di stato",
+          "es": "Actualizar estadísticas y archivo de estado",
+          "pl": "Odśwież statystyki i plik stanu",
+          "uk": "Оновити статистику та файл стану",
+          "zh-cn": "刷新统计和状态文件"
+        },
         "type": "boolean",
         "read": false,
         "write": true,
@@ -416,7 +596,19 @@
       "type": "state",
       "common": {
         "role": "button",
-        "name": "Create backup now",
+        "name": {
+          "en": "Create backup now",
+          "de": "Backup jetzt erstellen",
+          "ru": "Создать резервную копию сейчас",
+          "pt": "Criar cópia de segurança agora",
+          "nl": "Nu een back-up maken",
+          "fr": "Créer une sauvegarde maintenant",
+          "it": "Crea un backup ora",
+          "es": "Crear una copia de seguridad ahora",
+          "pl": "Utwórz kopię zapasową teraz",
+          "uk": "Створити резервну копію зараз",
+          "zh-cn": "立即创建备份"
+        },
         "type": "boolean",
         "read": false,
         "write": true,
@@ -429,7 +621,19 @@
       "type": "state",
       "common": {
         "role": "text",
-        "name": "Backup filename to restore",
+        "name": {
+          "en": "Backup filename to restore",
+          "de": "Dateiname des wiederherzustellenden Backups",
+          "ru": "Имя файла резервной копии для восстановления",
+          "pt": "Nome do ficheiro da cópia de segurança a restaurar",
+          "nl": "Bestandsnaam van de te herstellen back-up",
+          "fr": "Nom du fichier de sauvegarde à restaurer",
+          "it": "Nome del file di backup da ripristinare",
+          "es": "Nombre del archivo de copia de seguridad a restaurar",
+          "pl": "Nazwa pliku kopii zapasowej do przywrócenia",
+          "uk": "Ім'я файлу резервної копії для відновлення",
+          "zh-cn": "要恢复的备份文件名"
+        },
         "type": "string",
         "read": true,
         "write": true
@@ -441,7 +645,19 @@
       "type": "state",
       "common": {
         "role": "button",
-        "name": "Restore backup from restoreId",
+        "name": {
+          "en": "Restore backup from restoreId",
+          "de": "Backup aus restoreId wiederherstellen",
+          "ru": "Восстановить копию из restoreId",
+          "pt": "Restaurar a cópia de segurança de restoreId",
+          "nl": "Back-up uit restoreId herstellen",
+          "fr": "Restaurer la sauvegarde de restoreId",
+          "it": "Ripristina il backup da restoreId",
+          "es": "Restaurar la copia de seguridad de restoreId",
+          "pl": "Przywróć kopię zapasową z restoreId",
+          "uk": "Відновити копію з restoreId",
+          "zh-cn": "从 restoreId 恢复备份"
+        },
         "type": "boolean",
         "read": false,
         "write": true,

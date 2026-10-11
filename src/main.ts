@@ -20,6 +20,8 @@ import {
 	selectBackupsToPrune,
 } from './lib/backup';
 import { InvoiceDatabase } from './lib/db';
+import { isButtonPress } from './lib/control-buttons';
+import { STATE_NAMES } from './lib/state-names';
 import { createWebServer, decideTls } from './lib/tls';
 import {
 	blankDraft,
@@ -37,12 +39,6 @@ const STATUS_FILE = 'status.json';
 const DEFAULT_API_PORT = 8093;
 /** Fallback bind address (loopback: the API is unauthenticated by default). */
 const DEFAULT_API_BIND = '127.0.0.1';
-/**
- * The control states that are buttons. `control.issueId` and `control.restoreId`
- * hold text and are only read by the buttons; writing them must not run a command
- * (it used to, and the acknowledgement then tried to store `true` in a text state).
- */
-const BUTTON_STATES = new Set(['createDraft', 'issue', 'refresh', 'backup', 'restore']);
 /** Pause that collects a burst of API writes into one refresh of the info states. */
 const STATS_REFRESH_DELAY_MS = 500;
 
@@ -192,7 +188,7 @@ class EInvoices extends utils.Adapter {
 	private async ensureObjects(): Promise<void> {
 		await this.setObjectNotExistsAsync('control', {
 			type: 'channel',
-			common: { name: 'Control commands' },
+			common: { name: STATE_NAMES.control },
 			native: {},
 		});
 
@@ -369,9 +365,21 @@ class EInvoices extends utils.Adapter {
 		for (const state of states) {
 			await this.setObjectNotExistsAsync(state.id, {
 				type: 'state',
-				common: state.common,
+				common: { ...state.common, name: STATE_NAMES[state.id] ?? state.common.name },
 				native: state.native,
 			});
+		}
+		// an install from before the eleven-language names keeps its English text: renew the names
+		// (only the names, so nothing the user changed in the objects is touched)
+		for (const [id, name] of Object.entries(STATE_NAMES)) {
+			if (id === 'storage') {
+				continue;
+			}
+			try {
+				await this.extendObjectAsync(id, { common: { name } });
+			} catch (error) {
+				this.log.debug(`Cannot renew the name of ${id}: ${(error as Error).message}`);
+			}
 		}
 	}
 
@@ -383,7 +391,7 @@ class EInvoices extends utils.Adapter {
 		try {
 			await this.setObjectNotExistsAsync(this.mountId, {
 				type: 'meta',
-				common: { name: 'File storage', type: 'meta.user' },
+				common: { name: STATE_NAMES.storage, type: 'meta.user' },
 				native: {},
 			});
 			this.filesAvailable = true;
@@ -913,8 +921,7 @@ class EInvoices extends utils.Adapter {
 	 * @param state - State object
 	 */
 	private onStateChange(id: string, state: ioBroker.State | null | undefined): void {
-		const prefix = `${this.namespace}.control.`;
-		if (state && state.ack === false && id.startsWith(prefix) && BUTTON_STATES.has(id.slice(prefix.length))) {
+		if (isButtonPress(this.namespace, id, state)) {
 			void this.handleCommand(id);
 		}
 	}

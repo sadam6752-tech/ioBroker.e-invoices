@@ -27,6 +27,8 @@ var import_package = require("../package.json");
 var import_api_server = require("./lib/api-server");
 var import_backup = require("./lib/backup");
 var import_db = require("./lib/db");
+var import_control_buttons = require("./lib/control-buttons");
+var import_state_names = require("./lib/state-names");
 var import_tls = require("./lib/tls");
 var import_invoice_model = require("./lib/invoice-model");
 var import_dunning = require("./lib/dunning");
@@ -35,7 +37,6 @@ const MOUNT_POINT = "storage";
 const STATUS_FILE = "status.json";
 const DEFAULT_API_PORT = 8093;
 const DEFAULT_API_BIND = "127.0.0.1";
-const BUTTON_STATES = /* @__PURE__ */ new Set(["createDraft", "issue", "refresh", "backup", "restore"]);
 const STATS_REFRESH_DELAY_MS = 500;
 class EInvoices extends utils.Adapter {
   db = null;
@@ -171,9 +172,10 @@ class EInvoices extends utils.Adapter {
    * Creates the info/control states (idempotent, also heals older installs).
    */
   async ensureObjects() {
+    var _a;
     await this.setObjectNotExistsAsync("control", {
       type: "channel",
-      common: { name: "Control commands" },
+      common: { name: import_state_names.STATE_NAMES.control },
       native: {}
     });
     const states = [
@@ -348,9 +350,19 @@ class EInvoices extends utils.Adapter {
     for (const state of states) {
       await this.setObjectNotExistsAsync(state.id, {
         type: "state",
-        common: state.common,
+        common: { ...state.common, name: (_a = import_state_names.STATE_NAMES[state.id]) != null ? _a : state.common.name },
         native: state.native
       });
+    }
+    for (const [id, name] of Object.entries(import_state_names.STATE_NAMES)) {
+      if (id === "storage") {
+        continue;
+      }
+      try {
+        await this.extendObjectAsync(id, { common: { name } });
+      } catch (error) {
+        this.log.debug(`Cannot renew the name of ${id}: ${error.message}`);
+      }
     }
   }
   /**
@@ -361,7 +373,7 @@ class EInvoices extends utils.Adapter {
     try {
       await this.setObjectNotExistsAsync(this.mountId, {
         type: "meta",
-        common: { name: "File storage", type: "meta.user" },
+        common: { name: import_state_names.STATE_NAMES.storage, type: "meta.user" },
         native: {}
       });
       this.filesAvailable = true;
@@ -849,8 +861,7 @@ class EInvoices extends utils.Adapter {
    * @param state - State object
    */
   onStateChange(id, state) {
-    const prefix = `${this.namespace}.control.`;
-    if (state && state.ack === false && id.startsWith(prefix) && BUTTON_STATES.has(id.slice(prefix.length))) {
+    if ((0, import_control_buttons.isButtonPress)(this.namespace, id, state)) {
       void this.handleCommand(id);
     }
   }
