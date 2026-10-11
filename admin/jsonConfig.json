@@ -83,11 +83,20 @@
 				"pwaLanguage": {
 					"type": "select",
 					"label": "Web app language",
-					"help": "auto = language of the browser; German and English are available",
+					"help": "auto = language of the browser; all eleven ioBroker languages are available",
 					"options": [
 						{ "label": "auto", "value": "auto" },
 						{ "label": "Deutsch", "value": "de" },
-						{ "label": "English", "value": "en" }
+						{ "label": "English", "value": "en" },
+						{ "label": "Русский", "value": "ru" },
+						{ "label": "Português", "value": "pt" },
+						{ "label": "Nederlands", "value": "nl" },
+						{ "label": "Français", "value": "fr" },
+						{ "label": "Italiano", "value": "it" },
+						{ "label": "Español", "value": "es" },
+						{ "label": "Polski", "value": "pl" },
+						{ "label": "Українська", "value": "uk" },
+						{ "label": "简体中文", "value": "zh-cn" }
 					],
 					"newLine": true,
 					"xs": 12,

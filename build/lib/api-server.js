@@ -272,6 +272,7 @@ function secretEquals(provided, expected) {
   const b = (0, import_node_crypto.createHash)("sha256").update(expected, "utf8").digest();
   return (0, import_node_crypto.timingSafeEqual)(a, b);
 }
+const PWA_LANGUAGES = ["de", "en", "ru", "pt", "nl", "fr", "it", "es", "pl", "uk", "zh-cn"];
 function createApiServer(deps) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
   const { db, storage, log, version, authToken } = deps;
@@ -281,7 +282,7 @@ function createApiServer(deps) {
     // anything but XRechnung is the ZUGFeRD default
     defaultProfile: (0, import_invoice_model.storedInvoiceProfile)((_f = deps.settings) == null ? void 0 : _f.defaultProfile),
     // only languages the web app really ships; anything else means "decide in the browser"
-    pwaLanguage: ["de", "en"].includes(String((_g = deps.settings) == null ? void 0 : _g.pwaLanguage)) ? String((_h = deps.settings) == null ? void 0 : _h.pwaLanguage) : "auto",
+    pwaLanguage: PWA_LANGUAGES.includes(String((_g = deps.settings) == null ? void 0 : _g.pwaLanguage)) ? String((_h = deps.settings) == null ? void 0 : _h.pwaLanguage) : "auto",
     numberFormat: ((_j = (_i = deps.settings) == null ? void 0 : _i.numberFormat) == null ? void 0 : _j.trim()) || import_invoice_model.DEFAULT_NUMBER_FORMAT,
     // R8: quotations number in their own circle, so the PWA shows the
     // matching format next to the invoice one.

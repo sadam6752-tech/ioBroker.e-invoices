@@ -58,7 +58,7 @@
     "Dunning check interval in hours":  "Intervalle de relance en heures",
     "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = désactivé. L'adaptateur ne compte que les factures échues dans info.overdue*, il n'envoie aucun e-mail lui-même.",
     "Web app language":  "Langue de l'application web",
-    "auto = language of the browser; German and English are available":  "auto = langue du navigateur ; allemand et anglais disponibles",
+    "auto = language of the browser; all eleven ioBroker languages are available":  "auto = langue du navigateur ; les onze langues d'ioBroker sont disponibles",
     "Automatic backups to keep":  "Sauvegardes automatiques à conserver",
     "Older automatic backups are deleted, 0 = keep all. Manual backups are never deleted.":  "Les anciennes sauvegardes automatiques sont supprimées, 0 = tout conserver. Les sauvegardes manuelles ne sont jamais supprimées."
 }

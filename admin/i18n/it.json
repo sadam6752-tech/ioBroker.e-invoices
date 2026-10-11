@@ -58,7 +58,7 @@
     "Dunning check interval in hours":  "Intervallo di sollecitazione in ore",
     "0 = off. The adapter only counts overdue invoices into info.overdue*, it never sends mails by itself.":  "0 = disattivato. L'adattatore conta solo le fatture scadute in info.overdue*, non invia email per conto proprio.",
     "Web app language":  "Lingua dell'app web",
-    "auto = language of the browser; German and English are available":  "auto = lingua del browser; tedesco e inglese disponibili",
+    "auto = language of the browser; all eleven ioBroker languages are available":  "auto = lingua del browser; sono disponibili tutte e undici le lingue di ioBroker",
     "Automatic backups to keep":  "Backup automatici da conservare",
     "Older automatic backups are deleted, 0 = keep all. Manual backups are never deleted.":  "I backup automatici più vecchi vengono eliminati, 0 = conserva tutti. I backup manuali non vengono mai eliminati."
 }

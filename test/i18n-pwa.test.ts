@@ -1,11 +1,11 @@
 /**
- * R7.2 tests: the web app speaks German and English and starts in the language
- * the admin chose.
+ * R7.2 tests: the web app speaks the eleven languages of ioBroker and starts in the
+ * language the admin chose.
  *
- * The German sentence is the key of `t()`. These tests keep the two languages in
- * step: every sentence the sources use has an English entry, no entry is left
- * over, no `{slot}` gets lost in translation and no German is left in the
- * English dictionary.
+ * The German sentence is the key of `t()`. These tests keep the languages in step:
+ * every sentence the sources use has an entry in every dictionary, no entry is left
+ * over, no `{slot}` gets lost in translation and no German is left in a dictionary
+ * that is not German.
  */
 import { expect } from 'chai';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -45,10 +45,12 @@ function loadTs(file: string, cache: Map<string, Record<string, unknown>> = new 
 }
 
 interface I18nModule {
+	LANGUAGES: readonly string[];
 	getLanguage(): string;
+	loadDictionary(lang: string): Promise<void>;
 	locale(): string;
 	resolveLanguage(sources: Record<string, string | null | undefined>): string;
-	setLanguage(lang: 'de' | 'en'): void;
+	setLanguage(lang: string): void;
 	t(key: string, vars?: Record<string, string | number>): string;
 	toLang(raw: unknown): string | undefined;
 }
@@ -56,7 +58,30 @@ interface I18nModule {
 const i18n = loadTs(resolve('src-www/src/i18n/index.ts')) as unknown as I18nModule;
 const en = (loadTs(resolve('src-www/src/i18n/en.ts')) as { en: Record<string, string> }).en;
 const labelsModule = loadTs(resolve('src-www/src/labels.ts')) as { INVOICE_TITLES: string[]; QUOTE_TITLES: string[] };
-const { getLanguage, locale, resolveLanguage, setLanguage, t, toLang } = i18n;
+const { LANGUAGES, getLanguage, loadDictionary, locale, resolveLanguage, setLanguage, t, toLang } = i18n;
+
+/** The dictionaries besides English: the loader of the web app, file name and export name. */
+const OTHER_LANGUAGES: [string, string][] = [
+	['ru', 'ru'],
+	['pt', 'pt'],
+	['nl', 'nl'],
+	['fr', 'fr'],
+	['it', 'it'],
+	['es', 'es'],
+	['pl', 'pl'],
+	['uk', 'uk'],
+	['zh-cn', 'zhCn'],
+];
+
+/**
+ * Loads one dictionary file of the web app.
+ *
+ * @param file - Language file name without extension.
+ * @param name - Name of the export.
+ */
+function dictionaryOf(file: string, name: string): Record<string, string> {
+	return (loadTs(resolve(`src-www/src/i18n/${file}.ts`)) as Record<string, Record<string, string>>)[name];
+}
 const { INVOICE_TITLES, QUOTE_TITLES } = labelsModule;
 
 const SOURCE_ROOT = 'src-www/src';
@@ -159,12 +184,48 @@ describe('pwa => i18n (R7.2)', () => {
 		expect(locale()).to.equal('en-GB');
 		setLanguage('de');
 		expect(locale()).to.equal('de-DE');
+		for (const [lang, tag] of [
+			['ru', 'ru-RU'],
+			['zh-cn', 'zh-CN'],
+			['uk', 'uk-UA'],
+		]) {
+			setLanguage(lang);
+			expect(getLanguage()).to.equal(lang);
+			expect(locale()).to.equal(tag);
+		}
+	});
+
+	it('ships eleven languages, German first', () => {
+		expect([...LANGUAGES]).to.deep.equal(['de', 'en', 'ru', 'pt', 'nl', 'fr', 'it', 'es', 'pl', 'uk', 'zh-cn']);
+	});
+
+	it('translates through the dictionary once it is loaded, and falls back to English before', async () => {
+		setLanguage('fr');
+		// not loaded yet: English instead of a hole
+		expect(t('Speichern')).to.equal('Save');
+		await loadDictionary('fr');
+		expect(t('Speichern')).to.equal('Enregistrer');
+		expect(t('{n} Kunden', { n: 3 })).to.equal('3 clients');
+		await loadDictionary('zh-cn');
+		setLanguage('zh-cn');
+		expect(t('Speichern')).to.equal('保存');
+		await loadDictionary('ru');
+		setLanguage('ru');
+		expect(t('Speichern')).to.equal('Сохранить');
+		// a sentence without any entry stays German
+		expect(t('Gibt es nicht {n}', { n: 1 })).to.equal('Gibt es nicht 1');
 	});
 
 	it('resolves the start language: address bar, device, admin, browser, English', () => {
 		expect(toLang('de-AT')).to.equal('de');
 		expect(toLang('EN')).to.equal('en');
-		expect(toLang('fr')).to.equal(undefined);
+		expect(toLang('fr')).to.equal('fr');
+		expect(toLang('pt_BR')).to.equal('pt');
+		// every kind of Chinese lands in the one Chinese dictionary
+		for (const tag of ['zh', 'zh-CN', 'zh-TW', 'zh-Hans', 'ZH_hk']) {
+			expect(toLang(tag), tag).to.equal('zh-cn');
+		}
+		expect(toLang('ja')).to.equal(undefined);
 		expect(toLang('auto')).to.equal(undefined);
 		// strongest first
 		expect(resolveLanguage({ query: 'en', stored: 'de', admin: 'de', browser: 'de-DE' })).to.equal('en');
@@ -172,9 +233,11 @@ describe('pwa => i18n (R7.2)', () => {
 		expect(resolveLanguage({ admin: 'en', browser: 'de-DE' })).to.equal('en');
 		// `auto` (or anything unknown) in the admin hands the decision to the browser
 		expect(resolveLanguage({ admin: 'auto', browser: 'de-DE' })).to.equal('de');
-		expect(resolveLanguage({ admin: 'fr', browser: 'en-US' })).to.equal('en');
+		expect(resolveLanguage({ admin: 'fr', browser: 'en-US' })).to.equal('fr');
+		expect(resolveLanguage({ admin: 'auto', browser: 'uk-UA' })).to.equal('uk');
+		expect(resolveLanguage({ admin: 'ja', browser: 'en-US' })).to.equal('en');
 		// a browser in a language we do not ship ends up in English
-		expect(resolveLanguage({ admin: 'auto', browser: 'fr-FR' })).to.equal('en');
+		expect(resolveLanguage({ admin: 'auto', browser: 'ja-JP' })).to.equal('en');
 		expect(resolveLanguage({})).to.equal('en');
 	});
 
@@ -186,14 +249,57 @@ describe('pwa => i18n (R7.2)', () => {
 		}
 	});
 
-	it('lets the admin pick auto, German or English', () => {
+	it('lets the admin pick auto or one of the eleven languages', () => {
 		const config = JSON.parse(readFileSync('admin/jsonConfig.json', 'utf8')) as {
 			items: { server: { items: Record<string, { type?: string; options?: { value: string }[] }> } };
 		};
 		const select = config.items.server.items.pwaLanguage;
 		expect(select.type).to.equal('select');
-		expect(select.options?.map(option => option.value)).to.deep.equal(['auto', 'de', 'en']);
+		expect(select.options?.map(option => option.value)).to.deep.equal(['auto', ...LANGUAGES]);
 		const ioPackage = JSON.parse(readFileSync('io-package.json', 'utf8')) as { native: Record<string, unknown> };
 		expect(ioPackage.native.pwaLanguage).to.equal('auto');
+	});
+});
+
+describe('pwa => the nine other dictionaries (R7.2)', () => {
+	for (const [file, name] of OTHER_LANGUAGES) {
+		describe(file, () => {
+			const dictionary = dictionaryOf(file, name);
+
+			it('has exactly the sentences of the English dictionary', () => {
+				const missing = Object.keys(en).filter(key => !(key in dictionary));
+				const stale = Object.keys(dictionary).filter(key => !(key in en));
+				expect(missing, 'sentences without a translation').to.deep.equal([]);
+				expect(stale, 'translations nothing asks for').to.deep.equal([]);
+			});
+
+			it('keeps the {slots} of every sentence and leaves none empty', () => {
+				const broken = Object.entries(dictionary).filter(
+					([key, value]) => value.trim() === '' || slotsOf(key).join() !== slotsOf(value).join(),
+				);
+				expect(broken.map(([key]) => key)).to.deep.equal([]);
+			});
+
+			it('leaves no German letters in it, and no sentence untranslated', () => {
+				// ß, ä and ö are German; ü is German, too, except in Spanish, French and Dutch ("geüpload")
+				const letters = file === 'es' || file === 'fr' || file === 'nl' ? /[äößÄÖ]/ : /[äöüßÄÖÜ]/;
+				const germanLetters = Object.entries(dictionary).filter(([, value]) => letters.test(value));
+				expect(germanLetters.map(([key]) => key)).to.deep.equal([]);
+				// a long sentence that is identical to the German key was never translated — unless the English one
+				// is identical, too (a technical text such as "Logo (PNG/JPEG, max. 2 MB)")
+				const same = Object.entries(dictionary).filter(
+					([key, value]) => key === value && en[key] !== key && key.split(' ').length > 3,
+				);
+				expect(same.map(([key]) => key)).to.deep.equal([]);
+			});
+		});
+	}
+
+	it('translates a sentence into every language, so none of them shows English by accident', () => {
+		for (const [file, name] of OTHER_LANGUAGES) {
+			const dictionary = dictionaryOf(file, name);
+			// "Speichern" (Save) is a single word that is never the same in these languages
+			expect(dictionary.Speichern, file).to.be.a('string').and.to.not.equal('Save');
+		}
 	});
 });

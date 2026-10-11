@@ -1193,8 +1193,13 @@ describe('api => web app language (R7.2)', () => {
 				['en', 'en'],
 				['de', 'de'],
 				['auto', 'auto'],
+				// every one of the eleven languages is handed on as it is
+				['fr', 'fr'],
+				['uk', 'uk'],
+				['zh-cn', 'zh-cn'],
 				// a language the web app does not ship must not leak through
-				['fr', 'auto'],
+				['ja', 'auto'],
+				['zh-tw', 'auto'],
 				[undefined, 'auto'],
 			] as const) {
 				const app = createApiServer({

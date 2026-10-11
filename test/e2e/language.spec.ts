@@ -93,3 +93,103 @@ test.describe('German browser', () => {
 		await expect(page.getByRole('heading', { name: 'Anmeldung' })).toBeVisible();
 	});
 });
+
+/**
+ * The other nine languages: the browser language picks the dictionary (a Chinese browser of any region ends up
+ * in `zh-cn`), the login page and a page behind the sign-in show its words, and nothing throws while the
+ * dictionary is loaded on demand.
+ */
+const OTHER_LANGUAGES: {
+	locale: string;
+	lang: string;
+	token: string;
+	heading: string;
+	save: string;
+	backup: string;
+}[] = [
+	{
+		locale: 'ru-RU',
+		lang: 'ru',
+		token: 'Токен API',
+		heading: 'Войти',
+		save: 'Сохранить',
+		backup: 'Резервное копирование и восстановление',
+	},
+	{
+		locale: 'pt-PT',
+		lang: 'pt',
+		token: 'Token da API',
+		heading: 'Iniciar sessão',
+		save: 'Guardar',
+		backup: 'Cópia de segurança e restauro',
+	},
+	{
+		locale: 'nl-NL',
+		lang: 'nl',
+		token: 'API-token',
+		heading: 'Aanmelden',
+		save: 'Opslaan',
+		backup: 'Back-up en herstel',
+	},
+	{
+		locale: 'fr-FR',
+		lang: 'fr',
+		token: "Jeton d'API",
+		heading: 'Se connecter',
+		save: 'Enregistrer',
+		backup: 'Sauvegarde et restauration',
+	},
+	{
+		locale: 'it-IT',
+		lang: 'it',
+		token: 'Token API',
+		heading: 'Accedi',
+		save: 'Salva',
+		backup: 'Backup e ripristino',
+	},
+	{
+		locale: 'es-ES',
+		lang: 'es',
+		token: 'Token de la API',
+		heading: 'Iniciar sesión',
+		save: 'Guardar',
+		backup: 'Copia de seguridad y restauración',
+	},
+	{
+		locale: 'pl-PL',
+		lang: 'pl',
+		token: 'Token API',
+		heading: 'Zaloguj',
+		save: 'Zapisz',
+		backup: 'Kopia zapasowa i przywracanie',
+	},
+	{
+		locale: 'uk-UA',
+		lang: 'uk',
+		token: 'Токен API',
+		heading: 'Увійти',
+		save: 'Зберегти',
+		backup: 'Резервне копіювання та відновлення',
+	},
+	{ locale: 'zh-TW', lang: 'zh-cn', token: 'API 令牌', heading: '登录', save: '保存', backup: '备份与恢复' },
+];
+
+for (const language of OTHER_LANGUAGES) {
+	test.describe(`${language.lang} browser`, () => {
+		test.use({ locale: language.locale });
+
+		test('starts in the language of the browser and loads its dictionary', async ({ page }) => {
+			const errors: string[] = [];
+			page.on('pageerror', error => errors.push(error.message));
+			await page.goto('/#/login');
+			await expect(page.getByRole('heading', { name: language.heading })).toBeVisible();
+			await expect(page.locator('html')).toHaveAttribute('lang', language.lang);
+
+			await page.getByLabel(language.token).fill(token);
+			await page.getByRole('button', { name: language.save }).click();
+			await page.goto('/#/backup');
+			await expect(page.locator('#view')).toContainText(language.backup);
+			expect(errors).toEqual([]);
+		});
+	});
+}

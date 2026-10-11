@@ -100,19 +100,25 @@ value back.
 
 ### Language of the web app
 
-The web app speaks German and English. The language is chosen in the instance
-settings (`Web app language`: `auto`, `Deutsch`, `English`, tab *Server*) and the
-app starts in it. The first match wins:
+The web app speaks the eleven languages of ioBroker: German, English, Russian,
+Portuguese, Dutch, French, Italian, Spanish, Polish, Ukrainian and Chinese
+(simplified; a Chinese browser of any region gets it). The language is chosen in the
+instance settings (`Web app language`, tab *Server*: `auto` or one of the
+languages) and the app starts in it. The first match wins:
 
-1. `?lang=de` / `?lang=en` in the address bar (remembered on that device),
+1. `?lang=xx` in the address bar, e.g. `?lang=fr` (remembered on that device),
 2. the choice remembered on that device,
 3. the instance setting — `auto` means "ask the browser",
-4. the language of the browser (German or English),
+4. the language of the browser, when it is one of the eleven,
 5. English.
+
+Only the dictionary of the language in use is loaded, the others are separate files
+that are never fetched. A sentence that a dictionary lacks shows in English.
 
 The login page already speaks the language of the instance: `GET /api/health`
 (the one open route) carries the setting as `pwaLanguage`. What is **document
-content** stays German whatever the screen language is: the invoice and offer
+content** stays German whatever the screen language is (German tax law, German
+invoice recipients): the invoice and offer
 PDFs, the XML, the document titles (`Rechnung`, `Angebot`, …), the payment-term
 presets and the text of the customer mail. Only their labels in the dropdowns
 follow the language of the page.
@@ -577,6 +583,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) **The web app speaks all eleven ioBroker languages:** besides German and English now Russian, Portuguese, Dutch, French, Italian, Spanish, Polish, Ukrainian and Chinese. The instance setting "Web app language" offers all of them; the dictionary of the language in use is loaded on demand. The legal terms (GoBD, UStG, Leitweg-ID, XRechnung, ZUGFeRD, DATEV) stay as they are, the documents themselves (PDF, XML) stay German. Have the wording checked by a native speaker where it matters.
 * (alex) The objects of the adapter (info and control states, the file storage) carry their names in all eleven ioBroker languages; an existing installation gets the new names on the next start.
 * (alex) fix: the control buttons (`control.createDraft`, `issue`, `refresh`, `backup`, `restore`) act on the value `true` only. Writing `false` or another value no longer starts an issue, a backup or a restore.
 

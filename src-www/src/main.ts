@@ -107,8 +107,9 @@ async function adminLanguage(): Promise<string | null> {
 // the stored light/dark choice (the page already has it from theme-init.js, this keeps it in step with the device)
 initTheme();
 
-void adminLanguage().then(admin => {
-	initLanguage(admin);
+void adminLanguage().then(async admin => {
+	// the dictionary of the language is loaded first, so the first screen is already in that language
+	await initLanguage(admin);
 	window.addEventListener('hashchange', () => void route());
 	void route();
 });

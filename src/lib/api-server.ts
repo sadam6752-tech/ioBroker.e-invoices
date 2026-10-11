@@ -190,7 +190,7 @@ export interface ApiServerDeps {
 		defaultPaymentTerms: string;
 		/** Format a new invoice starts with (`EN16931` or `XRECHNUNG`). */
 		defaultProfile?: string;
-		/** Start language of the web app (`auto`, `de`, `en`). */
+		/** Start language of the web app (`auto` or one of the eleven languages). */
 		pwaLanguage?: string;
 		numberFormat: string;
 		quoteNumberFormat: string;
@@ -470,6 +470,9 @@ function secretEquals(provided: string, expected: string): boolean {
 	return timingSafeEqual(a, b);
 }
 
+/** The languages the web app ships (the admin offers exactly these plus `auto`). */
+const PWA_LANGUAGES = ['de', 'en', 'ru', 'pt', 'nl', 'fr', 'it', 'es', 'pl', 'uk', 'zh-cn'];
+
 /**
  * Creates the Express API app (no listen — main.ts owns the socket).
  *
@@ -485,7 +488,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		// anything but XRechnung is the ZUGFeRD default
 		defaultProfile: storedInvoiceProfile(deps.settings?.defaultProfile),
 		// only languages the web app really ships; anything else means "decide in the browser"
-		pwaLanguage: ['de', 'en'].includes(String(deps.settings?.pwaLanguage))
+		pwaLanguage: PWA_LANGUAGES.includes(String(deps.settings?.pwaLanguage))
 			? String(deps.settings?.pwaLanguage)
 			: 'auto',
 		numberFormat: deps.settings?.numberFormat?.trim() || DEFAULT_NUMBER_FORMAT,
