@@ -25,6 +25,7 @@ import {
 	testRemoteConnection,
 	type RemoteBackupSettings,
 	type RemoteCopyResult,
+	type Timers,
 } from './lib/remote-backup';
 import { connectSsh2 } from './lib/sftp-ssh2';
 import { isButtonPress } from './lib/control-buttons';
@@ -599,6 +600,12 @@ class EInvoices extends utils.Adapter {
 		await this.publishStatusFile();
 	}
 
+	/** The adapter's own timers, handed to the copy so a pending timeout ends with the adapter. */
+	private readonly remoteTimers: Timers = {
+		start: (callback, ms) => this.setTimeout(callback, ms),
+		stop: handle => this.clearTimeout(handle as ioBroker.Timeout | undefined),
+	};
+
 	/** The instance settings of the copy to the external server. */
 	private remoteSettings(): RemoteBackupSettings {
 		return {
@@ -628,7 +635,7 @@ class EInvoices extends utils.Adapter {
 			return null;
 		}
 		const run = async (): Promise<RemoteCopyResult> => {
-			const result = await copyBackupToRemote(connectSsh2, settings, backup, this.log);
+			const result = await copyBackupToRemote(connectSsh2, settings, backup, this.log, this.remoteTimers);
 			if (result.ok) {
 				this.log.info(`Backup copied to the external server: ${result.remoteFile}`);
 				for (const old of result.deleted) {
@@ -1028,7 +1035,7 @@ class EInvoices extends utils.Adapter {
 			directory: text(form.remoteDirectory) ?? this.config.remoteDirectory,
 			hostKey: text(form.remoteHostKey) ?? this.config.remoteHostKey,
 		};
-		void testRemoteConnection(connectSsh2, settings).then(result => {
+		void testRemoteConnection(connectSsh2, settings, this.remoteTimers).then(result => {
 			if (!obj.callback) {
 				return;
 			}

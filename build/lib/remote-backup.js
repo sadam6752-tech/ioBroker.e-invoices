@@ -84,10 +84,10 @@ function hostKeyMatches(expected, hexHash) {
 function hexToFingerprint(hexHash) {
   return `SHA256:${Buffer.from(hexHash, "hex").toString("base64").replace(/=+$/, "")}`;
 }
-async function withTimeout(work, ms, what, onTimeout) {
+async function withTimeout(timers, work, ms, what, onTimeout) {
   let timer;
   const limit = new Promise((_resolve, reject) => {
-    timer = setTimeout(() => {
+    timer = timers.start(() => {
       onTimeout();
       reject(new Error(`${what} took longer than ${Math.round(ms / 1e3)} s`));
     }, ms);
@@ -95,7 +95,7 @@ async function withTimeout(work, ms, what, onTimeout) {
   try {
     return await Promise.race([work, limit]);
   } finally {
-    clearTimeout(timer);
+    timers.stop(timer);
   }
 }
 function selectRemoteCopiesToPrune(names, keep) {
@@ -105,7 +105,7 @@ function selectRemoteCopiesToPrune(names, keep) {
   const automatic = names.filter((name) => name.startsWith(AUTO_BASE_PREFIX) && name.endsWith(".zip")).sort().reverse();
   return automatic.slice(Math.floor(keep));
 }
-async function copyBackupToRemote(connect, settings, backup, log, limitMs = REMOTE_COPY_TIMEOUT_MS) {
+async function copyBackupToRemote(connect, settings, backup, log, timers, limitMs = REMOTE_COPY_TIMEOUT_MS) {
   var _a;
   const problems = remoteSettingsProblems(settings);
   if (problems.length > 0) {
@@ -157,7 +157,7 @@ async function copyBackupToRemote(connect, settings, backup, log, limitMs = REMO
         }
       }
     })();
-    await withTimeout(work, limitMs, "The copy to the external server", () => session == null ? void 0 : session.close());
+    await withTimeout(timers, work, limitMs, "The copy to the external server", () => session == null ? void 0 : session.close());
     return { ok: true, message: `copied ${name}`, remoteFile: target, deleted };
   } catch (error) {
     return { ok: false, message: error.message, deleted };
@@ -165,7 +165,7 @@ async function copyBackupToRemote(connect, settings, backup, log, limitMs = REMO
     session == null ? void 0 : session.close();
   }
 }
-async function testRemoteConnection(connect, settings, limitMs = 6e4) {
+async function testRemoteConnection(connect, settings, timers, limitMs = 6e4) {
   var _a;
   const problems = remoteSettingsProblems(settings);
   if (problems.length > 0) {
@@ -194,7 +194,7 @@ async function testRemoteConnection(connect, settings, limitMs = 6e4) {
       await session.writeFile(probe, Buffer.from("ok"));
       await session.remove(probe);
     })();
-    await withTimeout(work, limitMs, "The connection test", () => session == null ? void 0 : session.close());
+    await withTimeout(timers, work, limitMs, "The connection test", () => session == null ? void 0 : session.close());
     return { ok: true, message: "connected, the directory is writable", fingerprint };
   } catch (error) {
     return { ok: false, message: error.message, fingerprint };

@@ -11,6 +11,7 @@ import {
 	type RemoteBackupSettings,
 	type SftpConnector,
 	type SftpSession,
+	type Timers,
 } from './remote-backup';
 
 const settings: RemoteBackupSettings = {
@@ -82,6 +83,11 @@ function fakeServer(options: { failWrite?: boolean; shortWrite?: boolean; failRe
 	return { files, directories, connects, closed, connect };
 }
 
+// the tests use the timers of Node.js; the adapter hands in its own
+const timers: Timers = {
+	start: (callback, ms) => globalThis.setTimeout(callback, ms),
+	stop: handle => globalThis.clearTimeout(handle as ReturnType<typeof globalThis.setTimeout>),
+};
 const quiet = { info: (): void => undefined, warn: (): void => undefined };
 const backup = { filename: 'backups/e-invoices-auto-2026-10-12T08-00-00.zip', data: Buffer.from('zip bytes') };
 
@@ -155,7 +161,7 @@ describe('remote backup => keeping the copies', () => {
 describe('remote backup => copy', () => {
 	it('writes the file under its final name and creates the directory', async () => {
 		const server = fakeServer();
-		const result = await copyBackupToRemote(server.connect, settings, backup, quiet);
+		const result = await copyBackupToRemote(server.connect, settings, backup, quiet, timers);
 		expect(result.ok).to.equal(true);
 		expect(result.remoteFile).to.equal('/backups/e-invoices/e-invoices-auto-2026-10-12T08-00-00.zip');
 		expect(server.files.get(result.remoteFile!)!.equals(backup.data)).to.equal(true);
@@ -167,29 +173,47 @@ describe('remote backup => copy', () => {
 
 	it('passes the login and trims host and user', async () => {
 		const server = fakeServer();
-		await copyBackupToRemote(server.connect, { ...settings, host: ' nas.local ', port: undefined }, backup, quiet);
+		await copyBackupToRemote(
+			server.connect,
+			{ ...settings, host: ' nas.local ', port: undefined },
+			backup,
+			quiet,
+			timers,
+		);
 		expect(server.connects[0]).to.include({ host: 'nas.local', port: 22, username: 'backup', password: 'secret' });
 	});
 
 	it('warns once about the missing fingerprint, with the fingerprint', async () => {
 		const warnings: string[] = [];
-		await copyBackupToRemote(fakeServer().connect, settings, backup, {
-			info: (): void => undefined,
-			warn: m => warnings.push(m),
-		});
+		await copyBackupToRemote(
+			fakeServer().connect,
+			settings,
+			backup,
+			{
+				info: (): void => undefined,
+				warn: m => warnings.push(m),
+			},
+			timers,
+		);
 		expect(warnings).to.have.lengthOf(1);
 		expect(warnings[0]).to.contain('SHA256:abc');
 		const quietWarnings: string[] = [];
-		await copyBackupToRemote(fakeServer().connect, { ...settings, hostKey: 'SHA256:abc' }, backup, {
-			info: (): void => undefined,
-			warn: m => quietWarnings.push(m),
-		});
+		await copyBackupToRemote(
+			fakeServer().connect,
+			{ ...settings, hostKey: 'SHA256:abc' },
+			backup,
+			{
+				info: (): void => undefined,
+				warn: m => quietWarnings.push(m),
+			},
+			timers,
+		);
 		expect(quietWarnings).to.deep.equal([]);
 	});
 
 	it('reports a failed upload and leaves nothing under the final name', async () => {
 		const server = fakeServer({ failWrite: true });
-		const result = await copyBackupToRemote(server.connect, settings, backup, quiet);
+		const result = await copyBackupToRemote(server.connect, settings, backup, quiet, timers);
 		expect(result.ok).to.equal(false);
 		expect(result.message).to.contain('Permission denied');
 		expect(server.files.size).to.equal(0);
@@ -198,7 +222,7 @@ describe('remote backup => copy', () => {
 
 	it('refuses an upload of the wrong size and does not rename it', async () => {
 		const server = fakeServer({ shortWrite: true });
-		const result = await copyBackupToRemote(server.connect, settings, backup, quiet);
+		const result = await copyBackupToRemote(server.connect, settings, backup, quiet, timers);
 		expect(result.ok).to.equal(false);
 		expect(result.message).to.contain('incomplete');
 		expect([...server.files.keys()].every(path => path.endsWith('.part'))).to.equal(true);
@@ -206,7 +230,7 @@ describe('remote backup => copy', () => {
 
 	it('does not even connect with incomplete settings', async () => {
 		const server = fakeServer();
-		const result = await copyBackupToRemote(server.connect, { enabled: true }, backup, quiet);
+		const result = await copyBackupToRemote(server.connect, { enabled: true }, backup, quiet, timers);
 		expect(result.ok).to.equal(false);
 		expect(result.message).to.contain('settings incomplete');
 		expect(server.connects).to.have.lengthOf(0);
@@ -220,6 +244,7 @@ describe('remote backup => copy', () => {
 			settings,
 			backup,
 			quiet,
+			timers,
 		);
 		expect(result).to.deep.include({ ok: false, message: 'All configured authentication methods failed' });
 	});
@@ -237,7 +262,7 @@ describe('remote backup => copy', () => {
 				closed.count++;
 			},
 		});
-		const result = await copyBackupToRemote(hanging, settings, backup, quiet, 50);
+		const result = await copyBackupToRemote(hanging, settings, backup, quiet, timers, 50);
 		expect(result.ok).to.equal(false);
 		expect(result.message).to.contain('took longer');
 		expect(closed.count).to.be.greaterThan(0);
@@ -255,7 +280,7 @@ describe('remote backup => copy', () => {
 		]) {
 			server.files.set(`${dir}/${name}`, Buffer.from('x'));
 		}
-		const result = await copyBackupToRemote(server.connect, { ...settings, keep: 2 }, backup, quiet);
+		const result = await copyBackupToRemote(server.connect, { ...settings, keep: 2 }, backup, quiet, timers);
 		expect(result.ok).to.equal(true);
 		expect(result.deleted).to.deep.equal([
 			'e-invoices-auto-2026-10-10T08-00-00.zip',
@@ -277,6 +302,7 @@ describe('remote backup => copy', () => {
 			{ ...settings, keep: 1 },
 			{ filename: 'backups/e-invoices-backup-2026-10-12T08-00-00.zip', data: backup.data },
 			quiet,
+			timers,
 		);
 		expect(result.ok).to.equal(true);
 		expect(result.deleted).to.deep.equal([]);
@@ -286,17 +312,23 @@ describe('remote backup => copy', () => {
 		const warnings: string[] = [];
 		const server = fakeServer({ failRemove: '2026-10-09T08-00-00.zip' });
 		server.files.set('/backups/e-invoices/e-invoices-auto-2026-10-09T08-00-00.zip', Buffer.from('x'));
-		const result = await copyBackupToRemote(server.connect, { ...settings, keep: 1 }, backup, {
-			info: (): void => undefined,
-			warn: m => warnings.push(m),
-		});
+		const result = await copyBackupToRemote(
+			server.connect,
+			{ ...settings, keep: 1 },
+			backup,
+			{
+				info: (): void => undefined,
+				warn: m => warnings.push(m),
+			},
+			timers,
+		);
 		expect(result.ok).to.equal(true);
 		expect(warnings.join(' ')).to.contain('Cannot delete the old copy');
 	});
 
 	it('works in the root directory', async () => {
 		const server = fakeServer();
-		const result = await copyBackupToRemote(server.connect, { ...settings, directory: '/' }, backup, quiet);
+		const result = await copyBackupToRemote(server.connect, { ...settings, directory: '/' }, backup, quiet, timers);
 		expect(result.remoteFile).to.equal('/e-invoices-auto-2026-10-12T08-00-00.zip');
 	});
 });
@@ -304,17 +336,17 @@ describe('remote backup => copy', () => {
 describe('remote backup => connection test', () => {
 	it('writes and deletes a small test file and reports the fingerprint', async () => {
 		const server = fakeServer();
-		const result = await testRemoteConnection(server.connect, settings);
+		const result = await testRemoteConnection(server.connect, settings, timers);
 		expect(result).to.deep.include({ ok: true, fingerprint: 'SHA256:abc' });
 		expect(server.files.size).to.equal(0);
 		expect(server.directories.has('/backups/e-invoices')).to.equal(true);
 	});
 
 	it('says why it failed', async () => {
-		const result = await testRemoteConnection(fakeServer({ failWrite: true }).connect, settings);
+		const result = await testRemoteConnection(fakeServer({ failWrite: true }).connect, settings, timers);
 		expect(result.ok).to.equal(false);
 		expect(result.message).to.contain('Permission denied');
-		expect((await testRemoteConnection(fakeServer().connect, { enabled: true })).message).to.contain(
+		expect((await testRemoteConnection(fakeServer().connect, { enabled: true }, timers)).message).to.contain(
 			'settings incomplete',
 		);
 	});

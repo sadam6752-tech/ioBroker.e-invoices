@@ -565,6 +565,11 @@ class EInvoices extends utils.Adapter {
     await this.refreshBackupStatus();
     await this.publishStatusFile();
   }
+  /** The adapter's own timers, handed to the copy so a pending timeout ends with the adapter. */
+  remoteTimers = {
+    start: (callback, ms) => this.setTimeout(callback, ms),
+    stop: (handle) => this.clearTimeout(handle)
+  };
   /** The instance settings of the copy to the external server. */
   remoteSettings() {
     var _a;
@@ -595,7 +600,7 @@ class EInvoices extends utils.Adapter {
     }
     const run = async () => {
       var _a;
-      const result = await (0, import_remote_backup.copyBackupToRemote)(import_sftp_ssh2.connectSsh2, settings, backup, this.log);
+      const result = await (0, import_remote_backup.copyBackupToRemote)(import_sftp_ssh2.connectSsh2, settings, backup, this.log, this.remoteTimers);
       if (result.ok) {
         this.log.info(`Backup copied to the external server: ${result.remoteFile}`);
         for (const old of result.deleted) {
@@ -965,7 +970,7 @@ class EInvoices extends utils.Adapter {
       directory: (_e = text(form.remoteDirectory)) != null ? _e : this.config.remoteDirectory,
       hostKey: (_f = text(form.remoteHostKey)) != null ? _f : this.config.remoteHostKey
     };
-    void (0, import_remote_backup.testRemoteConnection)(import_sftp_ssh2.connectSsh2, settings).then((result) => {
+    void (0, import_remote_backup.testRemoteConnection)(import_sftp_ssh2.connectSsh2, settings, this.remoteTimers).then((result) => {
       var _a2;
       if (!obj.callback) {
         return;

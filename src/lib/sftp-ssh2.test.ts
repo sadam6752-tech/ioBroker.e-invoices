@@ -6,10 +6,15 @@ import { expect } from 'chai';
 import { createHash } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { Server, utils } from 'ssh2';
-import { copyBackupToRemote, testRemoteConnection, type RemoteBackupSettings } from './remote-backup';
+import { copyBackupToRemote, testRemoteConnection, type RemoteBackupSettings, type Timers } from './remote-backup';
 import { connectSsh2 } from './sftp-ssh2';
 
 const { STATUS_CODE } = utils.sftp;
+// the tests use the timers of Node.js; the adapter hands in its own
+const timers: Timers = {
+	start: (callback, ms) => globalThis.setTimeout(callback, ms),
+	stop: handle => globalThis.clearTimeout(handle as ReturnType<typeof globalThis.setTimeout>),
+};
 const quiet = { info: (): void => undefined, warn: (): void => undefined };
 
 /** What the in-memory server holds. */
@@ -216,7 +221,7 @@ describe('sftp-ssh2 => against a real SFTP server', function () {
 	afterEach(() => server.close());
 
 	it('copies a backup of several chunks, creating the directories', async () => {
-		const result = await copyBackupToRemote(connectSsh2, settings(server.port), backup, quiet);
+		const result = await copyBackupToRemote(connectSsh2, settings(server.port), backup, quiet, timers);
 		expect(result).to.deep.include({
 			ok: true,
 			remoteFile: '/backups/e-invoices/e-invoices-auto-2026-10-12T08-00-00.zip',
@@ -232,6 +237,7 @@ describe('sftp-ssh2 => against a real SFTP server', function () {
 			settings(server.port, { hostKey: server.fingerprint }),
 			backup,
 			quiet,
+			timers,
 		);
 		expect(right.ok).to.equal(true);
 
@@ -240,6 +246,7 @@ describe('sftp-ssh2 => against a real SFTP server', function () {
 			settings(server.port, { hostKey: 'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' }),
 			backup,
 			quiet,
+			timers,
 		);
 		expect(wrong.ok).to.equal(false);
 		expect(wrong.message).to.contain('does not match');
@@ -252,6 +259,7 @@ describe('sftp-ssh2 => against a real SFTP server', function () {
 			settings(server.port, { password: 'wrong' }),
 			backup,
 			quiet,
+			timers,
 		);
 		expect(result.ok).to.equal(false);
 		expect(result.message).to.match(/authentication/i);
@@ -260,7 +268,7 @@ describe('sftp-ssh2 => against a real SFTP server', function () {
 	it('reports a server that is not there', async () => {
 		const port = server.port;
 		server.close();
-		const result = await copyBackupToRemote(connectSsh2, settings(port), backup, quiet);
+		const result = await copyBackupToRemote(connectSsh2, settings(port), backup, quiet, timers);
 		expect(result.ok).to.equal(false);
 	});
 
@@ -274,14 +282,14 @@ describe('sftp-ssh2 => against a real SFTP server', function () {
 		}
 		disk.directories.add('/backups');
 		disk.directories.add('/backups/e-invoices');
-		const result = await copyBackupToRemote(connectSsh2, settings(server.port, { keep: 2 }), backup, quiet);
+		const result = await copyBackupToRemote(connectSsh2, settings(server.port, { keep: 2 }), backup, quiet, timers);
 		expect(result.ok).to.equal(true);
 		expect(result.deleted).to.deep.equal(['e-invoices-auto-2026-10-09T08-00-00.zip']);
 		expect(disk.files.has('/backups/e-invoices/other.txt')).to.equal(true);
 	});
 
 	it('tests the connection and shows the fingerprint', async () => {
-		const result = await testRemoteConnection(connectSsh2, settings(server.port));
+		const result = await testRemoteConnection(connectSsh2, settings(server.port), timers);
 		expect(result).to.deep.include({ ok: true, fingerprint: server.fingerprint });
 		expect([...disk.files.keys()]).to.deep.equal([]);
 	});

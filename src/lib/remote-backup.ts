@@ -63,6 +63,14 @@ export type SftpConnector = (
 	},
 ) => Promise<SftpSession>;
 
+/** The timers of the adapter (`this.setTimeout`), so a pending timeout is cancelled when the adapter stops. */
+export interface Timers {
+	/** Starts a timer. */
+	start(callback: () => void, ms: number): unknown;
+	/** Stops a timer. */
+	stop(handle: unknown): void;
+}
+
 /** Logger of the copy. */
 export interface RemoteLogger {
 	/** Normal message. */
@@ -173,10 +181,16 @@ export function hexToFingerprint(hexHash: string): string {
 }
 
 // Fails a promise that takes too long (a server that accepts the connection and then says nothing).
-async function withTimeout<T>(work: Promise<T>, ms: number, what: string, onTimeout: () => void): Promise<T> {
-	let timer: ReturnType<typeof setTimeout> | undefined;
+async function withTimeout<T>(
+	timers: Timers,
+	work: Promise<T>,
+	ms: number,
+	what: string,
+	onTimeout: () => void,
+): Promise<T> {
+	let timer: unknown;
 	const limit = new Promise<never>((_resolve, reject) => {
-		timer = setTimeout(() => {
+		timer = timers.start(() => {
 			onTimeout();
 			reject(new Error(`${what} took longer than ${Math.round(ms / 1000)} s`));
 		}, ms);
@@ -184,7 +198,7 @@ async function withTimeout<T>(work: Promise<T>, ms: number, what: string, onTime
 	try {
 		return await Promise.race([work, limit]);
 	} finally {
-		clearTimeout(timer);
+		timers.stop(timer);
 	}
 }
 
@@ -218,6 +232,7 @@ export function selectRemoteCopiesToPrune(names: string[], keep: number): string
  * @param backup.filename - Path of the backup below the mount, e.g. `backups/e-invoices-auto-….zip`.
  * @param backup.data - ZIP bytes.
  * @param log - Logger.
+ * @param timers - The adapter's timers.
  * @param limitMs - Longest time for the whole copy.
  * @returns The result; it never throws, the caller decides what a failure means.
  */
@@ -226,6 +241,7 @@ export async function copyBackupToRemote(
 	settings: RemoteBackupSettings,
 	backup: { filename: string; data: Buffer },
 	log: RemoteLogger,
+	timers: Timers,
 	limitMs = REMOTE_COPY_TIMEOUT_MS,
 ): Promise<RemoteCopyResult> {
 	const problems = remoteSettingsProblems(settings);
@@ -276,7 +292,7 @@ export async function copyBackupToRemote(
 				}
 			}
 		})();
-		await withTimeout(work, limitMs, 'The copy to the external server', () => session?.close());
+		await withTimeout(timers, work, limitMs, 'The copy to the external server', () => session?.close());
 		return { ok: true, message: `copied ${name}`, remoteFile: target, deleted };
 	} catch (error) {
 		return { ok: false, message: (error as Error).message, deleted };
@@ -292,12 +308,14 @@ export async function copyBackupToRemote(
  *
  * @param connect - Opens the SFTP connection.
  * @param settings - Instance settings of the copy.
+ * @param timers - The adapter's timers.
  * @param limitMs - Longest time for the test.
  * @returns The result; it never throws.
  */
 export async function testRemoteConnection(
 	connect: SftpConnector,
 	settings: RemoteBackupSettings,
+	timers: Timers,
 	limitMs = 60_000,
 ): Promise<{ ok: boolean; message: string; fingerprint?: string }> {
 	const problems = remoteSettingsProblems(settings);
@@ -326,7 +344,7 @@ export async function testRemoteConnection(
 			await session.writeFile(probe, Buffer.from('ok'));
 			await session.remove(probe);
 		})();
-		await withTimeout(work, limitMs, 'The connection test', () => session?.close());
+		await withTimeout(timers, work, limitMs, 'The connection test', () => session?.close());
 		return { ok: true, message: 'connected, the directory is writable', fingerprint };
 	} catch (error) {
 		return { ok: false, message: (error as Error).message, fingerprint };

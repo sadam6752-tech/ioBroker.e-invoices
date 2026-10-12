@@ -608,6 +608,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) fix: the time limit of the copy to the external server uses the timers of the adapter (`this.setTimeout`) instead of the plain `setTimeout` of Node.js (repository checker E5005).
+
 ### 1.2.0 (2026-10-12)
 
 * (alex) **Copy of the backups to an external server over SFTP:** the new tab *External backup* in the instance settings copies every backup (automatic and by hand) to another computer, for example a Synology NAS. Pure SFTP without mount, `sudo` or shell command; password stored encrypted; optional host key fingerprint; *Test connection* button; a failed copy never touches the local backup and is shown in the log, in `info.remoteBackupError` and on the backup page. Optionally the oldest automatic copies on the server are deleted (only files of this adapter).
