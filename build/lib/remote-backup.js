@@ -25,6 +25,7 @@ __export(remote_backup_exports, {
   normalizeRemoteDirectory: () => normalizeRemoteDirectory,
   remoteSettingsProblems: () => remoteSettingsProblems,
   selectRemoteCopiesToPrune: () => selectRemoteCopiesToPrune,
+  selectStalePartials: () => selectStalePartials,
   settingsForConnectionTest: () => settingsForConnectionTest,
   testRemoteConnection: () => testRemoteConnection
 });
@@ -33,6 +34,8 @@ var import_backup = require("./backup");
 const DEFAULT_PORT = 22;
 const REMOTE_COPY_TIMEOUT_MS = 10 * 6e4;
 const AUTO_BASE_PREFIX = import_backup.AUTO_BACKUP_PREFIX.slice(import_backup.AUTO_BACKUP_PREFIX.lastIndexOf("/") + 1);
+const MANUAL_BASE_PREFIX = import_backup.MANUAL_BACKUP_PREFIX.slice(import_backup.MANUAL_BACKUP_PREFIX.lastIndexOf("/") + 1);
+const PARTIAL_SUFFIX = ".part";
 function normalizeRemoteDirectory(directory) {
   const text = (directory != null ? directory : "").trim().replace(/\\/g, "/");
   const absolute = text.startsWith("/");
@@ -106,18 +109,25 @@ function selectRemoteCopiesToPrune(names, keep) {
   const automatic = names.filter((name) => name.startsWith(AUTO_BASE_PREFIX) && name.endsWith(".zip")).sort().reverse();
   return automatic.slice(Math.floor(keep));
 }
+function selectStalePartials(names) {
+  return names.filter(
+    (name) => (name.startsWith(AUTO_BASE_PREFIX) || name.startsWith(MANUAL_BASE_PREFIX)) && name.endsWith(`.zip${PARTIAL_SUFFIX}`)
+  );
+}
 async function copyBackupToRemote(connect, settings, backup, log, timers, limitMs = REMOTE_COPY_TIMEOUT_MS) {
   var _a;
   const problems = remoteSettingsProblems(settings);
   if (problems.length > 0) {
-    return { ok: false, message: `settings incomplete: ${problems.join(", ")}`, deleted: [] };
+    return { ok: false, message: `settings incomplete: ${problems.join(", ")}`, deleted: [], partialsRemoved: [] };
   }
   const directory = (_a = normalizeRemoteDirectory(settings.directory)) != null ? _a : "";
+  const inDirectory = (file) => directory === "/" ? `/${file}` : directory ? `${directory}/${file}` : file;
   const name = backup.filename.slice(backup.filename.lastIndexOf("/") + 1);
-  const target = directory === "/" ? `/${name}` : directory ? `${directory}/${name}` : name;
+  const target = inDirectory(name);
   let session;
   let expired = false;
   const deleted = [];
+  const partialsRemoved = [];
   try {
     const work = (async () => {
       var _a2, _b, _c;
@@ -144,17 +154,35 @@ async function copyBackupToRemote(connect, settings, backup, log, timers, limitM
       if (directory) {
         await session.makeDirectories(directory);
       }
-      const partial = `${target}.part`;
-      await session.writeFile(partial, backup.data);
-      const written = await session.size(partial);
-      if (written !== backup.data.length) {
-        throw new Error(`the upload is incomplete (${written} of ${backup.data.length} bytes)`);
+      const partial = `${target}${PARTIAL_SUFFIX}`;
+      try {
+        await opened.writeFile(partial, backup.data);
+        const written = await opened.size(partial);
+        if (written !== backup.data.length) {
+          throw new Error(`the upload is incomplete (${written} of ${backup.data.length} bytes)`);
+        }
+        await opened.rename(partial, target);
+      } catch (error) {
+        if (!expired) {
+          await opened.remove(partial).catch(() => void 0);
+        }
+        throw error;
       }
-      await session.rename(partial, target);
+      const names = await opened.list(directory || ".");
+      for (const stale of selectStalePartials(names)) {
+        try {
+          await opened.remove(inDirectory(stale));
+          partialsRemoved.push(stale);
+        } catch (error) {
+          log.warn(
+            `Cannot delete the interrupted upload ${stale} on the external server: ${error.message}`
+          );
+        }
+      }
       if (name.startsWith(AUTO_BASE_PREFIX)) {
-        for (const old of selectRemoteCopiesToPrune(await session.list(directory || "."), (_c = settings.keep) != null ? _c : 0)) {
+        for (const old of selectRemoteCopiesToPrune(names, (_c = settings.keep) != null ? _c : 0)) {
           try {
-            await session.remove(directory === "/" ? `/${old}` : directory ? `${directory}/${old}` : old);
+            await opened.remove(inDirectory(old));
             deleted.push(old);
           } catch (error) {
             log.warn(
@@ -168,9 +196,9 @@ async function copyBackupToRemote(connect, settings, backup, log, timers, limitM
       expired = true;
       session == null ? void 0 : session.close();
     });
-    return { ok: true, message: `copied ${name}`, remoteFile: target, deleted };
+    return { ok: true, message: `copied ${name}`, remoteFile: target, deleted, partialsRemoved };
   } catch (error) {
-    return { ok: false, message: error.message, deleted };
+    return { ok: false, message: error.message, deleted, partialsRemoved };
   } finally {
     session == null ? void 0 : session.close();
   }
@@ -247,6 +275,7 @@ async function testRemoteConnection(connect, settings, timers, limitMs = 6e4) {
   normalizeRemoteDirectory,
   remoteSettingsProblems,
   selectRemoteCopiesToPrune,
+  selectStalePartials,
   settingsForConnectionTest,
   testRemoteConnection
 });

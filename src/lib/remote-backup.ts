@@ -15,7 +15,7 @@
  * This file holds the logic and works against the small `SftpSession` interface, so it is tested without a
  * server. The real connection is in `sftp-ssh2.ts`.
  */
-import { AUTO_BACKUP_PREFIX } from './backup';
+import { AUTO_BACKUP_PREFIX, MANUAL_BACKUP_PREFIX } from './backup';
 
 /** Instance settings of the external copy. */
 export interface RemoteBackupSettings {
@@ -89,6 +89,8 @@ export interface RemoteCopyResult {
 	remoteFile?: string;
 	/** Old copies deleted on the server. */
 	deleted: string[];
+	/** Leftovers of earlier interrupted uploads (`….zip.part`) removed on the server. */
+	partialsRemoved: string[];
 }
 
 /** Default SSH port. */
@@ -99,6 +101,12 @@ export const REMOTE_COPY_TIMEOUT_MS = 10 * 60_000;
 
 /** Name of the automatic backups without the directory, e.g. `e-invoices-auto-`. */
 const AUTO_BASE_PREFIX = AUTO_BACKUP_PREFIX.slice(AUTO_BACKUP_PREFIX.lastIndexOf('/') + 1);
+
+/** Name of the backups made by hand without the directory, e.g. `e-invoices-backup-`. */
+const MANUAL_BASE_PREFIX = MANUAL_BACKUP_PREFIX.slice(MANUAL_BACKUP_PREFIX.lastIndexOf('/') + 1);
+
+/** Ending of a file while it is being uploaded. */
+const PARTIAL_SUFFIX = '.part';
 
 /**
  * Normalizes the target directory: forward slashes, no trailing slash, no `.` or empty segments.
@@ -224,6 +232,21 @@ export function selectRemoteCopiesToPrune(names: string[], keep: number): string
 }
 
 /**
+ * Picks the leftovers of interrupted uploads of this adapter (`e-invoices-auto-….zip.part`,
+ * `e-invoices-backup-….zip.part`). A file under that name is never a finished backup: a complete upload is renamed
+ * at once. Every other file in the directory is left alone.
+ *
+ * @param names - File names in the target directory.
+ */
+export function selectStalePartials(names: string[]): string[] {
+	return names.filter(
+		name =>
+			(name.startsWith(AUTO_BASE_PREFIX) || name.startsWith(MANUAL_BASE_PREFIX)) &&
+			name.endsWith(`.zip${PARTIAL_SUFFIX}`),
+	);
+}
+
+/**
  * Copies one backup to the server.
  *
  * @param connect - Opens the SFTP connection.
@@ -246,14 +269,17 @@ export async function copyBackupToRemote(
 ): Promise<RemoteCopyResult> {
 	const problems = remoteSettingsProblems(settings);
 	if (problems.length > 0) {
-		return { ok: false, message: `settings incomplete: ${problems.join(', ')}`, deleted: [] };
+		return { ok: false, message: `settings incomplete: ${problems.join(', ')}`, deleted: [], partialsRemoved: [] };
 	}
 	const directory = normalizeRemoteDirectory(settings.directory) ?? '';
+	const inDirectory = (file: string): string =>
+		directory === '/' ? `/${file}` : directory ? `${directory}/${file}` : file;
 	const name = backup.filename.slice(backup.filename.lastIndexOf('/') + 1);
-	const target = directory === '/' ? `/${name}` : directory ? `${directory}/${name}` : name;
+	const target = inDirectory(name);
 	let session: SftpSession | undefined;
 	let expired = false;
 	const deleted: string[] = [];
+	const partialsRemoved: string[] = [];
 	try {
 		const work = (async (): Promise<void> => {
 			const opened = await connect({
@@ -279,17 +305,36 @@ export async function copyBackupToRemote(
 			if (directory) {
 				await session.makeDirectories(directory);
 			}
-			const partial = `${target}.part`;
-			await session.writeFile(partial, backup.data);
-			const written = await session.size(partial);
-			if (written !== backup.data.length) {
-				throw new Error(`the upload is incomplete (${written} of ${backup.data.length} bytes)`);
+			const partial = `${target}${PARTIAL_SUFFIX}`;
+			try {
+				await opened.writeFile(partial, backup.data);
+				const written = await opened.size(partial);
+				if (written !== backup.data.length) {
+					throw new Error(`the upload is incomplete (${written} of ${backup.data.length} bytes)`);
+				}
+				await opened.rename(partial, target);
+			} catch (error) {
+				// remove the half file while the connection still works; when it does not, the next copy does it
+				if (!expired) {
+					await opened.remove(partial).catch(() => undefined);
+				}
+				throw error;
 			}
-			await session.rename(partial, target);
+			const names = await opened.list(directory || '.');
+			for (const stale of selectStalePartials(names)) {
+				try {
+					await opened.remove(inDirectory(stale));
+					partialsRemoved.push(stale);
+				} catch (error) {
+					log.warn(
+						`Cannot delete the interrupted upload ${stale} on the external server: ${(error as Error).message}`,
+					);
+				}
+			}
 			if (name.startsWith(AUTO_BASE_PREFIX)) {
-				for (const old of selectRemoteCopiesToPrune(await session.list(directory || '.'), settings.keep ?? 0)) {
+				for (const old of selectRemoteCopiesToPrune(names, settings.keep ?? 0)) {
 					try {
-						await session.remove(directory === '/' ? `/${old}` : directory ? `${directory}/${old}` : old);
+						await opened.remove(inDirectory(old));
 						deleted.push(old);
 					} catch (error) {
 						log.warn(
@@ -303,9 +348,9 @@ export async function copyBackupToRemote(
 			expired = true;
 			session?.close();
 		});
-		return { ok: true, message: `copied ${name}`, remoteFile: target, deleted };
+		return { ok: true, message: `copied ${name}`, remoteFile: target, deleted, partialsRemoved };
 	} catch (error) {
-		return { ok: false, message: (error as Error).message, deleted };
+		return { ok: false, message: (error as Error).message, deleted, partialsRemoved };
 	} finally {
 		session?.close();
 	}

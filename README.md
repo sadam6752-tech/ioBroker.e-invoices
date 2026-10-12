@@ -428,7 +428,9 @@ How it behaves:
   `info.remoteBackupError`, and the backup page tells it. A failed copy is **not retried**: the next backup is
   copied again, as it contains everything.
 - A copy appears under its final name only when it is complete (it is uploaded as `.part`, its size is checked and
-  it is renamed). The whole copy is limited to ten minutes.
+  it is renamed). The whole copy is limited to ten minutes. A half file of a failed upload is removed at once
+  when the connection still works; otherwise the next good copy removes it (only `e-invoices-auto-….zip.part` and
+  `e-invoices-backup-….zip.part`, nothing else).
 - *Copies to keep on the server* deletes the oldest **automatic** copies beyond that number (0 = keep all). Backups
   made by hand and every other file in the directory are never deleted.
 - Only password login is supported. The ZIP is **not encrypted** (see *Security notes*): the transfer is, the file
@@ -610,6 +612,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) A half uploaded file (`….zip.part`) of a failed copy is removed on the server: at once when the connection still works, otherwise by the next good copy. Only half files of this adapter are touched.
 * (alex) fix: *Test connection* uses the saved password only for the saved server and user, so no script can have the password sent to a server of its own.
 * (alex) fix: when the time limit runs out while the connection is still being made, the late connection is closed at once instead of uploading after the failure was reported.
 * (alex) fix: a failed state update can no longer turn a successful backup into an error of the API; an old copy error is cleared when the copy is switched off.

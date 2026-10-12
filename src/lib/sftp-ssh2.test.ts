@@ -288,6 +288,16 @@ describe('sftp-ssh2 => against a real SFTP server', function () {
 		expect(disk.files.has('/backups/e-invoices/other.txt')).to.equal(true);
 	});
 
+	it('removes the half file of an interrupted earlier upload', async () => {
+		disk.directories.add('/backups');
+		disk.directories.add('/backups/e-invoices');
+		disk.files.set('/backups/e-invoices/e-invoices-auto-2026-10-11T08-00-00.zip.part', Buffer.from('half'));
+		const result = await copyBackupToRemote(connectSsh2, settings(server.port), backup, quiet, timers);
+		expect(result.ok).to.equal(true);
+		expect(result.partialsRemoved).to.deep.equal(['e-invoices-auto-2026-10-11T08-00-00.zip.part']);
+		expect([...disk.files.keys()]).to.deep.equal(['/backups/e-invoices/e-invoices-auto-2026-10-12T08-00-00.zip']);
+	});
+
 	it('tests the connection and shows the fingerprint', async () => {
 		const result = await testRemoteConnection(connectSsh2, settings(server.port), timers);
 		expect(result).to.deep.include({ ok: true, fingerprint: server.fingerprint });

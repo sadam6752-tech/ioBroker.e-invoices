@@ -616,6 +616,9 @@ class EInvoices extends utils.Adapter {
         for (const old of result.deleted) {
           this.log.info(`Old copy deleted on the external server: ${old}`);
         }
+        for (const stale of result.partialsRemoved) {
+          this.log.info(`Interrupted upload removed on the external server: ${stale}`);
+        }
         await publish("info.lastRemoteBackup", (_a = result.remoteFile) != null ? _a : backup.filename);
         await publish("info.remoteBackupError", "");
       } else {

@@ -7,6 +7,7 @@ import {
 	normalizeRemoteDirectory,
 	remoteSettingsProblems,
 	selectRemoteCopiesToPrune,
+	selectStalePartials,
 	settingsForConnectionTest,
 	testRemoteConnection,
 	type RemoteBackupSettings,
@@ -226,7 +227,8 @@ describe('remote backup => copy', () => {
 		const result = await copyBackupToRemote(server.connect, settings, backup, quiet, timers);
 		expect(result.ok).to.equal(false);
 		expect(result.message).to.contain('incomplete');
-		expect([...server.files.keys()].every(path => path.endsWith('.part'))).to.equal(true);
+		// the half file is removed at once, nothing is left under any name
+		expect(server.files.size).to.equal(0);
 	});
 
 	it('does not even connect with incomplete settings', async () => {
@@ -331,6 +333,77 @@ describe('remote backup => copy', () => {
 		const server = fakeServer();
 		const result = await copyBackupToRemote(server.connect, { ...settings, directory: '/' }, backup, quiet, timers);
 		expect(result.remoteFile).to.equal('/e-invoices-auto-2026-10-12T08-00-00.zip');
+	});
+});
+
+describe('remote backup => interrupted uploads', () => {
+	const dir = '/backups/e-invoices';
+
+	it('picks only the half files of this adapter', () => {
+		expect(
+			selectStalePartials([
+				'e-invoices-auto-2026-10-11T08-00-00.zip.part',
+				'e-invoices-backup-2026-10-11T08-00-00.zip.part',
+				'e-invoices-auto-2026-10-11T08-00-00.zip',
+				'e-invoices-prerestore-2026-10-11T08-00-00.zip.part',
+				'holiday.zip.part',
+				'notes.part',
+			]),
+		).to.deep.equal([
+			'e-invoices-auto-2026-10-11T08-00-00.zip.part',
+			'e-invoices-backup-2026-10-11T08-00-00.zip.part',
+		]);
+	});
+
+	it('removes the leftovers of earlier interrupted uploads after a good copy, and nothing else', async () => {
+		const server = fakeServer();
+		for (const name of [
+			'e-invoices-auto-2026-10-10T08-00-00.zip.part',
+			'e-invoices-backup-2026-10-09T08-00-00.zip.part',
+			'e-invoices-auto-2026-10-10T07-00-00.zip',
+			'holiday.zip.part',
+		]) {
+			server.files.set(`${dir}/${name}`, Buffer.from('x'));
+		}
+		const result = await copyBackupToRemote(server.connect, settings, backup, quiet, timers);
+		expect(result.ok).to.equal(true);
+		expect(result.partialsRemoved.sort()).to.deep.equal([
+			'e-invoices-auto-2026-10-10T08-00-00.zip.part',
+			'e-invoices-backup-2026-10-09T08-00-00.zip.part',
+		]);
+		expect([...server.files.keys()].map(path => path.slice(dir.length + 1)).sort()).to.deep.equal([
+			'e-invoices-auto-2026-10-10T07-00-00.zip',
+			'e-invoices-auto-2026-10-12T08-00-00.zip',
+			'holiday.zip.part',
+		]);
+	});
+
+	it('also tidies up after a backup made by hand', async () => {
+		const server = fakeServer();
+		server.files.set(`${dir}/e-invoices-auto-2026-10-10T08-00-00.zip.part`, Buffer.from('x'));
+		const result = await copyBackupToRemote(
+			server.connect,
+			settings,
+			{ filename: 'backups/e-invoices-backup-2026-10-12T08-00-00.zip', data: backup.data },
+			quiet,
+			timers,
+		);
+		expect(result.partialsRemoved).to.deep.equal(['e-invoices-auto-2026-10-10T08-00-00.zip.part']);
+	});
+
+	it('keeps the copy ok when a leftover cannot be deleted', async () => {
+		const warnings: string[] = [];
+		const server = fakeServer({ failRemove: '.zip.part' });
+		server.files.set(`${dir}/e-invoices-auto-2026-10-10T08-00-00.zip.part`, Buffer.from('x'));
+		const result = await copyBackupToRemote(
+			server.connect,
+			settings,
+			backup,
+			{ info: (): void => undefined, warn: m => warnings.push(m) },
+			timers,
+		);
+		expect(result.ok).to.equal(true);
+		expect(warnings.join(' ')).to.contain('Cannot delete the interrupted upload');
 	});
 });
 
