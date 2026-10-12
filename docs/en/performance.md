@@ -53,5 +53,5 @@ Seeding 5000 invoices (1000 with XML, PDF and Excel files): 64.13 s
 
 The restore refuses a ZIP above 512 MB, one that would expand beyond 1 GB, one with more than
 20 000 entries and a `dump.json` above 256 MB (protection against crafted files, R3).
-A backup of attachments grows by about one third (base64 in the dump). Keep an eye on the size
-if you attach large files to many invoices.
+Attachments are own entries of the backup ZIP (`attachments/<id>`), so they count at their real size. Keep an eye on the
+size if you attach large files to many invoices.

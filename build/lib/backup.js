@@ -50,7 +50,8 @@ var import_migrations = require("./migrations");
 const MANUAL_BACKUP_PREFIX = "backups/e-invoices-backup-";
 const AUTO_BACKUP_PREFIX = "backups/e-invoices-auto-";
 const BACKUP_APP_ID = "ioBroker.e-invoices";
-const BACKUP_FORMAT_VERSION = 1;
+const BACKUP_FORMAT_VERSION = 2;
+const SUPPORTED_BACKUP_FORMATS = [1, 2];
 function sha256Hex(data) {
   return (0, import_node_crypto.createHash)("sha256").update(data).digest("hex");
 }
@@ -143,8 +144,8 @@ function collectArtifactPaths(dump) {
 async function createBackup(db, storage, log, adapterVersion, kind = "manual", limits) {
   const caps = resolveLimits(limits);
   const dump = db.exportData();
-  const attachmentBytes = dump.attachments.reduce((sum, attachment) => sum + Math.ceil(attachment.size / 3) * 4, 0);
-  const early = backupSizeProblems({ dumpBytes: attachmentBytes }, caps);
+  const attachmentBytes = dump.attachments.reduce((sum, attachment) => sum + attachment.data.length, 0);
+  const early = backupSizeProblems({ unpackedBytes: attachmentBytes }, caps);
   if (early.length > 0) {
     throw new Error(backupTooLargeMessage(early));
   }
@@ -156,12 +157,20 @@ async function createBackup(db, storage, log, adapterVersion, kind = "manual", l
       filename: attachment.filename,
       mime: attachment.mime,
       size: attachment.size,
-      dataBase64: attachment.data.toString("base64"),
       createdAt: attachment.createdAt
     }))
   };
   const zip = new import_jszip.default();
   const files = [];
+  const attachmentFiles = [];
+  for (const attachment of dump.attachments) {
+    zip.file(`attachments/${attachment.id}`, attachment.data);
+    attachmentFiles.push({
+      path: String(attachment.id),
+      size: attachment.data.length,
+      sha256: sha256Hex(attachment.data)
+    });
+  }
   for (const path of collectArtifactPaths(dump)) {
     try {
       const data2 = await storage.read(path);
@@ -176,8 +185,8 @@ async function createBackup(db, storage, log, adapterVersion, kind = "manual", l
   const problems = backupSizeProblems(
     {
       dumpBytes,
-      unpackedBytes: dumpBytes + files.reduce((sum, file) => sum + file.size, 0),
-      entries: files.length + 2
+      unpackedBytes: dumpBytes + [...files, ...attachmentFiles].reduce((sum, file) => sum + file.size, 0),
+      entries: files.length + attachmentFiles.length + 2
     },
     caps
   );
@@ -199,6 +208,7 @@ async function createBackup(db, storage, log, adapterVersion, kind = "manual", l
       files: files.length
     },
     files,
+    attachmentFiles,
     dumpSha256: sha256Hex(dumpJsonText)
   };
   zip.file("manifest.json", JSON.stringify(manifest, null, 2));
@@ -255,7 +265,7 @@ function mergeCounters(fromBackup, current) {
   return { counters: [...merged.values()], raised };
 }
 async function readAndVerifyBackup(zipData, limits) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   const caps = resolveLimits(limits);
   if (zipData.length > caps.zipBytes) {
     throw new Error(`Backup ZIP is too large (${zipData.length} bytes, limit ${caps.zipBytes})`);
@@ -287,7 +297,7 @@ async function readAndVerifyBackup(zipData, limits) {
     throw new Error("Backup ZIP misses manifest.json or dump.json");
   }
   const manifest = JSON.parse(await manifestFile.async("string"));
-  if (manifest.app !== BACKUP_APP_ID || manifest.formatVersion !== BACKUP_FORMAT_VERSION) {
+  if (manifest.app !== BACKUP_APP_ID || !SUPPORTED_BACKUP_FORMATS.includes(manifest.formatVersion)) {
     throw new Error(`Unsupported backup (app=${String(manifest.app)}, format=${String(manifest.formatVersion)})`);
   }
   if (manifest.schemaVersion > import_migrations.LATEST_SCHEMA_VERSION) {
@@ -311,6 +321,26 @@ async function readAndVerifyBackup(zipData, limits) {
     }
     files.push({ path: file.path, data });
   }
+  const attachmentData = /* @__PURE__ */ new Map();
+  for (const file of (_b = manifest.attachmentFiles) != null ? _b : []) {
+    const id = Number(file.path);
+    if (!Number.isInteger(id) || id < 0 || String(id) !== file.path) {
+      throw new Error(`Backup lists an invalid attachment id: ${file.path}`);
+    }
+    const entry = zip.file(`attachments/${id}`);
+    if (!entry) {
+      throw new Error(`Backup misses attachment: attachments/${id}`);
+    }
+    const data = Buffer.from(await entry.async("nodebuffer"));
+    unpacked += data.length;
+    if (unpacked > caps.unpackedBytes) {
+      throw new Error(`Backup expands to more than ${caps.unpackedBytes} bytes`);
+    }
+    if (sha256Hex(data) !== file.sha256 || data.length !== file.size) {
+      throw new Error(`Checksum mismatch: attachments/${id}`);
+    }
+    attachmentData.set(id, data);
+  }
   const declaredDump = declaredSize(dumpFile);
   if (declaredDump !== void 0 && declaredDump > caps.dumpBytes) {
     throw new Error(`Backup dump.json is too large (${declaredDump} bytes, limit ${caps.dumpBytes})`);
@@ -330,24 +360,33 @@ async function readAndVerifyBackup(zipData, limits) {
   }
   const dump = {
     formatVersion: 1,
-    exportedAt: String((_b = dumpJson.exportedAt) != null ? _b : (/* @__PURE__ */ new Date()).toISOString()),
-    schemaVersion: Number((_c = dumpJson.schemaVersion) != null ? _c : 0),
-    invoices: (_d = dumpJson.invoices) != null ? _d : [],
-    counters: (_e = dumpJson.counters) != null ? _e : [],
-    templates: (_f = dumpJson.templates) != null ? _f : [],
-    companies: (_g = dumpJson.companies) != null ? _g : [],
-    customers: (_h = dumpJson.customers) != null ? _h : [],
-    products: (_i = dumpJson.products) != null ? _i : [],
+    exportedAt: String((_c = dumpJson.exportedAt) != null ? _c : (/* @__PURE__ */ new Date()).toISOString()),
+    schemaVersion: Number((_d = dumpJson.schemaVersion) != null ? _d : 0),
+    invoices: (_e = dumpJson.invoices) != null ? _e : [],
+    counters: (_f = dumpJson.counters) != null ? _f : [],
+    templates: (_g = dumpJson.templates) != null ? _g : [],
+    companies: (_h = dumpJson.companies) != null ? _h : [],
+    customers: (_i = dumpJson.customers) != null ? _i : [],
+    products: (_j = dumpJson.products) != null ? _j : [],
     dunningTexts: dumpJson.dunningTexts,
-    attachments: ((_j = dumpJson.attachments) != null ? _j : []).map((attachment) => {
-      var _a2;
+    attachments: ((_k = dumpJson.attachments) != null ? _k : []).map((attachment) => {
+      let data;
+      if (attachment.dataBase64 !== void 0) {
+        data = Buffer.from(attachment.dataBase64, "base64");
+      } else {
+        const own = attachmentData.get(attachment.id);
+        if (!own) {
+          throw new Error(`Backup has no content for attachment ${attachment.id} (${attachment.filename})`);
+        }
+        data = own;
+      }
       return {
         id: attachment.id,
         invoiceId: attachment.invoiceId,
         filename: attachment.filename,
         mime: attachment.mime,
         size: attachment.size,
-        data: Buffer.from((_a2 = attachment.dataBase64) != null ? _a2 : "", "base64"),
+        data,
         createdAt: attachment.createdAt
       };
     })
@@ -458,9 +497,7 @@ function backupSizeProblems(sizes, limits) {
   const mb = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
   const out = [];
   if (sizes.dumpBytes !== void 0 && sizes.dumpBytes > limits.dumpBytes) {
-    out.push(
-      `the database part (dump.json, attachments included as base64) would be ${mb(sizes.dumpBytes)}, the limit is ${mb(limits.dumpBytes)}`
-    );
+    out.push(`the database part (dump.json) would be ${mb(sizes.dumpBytes)}, the limit is ${mb(limits.dumpBytes)}`);
   }
   if (sizes.unpackedBytes !== void 0 && sizes.unpackedBytes > limits.unpackedBytes) {
     out.push(`the backup would unpack to ${mb(sizes.unpackedBytes)}, the limit is ${mb(limits.unpackedBytes)}`);

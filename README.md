@@ -174,7 +174,7 @@ On issue, the attachments become part of the e-invoice:
 - Issued invoices are frozen (GoBD): the Anlagen can be listed and downloaded,
   but no longer added or deleted. An attachment makes the artifacts and the
   backup noticeably bigger (a 5 MB file counts once in the PDF, once as base64
-  in the XML and once as base64 in the backup dump).
+  in the XML and once as its own entry in the backup ZIP).
 
 ### Offers (Angebote)
 
@@ -499,8 +499,7 @@ duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML
   1 GB (`dump.json` at most 256 MB); a crafted archive is rejected before it is
   unpacked. Entry paths, per-file checksums and the manifest are verified.
   The same limits apply when a backup is **created**: a backup that the restore would refuse is not written, the
-  error names the limit that is exceeded (attachments travel as base64 in `dump.json`, about a third more than the
-  files) — better no backup than one that only looks like protection.
+  error names the limit that is exceeded (the attachments are own entries of the ZIP, next to the files) — better no backup than one that only looks like protection.
 - **Where the PWA keeps the token:** in the browser profile's `localStorage`, so a
   reload does not ask again. It is only ever sent as an `Authorization` header to
   the adapter (never in a URL), but a script running on the same origin could read
@@ -514,8 +513,8 @@ duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML
   part of the stored PDF/XML by then.
 - **Backup files are not encrypted:** the ZIP contains the database, attachments
   and XML/PDF artifacts in plain text. Keep it on an encrypted volume or share.
-  Attachments ride in `dump.json` as base64, so a backup with Anlagen is roughly
-  a third larger than the raw files.
+  The attachments are own entries of the ZIP (`attachments/<id>`), so a backup with Anlagen is about as large as
+  the raw files.
 
 ## Why compact mode is off (W5049)
 
@@ -581,6 +580,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) The backup keeps the attachments as own ZIP entries (`attachments/<id>`, each with its SHA-256 in the manifest) instead of base64 inside `dump.json`: about a third smaller, less memory while it is made, and the restore checks every attachment on its own. Backup format 2; backups of older versions (format 1) can still be restored.
+
 ### 1.1.4 (2026-10-11)
 
 * (alex) fix: the backup no longer logs the error "Backup skips unreadable file ... .xml: Not exists" for every quotation. A quotation is no e-invoice and has no XML file, so the backup does not look for one any more (a missing file of a real invoice is still reported).

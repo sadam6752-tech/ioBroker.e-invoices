@@ -265,6 +265,130 @@ describe('backup => files of quotations', function () {
 	});
 });
 
+describe('backup => attachments as own ZIP entries (M2)', function () {
+	this.timeout(60000);
+
+	/** Seeds a database with one attachment and returns its backup plus the attachment id. */
+	async function seededBackup(): Promise<{
+		db: InvoiceDatabase;
+		backup: Awaited<ReturnType<typeof createBackup>>;
+		id: number;
+	}> {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		const storage = memoryStorage();
+		const invoiceId = await seedIssued(db, storage);
+		const backup = await createBackup(db, storage, quiet, '0.0.0-test');
+		return { db, backup, id: db.listAttachments(invoiceId)[0].id };
+	}
+
+	// packs a changed ZIP back to bytes
+	const pack = (zip: JSZip): Promise<Buffer> => zip.generateAsync({ type: 'nodebuffer' });
+
+	it('writes the content as attachments/<id>, hashed, and keeps it out of dump.json', async () => {
+		const { db, backup, id } = await seededBackup();
+		try {
+			expect(backup.manifest.formatVersion).to.equal(2);
+			const zip = await JSZip.loadAsync(backup.data);
+			const entry = await zip.file(`attachments/${id}`)!.async('nodebuffer');
+			expect(entry.equals(png)).to.equal(true);
+			expect(backup.manifest.attachmentFiles).to.deep.equal([
+				{ path: String(id), size: png.length, sha256: createHash('sha256').update(png).digest('hex') },
+			]);
+			expect(await zip.file('dump.json')!.async('string')).to.not.contain('dataBase64');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('still restores an older backup that carries the attachments as base64 (format 1)', async () => {
+		const { db, backup, id } = await seededBackup();
+		const target = new InvoiceDatabase(':memory:');
+		target.migrate();
+		try {
+			const zip = await JSZip.loadAsync(backup.data);
+			const dump = JSON.parse(await zip.file('dump.json')!.async('string'));
+			dump.attachments[0].dataBase64 = png.toString('base64');
+			const dumpText = JSON.stringify(dump);
+			zip.file('dump.json', dumpText);
+			zip.remove(`attachments/${id}`);
+			const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
+			manifest.formatVersion = 1;
+			delete manifest.attachmentFiles;
+			manifest.dumpSha256 = createHash('sha256').update(dumpText).digest('hex');
+			zip.file('manifest.json', JSON.stringify(manifest));
+			await restoreBackup(target, memoryStorage(), await pack(zip), quiet);
+			const restored = target.listAttachments(dump.invoices[0].id);
+			expect(restored).to.have.lengthOf(1);
+			expect(restored[0].data.equals(png)).to.equal(true);
+		} finally {
+			db.close();
+			target.close();
+		}
+	});
+
+	it('rejects a changed attachment and leaves the database untouched', async () => {
+		const { db, backup, id } = await seededBackup();
+		const target = new InvoiceDatabase(':memory:');
+		target.migrate();
+		try {
+			const zip = await JSZip.loadAsync(backup.data);
+			zip.file(`attachments/${id}`, Buffer.from('not the original'));
+			await restoreBackup(target, memoryStorage(), await pack(zip), quiet).then(
+				() => {
+					throw new Error('should have thrown');
+				},
+				(error: Error) => expect(error.message).to.match(/Checksum mismatch: attachments\//),
+			);
+			expect(target.listInvoices()).to.have.lengthOf(0);
+		} finally {
+			db.close();
+			target.close();
+		}
+	});
+
+	it('rejects a backup whose attachment entry is missing', async () => {
+		const { db, backup, id } = await seededBackup();
+		const target = new InvoiceDatabase(':memory:');
+		target.migrate();
+		try {
+			const zip = await JSZip.loadAsync(backup.data);
+			zip.remove(`attachments/${id}`);
+			await restoreBackup(target, memoryStorage(), await pack(zip), quiet).then(
+				() => {
+					throw new Error('should have thrown');
+				},
+				(error: Error) => expect(error.message).to.match(/misses attachment/),
+			);
+			expect(target.listInvoices()).to.have.lengthOf(0);
+		} finally {
+			db.close();
+			target.close();
+		}
+	});
+
+	it('refuses a crafted attachment id in the manifest', async () => {
+		const { db, backup } = await seededBackup();
+		const target = new InvoiceDatabase(':memory:');
+		target.migrate();
+		try {
+			const zip = await JSZip.loadAsync(backup.data);
+			const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
+			manifest.attachmentFiles[0].path = '../evil';
+			zip.file('manifest.json', JSON.stringify(manifest));
+			await restoreBackup(target, memoryStorage(), await pack(zip), quiet).then(
+				() => {
+					throw new Error('should have thrown');
+				},
+				(error: Error) => expect(error.message).to.match(/invalid attachment id/),
+			);
+		} finally {
+			db.close();
+			target.close();
+		}
+	});
+});
+
 describe('backup => corrupt input', () => {
 	it('rejects garbage and tampered zips without touching data', async () => {
 		const dbA = new InvoiceDatabase(':memory:');

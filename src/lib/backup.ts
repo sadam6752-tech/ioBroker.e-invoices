@@ -3,8 +3,12 @@
  *
  * A backup ZIP contains:
  * - manifest.json (app id, format version, counts, per-file SHA-256)
- * - dump.json (full database content, attachments as base64)
+ * - dump.json (full database content; the attachment rows carry no content)
+ * - attachments/<id> (the content of each attachment, hashed in the manifest)
  * - files/<path> (PDF/XML/XLSX/logos from the mountpoint)
+ *
+ * Format 1 (older backups) carried the attachments as base64 inside dump.json;
+ * they can still be restored.
  *
  * Restore verifies the manifest first, replaces the database in one
  * transaction and rewrites the files afterwards (each with its own
@@ -25,8 +29,11 @@ export const AUTO_BACKUP_PREFIX = 'backups/e-invoices-auto-';
 /** App id stamped into every manifest. */
 export const BACKUP_APP_ID = 'ioBroker.e-invoices';
 
-/** Backup format version. */
-export const BACKUP_FORMAT_VERSION = 1;
+/** Backup format version written by this adapter (2: attachments as own ZIP entries). */
+export const BACKUP_FORMAT_VERSION = 2;
+
+/** Backup format versions a restore understands (1: attachments as base64 in dump.json). */
+const SUPPORTED_BACKUP_FORMATS = [1, 2];
 
 /** One file listed in the manifest. */
 export interface BackupManifestFile {
@@ -54,6 +61,8 @@ export interface BackupManifest {
 	counts: { invoices: number; templates: number; attachments: number; customers: number; files: number };
 	/** Files with hashes. */
 	files: BackupManifestFile[];
+	/** Attachment contents (format 2): `path` is the attachment id, stored as attachments/<id>. */
+	attachmentFiles?: BackupManifestFile[];
 	/** SHA-256 hex of dump.json, the payload that actually replaces the database. */
 	dumpSha256?: string;
 }
@@ -260,8 +269,8 @@ interface DumpJsonAttachment {
 	mime: string;
 	/** Size in bytes. */
 	size: number;
-	/** Base64 content. */
-	dataBase64: string;
+	/** Base64 content (format 1 only; format 2 keeps the content in attachments/<id>). */
+	dataBase64?: string;
 	/** Creation timestamp. */
 	createdAt: string;
 }
@@ -289,10 +298,10 @@ export async function createBackup(
 ): Promise<BackupResult> {
 	const caps = resolveLimits(limits);
 	const dump = db.exportData();
-	// before the big string is built: attachments travel as base64 in dump.json (4 bytes per 3), so their
-	// sum alone can already be too much — and would eat the memory of the ioBroker host first
-	const attachmentBytes = dump.attachments.reduce((sum, attachment) => sum + Math.ceil(attachment.size / 3) * 4, 0);
-	const early = backupSizeProblems({ dumpBytes: attachmentBytes }, caps);
+	// before anything is packed: the attachments alone can already be more than a restore accepts —
+	// and would eat the memory of the ioBroker host first
+	const attachmentBytes = dump.attachments.reduce((sum, attachment) => sum + attachment.data.length, 0);
+	const early = backupSizeProblems({ unpackedBytes: attachmentBytes }, caps);
 	if (early.length > 0) {
 		throw new Error(backupTooLargeMessage(early));
 	}
@@ -304,13 +313,21 @@ export async function createBackup(
 			filename: attachment.filename,
 			mime: attachment.mime,
 			size: attachment.size,
-			dataBase64: attachment.data.toString('base64'),
 			createdAt: attachment.createdAt,
 		})),
 	};
 
 	const zip = new JSZip();
 	const files: BackupManifestFile[] = [];
+	const attachmentFiles: BackupManifestFile[] = [];
+	for (const attachment of dump.attachments) {
+		zip.file(`attachments/${attachment.id}`, attachment.data);
+		attachmentFiles.push({
+			path: String(attachment.id),
+			size: attachment.data.length,
+			sha256: sha256Hex(attachment.data),
+		});
+	}
 	for (const path of collectArtifactPaths(dump)) {
 		try {
 			const data = await storage.read(path);
@@ -326,8 +343,8 @@ export async function createBackup(
 	const problems = backupSizeProblems(
 		{
 			dumpBytes,
-			unpackedBytes: dumpBytes + files.reduce((sum, file) => sum + file.size, 0),
-			entries: files.length + 2,
+			unpackedBytes: dumpBytes + [...files, ...attachmentFiles].reduce((sum, file) => sum + file.size, 0),
+			entries: files.length + attachmentFiles.length + 2,
 		},
 		caps,
 	);
@@ -349,6 +366,7 @@ export async function createBackup(
 			files: files.length,
 		},
 		files,
+		attachmentFiles,
 		dumpSha256: sha256Hex(dumpJsonText),
 	};
 	zip.file('manifest.json', JSON.stringify(manifest, null, 2));
@@ -518,7 +536,7 @@ async function readAndVerifyBackup(
 		throw new Error('Backup ZIP misses manifest.json or dump.json');
 	}
 	const manifest = JSON.parse(await manifestFile.async('string')) as BackupManifest;
-	if (manifest.app !== BACKUP_APP_ID || manifest.formatVersion !== BACKUP_FORMAT_VERSION) {
+	if (manifest.app !== BACKUP_APP_ID || !SUPPORTED_BACKUP_FORMATS.includes(manifest.formatVersion)) {
 		throw new Error(`Unsupported backup (app=${String(manifest.app)}, format=${String(manifest.formatVersion)})`);
 	}
 	if (manifest.schemaVersion > LATEST_SCHEMA_VERSION) {
@@ -543,6 +561,28 @@ async function readAndVerifyBackup(
 			throw new Error(`Checksum mismatch: files/${file.path}`);
 		}
 		files.push({ path: file.path, data });
+	}
+
+	// attachment contents (format 2): hashed like the files, checked against the sizes in the dump below
+	const attachmentData = new Map<number, Buffer>();
+	for (const file of manifest.attachmentFiles ?? []) {
+		const id = Number(file.path);
+		if (!Number.isInteger(id) || id < 0 || String(id) !== file.path) {
+			throw new Error(`Backup lists an invalid attachment id: ${file.path}`);
+		}
+		const entry = zip.file(`attachments/${id}`);
+		if (!entry) {
+			throw new Error(`Backup misses attachment: attachments/${id}`);
+		}
+		const data = Buffer.from(await entry.async('nodebuffer'));
+		unpacked += data.length;
+		if (unpacked > caps.unpackedBytes) {
+			throw new Error(`Backup expands to more than ${caps.unpackedBytes} bytes`);
+		}
+		if (sha256Hex(data) !== file.sha256 || data.length !== file.size) {
+			throw new Error(`Checksum mismatch: attachments/${id}`);
+		}
+		attachmentData.set(id, data);
 	}
 
 	const declaredDump = declaredSize(dumpFile);
@@ -573,15 +613,27 @@ async function readAndVerifyBackup(
 		customers: dumpJson.customers ?? [],
 		products: dumpJson.products ?? [],
 		dunningTexts: dumpJson.dunningTexts,
-		attachments: (dumpJson.attachments ?? []).map(attachment => ({
-			id: attachment.id,
-			invoiceId: attachment.invoiceId,
-			filename: attachment.filename,
-			mime: attachment.mime,
-			size: attachment.size,
-			data: Buffer.from(attachment.dataBase64 ?? '', 'base64'),
-			createdAt: attachment.createdAt,
-		})),
+		attachments: (dumpJson.attachments ?? []).map(attachment => {
+			let data: Buffer;
+			if (attachment.dataBase64 !== undefined) {
+				data = Buffer.from(attachment.dataBase64, 'base64');
+			} else {
+				const own = attachmentData.get(attachment.id);
+				if (!own) {
+					throw new Error(`Backup has no content for attachment ${attachment.id} (${attachment.filename})`);
+				}
+				data = own;
+			}
+			return {
+				id: attachment.id,
+				invoiceId: attachment.invoiceId,
+				filename: attachment.filename,
+				mime: attachment.mime,
+				size: attachment.size,
+				data,
+				createdAt: attachment.createdAt,
+			};
+		}),
 	};
 	assertSafeRecords(dump);
 	return { manifest, dump, files };
@@ -809,9 +861,7 @@ export function backupSizeProblems(sizes: BackupSizes, limits: BackupLimits): st
 	const mb = (bytes: number): string => `${(bytes / 1048576).toFixed(1)} MB`;
 	const out: string[] = [];
 	if (sizes.dumpBytes !== undefined && sizes.dumpBytes > limits.dumpBytes) {
-		out.push(
-			`the database part (dump.json, attachments included as base64) would be ${mb(sizes.dumpBytes)}, the limit is ${mb(limits.dumpBytes)}`,
-		);
+		out.push(`the database part (dump.json) would be ${mb(sizes.dumpBytes)}, the limit is ${mb(limits.dumpBytes)}`);
 	}
 	if (sizes.unpackedBytes !== undefined && sizes.unpackedBytes > limits.unpackedBytes) {
 		out.push(`the backup would unpack to ${mb(sizes.unpackedBytes)}, the limit is ${mb(limits.unpackedBytes)}`);
