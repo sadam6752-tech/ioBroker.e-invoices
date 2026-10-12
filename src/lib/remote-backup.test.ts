@@ -7,6 +7,7 @@ import {
 	normalizeRemoteDirectory,
 	remoteSettingsProblems,
 	selectRemoteCopiesToPrune,
+	settingsForConnectionTest,
 	testRemoteConnection,
 	type RemoteBackupSettings,
 	type SftpConnector,
@@ -330,6 +331,64 @@ describe('remote backup => copy', () => {
 		const server = fakeServer();
 		const result = await copyBackupToRemote(server.connect, { ...settings, directory: '/' }, backup, quiet, timers);
 		expect(result.remoteFile).to.equal('/e-invoices-auto-2026-10-12T08-00-00.zip');
+	});
+});
+
+describe('remote backup => late connection after the time limit', () => {
+	it('closes a connection that arrives after the limit and writes nothing', async () => {
+		const server = fakeServer();
+		let release: () => void = () => undefined;
+		const slow: SftpConnector = async connection => {
+			// the server answers only after the copy has given up
+			await new Promise<void>(resolve => {
+				release = resolve;
+			});
+			return server.connect(connection);
+		};
+		const result = await copyBackupToRemote(slow, settings, backup, quiet, timers, 20);
+		expect(result.ok).to.equal(false);
+		expect(result.message).to.contain('took longer');
+		release();
+		await new Promise(resolve => globalThis.setTimeout(resolve, 20));
+		expect(server.files.size).to.equal(0);
+		expect(server.closed.count).to.be.greaterThan(0);
+	});
+});
+
+describe('remote backup => settings of the connection test', () => {
+	const saved: RemoteBackupSettings = { ...settings, hostKey: 'SHA256:saved' };
+
+	it('takes the values of the form, also unsaved ones', () => {
+		const test = settingsForConnectionTest(
+			{
+				remoteHost: 'other.local',
+				remoteUser: 'u',
+				remotePassword: 'typed',
+				remotePort: 2222,
+				remoteDirectory: '/x',
+			},
+			saved,
+		);
+		expect(test).to.include({ host: 'other.local', username: 'u', password: 'typed', port: 2222, directory: '/x' });
+	});
+
+	it('uses the saved password for the saved server when the field is empty', () => {
+		const test = settingsForConnectionTest(
+			{ remoteHost: 'nas.local', remoteUser: 'backup', remotePassword: '' },
+			saved,
+		);
+		expect(test.password).to.equal('secret');
+		expect(settingsForConnectionTest({}, saved).password).to.equal('secret');
+	});
+
+	it('never sends the saved password to another server, user or port', () => {
+		expect(settingsForConnectionTest({ remoteHost: 'evil.example' }, saved).password).to.equal(undefined);
+		expect(settingsForConnectionTest({ remoteUser: 'root' }, saved).password).to.equal(undefined);
+		expect(settingsForConnectionTest({ remotePort: 2200 }, saved).password).to.equal(undefined);
+		// without a password the test stops before it connects
+		expect(remoteSettingsProblems(settingsForConnectionTest({ remoteHost: 'evil.example' }, saved))).to.include(
+			'the password is missing',
+		);
 	});
 });
 

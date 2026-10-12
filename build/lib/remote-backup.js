@@ -25,6 +25,7 @@ __export(remote_backup_exports, {
   normalizeRemoteDirectory: () => normalizeRemoteDirectory,
   remoteSettingsProblems: () => remoteSettingsProblems,
   selectRemoteCopiesToPrune: () => selectRemoteCopiesToPrune,
+  settingsForConnectionTest: () => settingsForConnectionTest,
   testRemoteConnection: () => testRemoteConnection
 });
 module.exports = __toCommonJS(remote_backup_exports);
@@ -115,11 +116,12 @@ async function copyBackupToRemote(connect, settings, backup, log, timers, limitM
   const name = backup.filename.slice(backup.filename.lastIndexOf("/") + 1);
   const target = directory === "/" ? `/${name}` : directory ? `${directory}/${name}` : name;
   let session;
+  let expired = false;
   const deleted = [];
   try {
     const work = (async () => {
       var _a2, _b, _c;
-      session = await connect({
+      const opened = await connect({
         host: settings.host.trim(),
         port: settings.port ? Number(settings.port) : DEFAULT_PORT,
         username: settings.username.trim(),
@@ -134,6 +136,11 @@ async function copyBackupToRemote(connect, settings, backup, log, timers, limitM
           }
         }
       });
+      session = opened;
+      if (expired) {
+        opened.close();
+        return;
+      }
       if (directory) {
         await session.makeDirectories(directory);
       }
@@ -157,13 +164,33 @@ async function copyBackupToRemote(connect, settings, backup, log, timers, limitM
         }
       }
     })();
-    await withTimeout(timers, work, limitMs, "The copy to the external server", () => session == null ? void 0 : session.close());
+    await withTimeout(timers, work, limitMs, "The copy to the external server", () => {
+      expired = true;
+      session == null ? void 0 : session.close();
+    });
     return { ok: true, message: `copied ${name}`, remoteFile: target, deleted };
   } catch (error) {
     return { ok: false, message: error.message, deleted };
   } finally {
     session == null ? void 0 : session.close();
   }
+}
+function settingsForConnectionTest(form, saved) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  const text = (value) => typeof value === "string" ? value : void 0;
+  const host = (_b = (_a = text(form.remoteHost)) != null ? _a : saved.host) != null ? _b : "";
+  const username = (_d = (_c = text(form.remoteUser)) != null ? _c : saved.username) != null ? _d : "";
+  const port = Number((_e = form.remotePort) != null ? _e : saved.port) || DEFAULT_PORT;
+  const sameServer = host.trim() === ((_f = saved.host) != null ? _f : "").trim() && username.trim() === ((_g = saved.username) != null ? _g : "").trim() && port === (Number(saved.port) || DEFAULT_PORT);
+  return {
+    enabled: true,
+    host,
+    port,
+    username,
+    password: text(form.remotePassword) || (sameServer ? saved.password : void 0),
+    directory: (_h = text(form.remoteDirectory)) != null ? _h : saved.directory,
+    hostKey: (_i = text(form.remoteHostKey)) != null ? _i : saved.hostKey
+  };
 }
 async function testRemoteConnection(connect, settings, timers, limitMs = 6e4) {
   var _a;
@@ -173,11 +200,12 @@ async function testRemoteConnection(connect, settings, timers, limitMs = 6e4) {
   }
   const directory = (_a = normalizeRemoteDirectory(settings.directory)) != null ? _a : "";
   let session;
+  let expired = false;
   let fingerprint;
   try {
     const work = (async () => {
       var _a2, _b;
-      session = await connect({
+      const opened = await connect({
         host: settings.host.trim(),
         port: settings.port ? Number(settings.port) : DEFAULT_PORT,
         username: settings.username.trim(),
@@ -187,6 +215,11 @@ async function testRemoteConnection(connect, settings, timers, limitMs = 6e4) {
           fingerprint = found;
         }
       });
+      session = opened;
+      if (expired) {
+        opened.close();
+        return;
+      }
       if (directory) {
         await session.makeDirectories(directory);
       }
@@ -194,7 +227,10 @@ async function testRemoteConnection(connect, settings, timers, limitMs = 6e4) {
       await session.writeFile(probe, Buffer.from("ok"));
       await session.remove(probe);
     })();
-    await withTimeout(timers, work, limitMs, "The connection test", () => session == null ? void 0 : session.close());
+    await withTimeout(timers, work, limitMs, "The connection test", () => {
+      expired = true;
+      session == null ? void 0 : session.close();
+    });
     return { ok: true, message: "connected, the directory is writable", fingerprint };
   } catch (error) {
     return { ok: false, message: error.message, fingerprint };
@@ -211,6 +247,7 @@ async function testRemoteConnection(connect, settings, timers, limitMs = 6e4) {
   normalizeRemoteDirectory,
   remoteSettingsProblems,
   selectRemoteCopiesToPrune,
+  settingsForConnectionTest,
   testRemoteConnection
 });
 //# sourceMappingURL=remote-backup.js.map

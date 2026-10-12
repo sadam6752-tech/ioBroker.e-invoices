@@ -22,6 +22,7 @@ import {
 import { InvoiceDatabase } from './lib/db';
 import {
 	copyBackupToRemote,
+	settingsForConnectionTest,
 	testRemoteConnection,
 	type RemoteBackupSettings,
 	type RemoteCopyResult,
@@ -96,6 +97,10 @@ class EInvoices extends utils.Adapter {
 			this.log.info(`Layout template: ${defaultTemplate.name} v${defaultTemplate.version}`);
 			this.syncCompanyFromConfig();
 			await this.ensureObjects();
+			if (this.config.remoteEnabled !== true) {
+				// the copy was switched off: an old error must not stay as if it were current
+				await this.setState('info.remoteBackupError', '', true);
+			}
 			await this.ensureMountPoint();
 			await this.publishStatusFile();
 			await this.refreshStats();
@@ -636,16 +641,24 @@ class EInvoices extends utils.Adapter {
 		}
 		const run = async (): Promise<RemoteCopyResult> => {
 			const result = await copyBackupToRemote(connectSsh2, settings, backup, this.log, this.remoteTimers);
+			// the copy never throws, and its states must not either (the API answers after it)
+			const publish = async (id: string, value: string): Promise<void> => {
+				try {
+					await this.setState(id, value, true);
+				} catch (error) {
+					this.log.debug(`Cannot set ${id}: ${(error as Error).message}`);
+				}
+			};
 			if (result.ok) {
 				this.log.info(`Backup copied to the external server: ${result.remoteFile}`);
 				for (const old of result.deleted) {
 					this.log.info(`Old copy deleted on the external server: ${old}`);
 				}
-				await this.setState('info.lastRemoteBackup', result.remoteFile ?? backup.filename, true);
-				await this.setState('info.remoteBackupError', '', true);
+				await publish('info.lastRemoteBackup', result.remoteFile ?? backup.filename);
+				await publish('info.remoteBackupError', '');
 			} else {
 				this.log.error(`Copy to the external server failed: ${result.message}`);
-				await this.setState('info.remoteBackupError', result.message, true);
+				await publish('info.remoteBackupError', result.message);
 			}
 			return result;
 		};
@@ -1023,18 +1036,11 @@ class EInvoices extends utils.Adapter {
 		if (typeof obj !== 'object' || obj.command !== 'testRemoteBackup') {
 			return;
 		}
-		const form = (obj.message ?? {}) as Record<string, unknown>;
-		const text = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
-		const settings: RemoteBackupSettings = {
-			enabled: true,
-			host: text(form.remoteHost) ?? this.config.remoteHost,
-			port: Number(form.remotePort ?? this.config.remotePort) || undefined,
-			username: text(form.remoteUser) ?? this.config.remoteUser,
-			// an empty form field keeps the saved password
-			password: text(form.remotePassword) || this.config.remotePassword,
-			directory: text(form.remoteDirectory) ?? this.config.remoteDirectory,
-			hostKey: text(form.remoteHostKey) ?? this.config.remoteHostKey,
-		};
+		// an empty password field means the saved password, but only for the saved server (see the function)
+		const settings = settingsForConnectionTest(
+			(obj.message ?? {}) as Record<string, unknown>,
+			this.remoteSettings(),
+		);
 		void testRemoteConnection(connectSsh2, settings, this.remoteTimers).then(result => {
 			if (!obj.callback) {
 				return;

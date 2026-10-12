@@ -252,10 +252,11 @@ export async function copyBackupToRemote(
 	const name = backup.filename.slice(backup.filename.lastIndexOf('/') + 1);
 	const target = directory === '/' ? `/${name}` : directory ? `${directory}/${name}` : name;
 	let session: SftpSession | undefined;
+	let expired = false;
 	const deleted: string[] = [];
 	try {
 		const work = (async (): Promise<void> => {
-			session = await connect({
+			const opened = await connect({
 				host: settings.host!.trim(),
 				port: settings.port ? Number(settings.port) : DEFAULT_PORT,
 				username: settings.username!.trim(),
@@ -269,6 +270,12 @@ export async function copyBackupToRemote(
 					}
 				},
 			});
+			session = opened;
+			// the time ran out while connecting: close at once instead of uploading after the failure was reported
+			if (expired) {
+				opened.close();
+				return;
+			}
 			if (directory) {
 				await session.makeDirectories(directory);
 			}
@@ -292,13 +299,49 @@ export async function copyBackupToRemote(
 				}
 			}
 		})();
-		await withTimeout(timers, work, limitMs, 'The copy to the external server', () => session?.close());
+		await withTimeout(timers, work, limitMs, 'The copy to the external server', () => {
+			expired = true;
+			session?.close();
+		});
 		return { ok: true, message: `copied ${name}`, remoteFile: target, deleted };
 	} catch (error) {
 		return { ok: false, message: (error as Error).message, deleted };
 	} finally {
 		session?.close();
 	}
+}
+
+/**
+ * The settings for the connection test of the admin page, from the values of the form.
+ *
+ * The form may hold unsaved values. An empty password field means "the saved one" — but only for the saved
+ * server and user: otherwise any script could send this message with its own host and receive the stored
+ * password at the login (the password is protected from other adapters for a reason).
+ *
+ * @param form - Values of the form (`native` of the instance as the admin page sends it).
+ * @param saved - The saved instance settings.
+ */
+export function settingsForConnectionTest(
+	form: Record<string, unknown>,
+	saved: RemoteBackupSettings,
+): RemoteBackupSettings {
+	const text = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
+	const host = text(form.remoteHost) ?? saved.host ?? '';
+	const username = text(form.remoteUser) ?? saved.username ?? '';
+	const port = Number(form.remotePort ?? saved.port) || DEFAULT_PORT;
+	const sameServer =
+		host.trim() === (saved.host ?? '').trim() &&
+		username.trim() === (saved.username ?? '').trim() &&
+		port === (Number(saved.port) || DEFAULT_PORT);
+	return {
+		enabled: true,
+		host,
+		port,
+		username,
+		password: text(form.remotePassword) || (sameServer ? saved.password : undefined),
+		directory: text(form.remoteDirectory) ?? saved.directory,
+		hostKey: text(form.remoteHostKey) ?? saved.hostKey,
+	};
 }
 
 /**
@@ -324,10 +367,11 @@ export async function testRemoteConnection(
 	}
 	const directory = normalizeRemoteDirectory(settings.directory) ?? '';
 	let session: SftpSession | undefined;
+	let expired = false;
 	let fingerprint: string | undefined;
 	try {
 		const work = (async (): Promise<void> => {
-			session = await connect({
+			const opened = await connect({
 				host: settings.host!.trim(),
 				port: settings.port ? Number(settings.port) : DEFAULT_PORT,
 				username: settings.username!.trim(),
@@ -337,6 +381,11 @@ export async function testRemoteConnection(
 					fingerprint = found;
 				},
 			});
+			session = opened;
+			if (expired) {
+				opened.close();
+				return;
+			}
 			if (directory) {
 				await session.makeDirectories(directory);
 			}
@@ -344,7 +393,10 @@ export async function testRemoteConnection(
 			await session.writeFile(probe, Buffer.from('ok'));
 			await session.remove(probe);
 		})();
-		await withTimeout(timers, work, limitMs, 'The connection test', () => session?.close());
+		await withTimeout(timers, work, limitMs, 'The connection test', () => {
+			expired = true;
+			session?.close();
+		});
 		return { ok: true, message: 'connected, the directory is writable', fingerprint };
 	} catch (error) {
 		return { ok: false, message: (error as Error).message, fingerprint };

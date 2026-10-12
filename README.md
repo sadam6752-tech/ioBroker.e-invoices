@@ -420,7 +420,7 @@ for example a NAS, over **SFTP**. The adapter opens the SSH connection itself: n
 3. Press *Test connection*: the adapter logs in, creates the directory, writes and deletes a small test file, and
    shows the **fingerprint** of the server. Enter that fingerprint in the settings to trust only this server — a
    different server is then refused before the password is sent. Without a fingerprint the copy works too, but
-   the server is not verified (the log says so once, with the fingerprint).
+   the server is not verified (the log warns at every copy, with the fingerprint).
 
 How it behaves:
 
@@ -610,6 +610,11 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) fix: *Test connection* uses the saved password only for the saved server and user, so no script can have the password sent to a server of its own.
+* (alex) fix: when the time limit runs out while the connection is still being made, the late connection is closed at once instead of uploading after the failure was reported.
+* (alex) fix: a failed state update can no longer turn a successful backup into an error of the API; an old copy error is cleared when the copy is switched off.
+* (alex) fix: a restored attachment takes its size from its content, not from `dump.json`.
+* (alex) The admin labels "Host" and "Password" of the external backup are worded so every language has its own text.
 * (alex) fix: the time limit of the copy to the external server uses the timers of the adapter (`this.setTimeout`) instead of the plain `setTimeout` of Node.js (repository checker E5005).
 
 ### 1.2.0 (2026-10-12)

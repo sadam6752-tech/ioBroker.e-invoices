@@ -629,7 +629,8 @@ async function readAndVerifyBackup(
 				invoiceId: attachment.invoiceId,
 				filename: attachment.filename,
 				mime: attachment.mime,
-				size: attachment.size,
+				// the content decides, not a number in dump.json
+				size: data.length,
 				data,
 				createdAt: attachment.createdAt,
 			};

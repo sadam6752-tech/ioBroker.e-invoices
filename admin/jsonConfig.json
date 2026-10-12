@@ -519,7 +519,7 @@
 				},
 				"remoteHost": {
 					"type": "text",
-					"label": "Host",
+					"label": "Server address",
 					"help": "IP address or host name of the server",
 					"disabled": "!data.remoteEnabled",
 					"newLine": true,
@@ -555,7 +555,7 @@
 				},
 				"remotePassword": {
 					"type": "password",
-					"label": "Password",
+					"label": "Password of the user",
 					"repeat": false,
 					"visible": true,
 					"disabled": "!data.remoteEnabled",

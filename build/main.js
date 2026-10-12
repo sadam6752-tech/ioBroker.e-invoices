@@ -81,6 +81,9 @@ class EInvoices extends utils.Adapter {
       this.log.info(`Layout template: ${defaultTemplate.name} v${defaultTemplate.version}`);
       this.syncCompanyFromConfig();
       await this.ensureObjects();
+      if (this.config.remoteEnabled !== true) {
+        await this.setState("info.remoteBackupError", "", true);
+      }
       await this.ensureMountPoint();
       await this.publishStatusFile();
       await this.refreshStats();
@@ -601,16 +604,23 @@ class EInvoices extends utils.Adapter {
     const run = async () => {
       var _a;
       const result = await (0, import_remote_backup.copyBackupToRemote)(import_sftp_ssh2.connectSsh2, settings, backup, this.log, this.remoteTimers);
+      const publish = async (id, value) => {
+        try {
+          await this.setState(id, value, true);
+        } catch (error) {
+          this.log.debug(`Cannot set ${id}: ${error.message}`);
+        }
+      };
       if (result.ok) {
         this.log.info(`Backup copied to the external server: ${result.remoteFile}`);
         for (const old of result.deleted) {
           this.log.info(`Old copy deleted on the external server: ${old}`);
         }
-        await this.setState("info.lastRemoteBackup", (_a = result.remoteFile) != null ? _a : backup.filename, true);
-        await this.setState("info.remoteBackupError", "", true);
+        await publish("info.lastRemoteBackup", (_a = result.remoteFile) != null ? _a : backup.filename);
+        await publish("info.remoteBackupError", "");
       } else {
         this.log.error(`Copy to the external server failed: ${result.message}`);
-        await this.setState("info.remoteBackupError", result.message, true);
+        await publish("info.remoteBackupError", result.message);
       }
       return result;
     };
@@ -954,22 +964,14 @@ class EInvoices extends utils.Adapter {
    * @param obj - The message.
    */
   onMessage(obj) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a;
     if (typeof obj !== "object" || obj.command !== "testRemoteBackup") {
       return;
     }
-    const form = (_a = obj.message) != null ? _a : {};
-    const text = (value) => typeof value === "string" ? value : void 0;
-    const settings = {
-      enabled: true,
-      host: (_b = text(form.remoteHost)) != null ? _b : this.config.remoteHost,
-      port: Number((_c = form.remotePort) != null ? _c : this.config.remotePort) || void 0,
-      username: (_d = text(form.remoteUser)) != null ? _d : this.config.remoteUser,
-      // an empty form field keeps the saved password
-      password: text(form.remotePassword) || this.config.remotePassword,
-      directory: (_e = text(form.remoteDirectory)) != null ? _e : this.config.remoteDirectory,
-      hostKey: (_f = text(form.remoteHostKey)) != null ? _f : this.config.remoteHostKey
-    };
+    const settings = (0, import_remote_backup.settingsForConnectionTest)(
+      (_a = obj.message) != null ? _a : {},
+      this.remoteSettings()
+    );
     void (0, import_remote_backup.testRemoteConnection)(import_sftp_ssh2.connectSsh2, settings, this.remoteTimers).then((result) => {
       var _a2;
       if (!obj.callback) {
