@@ -580,7 +580,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.1.5 (2026-10-12)
 
 * (alex) The invoice view of an issued invoice shows the earliest deletion date ("Keep until") with a note: the adapter cautiously counts ten years, the law needs at least eight for invoices and ten for some records; in doubt ask the tax advisor. The note is available in all eleven languages.
 * (alex) The backup keeps the attachments as own ZIP entries (`attachments/<id>`, each with its SHA-256 in the manifest) instead of base64 inside `dump.json`: about a third smaller, less memory while it is made, and the restore checks every attachment on its own. Backup format 2; backups of older versions (format 1) can still be restored.
@@ -602,15 +602,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ### 1.1.1 (2026-10-11)
 
 * (alex) The validator reports in `docs/validierung` named the checked file by its full path on the machine they were made on (user name and disk layout). Those paths are replaced by placeholders, nothing else in the reports changed, and a test keeps new ones out.
-
-### 1.1.0 (2026-10-08)
-
-* (alex) fix: amounts are rounded commercially to the cent in every case. Before, an amount whose binary value lies just below half a cent was rounded down — 42.50 EUR at 19 % gave 8.07 EUR of VAT instead of 8.08 EUR (about one tax amount in a thousand).
-* (alex) fix: "today" is the local calendar day of the adapter host and of the browser, not the UTC day. Between midnight and 01:00/02:00 German time new documents got yesterday's date — on New Year's night even the old year's number circle.
-* (alex) fix: a quotation can no longer be reversed through the API (that made a credit note for an offer and used up an invoice number), and the reversal of a credit note is an invoice instead of a second credit note.
-* (alex) **DATEV export rebuilt:** a real Buchungsstapel (EXTF 700, category 21) with advisor and client number, chart of accounts (SKR03/SKR04), account length, fiscal year and accounts from the new instance settings tab "DATEV". Without advisor and client number there is no DATEV file. One booking line per invoice and VAT rate, credit notes as Haben, one fiscal year per file, Windows-1252. Before, the file had no valid DATEV header and could not be imported. Not verified against a real DATEV import — let your advisor check the first one.
-* (alex) Revenue per company: a credit note of its own (not a Storno) now reduces the revenue of its company; before, it was left out.
-* (alex) fix: a backup is uploaded for the restore as the ZIP itself; base64 inside JSON stopped at about 18 MB. A file that is no backup gets a clear 400 in the preview instead of a server error.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.1.4",
+    "version": "1.1.5",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.1.5": {
+        "en": "Backup: attachments are own ZIP entries (about a third smaller, checked one by one); older backups still restore. Issued invoices show the earliest deletion date with a note on the retention periods (8 years by law, 10 counted by the adapter).",
+        "de": "Backup: Anhänge liegen als eigene ZIP-Einträge (etwa ein Drittel kleiner, einzeln geprüft); ältere Backups lassen sich weiter einspielen. Ausgestellte Rechnungen zeigen das früheste Löschdatum mit Hinweis zur Aufbewahrungsfrist (gesetzlich 8 Jahre, der Adapter rechnet mit 10).",
+        "ru": "Резервная копия: вложения хранятся отдельными записями ZIP (примерно на треть меньше, проверяются по одному); старые копии по-прежнему восстанавливаются. Выставленные счета показывают самую раннюю дату удаления с пояснением о сроках хранения (по закону 8 лет, адаптер считает 10).",
+        "pt": "Cópia de segurança: os anexos são entradas próprias do ZIP (cerca de um terço mais pequena, verificadas uma a uma); as cópias antigas continuam a ser restauradas. As faturas emitidas mostram a data mais cedo para apagar, com nota sobre os prazos de conservação (8 anos por lei, o adaptador conta 10).",
+        "nl": "Back-up: bijlagen zijn eigen ZIP-items (ongeveer een derde kleiner, één voor één gecontroleerd); oudere back-ups blijven herstelbaar. Uitgegeven facturen tonen de vroegste verwijderdatum met een opmerking over de bewaartermijnen (wettelijk 8 jaar, de adapter rekent met 10).",
+        "fr": "Sauvegarde : les pièces jointes sont des entrées ZIP propres (environ un tiers plus petit, vérifiées une à une) ; les anciennes sauvegardes restent restaurables. Les factures émises affichent la date de suppression au plus tôt avec une note sur les durées de conservation (8 ans légalement, l'adaptateur compte 10).",
+        "it": "Backup: gli allegati sono voci ZIP proprie (circa un terzo più piccolo, verificate una per una); i backup più vecchi si ripristinano ancora. Le fatture emesse mostrano la data di eliminazione più vicina con una nota sui termini di conservazione (8 anni per legge, l'adattatore ne conta 10).",
+        "es": "Copia de seguridad: los adjuntos son entradas propias del ZIP (aproximadamente un tercio más pequeña, comprobadas una a una); las copias antiguas se siguen restaurando. Las facturas emitidas muestran la fecha de eliminación más temprana con una nota sobre los plazos de conservación (8 años por ley, el adaptador cuenta 10).",
+        "pl": "Kopia zapasowa: załączniki są osobnymi wpisami ZIP (około jedną trzecią mniejsza, sprawdzane pojedynczo); starsze kopie nadal można przywrócić. Wystawione faktury pokazują najwcześniejszą datę usunięcia z uwagą o okresach przechowywania (ustawowo 8 lat, adapter liczy 10).",
+        "uk": "Резервна копія: вкладення — окремі записи ZIP (приблизно на третину менша, перевіряються по одному); старі копії, як і раніше, відновлюються. Виставлені рахунки показують найранішу дату видалення з приміткою про строки зберігання (за законом 8 років, адаптер враховує 10).",
+        "zh-cn": "备份：附件作为独立的 ZIP 条目（约小三分之一，逐个校验）；旧备份仍可恢复。已开具的发票显示最早可删除日期，并附保存期限说明（法定 8 年，适配器按 10 年计算）。"
+      },
       "1.1.4": {
         "en": "Fix: the backup no longer logs an error about a missing XML file for every quotation (quotations have no XML).",
         "de": "Fix: Das Backup meldet für Angebote keinen Fehler mehr wegen einer fehlenden XML-Datei (Angebote haben kein XML).",
@@ -101,19 +114,6 @@
         "pl": "Nowe logo: znak euro jest teraz pomarańczowy — w adminie, w zainstalowanej aplikacji internetowej, w faviconie i na ikonie ekranu głównego iOS.",
         "uk": "Новий логотип: знак євро тепер помаранчевий — в admin, у встановленому вебзастосунку, у favicon та на піктограмі головного екрана iOS.",
         "zh-cn": "新徽标：欧元符号现在为橙色，体现在管理界面、已安装的网页应用、favicon 以及 iOS 主屏幕图标中。"
-      },
-      "1.0.10": {
-        "en": "Fix: an XRechnung titled \"final invoice\" now carries the type code 380, as the XRechnung rules require. Dependencies updated, the weakness reported for uuid below exceljs is closed.",
-        "de": "Fix: Eine XRechnung mit dem Titel „Schlussrechnung“ trägt jetzt den Rechnungstyp 380, wie es die XRechnung-Regeln verlangen. Abhängigkeiten aktualisiert, die gemeldete Schwachstelle von uuid unter exceljs ist geschlossen.",
-        "ru": "Исправление: XRechnung с названием «Итоговый счёт» теперь имеет код типа 380, как требуют правила XRechnung. Зависимости обновлены, закрыта уязвимость uuid в exceljs.",
-        "pt": "Correção: uma XRechnung com o título «fatura final» passa a ter o código de tipo 380, como exigem as regras da XRechnung. Dependências atualizadas, a vulnerabilidade reportada em uuid dentro de exceljs foi fechada.",
-        "nl": "Fix: een XRechnung met de titel «eindfactuur» heeft nu typecode 380, zoals de XRechnung-regels vereisen. Afhankelijkheden bijgewerkt, de gemelde kwetsbaarheid van uuid onder exceljs is gedicht.",
-        "fr": "Correction : une XRechnung intitulée « facture finale » porte désormais le code de type 380, comme l'exigent les règles XRechnung. Dépendances mises à jour, la faille signalée pour uuid sous exceljs est corrigée.",
-        "it": "Correzione: una XRechnung intitolata «fattura finale» ora porta il codice tipo 380, come richiedono le regole XRechnung. Dipendenze aggiornate, la vulnerabilità segnalata per uuid sotto exceljs è chiusa.",
-        "es": "Corrección: una XRechnung titulada «factura final» ahora lleva el código de tipo 380, como exigen las reglas de XRechnung. Dependencias actualizadas, se cerró la vulnerabilidad notificada de uuid bajo exceljs.",
-        "pl": "Poprawka: XRechnung zatytułowana «faktura końcowa» ma teraz kod typu 380, zgodnie z regułami XRechnung. Zależności zaktualizowane, zgłoszona luka w uuid pod exceljs jest zamknięta.",
-        "uk": "Виправлення: XRechnung із назвою «підсумковий рахунок» тепер має код типу 380, як вимагають правила XRechnung. Залежності оновлено, закрито вразливість uuid в exceljs.",
-        "zh-cn": "修复：标题为“最终发票”的 XRechnung 现在使用类型代码 380，符合 XRechnung 规则。依赖已更新，已修复 exceljs 下 uuid 的已报告漏洞。"
       }
     },
     "titleLang": {
