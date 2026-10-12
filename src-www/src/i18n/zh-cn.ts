@@ -607,4 +607,6 @@ export const zhCn: Record<string, string> = {
 		'XRechnung——仅 XML，适用于公共部门客户（需要 Leitweg-ID）',
 	'XRechnung: Es entsteht nur die XML-Datei (Standard XRechnung 3.0); die PDF dient als Ansicht und enthält kein XML. Anlagen gehen in die XML.':
 		'XRechnung：只生成 XML 文件（XRechnung 3.0 标准）；PDF 只是查看版，不含 XML。附件会进入 XML。',
+	'Aufbewahren bis {date} (frühester Löschzeitpunkt). Der Adapter rechnet vorsichtig mit 10 Jahren; gesetzlich gelten für Rechnungen mindestens 8 Jahre, für manche Unterlagen 10. Im Zweifel fragen Sie Ihren Steuerberater.':
+		'保存至 {date}（最早可删除时间）。适配器谨慎地按十年计算；依法发票至少需保存八年，部分文件为十年。如有疑问，请咨询您的税务顾问。',
 };

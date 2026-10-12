@@ -439,7 +439,7 @@ duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML
   period is **eight years** since 2025 (§ 147 AO and § 14b UStG as amended by the Fourth Bureaucracy Relief Act,
   BEG IV), while other records (for example business letters or the annual accounts) can need more. Ask your tax
   advisor which period applies to you — the adapter never deletes anything of its own accord. Only drafts can be
-  deleted, never an issued invoice.
+  deleted, never an issued invoice. The invoice view in the web app shows this date with the same note.
 - **Issuing is checked before the number is taken.** The documents are made once with a placeholder number first; a
   defect of the layout, the attachments or the XML stops there, with the draft untouched and no number used. Should a
   document still end up numbered **without its files** (the disk was full or not writable), the dashboard shows it
@@ -582,6 +582,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 -->
 ### **WORK IN PROGRESS**
 
+* (alex) The invoice view of an issued invoice shows the earliest deletion date ("Keep until") with a note: the adapter cautiously counts ten years, the law needs at least eight for invoices and ten for some records; in doubt ask the tax advisor. The note is available in all eleven languages.
 * (alex) The backup keeps the attachments as own ZIP entries (`attachments/<id>`, each with its SHA-256 in the manifest) instead of base64 inside `dump.json`: about a third smaller, less memory while it is made, and the restore checks every attachment on its own. Backup format 2; backups of older versions (format 1) can still be restored.
 
 ### 1.1.4 (2026-10-11)

@@ -625,4 +625,6 @@ export const uk: Record<string, string> = {
 		'XRechnung — лише XML, для державних замовників (потрібен Leitweg-ID)',
 	'XRechnung: Es entsteht nur die XML-Datei (Standard XRechnung 3.0); die PDF dient als Ansicht und enthält kein XML. Anlagen gehen in die XML.':
 		'XRechnung: створюється лише файл XML (стандарт XRechnung 3.0); PDF — це перегляд і не містить XML. Вкладення потрапляють в XML.',
+	'Aufbewahren bis {date} (frühester Löschzeitpunkt). Der Adapter rechnet vorsichtig mit 10 Jahren; gesetzlich gelten für Rechnungen mindestens 8 Jahre, für manche Unterlagen 10. Im Zweifel fragen Sie Ihren Steuerberater.':
+		'Зберігати до {date} (найраніший термін видалення). Адаптер обережно рахує десять років; за законом рахунки потрібно зберігати щонайменше вісім років, деякі документи — десять. У разі сумнівів запитайте свого податкового консультанта.',
 };

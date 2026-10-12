@@ -121,6 +121,7 @@ export async function detail(root: HTMLElement, id: string): Promise<void> {
 			</table>
 			<p><strong>${t('Gesamt')}: ${eur(inv.totals.grossTotal)}</strong> <span class="muted">(${t('netto')} ${eur(inv.totals.netTotal)} + ${t('USt')} ${eur(inv.totals.taxTotal)})</span></p>
 			${inv.notes ? `<p class="muted">${t('Notiz')}: ${esc(inv.notes)}</p>` : ''}
+			${!quote && inv.status === 'issued' && inv.retainUntil ? `<p class="muted" id="d-retention">${t('Aufbewahren bis {date} (frühester Löschzeitpunkt). Der Adapter rechnet vorsichtig mit 10 Jahren; gesetzlich gelten für Rechnungen mindestens 8 Jahre, für manche Unterlagen 10. Im Zweifel fragen Sie Ihren Steuerberater.', { date: esc(inv.retainUntil.slice(0, 10)) })}</p>` : ''}
 			</div>
 			<div class="card"><div class="row">
 				${inv.status === 'draft' ? `<a class="btn" href="#/edit/${esc(inv.id)}">${t('Bearbeiten')}</a>` : ''}

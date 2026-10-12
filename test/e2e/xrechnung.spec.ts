@@ -141,4 +141,7 @@ test('a ZUGFeRD invoice keeps its mail button and its PDF button', async ({ page
 	await expect(page.getByRole('button', { name: 'PDF ↓', exact: true })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'E-Mail (PDF)' })).toBeVisible();
 	await expect(page.locator('#d-xrechnung')).toHaveCount(0);
+	// the earliest deletion date is shown with the note that the law needs eight years, some records ten
+	await expect(page.locator('#d-retention')).toContainText(/Aufbewahren bis \d{4}-12-31/);
+	await expect(page.locator('#d-retention')).toContainText('mindestens 8 Jahre');
 });

@@ -627,4 +627,6 @@ export const fr: Record<string, string> = {
 		'XRechnung — XML uniquement, pour les clients du secteur public (Leitweg-ID nécessaire)',
 	'XRechnung: Es entsteht nur die XML-Datei (Standard XRechnung 3.0); die PDF dient als Ansicht und enthält kein XML. Anlagen gehen in die XML.':
 		'XRechnung : seul le fichier XML est créé (norme XRechnung 3.0) ; le PDF est un aperçu et ne contient pas de XML. Les pièces jointes vont dans le XML.',
+	'Aufbewahren bis {date} (frühester Löschzeitpunkt). Der Adapter rechnet vorsichtig mit 10 Jahren; gesetzlich gelten für Rechnungen mindestens 8 Jahre, für manche Unterlagen 10. Im Zweifel fragen Sie Ihren Steuerberater.':
+		"À conserver jusqu'au {date} (date de suppression au plus tôt). L'adaptateur compte prudemment dix ans ; la loi impose de conserver les factures au moins huit ans, certains documents dix. En cas de doute, demandez à votre conseiller fiscal.",
 };
