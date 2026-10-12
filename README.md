@@ -610,7 +610,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.2.1 (2026-10-12)
 
 * (alex) A half uploaded file (`….zip.part`) of a failed copy is removed on the server: at once when the connection still works, otherwise by the next good copy. Only half files of this adapter are touched.
 * (alex) fix: *Test connection* uses the saved password only for the saved server and user, so no script can have the password sent to a server of its own.
@@ -640,10 +640,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 * (alex) **The web app speaks all eleven ioBroker languages:** besides German and English now Russian, Portuguese, Dutch, French, Italian, Spanish, Polish, Ukrainian and Chinese. The instance setting "Web app language" offers all of them; the dictionary of the language in use is loaded on demand. The legal terms (GoBD, UStG, Leitweg-ID, XRechnung, ZUGFeRD, DATEV) stay as they are, the documents themselves (PDF, XML) stay German. Have the wording checked by a native speaker where it matters.
 * (alex) The objects of the adapter (info and control states, the file storage) carry their names in all eleven ioBroker languages; an existing installation gets the new names on the next start.
 * (alex) fix: the control buttons (`control.createDraft`, `issue`, `refresh`, `backup`, `restore`) act on the value `true` only. Writing `false` or another value no longer starts an issue, a backup or a restore.
-
-### 1.1.2 (2026-10-11)
-
-* (alex) Documentation in English: the documents in `docs/` are now in `docs/en/` (validation evidence, disclaimer, performance), the German originals in `docs/de/`, as the ioBroker reviewers ask for. The English validation document is up to date (13 sample cases, XRechnung, warnings fail the run); a test keeps German out of `docs/en/` and pairs every German file with an English one.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

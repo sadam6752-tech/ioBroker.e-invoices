@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.2.1": {
+        "en": "External backup: the connection test sends the saved password only to the saved server; half uploaded files are removed; adapter timers for the time limit (E5005); several small fixes.",
+        "de": "Externes Backup: der Verbindungstest schickt das gespeicherte Passwort nur an den gespeicherten Server; halb hochgeladene Dateien werden entfernt; Adapter-Timer für das Zeitlimit (E5005); mehrere kleine Korrekturen.",
+        "ru": "Внешняя копия: проверка соединения отправляет сохранённый пароль только на сохранённый сервер; недогруженные файлы удаляются; таймеры адаптера для ограничения времени (E5005); несколько мелких исправлений.",
+        "pt": "Cópia externa: o teste de ligação só envia a palavra-passe guardada ao servidor guardado; os ficheiros carregados a meio são removidos; temporizadores do adaptador para o limite de tempo (E5005); várias pequenas correções.",
+        "nl": "Externe back-up: de verbindingstest stuurt het opgeslagen wachtwoord alleen naar de opgeslagen server; half geüploade bestanden worden verwijderd; adaptertimers voor de tijdslimiet (E5005); enkele kleine correcties.",
+        "fr": "Sauvegarde externe : le test de connexion n'envoie le mot de passe enregistré qu'au serveur enregistré ; les fichiers à moitié envoyés sont supprimés ; minuteries de l'adaptateur pour la limite de temps (E5005) ; plusieurs petites corrections.",
+        "it": "Backup esterno: il test di connessione invia la password salvata solo al server salvato; i file caricati a metà vengono rimossi; timer dell'adattatore per il limite di tempo (E5005); diverse piccole correzioni.",
+        "es": "Copia externa: la prueba de conexión solo envía la contraseña guardada al servidor guardado; se eliminan los archivos subidos a medias; temporizadores del adaptador para el límite de tiempo (E5005); varias correcciones menores.",
+        "pl": "Zewnętrzna kopia: test połączenia wysyła zapisane hasło tylko do zapisanego serwera; częściowo przesłane pliki są usuwane; timery adaptera dla limitu czasu (E5005); kilka drobnych poprawek.",
+        "uk": "Зовнішня копія: перевірка з'єднання надсилає збережений пароль лише на збережений сервер; недовантажені файли видаляються; таймери адаптера для обмеження часу (E5005); кілька дрібних виправлень.",
+        "zh-cn": "外部备份：连接测试只会把已保存的密码发送到已保存的服务器；上传到一半的文件会被删除；时间限制改用适配器计时器（E5005）；若干小修复。"
+      },
       "1.2.0": {
         "en": "New: backups can be copied to an external server over SFTP (for example a Synology NAS) - tab \"External backup\", with connection test and optional fingerprint check. The web app asks before signing out.",
         "de": "Neu: Backups lassen sich per SFTP auf einen externen Server kopieren (zum Beispiel eine Synology NAS) - Reiter \"Externes Backup\", mit Verbindungstest und optionaler Fingerabdruck-Prüfung. Die Web-App fragt vor dem Abmelden nach.",
@@ -101,19 +114,6 @@
         "pl": "Dokumentacja: raporty walidacji w repozytorium nie zawierają już ścieżek komputera, na którym powstały.",
         "uk": "Документація: звіти перевірки в репозиторії більше не містять шляхів до комп'ютера, на якому їх створено.",
         "zh-cn": "文档：仓库中的验证报告不再包含生成它们的计算机上的路径。"
-      },
-      "1.1.0": {
-        "en": "Real DATEV export (Buchungsstapel) with advisor and client number, chart of accounts and accounts from the new settings tab \"DATEV\". Fixes: commercial cent rounding of the VAT, the local calendar day after midnight, Storno of offers and credit notes, restore of backups bigger than 18 MB. Credit notes now reduce the revenue per company.",
-        "de": "Echter DATEV-Export (Buchungsstapel) mit Berater- und Mandantennummer, Kontenrahmen und Konten aus dem neuen Einstellungsreiter „DATEV“. Korrekturen: kaufmännische Cent-Rundung der Umsatzsteuer, das lokale Datum nach Mitternacht, Storno von Angeboten und Gutschriften, Wiederherstellung von Backups über 18 MB. Gutschriften mindern jetzt den Umsatz je Firma.",
-        "ru": "Настоящий экспорт DATEV (Buchungsstapel) с номером консультанта и клиента, планом счетов и счетами из новой вкладки настроек «DATEV». Исправления: коммерческое округление НДС до цента, местная дата после полуночи, сторно предложений и кредит-нот, восстановление резервных копий больше 18 МБ. Кредит-ноты теперь уменьшают выручку по фирме.",
-        "pt": "Exportação DATEV real (Buchungsstapel) com número de consultor e de cliente, plano de contas e contas do novo separador de definições «DATEV». Correções: arredondamento comercial do IVA ao cêntimo, a data local depois da meia-noite, estorno de propostas e notas de crédito, restauro de cópias de segurança acima de 18 MB. As notas de crédito reduzem agora a receita por empresa.",
-        "nl": "Echte DATEV-export (Buchungsstapel) met adviseurs- en cliëntnummer, rekeningschema en rekeningen uit het nieuwe instellingentabblad «DATEV». Correcties: commerciële centafronding van de btw, de lokale datum na middernacht, storno van offertes en creditnota's, herstel van back-ups groter dan 18 MB. Creditnota's verlagen nu de omzet per bedrijf.",
-        "fr": "Véritable export DATEV (Buchungsstapel) avec numéro de conseiller et de client, plan comptable et comptes issus du nouvel onglet de paramètres « DATEV ». Corrections : arrondi commercial de la TVA au centime, la date locale après minuit, l'annulation des offres et des avoirs, la restauration de sauvegardes de plus de 18 Mo. Les avoirs réduisent désormais le chiffre d'affaires par entreprise.",
-        "it": "Vera esportazione DATEV (Buchungsstapel) con numero del consulente e del cliente, piano dei conti e conti dalla nuova scheda delle impostazioni «DATEV». Correzioni: arrotondamento commerciale dell'IVA al centesimo, la data locale dopo mezzanotte, storno di offerte e note di credito, ripristino di backup oltre 18 MB. Le note di credito ora riducono il fatturato per azienda.",
-        "es": "Exportación DATEV real (Buchungsstapel) con número de asesor y de cliente, plan de cuentas y cuentas de la nueva pestaña de ajustes «DATEV». Correcciones: redondeo comercial del IVA al céntimo, la fecha local después de medianoche, anulación de ofertas y notas de crédito, restauración de copias de seguridad de más de 18 MB. Las notas de crédito ahora reducen la facturación por empresa.",
-        "pl": "Prawdziwy eksport DATEV (Buchungsstapel) z numerem doradcy i klienta, planem kont i kontami z nowej karty ustawień «DATEV». Poprawki: handlowe zaokrąglanie VAT do grosza, lokalna data po północy, storno ofert i faktur korygujących, przywracanie kopii zapasowych większych niż 18 MB. Faktury korygujące zmniejszają teraz przychód na firmę.",
-        "uk": "Справжній експорт DATEV (Buchungsstapel) з номером консультанта і клієнта, планом рахунків і рахунками з нової вкладки налаштувань «DATEV». Виправлення: комерційне округлення ПДВ до цента, місцева дата після півночі, сторно пропозицій і кредит-нот, відновлення резервних копій понад 18 МБ. Кредит-ноти тепер зменшують виручку за фірмою.",
-        "zh-cn": "真正的 DATEV 导出（Buchungsstapel），顾问编号、客户编号、会计科目表和账户来自新的“DATEV”设置选项卡。修复：增值税按商业规则四舍五入到分、午夜后的本地日期、报价和贷项通知单的冲销、大于 18 MB 的备份恢复。贷项通知单现在会减少各公司的收入。"
       }
     },
     "titleLang": {

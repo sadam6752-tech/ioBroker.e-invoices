@@ -228,6 +228,10 @@ that came out of the tag pipeline (npm provenance via Trusted Publishing) is
 * (alex) initial release
 * (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
   when the sRGB profile for PDF/A-3 is missing
+## 1.1.2 (2026-10-11)
+
+* (alex) Documentation in English: the documents in `docs/` are now in `docs/en/` (validation evidence, disclaimer, performance), the German originals in `docs/de/`, as the ioBroker reviewers ask for. The English validation document is up to date (13 sample cases, XRechnung, warnings fail the run); a test keeps German out of `docs/en/` and pairs every German file with an English one.
+
 ## 1.1.1 (2026-10-11)
 
 * (alex) The validator reports in `docs/validierung` named the checked file by its full path on the machine they were made on (user name and disk layout). Those paths are replaced by placeholders, nothing else in the reports changed, and a test keeps new ones out.
