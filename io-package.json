@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.1.5",
+    "version": "1.2.0",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.2.0": {
+        "en": "New: backups can be copied to an external server over SFTP (for example a Synology NAS) - tab \"External backup\", with connection test and optional fingerprint check. The web app asks before signing out.",
+        "de": "Neu: Backups lassen sich per SFTP auf einen externen Server kopieren (zum Beispiel eine Synology NAS) - Reiter \"Externes Backup\", mit Verbindungstest und optionaler Fingerabdruck-Prüfung. Die Web-App fragt vor dem Abmelden nach.",
+        "ru": "Новое: резервные копии можно копировать на внешний сервер по SFTP (например, на NAS Synology) - вкладка \"Внешняя копия\", с проверкой соединения и необязательной проверкой отпечатка. Веб-приложение спрашивает подтверждение перед выходом.",
+        "pt": "Novo: as cópias de segurança podem ser copiadas por SFTP para um servidor externo (por exemplo, um NAS Synology) - separador \"Cópia externa\", com teste de ligação e verificação opcional da impressão digital. A aplicação web pede confirmação antes de terminar a sessão.",
+        "nl": "Nieuw: back-ups kunnen via SFTP naar een externe server worden gekopieerd (bijvoorbeeld een Synology NAS) - tabblad \"Externe back-up\", met verbindingstest en optionele controle van de vingerafdruk. De web-app vraagt om bevestiging voor het afmelden.",
+        "fr": "Nouveau : les sauvegardes peuvent être copiées par SFTP vers un serveur externe (par exemple un NAS Synology) - onglet \"Sauvegarde externe\", avec test de connexion et vérification facultative de l'empreinte. L'application web demande confirmation avant la déconnexion.",
+        "it": "Novità: i backup possono essere copiati via SFTP su un server esterno (ad esempio un NAS Synology) - scheda \"Backup esterno\", con verifica della connessione e controllo facoltativo dell'impronta. L'app web chiede conferma prima di uscire.",
+        "es": "Novedad: las copias de seguridad pueden copiarse por SFTP a un servidor externo (por ejemplo, un NAS Synology) - pestaña \"Copia externa\", con prueba de conexión y comprobación opcional de la huella. La aplicación web pide confirmación antes de cerrar la sesión.",
+        "pl": "Nowość: kopie zapasowe można kopiować przez SFTP na serwer zewnętrzny (na przykład NAS Synology) - karta \"Zewnętrzna kopia\", z testem połączenia i opcjonalnym sprawdzeniem odcisku palca. Aplikacja internetowa pyta o potwierdzenie przed wylogowaniem.",
+        "uk": "Нове: резервні копії можна копіювати на зовнішній сервер через SFTP (наприклад, на NAS Synology) - вкладка \"Зовнішня копія\", з перевіркою з'єднання та необов'язковою перевіркою відбитка. Вебзастосунок запитує підтвердження перед виходом.",
+        "zh-cn": "新增：备份可通过 SFTP 复制到外部服务器（例如群晖 NAS）——\"外部备份\"选项卡，带连接测试和可选的指纹校验。网页应用在退出登录前会先确认。"
+      },
       "1.1.5": {
         "en": "Backup: attachments are own ZIP entries (about a third smaller, checked one by one); older backups still restore. Issued invoices show the earliest deletion date with a note on the retention periods (8 years by law, 10 counted by the adapter).",
         "de": "Backup: Anhänge liegen als eigene ZIP-Einträge (etwa ein Drittel kleiner, einzeln geprüft); ältere Backups lassen sich weiter einspielen. Ausgestellte Rechnungen zeigen das früheste Löschdatum mit Hinweis zur Aufbewahrungsfrist (gesetzlich 8 Jahre, der Adapter rechnet mit 10).",
@@ -101,19 +114,6 @@
         "pl": "Prawdziwy eksport DATEV (Buchungsstapel) z numerem doradcy i klienta, planem kont i kontami z nowej karty ustawień «DATEV». Poprawki: handlowe zaokrąglanie VAT do grosza, lokalna data po północy, storno ofert i faktur korygujących, przywracanie kopii zapasowych większych niż 18 MB. Faktury korygujące zmniejszają teraz przychód na firmę.",
         "uk": "Справжній експорт DATEV (Buchungsstapel) з номером консультанта і клієнта, планом рахунків і рахунками з нової вкладки налаштувань «DATEV». Виправлення: комерційне округлення ПДВ до цента, місцева дата після півночі, сторно пропозицій і кредит-нот, відновлення резервних копій понад 18 МБ. Кредит-ноти тепер зменшують виручку за фірмою.",
         "zh-cn": "真正的 DATEV 导出（Buchungsstapel），顾问编号、客户编号、会计科目表和账户来自新的“DATEV”设置选项卡。修复：增值税按商业规则四舍五入到分、午夜后的本地日期、报价和贷项通知单的冲销、大于 18 MB 的备份恢复。贷项通知单现在会减少各公司的收入。"
-      },
-      "1.0.11": {
-        "en": "New logo: the euro sign is orange now, in the admin, the installed web app, the favicon and the iOS home screen icon.",
-        "de": "Neues Logo: Das Euro-Zeichen ist jetzt orange, im Admin, in der installierten Web-App, im Favicon und im iOS-Home-Bildschirm-Symbol.",
-        "ru": "Новый логотип: знак евро теперь оранжевый — в admin, в установленном веб-приложении, в favicon и на значке главного экрана iOS.",
-        "pt": "Novo logótipo: o sinal do euro é agora laranja, no admin, na aplicação web instalada, no favicon e no ícone do ecrã principal do iOS.",
-        "nl": "Nieuw logo: het euroteken is nu oranje, in de admin, in de geïnstalleerde web-app, in het favicon en in het beginschermpictogram van iOS.",
-        "fr": "Nouveau logo : le signe euro est désormais orange, dans l'admin, dans l'application web installée, dans le favicon et dans l'icône d'écran d'accueil iOS.",
-        "it": "Nuovo logo: il simbolo dell'euro ora è arancione, nell'admin, nell'app web installata, nella favicon e nell'icona della schermata Home di iOS.",
-        "es": "Nuevo logotipo: el signo del euro ahora es naranja, en el admin, en la aplicación web instalada, en el favicon y en el icono de la pantalla de inicio de iOS.",
-        "pl": "Nowe logo: znak euro jest teraz pomarańczowy — w adminie, w zainstalowanej aplikacji internetowej, w faviconie i na ikonie ekranu głównego iOS.",
-        "uk": "Новий логотип: знак євро тепер помаранчевий — в admin, у встановленому вебзастосунку, у favicon та на піктограмі головного екрана iOS.",
-        "zh-cn": "新徽标：欧元符号现在为橙色，体现在管理界面、已安装的网页应用、favicon 以及 iOS 主屏幕图标中。"
       }
     },
     "titleLang": {

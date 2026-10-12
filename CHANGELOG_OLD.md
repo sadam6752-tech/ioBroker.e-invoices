@@ -228,6 +228,10 @@ that came out of the tag pipeline (npm provenance via Trusted Publishing) is
 * (alex) initial release
 * (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
   when the sRGB profile for PDF/A-3 is missing
+## 1.1.1 (2026-10-11)
+
+* (alex) The validator reports in `docs/validierung` named the checked file by its full path on the machine they were made on (user name and disk layout). Those paths are replaced by placeholders, nothing else in the reports changed, and a test keeps new ones out.
+
 ## 1.1.0 (2026-10-08)
 
 * (alex) fix: amounts are rounded commercially to the cent in every case. Before, an amount whose binary value lies just below half a cent was rounded down — 42.50 EUR at 19 % gave 8.07 EUR of VAT instead of 8.08 EUR (about one tax amount in a thousand).

@@ -608,7 +608,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.2.0 (2026-10-12)
 
 * (alex) **Copy of the backups to an external server over SFTP:** the new tab *External backup* in the instance settings copies every backup (automatic and by hand) to another computer, for example a Synology NAS. Pure SFTP without mount, `sudo` or shell command; password stored encrypted; optional host key fingerprint; *Test connection* button; a failed copy never touches the local backup and is shown in the log, in `info.remoteBackupError` and on the backup page. Optionally the oldest automatic copies on the server are deleted (only files of this adapter).
 * (alex) The web app asks "Really sign out?" before it signs out (menu link and login page).
@@ -632,10 +632,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ### 1.1.2 (2026-10-11)
 
 * (alex) Documentation in English: the documents in `docs/` are now in `docs/en/` (validation evidence, disclaimer, performance), the German originals in `docs/de/`, as the ioBroker reviewers ask for. The English validation document is up to date (13 sample cases, XRechnung, warnings fail the run); a test keeps German out of `docs/en/` and pairs every German file with an English one.
-
-### 1.1.1 (2026-10-11)
-
-* (alex) The validator reports in `docs/validierung` named the checked file by its full path on the machine they were made on (user name and disk layout). Those paths are replaced by placeholders, nothing else in the reports changed, and a test keeps new ones out.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
