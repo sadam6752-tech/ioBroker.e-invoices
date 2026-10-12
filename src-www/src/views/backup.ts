@@ -166,9 +166,18 @@ export async function backup(root: HTMLElement): Promise<void> {
 							t('Sichern fehlgeschlagen'),
 					);
 				}
-				const created = (await res.json()) as BackupEntry;
-				message = t('Gesichert: {name}', { name: baseName(created.filename) });
-				isError = false;
+				const created = (await res.json()) as BackupEntry & { remote?: { ok: boolean; message: string } };
+				const name = baseName(created.filename);
+				// a failed copy to the external server is shown, the backup itself is made
+				message = !created.remote
+					? t('Gesichert: {name}', { name })
+					: created.remote.ok
+						? t('Gesichert: {name} – auch auf den externen Server kopiert.', { name })
+						: t('Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}', {
+								name,
+								message: created.remote.message,
+							});
+				isError = created.remote ? !created.remote.ok : false;
 				await reload();
 			} catch (e) {
 				message = (e as Error).message;

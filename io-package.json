@@ -182,7 +182,8 @@
       {
         "admin": ">=7.6.20"
       }
-    ]
+    ],
+    "messagebox": true
   },
   "native": {
     "port": 8093,
@@ -221,13 +222,23 @@
     "datevRevenue19": "",
     "datevRevenue7": "",
     "datevRevenue0": "",
-    "defaultPaymentTerms": ""
+    "defaultPaymentTerms": "",
+    "remoteEnabled": false,
+    "remoteHost": "",
+    "remotePort": 22,
+    "remoteUser": "",
+    "remotePassword": "",
+    "remoteDirectory": "/backups/e-invoices",
+    "remoteHostKey": "",
+    "remoteKeep": 0
   },
   "encryptedNative": [
-    "authToken"
+    "authToken",
+    "remotePassword"
   ],
   "protectedNative": [
-    "authToken"
+    "authToken",
+    "remotePassword"
   ],
   "objects": [],
   "instanceObjects": [

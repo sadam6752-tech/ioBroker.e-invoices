@@ -20,6 +20,13 @@ import {
 	selectBackupsToPrune,
 } from './lib/backup';
 import { InvoiceDatabase } from './lib/db';
+import {
+	copyBackupToRemote,
+	testRemoteConnection,
+	type RemoteBackupSettings,
+	type RemoteCopyResult,
+} from './lib/remote-backup';
+import { connectSsh2 } from './lib/sftp-ssh2';
 import { isButtonPress } from './lib/control-buttons';
 import { STATE_NAMES } from './lib/state-names';
 import { createWebServer, decideTls } from './lib/tls';
@@ -51,6 +58,8 @@ class EInvoices extends utils.Adapter {
 	private backupTimer: ReturnType<EInvoices['setTimeout']> | undefined;
 	/** True once the backup warning was logged, so it is not repeated at every refresh. */
 	private backupWarned = false;
+	/** Copies to the external server run one after the other. */
+	private remoteQueue: Promise<unknown> = Promise.resolve();
 
 	/** Pending automatic dunning check, cancelled on unload. */
 	private reminderTimer: ReturnType<EInvoices['setTimeout']> | undefined;
@@ -65,7 +74,7 @@ class EInvoices extends utils.Adapter {
 		this.on('ready', this.onReady.bind(this));
 		this.on('stateChange', this.onStateChange.bind(this));
 		// this.on('objectChange', this.onObjectChange.bind(this));
-		// this.on('message', this.onMessage.bind(this));
+		this.on('message', this.onMessage.bind(this));
 		this.on('unload', this.onUnload.bind(this));
 	}
 
@@ -233,6 +242,28 @@ class EInvoices extends utils.Adapter {
 			{
 				id: 'info.lastBackup',
 				common: { name: 'Last backup filename', type: 'string', role: 'text', read: true, write: false },
+				native: {},
+			},
+			{
+				id: 'info.lastRemoteBackup',
+				common: {
+					name: 'Last copy on the external server',
+					type: 'string',
+					role: 'text',
+					read: true,
+					write: false,
+				},
+				native: {},
+			},
+			{
+				id: 'info.remoteBackupError',
+				common: {
+					name: 'Error of the last copy to the external server (empty = fine)',
+					type: 'string',
+					role: 'text',
+					read: true,
+					write: false,
+				},
 				native: {},
 			},
 			{
@@ -563,8 +594,57 @@ class EInvoices extends utils.Adapter {
 		if (kind === 'auto') {
 			await this.pruneAutomaticBackups();
 		}
+		await this.copyToRemote(backup);
 		await this.refreshBackupStatus();
 		await this.publishStatusFile();
+	}
+
+	/** The instance settings of the copy to the external server. */
+	private remoteSettings(): RemoteBackupSettings {
+		return {
+			enabled: this.config.remoteEnabled === true,
+			host: this.config.remoteHost,
+			port: Number(this.config.remotePort) || undefined,
+			username: this.config.remoteUser,
+			password: this.config.remotePassword,
+			directory: this.config.remoteDirectory,
+			hostKey: this.config.remoteHostKey,
+			keep: Number(this.config.remoteKeep ?? 0),
+		};
+	}
+
+	/**
+	 * Copies a backup to the external server, when that is switched on. The local backup is already safe at
+	 * this point: a failed copy is logged and shown in `info.remoteBackupError`, nothing is thrown.
+	 *
+	 * @param backup - The backup that was just written.
+	 * @param backup.filename - Path below the storage mount.
+	 * @param backup.data - ZIP bytes.
+	 * @returns The result, or null when the copy is switched off.
+	 */
+	private async copyToRemote(backup: { filename: string; data: Buffer }): Promise<RemoteCopyResult | null> {
+		const settings = this.remoteSettings();
+		if (!settings.enabled) {
+			return null;
+		}
+		const run = async (): Promise<RemoteCopyResult> => {
+			const result = await copyBackupToRemote(connectSsh2, settings, backup, this.log);
+			if (result.ok) {
+				this.log.info(`Backup copied to the external server: ${result.remoteFile}`);
+				for (const old of result.deleted) {
+					this.log.info(`Old copy deleted on the external server: ${old}`);
+				}
+				await this.setState('info.lastRemoteBackup', result.remoteFile ?? backup.filename, true);
+				await this.setState('info.remoteBackupError', '', true);
+			} else {
+				this.log.error(`Copy to the external server failed: ${result.message}`);
+				await this.setState('info.remoteBackupError', result.message, true);
+			}
+			return result;
+		};
+		const next = this.remoteQueue.then(run, run);
+		this.remoteQueue = next.catch(() => undefined);
+		return next;
 	}
 
 	/**
@@ -811,6 +891,7 @@ class EInvoices extends utils.Adapter {
 				version: adapterVersion,
 				authToken: this.config.authToken || undefined,
 				onChange: () => this.scheduleStatsRefresh(),
+				onBackup: backup => this.copyToRemote(backup),
 				settings: {
 					defaultVatRate: Number(this.config.defaultVatRate ?? 19),
 					defaultProfile: this.config.defaultProfile ?? 'EN16931',
@@ -925,22 +1006,44 @@ class EInvoices extends utils.Adapter {
 			void this.handleCommand(id);
 		}
 	}
-	// If you need to accept messages in your adapter, uncomment the following block and the corresponding line in the constructor.
-	// /**
-	//  * Some message was sent to this instance over message box. Used by email, pushover, text2speech, ...
-	//  * Using this method requires "common.messagebox" property to be set to true in io-package.json
-	//  */
-	//
-	// private onMessage(obj: ioBroker.Message): void {
-	// 	if (typeof obj === 'object' && obj.message) {
-	// 		if (obj.command === 'send') {
-	// 			// e.g. send email or pushover or whatever
-	// 			this.log.info('send command');
-	// 			// Send response in callback if required
-	// 			if (obj.callback) this.sendTo(obj.from, obj.command, 'Message received', obj.callback);
-	// 		}
-	// 	}
-	// }
+	/**
+	 * Messages from the admin page. `testRemoteBackup` tries the SFTP settings of the form (also unsaved ones) and
+	 * answers with a text for the dialog.
+	 *
+	 * @param obj - The message.
+	 */
+	private onMessage(obj: ioBroker.Message): void {
+		if (typeof obj !== 'object' || obj.command !== 'testRemoteBackup') {
+			return;
+		}
+		const form = (obj.message ?? {}) as Record<string, unknown>;
+		const text = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
+		const settings: RemoteBackupSettings = {
+			enabled: true,
+			host: text(form.remoteHost) ?? this.config.remoteHost,
+			port: Number(form.remotePort ?? this.config.remotePort) || undefined,
+			username: text(form.remoteUser) ?? this.config.remoteUser,
+			// an empty form field keeps the saved password
+			password: text(form.remotePassword) || this.config.remotePassword,
+			directory: text(form.remoteDirectory) ?? this.config.remoteDirectory,
+			hostKey: text(form.remoteHostKey) ?? this.config.remoteHostKey,
+		};
+		void testRemoteConnection(connectSsh2, settings).then(result => {
+			if (!obj.callback) {
+				return;
+			}
+			const hint =
+				result.ok && !settings.hostKey?.trim() && result.fingerprint
+					? ` Fingerprint of the server (enter it to trust only this server): ${result.fingerprint}`
+					: '';
+			this.sendTo(
+				obj.from,
+				obj.command,
+				result.ok ? { result: `OK: ${result.message}.${hint}` } : { error: result.message },
+				obj.callback,
+			);
+		});
+	}
 }
 if (require.main !== module) {
 	// Export the constructor in compact mode

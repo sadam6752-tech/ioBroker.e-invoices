@@ -1461,6 +1461,7 @@ function createApiServer(deps) {
   app.post(
     "/api/backups",
     route(async (_req, res) => {
+      var _a2;
       try {
         const backup = await (0, import_backup.createBackup)(db, storage, log, version);
         try {
@@ -1476,7 +1477,10 @@ function createApiServer(deps) {
           manifestJson: JSON.stringify(backup.manifest)
         });
         log.info(`Backup created: ${backup.filename} (${backup.size} bytes)`);
-        res.status(201).json(logged);
+        const remote = await ((_a2 = deps.onBackup) == null ? void 0 : _a2.call(deps, { filename: backup.filename, data: backup.data }));
+        res.status(201).json(
+          remote ? { ...logged, remote: { ok: remote.ok, message: remote.message } } : logged
+        );
       } catch (error) {
         res.status(500).json({ error: `Backup failed: ${error.message}` });
       }

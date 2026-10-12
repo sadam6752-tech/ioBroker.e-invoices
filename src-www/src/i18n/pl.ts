@@ -627,4 +627,9 @@ export const pl: Record<string, string> = {
 		'XRechnung: powstaje tylko plik XML (standard XRechnung 3.0); PDF jest podglądem i nie zawiera XML. Załączniki trafiają do XML.',
 	'Aufbewahren bis {date} (frühester Löschzeitpunkt). Der Adapter rechnet vorsichtig mit 10 Jahren; gesetzlich gelten für Rechnungen mindestens 8 Jahre, für manche Unterlagen 10. Im Zweifel fragen Sie Ihren Steuerberater.':
 		'Przechowywać do {date} (najwcześniejszy termin usunięcia). Adapter ostrożnie liczy dziesięć lat; zgodnie z prawem faktury trzeba przechowywać co najmniej osiem lat, niektóre dokumenty dziesięć. W razie wątpliwości zapytaj swojego doradcę podatkowego.',
+	'Gesichert: {name} – auch auf den externen Server kopiert.':
+		'Zapisano kopię: {name} – skopiowano też na serwer zewnętrzny.',
+	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
+		'Zapisano kopię: {name} – kopiowanie na serwer zewnętrzny nie powiodło się: {message}',
+	'Wirklich abmelden?': 'Na pewno się wylogować?',
 };

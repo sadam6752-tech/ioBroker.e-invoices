@@ -627,4 +627,9 @@ export const nl: Record<string, string> = {
 		'XRechnung: er wordt alleen het XML-bestand gemaakt (standaard XRechnung 3.0); de pdf is een weergave en bevat geen XML. Bijlagen gaan in de XML.',
 	'Aufbewahren bis {date} (frühester Löschzeitpunkt). Der Adapter rechnet vorsichtig mit 10 Jahren; gesetzlich gelten für Rechnungen mindestens 8 Jahre, für manche Unterlagen 10. Im Zweifel fragen Sie Ihren Steuerberater.':
 		'Bewaren tot {date} (vroegste tijdstip om te verwijderen). De adapter rekent voorzichtig met tien jaar; wettelijk moeten facturen minstens acht jaar worden bewaard, sommige stukken tien. Bij twijfel: vraag het uw belastingadviseur.',
+	'Gesichert: {name} – auch auf den externen Server kopiert.':
+		'Back-up gemaakt: {name} – ook naar de externe server gekopieerd.',
+	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
+		'Back-up gemaakt: {name} – de kopie naar de externe server is mislukt: {message}',
+	'Wirklich abmelden?': 'Echt afmelden?',
 };

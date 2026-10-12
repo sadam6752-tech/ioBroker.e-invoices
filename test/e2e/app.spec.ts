@@ -66,3 +66,23 @@ test('reports the health of the API on the status page', async ({ page }) => {
 	// the counters come from the database of this run
 	await expect(page.locator('pre.dump')).toContainText('draft');
 });
+
+test('asks before signing out and signs out only after a yes', async ({ page }) => {
+	await signIn(page);
+	await expect(page.locator('#f-status')).toBeVisible();
+
+	// a "no" keeps the session: still on the dashboard, the token is still there
+	const questions: string[] = [];
+	page.once('dialog', dialog => {
+		questions.push(dialog.message());
+		void dialog.dismiss();
+	});
+	await page.getByRole('link', { name: 'Logout' }).click();
+	await expect.poll(() => questions).toEqual(['Wirklich abmelden?']);
+	await expect(page.locator('#f-status')).toBeVisible();
+
+	// a "yes" signs out
+	page.once('dialog', dialog => void dialog.accept());
+	await page.getByRole('link', { name: 'Logout' }).click();
+	await expect(page.getByRole('heading', { name: 'Anmeldung' })).toBeVisible();
+});

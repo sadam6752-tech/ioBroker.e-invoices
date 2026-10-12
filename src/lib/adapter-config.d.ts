@@ -23,6 +23,22 @@ declare global {
 			backupIntervalMinutes?: number;
 			/** Automatic backups kept, older ones are deleted; 0 = keep all. Manual backups are never deleted. */
 			backupKeep?: number;
+			/** Copy every backup to an external SFTP server. */
+			remoteEnabled?: boolean;
+			/** SFTP server: host name or IP address. */
+			remoteHost?: string;
+			/** SFTP server: SSH port, 22 when empty. */
+			remotePort?: number;
+			/** SFTP server: user name. */
+			remoteUser?: string;
+			/** SFTP server: password (encrypted in the instance settings). */
+			remotePassword?: string;
+			/** Directory on the server. */
+			remoteDirectory?: string;
+			/** Fingerprint of the server's host key, empty = not verified. */
+			remoteHostKey?: string;
+			/** Automatic copies kept on the server, 0 = keep all. */
+			remoteKeep?: number;
 			/** Dunning check interval in hours, 0 = off. Never sends mails. */
 			reminderCheckHours?: number;
 			companyName?: string;

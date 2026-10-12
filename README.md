@@ -33,7 +33,7 @@ Features:
 - Excel copies (single invoice and filtered lists, marked as non-tax copies)
 - Layout templates with company logo, colors and footer (mandatory content
   is protected by a validator and cannot be hidden)
-- Backup and restore (database plus all files, SHA-256 manifest)
+- Backup and restore (database plus all files, SHA-256 manifest), optionally copied to an external server over SFTP
 - Controllable via states (`control.*`) and a JSON API for the PWA
 
 ## Install
@@ -359,7 +359,8 @@ starts five days after the due date and stays quiet for a day after a reminder.
 
 - `info.connection`, `info.invoiceCount`, `info.draftCount`,
   `info.issuedCount`, `info.lastNumber`, `info.lastIssuedAt`,
-  `info.dbVersion`, `info.lastBackup`, `info.backupWarning` (empty = backup is current)
+  `info.dbVersion`, `info.lastBackup`, `info.backupWarning` (empty = backup is current),
+  `info.lastRemoteBackup` and `info.remoteBackupError` (copy to the external server, empty = fine)
 - `control.createDraft` (button: creates an empty draft, id lands in
   `control.lastDraftId`), `control.issueId` + `control.issue` (button:
   issues a draft), `control.refresh`, `control.backup`,
@@ -405,6 +406,33 @@ in one transaction.
 
 When using the BackItUp adapter, include this adapter instance and its files in the backup job — and
 check once in the archive that `files/e-invoices.0.storage/backups/` holds a ZIP.
+
+#### Copy to an external server (SFTP)
+
+A backup that lies on the same machine as the database does not survive the loss of that machine. The tab
+*External backup* in the instance settings copies **every backup** (automatic and by hand) to another computer,
+for example a NAS, over **SFTP**. The adapter opens the SSH connection itself: no mount, no `sudo`, no shell command.
+
+1. On the server, create a user that may only write into the target directory (not an administrator) and switch
+   SFTP on (on a Synology: *Control Panel → File Services → FTP → Enable SFTP service*).
+2. In the instance settings, tab *External backup*, switch the copy on and enter host, user, password and the
+   directory (it is created when it is missing). The password is stored encrypted and never written to the log.
+3. Press *Test connection*: the adapter logs in, creates the directory, writes and deletes a small test file, and
+   shows the **fingerprint** of the server. Enter that fingerprint in the settings to trust only this server — a
+   different server is then refused before the password is sent. Without a fingerprint the copy works too, but
+   the server is not verified (the log says so once, with the fingerprint).
+
+How it behaves:
+
+- The local backup is made first. If the copy fails, the backup stays, the error is logged and shown in
+  `info.remoteBackupError`, and the backup page tells it. A failed copy is **not retried**: the next backup is
+  copied again, as it contains everything.
+- A copy appears under its final name only when it is complete (it is uploaded as `.part`, its size is checked and
+  it is renamed). The whole copy is limited to ten minutes.
+- *Copies to keep on the server* deletes the oldest **automatic** copies beyond that number (0 = keep all). Backups
+  made by hand and every other file in the directory are never deleted.
+- Only password login is supported. The ZIP is **not encrypted** (see *Security notes*): the transfer is, the file
+  on the server is not — keep it on a volume only you can read.
 
 ### API
 
@@ -580,6 +608,12 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) **Copy of the backups to an external server over SFTP:** the new tab *External backup* in the instance settings copies every backup (automatic and by hand) to another computer, for example a Synology NAS. Pure SFTP without mount, `sudo` or shell command; password stored encrypted; optional host key fingerprint; *Test connection* button; a failed copy never touches the local backup and is shown in the log, in `info.remoteBackupError` and on the backup page. Optionally the oldest automatic copies on the server are deleted (only files of this adapter).
+* (alex) The web app asks "Really sign out?" before it signs out (menu link and login page).
+* (alex) The unused translation key `e-invoices adapter settings` was removed from `admin/i18n`.
+
 ### 1.1.5 (2026-10-12)
 
 * (alex) The invoice view of an issued invoice shows the earliest deletion date ("Keep until") with a note: the adapter cautiously counts ten years, the law needs at least eight for invoices and ten for some records; in doubt ask the tax advisor. The note is available in all eleven languages.

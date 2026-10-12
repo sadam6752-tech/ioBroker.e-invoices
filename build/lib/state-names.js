@@ -178,6 +178,32 @@ const STATE_NAMES = {
     uk: "\u041F\u0440\u043E\u043F\u043E\u0437\u0438\u0446\u0456\u0457 \u043D\u0430\u0433\u0430\u0434\u0443\u0432\u0430\u043D\u044C \u0443 JSON (ID, \u043D\u043E\u043C\u0435\u0440, \u0440\u0456\u0432\u0435\u043D\u044C, \u0434\u043D\u0456, \u0442\u0435\u043C\u0430, \u0442\u0435\u043A\u0441\u0442)",
     "zh-cn": "\u50AC\u6B3E\u5EFA\u8BAE\uFF08JSON\uFF1AID\u3001\u7F16\u53F7\u3001\u7EA7\u522B\u3001\u5929\u6570\u3001\u4E3B\u9898\u3001\u6587\u672C\uFF09"
   },
+  "info.lastRemoteBackup": {
+    en: "Last copy on the external server",
+    de: "Letzte Kopie auf dem externen Server",
+    ru: "\u041F\u043E\u0441\u043B\u0435\u0434\u043D\u044F\u044F \u043A\u043E\u043F\u0438\u044F \u043D\u0430 \u0432\u043D\u0435\u0448\u043D\u0435\u043C \u0441\u0435\u0440\u0432\u0435\u0440\u0435",
+    pt: "\xDAltima c\xF3pia no servidor externo",
+    nl: "Laatste kopie op de externe server",
+    fr: "Derni\xE8re copie sur le serveur externe",
+    it: "Ultima copia sul server esterno",
+    es: "\xDAltima copia en el servidor externo",
+    pl: "Ostatnia kopia na serwerze zewn\u0119trznym",
+    uk: "\u041E\u0441\u0442\u0430\u043D\u043D\u044F \u043A\u043E\u043F\u0456\u044F \u043D\u0430 \u0437\u043E\u0432\u043D\u0456\u0448\u043D\u044C\u043E\u043C\u0443 \u0441\u0435\u0440\u0432\u0435\u0440\u0456",
+    "zh-cn": "\u5916\u90E8\u670D\u52A1\u5668\u4E0A\u7684\u6700\u8FD1\u4E00\u4EFD\u526F\u672C"
+  },
+  "info.remoteBackupError": {
+    en: "Error of the last copy to the external server (empty = fine)",
+    de: "Fehler der letzten Kopie auf den externen Server (leer = in Ordnung)",
+    ru: "\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0435\u0433\u043E \u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u044F \u043D\u0430 \u0432\u043D\u0435\u0448\u043D\u0438\u0439 \u0441\u0435\u0440\u0432\u0435\u0440 (\u043F\u0443\u0441\u0442\u043E = \u0432\u0441\u0451 \u0432 \u043F\u043E\u0440\u044F\u0434\u043A\u0435)",
+    pt: "Erro da \xFAltima c\xF3pia para o servidor externo (vazio = tudo bem)",
+    nl: "Fout van de laatste kopie naar de externe server (leeg = in orde)",
+    fr: "Erreur de la derni\xE8re copie vers le serveur externe (vide = tout va bien)",
+    it: "Errore dell'ultima copia sul server esterno (vuoto = tutto a posto)",
+    es: "Error de la \xFAltima copia al servidor externo (vac\xEDo = correcto)",
+    pl: "B\u0142\u0105d ostatniej kopii na serwer zewn\u0119trzny (puste = w porz\u0105dku)",
+    uk: "\u041F\u043E\u043C\u0438\u043B\u043A\u0430 \u043E\u0441\u0442\u0430\u043D\u043D\u044C\u043E\u0433\u043E \u043A\u043E\u043F\u0456\u044E\u0432\u0430\u043D\u043D\u044F \u043D\u0430 \u0437\u043E\u0432\u043D\u0456\u0448\u043D\u0456\u0439 \u0441\u0435\u0440\u0432\u0435\u0440 (\u043F\u043E\u0440\u043E\u0436\u043D\u044C\u043E = \u0443\u0441\u0435 \u0433\u0430\u0440\u0430\u0437\u0434)",
+    "zh-cn": "\u6700\u8FD1\u4E00\u6B21\u590D\u5236\u5230\u5916\u90E8\u670D\u52A1\u5668\u7684\u9519\u8BEF\uFF08\u7A7A = \u6B63\u5E38\uFF09"
+  },
   "info.backupWarning": {
     en: "Backup warning (empty = backup is current)",
     de: "Backup-Warnung (leer = Backup ist aktuell)",

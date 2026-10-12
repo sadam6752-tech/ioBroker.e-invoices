@@ -177,6 +177,11 @@ export interface ApiServerDeps {
 	 * so the adapter can refresh its info states without polling.
 	 */
 	onChange?: () => void;
+	/**
+	 * Called after a backup was made through the API and stored locally; copies it to an external server when
+	 * that is set up. Resolves to the outcome, or null when the copy is switched off. Must not throw.
+	 */
+	onBackup?: (backup: { filename: string; data: Buffer }) => Promise<{ ok: boolean; message: string } | null>;
 	/** Bearer token; when empty, the API trusts the LAN (documented). */
 	authToken?: string;
 	/**
@@ -1812,7 +1817,10 @@ export function createApiServer(deps: ApiServerDeps): Express {
 					manifestJson: JSON.stringify(backup.manifest),
 				});
 				log.info(`Backup created: ${backup.filename} (${backup.size} bytes)`);
-				res.status(201).json(logged);
+				const remote = await deps.onBackup?.({ filename: backup.filename, data: backup.data });
+				res.status(201).json(
+					remote ? { ...logged, remote: { ok: remote.ok, message: remote.message } } : logged,
+				);
 			} catch (error) {
 				res.status(500).json({ error: `Backup failed: ${(error as Error).message}` });
 			}

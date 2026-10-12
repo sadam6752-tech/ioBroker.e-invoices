@@ -22,6 +22,9 @@ export function login(root: HTMLElement): void {
 		location.hash = '#/';
 	});
 	root.querySelector('#l-out')?.addEventListener('click', () => {
+		if (!window.confirm(t('Wirklich abmelden?'))) {
+			return;
+		}
 		setToken(null);
 		location.hash = '#/login';
 		location.reload();
@@ -30,6 +33,11 @@ export function login(root: HTMLElement): void {
 
 /** Logout route handler. */
 export function logout(): void {
+	// the menu link signs out at once otherwise, and a mis-tap on a phone costs the token
+	if (!window.confirm(t('Wirklich abmelden?'))) {
+		location.hash = '#/';
+		return;
+	}
 	setToken(null);
 	location.hash = '#/login';
 }

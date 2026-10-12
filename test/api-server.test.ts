@@ -635,6 +635,70 @@ describe('api => invoices', function () {
 	});
 });
 
+describe('api => backup copy to an external server', () => {
+	// the API hands every backup to the copy hook and reports its outcome next to the stored backup
+	const files = new Map<string, Buffer>();
+	const store = {
+		write: (path: string, data: string | Buffer): Promise<void> => {
+			files.set(path, Buffer.isBuffer(data) ? data : Buffer.from(data));
+			return Promise.resolve();
+		},
+		read: (path: string): Promise<Buffer> =>
+			files.has(path) ? Promise.resolve(files.get(path)!) : Promise.reject(new Error(`missing: ${path}`)),
+	};
+	const quiet = { info: (): void => undefined, error: (): void => undefined };
+	let db: InvoiceDatabase;
+	beforeEach(() => {
+		db = new InvoiceDatabase(':memory:');
+		db.migrate();
+	});
+	afterEach(() => db.close());
+
+	it('reports the copy next to the backup', async () => {
+		const seen: { filename: string; size: number }[] = [];
+		const app = createApiServer({
+			db,
+			storage: store,
+			log: quiet,
+			version: '0.0.0-test',
+			onBackup: backup => {
+				seen.push({ filename: backup.filename, size: backup.data.length });
+				return Promise.resolve({ ok: true, message: 'copied' });
+			},
+		});
+		const created = await request(app).post('/api/backups').expect(201);
+		expect(created.body.remote).to.deep.equal({ ok: true, message: 'copied' });
+		expect(seen).to.have.lengthOf(1);
+		expect(seen[0].filename).to.equal(created.body.filename);
+		expect(seen[0].size).to.equal(created.body.size);
+	});
+
+	it('still answers 201 and shows the error when the copy failed', async () => {
+		const app = createApiServer({
+			db,
+			storage: store,
+			log: quiet,
+			version: '0.0.0-test',
+			onBackup: () => Promise.resolve({ ok: false, message: 'Permission denied' }),
+		});
+		const created = await request(app).post('/api/backups').expect(201);
+		expect(created.body.remote).to.deep.equal({ ok: false, message: 'Permission denied' });
+		expect(db.listBackups()).to.have.lengthOf(1);
+	});
+
+	it('has no remote field when the copy is switched off', async () => {
+		const app = createApiServer({
+			db,
+			storage: store,
+			log: quiet,
+			version: '0.0.0-test',
+			onBackup: () => Promise.resolve(null),
+		});
+		const created = await request(app).post('/api/backups').expect(201);
+		expect(created.body).to.not.have.property('remote');
+	});
+});
+
 describe('api => company profiles', () => {
 	let db: InvoiceDatabase;
 	let app: ReturnType<typeof createApiServer>;

@@ -627,4 +627,9 @@ export const uk: Record<string, string> = {
 		'XRechnung: створюється лише файл XML (стандарт XRechnung 3.0); PDF — це перегляд і не містить XML. Вкладення потрапляють в XML.',
 	'Aufbewahren bis {date} (frühester Löschzeitpunkt). Der Adapter rechnet vorsichtig mit 10 Jahren; gesetzlich gelten für Rechnungen mindestens 8 Jahre, für manche Unterlagen 10. Im Zweifel fragen Sie Ihren Steuerberater.':
 		'Зберігати до {date} (найраніший термін видалення). Адаптер обережно рахує десять років; за законом рахунки потрібно зберігати щонайменше вісім років, деякі документи — десять. У разі сумнівів запитайте свого податкового консультанта.',
+	'Gesichert: {name} – auch auf den externen Server kopiert.':
+		'Резервну копію створено: {name} – також скопійовано на зовнішній сервер.',
+	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
+		'Резервну копію створено: {name} – копіювання на зовнішній сервер не вдалося: {message}',
+	'Wirklich abmelden?': 'Справді вийти?',
 };

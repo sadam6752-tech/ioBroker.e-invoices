@@ -632,4 +632,8 @@ export const it: Record<string, string> = {
 		"XRechnung: viene creato solo il file XML (standard XRechnung 3.0); il PDF è una visualizzazione e non contiene XML. Gli allegati vanno nell'XML.",
 	'Aufbewahren bis {date} (frühester Löschzeitpunkt). Der Adapter rechnet vorsichtig mit 10 Jahren; gesetzlich gelten für Rechnungen mindestens 8 Jahre, für manche Unterlagen 10. Im Zweifel fragen Sie Ihren Steuerberater.':
 		"Conservare fino al {date} (data più vicina per l'eliminazione). L'adattatore calcola prudenzialmente dieci anni; per legge le fatture vanno conservate almeno otto anni, alcuni documenti dieci. In caso di dubbio, chiedete al vostro consulente fiscale.",
+	'Gesichert: {name} – auch auf den externen Server kopiert.': 'Salvato: {name} – copiato anche sul server esterno.',
+	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
+		'Salvato: {name} – la copia sul server esterno non è riuscita: {message}',
+	'Wirklich abmelden?': 'Uscire davvero?',
 };

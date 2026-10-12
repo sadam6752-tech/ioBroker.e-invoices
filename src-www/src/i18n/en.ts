@@ -626,4 +626,9 @@ export const en: Record<string, string> = {
 		'XRechnung: only the XML file is made (XRechnung 3.0 standard); the PDF is a view and contains no XML. Attachments go into the XML.',
 	'Aufbewahren bis {date} (frühester Löschzeitpunkt). Der Adapter rechnet vorsichtig mit 10 Jahren; gesetzlich gelten für Rechnungen mindestens 8 Jahre, für manche Unterlagen 10. Im Zweifel fragen Sie Ihren Steuerberater.':
 		'Keep until {date} (earliest time to delete). The adapter cautiously counts ten years; by law invoices must be kept at least eight years, some records ten. If in doubt, ask your tax advisor.',
+	'Gesichert: {name} – auch auf den externen Server kopiert.':
+		'Backed up: {name} – also copied to the external server.',
+	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
+		'Backed up: {name} – the copy to the external server failed: {message}',
+	'Wirklich abmelden?': 'Really sign out?',
 };
