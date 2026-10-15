@@ -4,9 +4,11 @@
 name: Auto-Merge Dependabot PRs
 
 on:
-  # WARNING: This needs to be run in the PR base, DO NOT build untrusted code in this action
-  # details under https://github.blog/changelog/2021-02-19-github-actions-workflows-triggered-by-dependabot-prs-will-run-with-read-only-permissions/
-  pull_request_target:
+  # pull_request, not pull_request_target: GitHub blocks pull_request_target for PRs from forks by
+  # default from 02.11.2026. Workflows run for PRs created by Dependabot get write access through the
+  # permissions block below anyway; the if limits the job to Dependabot.
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   auto-merge:
@@ -19,13 +21,8 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      # The checkout is required: the action reads the config from the working tree
-      # (`cat "$CONFIG_FILE"`), and without the file it silently falls back to its default
-      # rules. On `pull_request_target` this checks out the base branch — which is wanted here.
-      # Version 7 of the action runs on Node 24 (`@v4` still targets the deprecated Node 20).
-      - name: Checkout code
-        uses: actions/checkout@v7
-
+      # No own checkout: the action checks out the base branch itself (ref: base.ref) and reads
+      # .github/auto-merge.yml from there. An own checkout on pull_request would fetch the PR state.
       - name: Check if PR should be auto-merged
         uses: iobroker-bot-orga/action-automerge-dependabot@v1
         with:
