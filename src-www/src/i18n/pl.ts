@@ -632,4 +632,8 @@ export const pl: Record<string, string> = {
 	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
 		'Zapisano kopię: {name} – kopiowanie na serwer zewnętrzny nie powiodło się: {message}',
 	'Wirklich abmelden?': 'Na pewno się wylogować?',
+	'Der Server ist nicht erreichbar.': 'Serwer jest niedostępny.',
+	'Bei HTTPS mit selbst signiertem Zertifikat blockiert der Browser die Verbindung, bis das Zertifikat erneut bestätigt ist: Seite neu laden oder {link} öffnen und die Sicherheitswarnung bestätigen. Sonst prüfen, ob die Adapter-Instanz läuft.':
+		'Przy HTTPS z certyfikatem z podpisem własnym przeglądarka blokuje połączenie, dopóki certyfikat nie zostanie ponownie zaakceptowany: odśwież stronę lub otwórz {link} i zaakceptuj ostrzeżenie bezpieczeństwa. W przeciwnym razie sprawdź, czy instancja adaptera działa.',
+	'Neu laden': 'Odśwież',
 };

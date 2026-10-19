@@ -601,7 +601,19 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 	if (token) {
 		headers.authorization = `Bearer ${token}`;
 	}
-	const res = await fetch(path, { ...init, headers });
+	let res: Response;
+	try {
+		res = await fetch(path, { ...init, headers });
+	} catch (error) {
+		if ((error as Error).name === 'AbortError') {
+			throw error;
+		}
+		// no answer at all: the instance is down, the network is gone, or the browser no longer accepts the
+		// HTTPS certificate (a background request cannot show the warning page, only a page load can)
+		showConnectionProblem();
+		throw new Error(t('Der Server ist nicht erreichbar.'));
+	}
+	hideConnectionProblem();
 	if (res.status === 401) {
 		if (!location.hash.startsWith('#/login')) {
 			location.hash = '#/login';
@@ -609,6 +621,34 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 		throw new Error(t('Nicht angemeldet — bitte Token auf der Login-Seite eintragen'));
 	}
 	return res;
+}
+
+/**
+ * Shows a banner above the page when the server gives no answer, with what usually helps: reloading the page, so
+ * the browser can show its certificate warning again. Shown once, removed by the next answer of the server.
+ */
+export function showConnectionProblem(): void {
+	if (document.getElementById('net-problem')) {
+		return;
+	}
+	const box = document.createElement('div');
+	box.id = 'net-problem';
+	box.className = 'net-problem';
+	box.setAttribute('role', 'alert');
+	const origin = location.origin;
+	box.innerHTML = `<div><strong>${t('Der Server ist nicht erreichbar.')}</strong>
+		<p>${t(
+			'Bei HTTPS mit selbst signiertem Zertifikat blockiert der Browser die Verbindung, bis das Zertifikat erneut bestätigt ist: Seite neu laden oder {link} öffnen und die Sicherheitswarnung bestätigen. Sonst prüfen, ob die Adapter-Instanz läuft.',
+			{ link: `<a href="${esc(origin)}/">${esc(origin)}</a>` },
+		)}</p></div>
+		<button type="button" id="net-reload">${t('Neu laden')}</button>`;
+	box.querySelector('#net-reload')?.addEventListener('click', () => location.reload());
+	document.body.prepend(box);
+}
+
+/** Removes the banner of `showConnectionProblem` (the server answered again). */
+export function hideConnectionProblem(): void {
+	document.getElementById('net-problem')?.remove();
 }
 
 /**

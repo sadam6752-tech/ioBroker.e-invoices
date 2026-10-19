@@ -86,3 +86,25 @@ test('asks before signing out and signs out only after a yes', async ({ page }) 
 	await page.getByRole('link', { name: 'Logout' }).click();
 	await expect(page.getByRole('heading', { name: 'Anmeldung' })).toBeVisible();
 });
+
+test('says what to do when the server gives no answer, and goes away when it answers again', async ({ page }) => {
+	await signIn(page);
+	await expect(page.locator('#f-status')).toBeVisible();
+
+	// no answer at all, as with a certificate the browser no longer accepts
+	await page.route('**/api/**', route => route.abort('failed'));
+	await page.getByRole('link', { name: 'Angebote' }).click();
+	const banner = page.locator('#net-problem');
+	await expect(banner).toBeVisible();
+	await expect(banner).toContainText('Der Server ist nicht erreichbar.');
+	await expect(banner.getByRole('link')).toHaveAttribute('href', /^https?:\/\/[^/]+\/$/);
+	// the error in the page is readable instead of the browser's "NetworkError"
+	await expect(page.locator('#view')).toContainText('Der Server ist nicht erreichbar.');
+
+	// the server answers again: reloading brings the page back without the banner
+	await page.unroute('**/api/**');
+	await banner.getByRole('button', { name: 'Neu laden' }).click();
+	await expect(page.locator('#net-problem')).toHaveCount(0);
+	await expect(page.locator('#view')).not.toContainText('Der Server ist nicht erreichbar.');
+	await expect(page.locator('#view .card').first()).toBeVisible();
+});

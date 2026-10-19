@@ -638,4 +638,8 @@ export const es: Record<string, string> = {
 	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
 		'Copia hecha: {name} – la copia al servidor externo falló: {message}',
 	'Wirklich abmelden?': '¿Cerrar la sesión de verdad?',
+	'Der Server ist nicht erreichbar.': 'No se puede acceder al servidor.',
+	'Bei HTTPS mit selbst signiertem Zertifikat blockiert der Browser die Verbindung, bis das Zertifikat erneut bestätigt ist: Seite neu laden oder {link} öffnen und die Sicherheitswarnung bestätigen. Sonst prüfen, ob die Adapter-Instanz läuft.':
+		'Con HTTPS y un certificado autofirmado, el navegador bloquea la conexión hasta que se vuelva a aceptar el certificado: recargue la página o abra {link} y acepte la advertencia de seguridad. Si no, compruebe que la instancia del adaptador está en marcha.',
+	'Neu laden': 'Recargar',
 };

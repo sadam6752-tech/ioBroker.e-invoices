@@ -631,4 +631,8 @@ export const en: Record<string, string> = {
 	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
 		'Backed up: {name} – the copy to the external server failed: {message}',
 	'Wirklich abmelden?': 'Really sign out?',
+	'Der Server ist nicht erreichbar.': 'The server cannot be reached.',
+	'Bei HTTPS mit selbst signiertem Zertifikat blockiert der Browser die Verbindung, bis das Zertifikat erneut bestätigt ist: Seite neu laden oder {link} öffnen und die Sicherheitswarnung bestätigen. Sonst prüfen, ob die Adapter-Instanz läuft.':
+		'With HTTPS and a self-signed certificate the browser blocks the connection until the certificate is accepted again: reload the page or open {link} and accept the security warning. Otherwise check that the adapter instance is running.',
+	'Neu laden': 'Reload',
 };

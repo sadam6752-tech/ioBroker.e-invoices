@@ -632,4 +632,8 @@ export const ru: Record<string, string> = {
 	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
 		'Резервная копия создана: {name} – копирование на внешний сервер не удалось: {message}',
 	'Wirklich abmelden?': 'Действительно выйти?',
+	'Der Server ist nicht erreichbar.': 'Сервер недоступен.',
+	'Bei HTTPS mit selbst signiertem Zertifikat blockiert der Browser die Verbindung, bis das Zertifikat erneut bestätigt ist: Seite neu laden oder {link} öffnen und die Sicherheitswarnung bestätigen. Sonst prüfen, ob die Adapter-Instanz läuft.':
+		'При HTTPS с самоподписанным сертификатом браузер блокирует соединение, пока сертификат не будет снова подтверждён: перезагрузите страницу или откройте {link} и подтвердите предупреждение безопасности. Иначе проверьте, запущен ли экземпляр адаптера.',
+	'Neu laden': 'Перезагрузить',
 };

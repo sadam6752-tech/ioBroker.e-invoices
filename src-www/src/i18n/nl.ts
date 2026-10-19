@@ -632,4 +632,8 @@ export const nl: Record<string, string> = {
 	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
 		'Back-up gemaakt: {name} – de kopie naar de externe server is mislukt: {message}',
 	'Wirklich abmelden?': 'Echt afmelden?',
+	'Der Server ist nicht erreichbar.': 'De server is niet bereikbaar.',
+	'Bei HTTPS mit selbst signiertem Zertifikat blockiert der Browser die Verbindung, bis das Zertifikat erneut bestätigt ist: Seite neu laden oder {link} öffnen und die Sicherheitswarnung bestätigen. Sonst prüfen, ob die Adapter-Instanz läuft.':
+		'Bij HTTPS met een zelfondertekend certificaat blokkeert de browser de verbinding tot het certificaat opnieuw is geaccepteerd: laad de pagina opnieuw of open {link} en accepteer de beveiligingswaarschuwing. Controleer anders of de adapterinstantie draait.',
+	'Neu laden': 'Opnieuw laden',
 };

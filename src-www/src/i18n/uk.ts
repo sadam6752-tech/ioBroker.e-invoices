@@ -632,4 +632,8 @@ export const uk: Record<string, string> = {
 	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
 		'Резервну копію створено: {name} – копіювання на зовнішній сервер не вдалося: {message}',
 	'Wirklich abmelden?': 'Справді вийти?',
+	'Der Server ist nicht erreichbar.': 'Сервер недоступний.',
+	'Bei HTTPS mit selbst signiertem Zertifikat blockiert der Browser die Verbindung, bis das Zertifikat erneut bestätigt ist: Seite neu laden oder {link} öffnen und die Sicherheitswarnung bestätigen. Sonst prüfen, ob die Adapter-Instanz läuft.':
+		"Під час HTTPS із самопідписаним сертифікатом браузер блокує з'єднання, доки сертифікат не буде знову підтверджено: перезавантажте сторінку або відкрийте {link} і підтвердьте попередження безпеки. Інакше перевірте, чи працює екземпляр адаптера.",
+	'Neu laden': 'Перезавантажити',
 };

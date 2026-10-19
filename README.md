@@ -144,6 +144,12 @@ the certificate: install the certificate on the phone (iOS: also enable it under
 Certificate Trust Settings) or use a certificate of a real authority. The certificate must name the address you
 type (host name or IP). The adapter sends no HSTS header, so switching HTTPS off again keeps working.
 
+When the browser forgets its exception for a self-signed certificate, or the certificate is renewed, the web app
+(served from its cache) can no longer reach the API: the browser blocks the requests silently. The web app then
+shows *The server cannot be reached* with a *Reload* button; reloading the page lets the browser show its warning
+again, and accepting it restores the connection. The adapter loads the certificate when it starts, so restart the
+instance after a renewal.
+
 ### Light and dark appearance
 
 The web app has a light and a dark appearance. On the **status page**, *Darstellung* offers three choices:
@@ -610,6 +616,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) When the server gives no answer, the web app shows a banner instead of the browser's "NetworkError": the server cannot be reached; with HTTPS and a self-signed certificate reload the page (or open the address) and accept the security warning again, otherwise check the instance. A *Reload* button is in the banner, which goes away with the next answer of the server. All eleven languages.
+
 ### 1.2.1 (2026-10-12)
 
 * (alex) A half uploaded file (`….zip.part`) of a failed copy is removed on the server: at once when the connection still works, otherwise by the next good copy. Only half files of this adapter are touched.

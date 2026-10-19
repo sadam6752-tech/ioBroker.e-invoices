@@ -634,4 +634,8 @@ export const fr: Record<string, string> = {
 	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
 		'Sauvegardé : {name} – la copie vers le serveur externe a échoué : {message}',
 	'Wirklich abmelden?': 'Vraiment se déconnecter ?',
+	'Der Server ist nicht erreichbar.': "Le serveur n'est pas joignable.",
+	'Bei HTTPS mit selbst signiertem Zertifikat blockiert der Browser die Verbindung, bis das Zertifikat erneut bestätigt ist: Seite neu laden oder {link} öffnen und die Sicherheitswarnung bestätigen. Sonst prüfen, ob die Adapter-Instanz läuft.':
+		"Avec HTTPS et un certificat auto-signé, le navigateur bloque la connexion jusqu'à ce que le certificat soit de nouveau accepté : rechargez la page ou ouvrez {link} et acceptez l'avertissement de sécurité. Sinon, vérifiez que l'instance de l'adaptateur fonctionne.",
+	'Neu laden': 'Recharger',
 };

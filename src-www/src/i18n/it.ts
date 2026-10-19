@@ -636,4 +636,8 @@ export const it: Record<string, string> = {
 	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
 		'Salvato: {name} – la copia sul server esterno non è riuscita: {message}',
 	'Wirklich abmelden?': 'Uscire davvero?',
+	'Der Server ist nicht erreichbar.': 'Il server non è raggiungibile.',
+	'Bei HTTPS mit selbst signiertem Zertifikat blockiert der Browser die Verbindung, bis das Zertifikat erneut bestätigt ist: Seite neu laden oder {link} öffnen und die Sicherheitswarnung bestätigen. Sonst prüfen, ob die Adapter-Instanz läuft.':
+		"Con HTTPS e un certificato autofirmato il browser blocca la connessione finché il certificato non viene accettato di nuovo: ricaricate la pagina o aprite {link} e accettate l'avviso di sicurezza. Altrimenti verificate che l'istanza dell'adattatore sia in esecuzione.",
+	'Neu laden': 'Ricarica',
 };

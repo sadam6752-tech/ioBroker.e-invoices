@@ -613,4 +613,8 @@ export const zhCn: Record<string, string> = {
 	'Gesichert: {name} – die Kopie auf den externen Server ist fehlgeschlagen: {message}':
 		'已备份：{name} – 复制到外部服务器失败：{message}',
 	'Wirklich abmelden?': '确定要退出登录吗？',
+	'Der Server ist nicht erreichbar.': '无法连接服务器。',
+	'Bei HTTPS mit selbst signiertem Zertifikat blockiert der Browser die Verbindung, bis das Zertifikat erneut bestätigt ist: Seite neu laden oder {link} öffnen und die Sicherheitswarnung bestätigen. Sonst prüfen, ob die Adapter-Instanz läuft.':
+		'使用自签名证书的 HTTPS 时，浏览器会阻止连接，直到再次接受该证书：请重新加载页面，或打开 {link} 并确认安全警告。否则请检查适配器实例是否正在运行。',
+	'Neu laden': '重新加载',
 };
