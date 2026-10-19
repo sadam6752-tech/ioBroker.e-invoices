@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.2.2": {
+        "en": "When the server gives no answer (for example a self-signed certificate the browser no longer accepts), the web app explains what to do and offers a Reload button instead of a bare \"NetworkError\".",
+        "de": "Antwortet der Server nicht (zum Beispiel bei einem selbst signierten Zertifikat, das der Browser nicht mehr akzeptiert), erklärt die Web-App, was zu tun ist, und bietet einen Knopf \"Neu laden\" statt eines bloßen \"NetworkError\".",
+        "ru": "Если сервер не отвечает (например, браузер больше не принимает самоподписанный сертификат), веб-приложение объясняет, что делать, и предлагает кнопку \"Перезагрузить\" вместо простого \"NetworkError\".",
+        "pt": "Quando o servidor não responde (por exemplo, um certificado autoassinado que o navegador deixou de aceitar), a aplicação web explica o que fazer e oferece um botão \"Recarregar\" em vez de um simples \"NetworkError\".",
+        "nl": "Als de server niet antwoordt (bijvoorbeeld een zelfondertekend certificaat dat de browser niet meer accepteert), legt de web-app uit wat te doen en biedt een knop \"Opnieuw laden\" in plaats van een kale \"NetworkError\".",
+        "fr": "Quand le serveur ne répond pas (par exemple un certificat auto-signé que le navigateur n'accepte plus), l'application web explique quoi faire et propose un bouton \"Recharger\" au lieu d'un simple \"NetworkError\".",
+        "it": "Quando il server non risponde (ad esempio un certificato autofirmato che il browser non accetta più), l'app web spiega cosa fare e offre un pulsante \"Ricarica\" invece di un semplice \"NetworkError\".",
+        "es": "Cuando el servidor no responde (por ejemplo, un certificado autofirmado que el navegador ya no acepta), la aplicación web explica qué hacer y ofrece un botón \"Recargar\" en lugar de un simple \"NetworkError\".",
+        "pl": "Gdy serwer nie odpowiada (na przykład certyfikat z podpisem własnym, którego przeglądarka już nie akceptuje), aplikacja internetowa wyjaśnia, co zrobić, i oferuje przycisk \"Odśwież\" zamiast samego \"NetworkError\".",
+        "uk": "Якщо сервер не відповідає (наприклад, браузер більше не приймає самопідписаний сертифікат), вебзастосунок пояснює, що робити, і пропонує кнопку \"Перезавантажити\" замість простого \"NetworkError\".",
+        "zh-cn": "当服务器没有响应时（例如浏览器不再接受自签名证书），网页应用会说明该怎么做，并提供\"重新加载\"按钮，而不是只显示\"NetworkError\"。"
+      },
       "1.2.1": {
         "en": "External backup: the connection test sends the saved password only to the saved server; half uploaded files are removed; adapter timers for the time limit (E5005); several small fixes.",
         "de": "Externes Backup: der Verbindungstest schickt das gespeicherte Passwort nur an den gespeicherten Server; halb hochgeladene Dateien werden entfernt; Adapter-Timer für das Zeitlimit (E5005); mehrere kleine Korrekturen.",
@@ -101,19 +114,6 @@
         "pl": "Dokumentacja po angielsku: dokumenty repozytorium znajdują się teraz w docs/en, a niemieckie oryginały w docs/de, zgodnie z prośbą recenzentów ioBroker.",
         "uk": "Документація англійською: документи репозиторію тепер у docs/en, німецькі оригінали — у docs/de, як просять рецензенти ioBroker.",
         "zh-cn": "英文文档：仓库的文档现在位于 docs/en，德语原文位于 docs/de，符合 ioBroker 审核人员的要求。"
-      },
-      "1.1.1": {
-        "en": "Documentation: the validator reports in the repository no longer contain paths of the machine they were made on.",
-        "de": "Dokumentation: Die Prüfberichte im Repository enthalten keine Pfade des Rechners mehr, auf dem sie entstanden sind.",
-        "ru": "Документация: отчёты проверки в репозитории больше не содержат путей к компьютеру, на котором они были созданы.",
-        "pt": "Documentação: os relatórios de validação no repositório já não contêm caminhos do computador onde foram criados.",
-        "nl": "Documentatie: de validatierapporten in de repository bevatten geen paden meer van de computer waarop ze zijn gemaakt.",
-        "fr": "Documentation : les rapports de validation du dépôt ne contiennent plus de chemins de l'ordinateur sur lequel ils ont été créés.",
-        "it": "Documentazione: i rapporti di validazione nel repository non contengono più percorsi del computer su cui sono stati creati.",
-        "es": "Documentación: los informes de validación del repositorio ya no contienen rutas del equipo en el que se crearon.",
-        "pl": "Dokumentacja: raporty walidacji w repozytorium nie zawierają już ścieżek komputera, na którym powstały.",
-        "uk": "Документація: звіти перевірки в репозиторії більше не містять шляхів до комп'ютера, на якому їх створено.",
-        "zh-cn": "文档：仓库中的验证报告不再包含生成它们的计算机上的路径。"
       }
     },
     "titleLang": {

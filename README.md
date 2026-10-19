@@ -616,7 +616,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.2.2 (2026-10-19)
 
 * (alex) When the server gives no answer, the web app shows a banner instead of the browser's "NetworkError": the server cannot be reached; with HTTPS and a self-signed certificate reload the page (or open the address) and accept the security warning again, otherwise check the instance. A *Reload* button is in the banner, which goes away with the next answer of the server. All eleven languages.
 
@@ -644,12 +644,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 ### 1.1.4 (2026-10-11)
 
 * (alex) fix: the backup no longer logs the error "Backup skips unreadable file ... .xml: Not exists" for every quotation. A quotation is no e-invoice and has no XML file, so the backup does not look for one any more (a missing file of a real invoice is still reported).
-
-### 1.1.3 (2026-10-11)
-
-* (alex) **The web app speaks all eleven ioBroker languages:** besides German and English now Russian, Portuguese, Dutch, French, Italian, Spanish, Polish, Ukrainian and Chinese. The instance setting "Web app language" offers all of them; the dictionary of the language in use is loaded on demand. The legal terms (GoBD, UStG, Leitweg-ID, XRechnung, ZUGFeRD, DATEV) stay as they are, the documents themselves (PDF, XML) stay German. Have the wording checked by a native speaker where it matters.
-* (alex) The objects of the adapter (info and control states, the file storage) carry their names in all eleven ioBroker languages; an existing installation gets the new names on the next start.
-* (alex) fix: the control buttons (`control.createDraft`, `issue`, `refresh`, `backup`, `restore`) act on the value `true` only. Writing `false` or another value no longer starts an issue, a backup or a restore.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
