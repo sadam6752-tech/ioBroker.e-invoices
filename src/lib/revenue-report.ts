@@ -18,7 +18,7 @@ import type { StoredInvoice } from './db';
 import { isCreditNoteTitle, isQuote } from './invoice-model';
 
 /** Label of the row that collects documents without a company. */
-export const NO_COMPANY_LABEL = 'ohne Firmenzuordnung';
+export const NO_COMPANY_LABEL = 'without company assignment';
 
 /** Revenue of one company. */
 export interface CompanyRevenue {

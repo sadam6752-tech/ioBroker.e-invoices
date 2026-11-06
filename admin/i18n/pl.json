@@ -45,7 +45,6 @@
     "Invoice number format":  "Format numeru faktury",
     "Invoicing defaults":  "Domyślne ustawienia fakturowania",
     "Own number circle, used only for quotations. Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.":  "Własna seria numerów, tylko dla ofert. Znaczniki: {YYYY} rok, {EMPLOYEE} kod pracownika, {SEQ} sekwencja. {SEQ} jest wymagane.",
-    "prefilled for new invoices; the wizard offers these as a list plus free text":  "wypełniane dla nowych faktur; kreator oferuje dodatkowo listę oraz pole własnego tekstu",
     "Quotation number format":  "Format numeru oferty",
     "Server":  "Serwer",
     "Storage mount name":  "Nazwa montowania pamięci",
@@ -74,5 +73,10 @@
     "SHA256:… as the server shows it. Empty: the server is not verified, the log shows its fingerprint.":  "SHA256:… tak, jak pokazuje go serwer. Puste: serwer nie jest weryfikowany, dziennik pokazuje jego odcisk.",
     "Copies to keep on the server":  "Kopie do zachowania na serwerze",
     "Only automatic copies are deleted, the oldest first; 0 = keep all. Backups made by hand and other files are never deleted.":  "Usuwane są tylko kopie automatyczne, najpierw najstarsze; 0 = zachowaj wszystkie. Kopie wykonane ręcznie i inne pliki nigdy nie są usuwane.",
-    "Test connection":  "Testuj połączenie"
+    "Test connection":  "Testuj połączenie",
+    "No default":  "Brak wartości domyślnej",
+    "Payable immediately without deduction":  "Płatne natychmiast bez potrąceń",
+    "Payable within 14 days by bank transfer":  "Płatne przelewem w ciągu 14 dni",
+    "Payable within 30 days of the invoice date without deduction":  "Płatne w ciągu 30 dni od daty faktury bez potrąceń",
+    "Prefilled for new invoices; the wizard offers these as a list plus free text. The text is printed on the invoice in German, because the invoice is German.":  "Wstępnie wypełniane w nowych fakturach; kreator oferuje je też jako listę z polem na własny tekst. Tekst jest drukowany na fakturze po niemiecku, bo faktura jest niemiecka."
 }

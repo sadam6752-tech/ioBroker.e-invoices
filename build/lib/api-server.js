@@ -54,6 +54,7 @@ var import_revenue_report = require("./revenue-report");
 var import_preview_samples = require("./preview-samples");
 var import_dunning = require("./dunning");
 var import_dunning_pdf = require("./dunning-pdf");
+var import_output_i18n = require("./output-i18n");
 var import_invoice_model2 = require("./invoice-model");
 var import_pdf = require("./pdf");
 var import_templates = require("./templates");
@@ -291,6 +292,15 @@ function createApiServer(deps) {
     backupIntervalMinutes: Math.max(0, Math.round(Number((_p = deps.settings) == null ? void 0 : _p.backupIntervalMinutes) || 0)),
     backupKeep: Math.max(0, Math.round(Number((_q = deps.settings) == null ? void 0 : _q.backupKeep) || 0))
   };
+  const exportLanguage = (req) => {
+    var _a2;
+    return (0, import_output_i18n.outputLanguage)(
+      req.get("x-e-invoices-language"),
+      req.query.lang,
+      settings.pwaLanguage === "auto" ? void 0 : settings.pwaLanguage,
+      (_a2 = deps.settings) == null ? void 0 : _a2.systemLanguage
+    );
+  };
   const limits = {
     api: Math.max(1, Math.round((_s = (_r = deps.limits) == null ? void 0 : _r.api) != null ? _s : 600)),
     restore: Math.max(1, Math.round((_u = (_t = deps.limits) == null ? void 0 : _t.restore) != null ? _u : 10)),
@@ -511,8 +521,8 @@ function createApiServer(deps) {
       return;
     }
     res.type("text/csv; charset=utf-8");
-    res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`rechnungen${(0, import_invoice_model.dateRangeFileSuffix)(range)}.csv`));
-    res.send((0, import_csv.renderInvoiceListCsv)(filteredInvoices(db, req.query, "invoice", range, true)));
+    res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`invoices${(0, import_invoice_model.dateRangeFileSuffix)(range)}.csv`));
+    res.send((0, import_csv.renderInvoiceListCsv)(filteredInvoices(db, req.query, "invoice", range, true), exportLanguage(req)));
   });
   app.get("/api/invoices/export.datev", (req, res) => {
     var _a2, _b2;
@@ -537,7 +547,10 @@ function createApiServer(deps) {
       return;
     }
     res.type("text/csv; charset=windows-1252");
-    res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)(`EXTF_Rechnungsausgang${(0, import_invoice_model.dateRangeFileSuffix)(range)}.csv`));
+    res.set(
+      "Content-Disposition",
+      (0, import_attachments.attachmentDisposition)(`EXTF_outgoing-invoices${(0, import_invoice_model.dateRangeFileSuffix)(range)}.csv`)
+    );
     res.send((0, import_datev.toWindows1252)(content));
   });
   app.get("/api/invoices/export.xlsx", (req, res) => {
@@ -548,8 +561,10 @@ function createApiServer(deps) {
     }
     const invoices = filteredInvoices(db, req.query, "invoice", range, true);
     const stamp = (0, import_invoice_model.todayIso)();
-    const period = (0, import_invoice_model.formatDateRange)(range);
-    void (0, import_excel.renderInvoiceListWorkbook)(invoices, `Rechnungs\xFCbersicht ${stamp}${period ? ` (${period})` : ""}`).then(
+    const language = exportLanguage(req);
+    const period = (0, import_invoice_model.formatDateRange)(range, language);
+    const title = (0, import_output_i18n.tr)(language, "Invoice overview {date}", { date: (0, import_output_i18n.formatOutputDate)(stamp, language) });
+    void (0, import_excel.renderInvoiceListWorkbook)(invoices, `${title}${period ? ` (${period})` : ""}`, language).then(
       (buffer) => {
         res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         res.set(
@@ -609,8 +624,8 @@ function createApiServer(deps) {
         return;
       }
       res.type("text/csv; charset=utf-8");
-      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("umsatz-je-firma.csv"));
-      res.send((0, import_csv.renderRevenueCsv)(report));
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("revenue-by-company.csv"));
+      res.send((0, import_csv.renderRevenueCsv)(report, exportLanguage(req)));
     })
   );
   app.get(
@@ -621,9 +636,9 @@ function createApiServer(deps) {
         res.status(400).json({ error: report });
         return;
       }
-      const buffer = await (0, import_excel.renderRevenueWorkbook)(report);
+      const buffer = await (0, import_excel.renderRevenueWorkbook)(report, exportLanguage(req));
       res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("umsatz-je-firma.xlsx"));
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("revenue-by-company.xlsx"));
       res.send(buffer);
     })
   );
@@ -647,8 +662,8 @@ function createApiServer(deps) {
         return;
       }
       res.type("text/csv; charset=utf-8");
-      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("offene-posten.csv"));
-      res.send((0, import_csv.renderOpenItemsCsv)((0, import_open_items.evaluateOpenItems)(db.allInvoices(), options)));
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("open-items.csv"));
+      res.send((0, import_csv.renderOpenItemsCsv)((0, import_open_items.evaluateOpenItems)(db.allInvoices(), options), exportLanguage(req)));
     })
   );
   app.get(
@@ -659,9 +674,12 @@ function createApiServer(deps) {
         res.status(400).json({ error: options });
         return;
       }
-      const buffer = await (0, import_excel.renderOpenItemsWorkbook)((0, import_open_items.evaluateOpenItems)(db.allInvoices(), options));
+      const buffer = await (0, import_excel.renderOpenItemsWorkbook)(
+        (0, import_open_items.evaluateOpenItems)(db.allInvoices(), options),
+        exportLanguage(req)
+      );
       res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("offene-posten.xlsx"));
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("open-items.xlsx"));
       res.send(buffer);
     })
   );
@@ -1090,7 +1108,12 @@ function createApiServer(deps) {
     })
   );
   const dunningSuggestions = () => {
-    return (0, import_dunning.buildDunningSuggestions)((0, import_issue_service.collectReminderCandidates)(db), db.listDunningTexts(), (0, import_invoice_model.todayIso)());
+    return (0, import_dunning.buildDunningSuggestions)(
+      (0, import_issue_service.collectReminderCandidates)(db),
+      db.listDunningTexts(),
+      (0, import_invoice_model.todayIso)(),
+      db.getTextLanguage()
+    );
   };
   app.get(
     "/api/dunning/suggestions",
@@ -1100,18 +1123,18 @@ function createApiServer(deps) {
   );
   app.get(
     "/api/dunning/suggestions.csv",
-    route((_req, res) => {
+    route((req, res) => {
       res.type("text/csv; charset=utf-8");
-      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("mahnvorschlaege.csv"));
-      res.send((0, import_csv.renderDunningCsv)(dunningSuggestions(), (0, import_invoice_model.todayIso)()));
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("dunning-suggestions.csv"));
+      res.send((0, import_csv.renderDunningCsv)(dunningSuggestions(), (0, import_invoice_model.todayIso)(), exportLanguage(req)));
     })
   );
   app.get(
     "/api/dunning/suggestions.pdf",
     route(async (_req, res) => {
-      const buffer = await (0, import_dunning_pdf.renderDunningPdf)(dunningSuggestions(), (0, import_invoice_model.todayIso)());
+      const buffer = await (0, import_dunning_pdf.renderDunningPdf)(dunningSuggestions(), (0, import_invoice_model.todayIso)(), db.getTextLanguage());
       res.type("application/pdf");
-      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("mahnungen.pdf"));
+      res.set("Content-Disposition", (0, import_attachments.attachmentDisposition)("dunning-letters.pdf"));
       res.send(buffer);
     })
   );

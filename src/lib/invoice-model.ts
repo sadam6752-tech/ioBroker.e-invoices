@@ -5,6 +5,7 @@
  * against the German Pflichtangaben (§§ 14, 14a UStG, see 2a in
  * eRechnungen-iobroker-PROMPT.md). The XML/PDF mapping happens in P3.
  */
+import { formatOutputDate, tr, type OutputLanguage } from './output-i18n';
 
 /** Postal party (seller or buyer). */
 export interface Party {
@@ -957,24 +958,25 @@ export function parseDateRange(from: unknown, to: unknown): DateRange | string {
 }
 
 /**
- * Words for a range in German date format, e.g. `01.08.2026–31.08.2026` (shown in the title of
- * an export).
+ * Words for a range in the language of an export, e.g. `01.08.2026–31.08.2026` in German (shown in the title
+ * of an export).
  *
  * @param range - The range.
+ * @param language - Language of the words and the date format.
  */
-export function formatDateRange(range: DateRange): string {
-	const de = (iso: string): string => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
+export function formatDateRange(range: DateRange, language: OutputLanguage = 'de'): string {
+	const date = (iso: string): string => formatOutputDate(iso, language);
 	if (range.from && range.to) {
-		return `${de(range.from)}–${de(range.to)}`;
+		return `${date(range.from)}–${date(range.to)}`;
 	}
 	if (range.from) {
-		return `ab ${de(range.from)}`;
+		return tr(language, 'from {date}', { date: date(range.from) });
 	}
-	return range.to ? `bis ${de(range.to)}` : '';
+	return range.to ? tr(language, 'until {date}', { date: date(range.to) }) : '';
 }
 
 /**
- * Part of an export file name that names the range: `_2026-08-01_2026-08-31`, `_ab-…`, `_bis-…`.
+ * Part of an export file name that names the range: `_2026-08-01_2026-08-31`, `_from-…`, `_to-…`.
  *
  * @param range - The range.
  */
@@ -983,7 +985,7 @@ export function dateRangeFileSuffix(range: DateRange): string {
 		return `_${range.from}_${range.to}`;
 	}
 	if (range.from) {
-		return `_ab-${range.from}`;
+		return `_from-${range.from}`;
 	}
-	return range.to ? `_bis-${range.to}` : '';
+	return range.to ? `_to-${range.to}` : '';
 }

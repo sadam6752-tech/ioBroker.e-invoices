@@ -45,7 +45,6 @@
     "Invoice number format":  "Формат номера счёта",
     "Invoicing defaults":  "Значения по умолчанию для выставления счетов",
     "Own number circle, used only for quotations. Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.":  "Собственный ряд номеров, только для предложений. Токены: {YYYY} год, {EMPLOYEE} код сотрудника, {SEQ} последовательность. {SEQ} обязателен.",
-    "prefilled for new invoices; the wizard offers these as a list plus free text":  "подставляется для новых счетов; мастер дополнительно предлагает список и поле своего текста",
     "Quotation number format":  "Формат номера предложения",
     "Server":  "Сервер",
     "Storage mount name":  "Имя точки хранения",
@@ -74,5 +73,10 @@
     "SHA256:… as the server shows it. Empty: the server is not verified, the log shows its fingerprint.":  "SHA256:… так, как его показывает сервер. Пусто: сервер не проверяется, отпечаток виден в журнале.",
     "Copies to keep on the server":  "Копий хранить на сервере",
     "Only automatic copies are deleted, the oldest first; 0 = keep all. Backups made by hand and other files are never deleted.":  "Удаляются только автоматические копии, сначала самые старые; 0 = хранить все. Копии, сделанные вручную, и другие файлы не удаляются никогда.",
-    "Test connection":  "Проверить соединение"
+    "Test connection":  "Проверить соединение",
+    "No default":  "Без значения по умолчанию",
+    "Payable immediately without deduction":  "Оплата немедленно без вычетов",
+    "Payable within 14 days by bank transfer":  "Оплата банковским переводом в течение 14 дней",
+    "Payable within 30 days of the invoice date without deduction":  "Оплата в течение 30 дней с даты счёта без вычетов",
+    "Prefilled for new invoices; the wizard offers these as a list plus free text. The text is printed on the invoice in German, because the invoice is German.":  "Подставляется в новые счета; мастер предлагает варианты также списком с полем для своего текста. Текст печатается в счёте на немецком, потому что счёт немецкий."
 }

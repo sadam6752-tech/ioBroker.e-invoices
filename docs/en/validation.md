@@ -1,6 +1,6 @@
 # Evidence: EN 16931 (CII) and PDF/A-3b
 
-German original: [docs/de/validierung.md](../de/validierung.md). This English version is the one kept up to date.
+German original: [docs/de/validation.md](../de/validation.md). This English version is the one kept up to date.
 
 State of **30 September 2026 (evening)**, extended on 4 and 6 October 2026. Evidence for roadmap item **R2
 (conformity evidence)**: the invoices the adapter creates are checked with **two independent tools** — the CII XML
@@ -8,9 +8,8 @@ against the EN 16931 rules, the hybrid PDF against the PDF/A-3b profile. The **e
 dev server were brought up to the corrected rendering state, and what was checked are the **delivered**
 artifacts (downloads of the API, not just the files in the store).
 
-The evidence files themselves (reports, XML, PDF) are in [`docs/validierung/`](../validierung/) — the directory
-name is kept because the workflow, the validation script and the tests point to it. They are output of the
-tools and stay as they are.
+The evidence files themselves (reports, XML, PDF) are in [`docs/validation/`](../validation/). They are output of
+the tools and stay as they are. On 6 November 2026 the directory and the files were given English names (review of the ioBroker repository: `docs/validierung` became `docs/validation`, `musterfaelle` became `sample-cases`, the sample cases are named like `credit-note` instead of `gutschrift`). The file names inside the reports were changed with them; the documents themselves and the verdicts are unchanged.
 
 ## Result
 
@@ -25,8 +24,8 @@ What is judged are the **delivered** artifacts: the 16 PDFs came through `GET /a
 `GET /api/invoices/:id.xml` (15/16 byte-identical to the store XMLs; the exception `2026-0001` is an older state of
 the same generator there — also `rep:accept`).
 
-`musterfaelle/` holds the freshly made documents with their reports, the root folder the run over the stock
-(`2026-*-report.xml`, `alle-belege.verapdf-3b.txt`).
+`sample-cases/` holds the freshly made documents with their reports, the root folder the run over the stock
+(`2026-*-report.xml`, `all-vouchers.verapdf-3b.txt`).
 
 ## Automatic run (M6)
 
@@ -34,7 +33,7 @@ The manual evidence is automated, so a change in the XML or PDF code cannot prod
 unnoticed:
 
 - **`npm run validate`** (after `npm run build`): starts the end-to-end server on a throw-away data directory, lets
-  `musterfaelle.mjs` issue the sample cases (13 since 6 October 2026: the ZUGFeRD cases, an XRechnung for every
+  `sample-cases.mjs` issue the sample cases (13 since 6 October 2026: the ZUGFeRD cases, an XRechnung for every
   document title, an XRechnung with an attachment, a reversal of an XRechnung, and the refusal without Leitweg-ID)
   and checks every XML with the KoSIT validator 1.6.3 (scenarios EN 16931 (CII) and EN 16931 XRechnung (CII),
   chosen by the validator from the identifier in the XML). The tools are downloaded to `.validation-tools/` on
@@ -81,7 +80,7 @@ curl -H "Authorization: Bearer <token>" http://127.0.0.1:8093/api/invoices/<uuid
 # 1) make the sample cases (real API stack, throw-away data directory)
 $env:E2E_PORT = '8099'; $env:E2E_DATA = '<data-dir>'
 node test/e2e/server.mjs
-node docs/validierung/musterfaelle.mjs docs/validierung/musterfaelle
+node docs/validation/sample-cases.mjs docs/validation/sample-cases
 
 # 2) XML against EN 16931 (scenario "EN16931 (CII)" for ZUGFeRD, "EN16931 XRechnung (CII)" for XRechnung)
 java -jar validator-1.6.3-standalone.jar -s <config>/scenarios.xml -r <config> -o <target> -p <files>.xml
@@ -104,10 +103,10 @@ process). From a script environment start it with an empty pipe: `type NUL | jav
 ## Sample cases (freshly made 30 Sep 2026, rerun 4 Oct 2026)
 
 **Rerun on 4 October 2026 at state 0.8.8** (schema v15: attachments, quotations, frozen layout, company binding,
-dunning): seven cases made again over the real API stack (`musterfaelle.mjs` additionally knows *invoice with
+dunning): seven cases made again over the real API stack (`sample-cases.mjs` additionally knows *invoice with
 attachment (BG-24)* and *invoice with cash discount*), KoSIT validator 1.6.3 with the configuration "EN16931 (CII)"
 (CEN 1.3.16): **7 of 7 acceptable, 0 errors** (`*-report.xml`, `kosit-en16931.log`); veraPDF 1.30.2, profile
-PDF/A-3b: **7 of 7 PASS** (`verapdf-3b.txt`). The files in `musterfaelle/` are the runs of that rerun.
+PDF/A-3b: **7 of 7 PASS** (`verapdf-3b.txt`). The files in `sample-cases/` are the runs of that rerun.
 
 | Case | Invoice | CII XML | PDF/A-3b |
 | --- | --- | --- | --- |
@@ -127,7 +126,7 @@ PDF/A-3b: **7 of 7 PASS** (`verapdf-3b.txt`). The files in `musterfaelle/` are t
   `buyer.vatId`, `FC` from `buyer.taxNumber`); regression test `zugferd => reverse charge`. After that 5/5 conform.
 - **Old documents of 28/29 Sep 2026 — fixed on 30 Sep 2026.** The symptom: PDF/A-3b failed at
   `ISO 19005-3:2012 §6.2.11.4.1` (fonts not embedded: `Helvetica`, `Helvetica-Bold`) and `§6.2.4.3` (`DeviceRGB`
-  without an RGB output intent); example report `_legacy-beispiel.2026-01-001.verapdf-3b.xml` (144 rules passed, 2
+  without an RGB output intent); example report `_legacy-example.2026-01-001.verapdf-3b.xml` (144 rules passed, 2
   failed, 160 checks) — the cause was the state **before** the PDF/A-3b fix. The remedy without loss of data is
   `POST /api/invoices/:id/rerender`, which archives the original as `.orig-N.pdf`.
   **Run of 30 Sep 2026** (build = 0.0.3 + PDF/A fix, `main` = `6d3568b`): 13 requests for all documents with an old
@@ -153,15 +152,15 @@ PDF/A-3b: **7 of 7 PASS** (`verapdf-3b.txt`). The files in `musterfaelle/` are t
 ## XRechnung (R6.1, 6 Oct 2026)
 
 Additional sample cases with the format `XRECHNUNG` (B2G): `xrechnung-b2g` (two tax rates, Leitweg-ID as BT-10),
-`xrechnung-mit-anlage-bg24` (an attachment as BG-24 in the XML), and since 8 October 2026 one for each document
-title (`xrechnung-abschlagsrechnung`, `-schlussrechnung`, `-gutschrift`) and a reversal (`xrechnung-storno`). All go
-through the real API stack (`npm run validate`); the XML of the first two is in `musterfaelle/`, the report next to it.
+`xrechnung-with-attachment-bg24` (an attachment as BG-24 in the XML), and since 8 October 2026 one for each document
+title (`xrechnung-partial-invoice`, `-schlussrechnung`, `-gutschrift`) and a reversal (`xrechnung-reversal`). All go
+through the real API stack (`npm run validate`); the XML of the first two is in `sample-cases/`, the report next to it.
 
 - KoSIT validator 1.6.3, configuration XRechnung 3.0.2 (2026-08-31): scenario **"EN16931 XRechnung (CII)"**, result
   `rep:accept`, no errors and no warnings. The first run with the title "Schlussrechnung" had produced a **warning**
   `BR-DE-17` (type code 218 is not in the list of the XRechnung); an XRechnung now carries 380 there.
 - The PDFs of these cases are deliberately **not** part of the PDF/A-3b check: an XRechnung is plain XML, the PDF is a
-  view without embedded XML. `musterfaelle.mjs` checks instead that the PDF contains neither `EmbeddedFile` nor
+  view without embedded XML. `sample-cases.mjs` checks instead that the PDF contains neither `EmbeddedFile` nor
   `AFRelationship`.
 - A document **without Leitweg-ID** is refused on issue (message with BR-DE-15), the draft stays a draft and no
   number is used up (tested in the same run).
@@ -184,6 +183,6 @@ paths") fails when a drive path with `Users` in it stands in `docs/`.
   the validator chooses from the XRechnung identifier in the XML itself.
 - The rules state is CEN 1.3.16 (2026-04-13). A new CEN or Factur-X release needs a new run with the then valid
   configuration package.
-- The result holds for the **checked state**: `alle-belege.verapdf-3b.txt` names the checked paths. When documents
+- The result holds for the **checked state**: `all-vouchers.verapdf-3b.txt` names the checked paths. When documents
   are rendered again afterwards, the run has to be repeated (a re-render replaces the file and keeps the old one as
   `.orig-N.pdf`).

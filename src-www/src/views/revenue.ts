@@ -63,14 +63,14 @@ export async function revenue(root: HTMLElement): Promise<void> {
 		};
 		root.querySelector('#rv-xlsx')?.addEventListener('click', async () => {
 			try {
-				await downloadUrl(api.revenueXlsxUrl(year), 'umsatz-je-firma.xlsx');
+				await downloadUrl(api.revenueXlsxUrl(year), 'revenue-by-company.xlsx');
 			} catch (e) {
 				fail(e);
 			}
 		});
 		root.querySelector('#rv-csv')?.addEventListener('click', async () => {
 			try {
-				await downloadUrl(api.revenueCsvUrl(year), 'umsatz-je-firma.csv');
+				await downloadUrl(api.revenueCsvUrl(year), 'revenue-by-company.csv');
 			} catch (e) {
 				fail(e);
 			}

@@ -20,7 +20,7 @@ on:
       - "src/lib/invoice-model.ts"
       - "src/lib/templates.ts"
       - "src/lib/fonts.ts"
-      - "docs/validierung/musterfaelle.mjs"
+      - "docs/validation/sample-cases.mjs"
       - "test/validation/**"
       - ".github/workflows/validate-invoices.yml"
 

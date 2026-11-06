@@ -10,7 +10,8 @@ import { join } from 'node:path';
 import { PDFDocument } from 'pdf-lib';
 import { renderDunningCsv } from './csv';
 import { InvoiceDatabase } from './db';
-import { buildDunningSuggestions, fillPlaceholders } from './dunning';
+import { buildDunningSuggestions, defaultDunningTexts, fillPlaceholders } from './dunning';
+import { OUTPUT_LANGUAGES } from './output-i18n';
 import { renderDunningPdf } from './dunning-pdf';
 import { collectReminderCandidates } from './issue-service';
 import type { InvoiceDraftInput, Party } from './invoice-model';
@@ -62,7 +63,9 @@ function issued(db: InvoiceDatabase, dueDate: string, overrides: Partial<Invoice
  * @param today - ISO day.
  */
 function suggestions(db: InvoiceDatabase, today: string): ReturnType<typeof buildDunningSuggestions> {
-	return buildDunningSuggestions(collectReminderCandidates(db, today), db.listDunningTexts(), today);
+	// these tests describe a German ioBroker system (the language tests are further below)
+	db.setTextLanguage('de');
+	return buildDunningSuggestions(collectReminderCandidates(db, today), db.listDunningTexts(), today, 'de');
 }
 
 describe('dunning => suggestions (R6.4)', () => {
@@ -246,7 +249,7 @@ describe('dunning => letters and list (R6.4)', function () {
 			const found = suggestions(db, today);
 			expect(found).to.have.length(3);
 
-			const pdf = await renderDunningPdf(found, today);
+			const pdf = await renderDunningPdf(found, today, 'de');
 			expect(pdf.subarray(0, 4).toString()).to.equal('%PDF');
 			const loaded = await PDFDocument.load(pdf);
 			expect(loaded.getPageCount()).to.equal(3);
@@ -254,7 +257,7 @@ describe('dunning => letters and list (R6.4)', function () {
 			expect(pdf.toString('latin1')).to.not.contain('CrossIndustryInvoice');
 			expect(pdf.toString('latin1')).to.not.contain('EmbeddedFile');
 
-			const csv = renderDunningCsv(found, today);
+			const csv = renderDunningCsv(found, today, 'de');
 			const rows = csv.split('\r\n').filter(line => /^"?20\d\d-/.test(line) || line.startsWith('2026'));
 			expect(rows).to.have.length(3);
 			const total = found.reduce((sum, item) => sum + item.amount, 0);
@@ -267,7 +270,80 @@ describe('dunning => letters and list (R6.4)', function () {
 	});
 
 	it('writes an empty list as a letter that says so', async () => {
-		const pdf = await renderDunningPdf([], '2026-08-12');
+		const pdf = await renderDunningPdf([], '2026-08-12', 'en');
 		expect((await PDFDocument.load(pdf)).getPageCount()).to.equal(1);
+	});
+});
+
+describe('dunning => language of the built-in texts', () => {
+	it('takes English until the system language is known, and the system language after that', () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			expect(db.listDunningTexts()[0].subject).to.equal('Payment reminder for invoice {number}');
+			db.setTextLanguage('ru');
+			expect(db.listDunningTexts()[0].subject).to.equal('Напоминание об оплате счёта {number}');
+			db.setTextLanguage('de');
+			expect(db.listDunningTexts()[1].subject).to.equal('1. Mahnung zur Rechnung {number}');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('keeps a text the user changed, whatever the language', () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			db.saveDunningText(1, { subject: 'Eigener Betreff {number}' });
+			db.setTextLanguage('fr');
+			expect(db.listDunningTexts()[0]).to.include({ subject: 'Eigener Betreff {number}', isDefault: false });
+			expect(db.listDunningTexts()[1].subject).to.equal('Première relance pour la facture {number}');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('has all three levels in all eleven languages, with every placeholder of the English text', () => {
+		const placeholders = (text: string): string[] => [...text.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort();
+		for (const language of OUTPUT_LANGUAGES) {
+			const texts = defaultDunningTexts(language);
+			const english = defaultDunningTexts('en');
+			expect(
+				texts.map(t => t.level),
+				language,
+			).to.deep.equal([1, 2, 3]);
+			texts.forEach((text, index) => {
+				expect(placeholders(text.subject), `${language} subject ${index + 1}`).to.deep.equal(
+					placeholders(english[index].subject),
+				);
+				expect(placeholders(text.body), `${language} body ${index + 1}`).to.deep.equal(
+					placeholders(english[index].body),
+				);
+				expect(text.days).to.equal(english[index].days);
+				if (language !== 'en') {
+					expect(text.subject, `${language} subject ${index + 1}`).to.not.equal(english[index].subject);
+				}
+			});
+		}
+	});
+
+	it('writes dates, amounts and the cash discount sentence in the language of the texts', () => {
+		const db = new InvoiceDatabase(':memory:');
+		db.migrate();
+		try {
+			issued(db, '2026-07-15', { skontoPercent: 2, skontoDueDate: '2026-08-31' });
+			const english = buildDunningSuggestions(
+				collectReminderCandidates(db, '2026-07-25'),
+				db.listDunningTexts(),
+				'2026-07-25',
+				'en',
+			);
+			expect(english).to.have.length(1);
+			expect(english[0].text).to.contain('€119.00').and.to.contain('15/07/2026');
+			// the sentence stands before the closing paragraph
+			expect(english[0].text).to.match(/cash discount of 2 %\.\n\nKind regards/);
+		} finally {
+			db.close();
+		}
 	});
 });

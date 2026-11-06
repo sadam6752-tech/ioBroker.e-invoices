@@ -28,11 +28,11 @@ module.exports = __toCommonJS(open_items_exports);
 var import_invoice_model = require("./invoice-model");
 const AGE_BUCKETS = ["notDue", "d1to30", "d31to60", "d61to90", "over90"];
 const AGE_BUCKET_LABELS = {
-  notDue: "nicht f\xE4llig",
-  d1to30: "1\u201330 Tage \xFCberf\xE4llig",
-  d31to60: "31\u201360 Tage \xFCberf\xE4llig",
-  d61to90: "61\u201390 Tage \xFCberf\xE4llig",
-  over90: "\xFCber 90 Tage \xFCberf\xE4llig"
+  notDue: "not due",
+  d1to30: "1\u201330 days overdue",
+  d31to60: "31\u201360 days overdue",
+  d61to90: "61\u201390 days overdue",
+  over90: "over 90 days overdue"
 };
 function cents(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;

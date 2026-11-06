@@ -425,8 +425,12 @@ describe('csv => accounting export', () => {
 		const db = openDb();
 		try {
 			const issued = db.issueDraft(db.createDraft(draft()).id);
-			const csv = renderInvoiceListCsv([issued]);
+			const csv = renderInvoiceListCsv([issued], 'de');
 			expect(csv.charCodeAt(0)).to.equal(0xfeff);
+			// without a language the list is English
+			expect(renderInvoiceListCsv([issued]))
+				.to.contain('Invoice number')
+				.and.to.contain('COPY – not a tax document');
 			const lines = csv.trim().split('\r\n');
 			// notice, header, one row
 			expect(lines).to.have.lengthOf(3);

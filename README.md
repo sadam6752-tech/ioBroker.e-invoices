@@ -121,7 +121,19 @@ content** stays German whatever the screen language is (German tax law, German
 invoice recipients): the invoice and offer
 PDFs, the XML, the document titles (`Rechnung`, `Angebot`, …), the payment-term
 presets and the text of the customer mail. Only their labels in the dropdowns
-follow the language of the page.
+follow the language of the page (in the web app and in the instance settings).
+
+The **exports** (CSV and Excel: invoice list, open items, revenue, dunning suggestions) are written in the
+language of the web app: it sends its language with every request (header `x-e-invoices-language`; `?lang=xx`
+works for a direct call). Without one, the instance setting *Web app language* counts, then the language of
+the ioBroker system, then English. The figures keep their format (semicolon list, decimal comma), only titles,
+notice and column headers change. Two things stay German on purpose: the Excel copy of a single invoice (a copy of
+a German tax document) and the DATEV file (its headers are prescribed by DATEV).
+
+The **dunning letters** take the language of the ioBroker system (*System settings → Language*), English when it is
+none of the eleven: the built-in texts of the three levels, the date and amount format, the cash discount sentence
+and the PDF of the letters. A text you changed on the page "Mahnwesen" is kept as you typed it. The dunning
+letters go to customers, so they do not follow the language of the screen.
 
 ### HTTPS and installing the web app on a phone
 
@@ -256,7 +268,7 @@ so the numbers that tie the file to the advisor's books come from the instance s
   is booked the other way round (*Haben*). A cancelled invoice and its Storno are both in the file and
   cancel each other out. Offers and drafts are never booked.
 - One file holds **one fiscal year**: narrow the period when the invoices span more than one.
-- The file is `EXTF_Rechnungsausgang….csv`, Windows-1252, with the invoice number in *Belegfeld 1*
+- The file is `EXTF_outgoing-invoices….csv`, Windows-1252, with the invoice number in *Belegfeld 1*
   (characters DATEV does not take become `-`).
 - The revenue accounts are standard accounts. Reverse charge, intra-community supplies or exports need other
   accounts — ask your advisor and set the 0 % account accordingly. One instance has one DATEV client; for
@@ -272,7 +284,7 @@ quarter, this year, last year) or two free days *Von* / *Bis*. It filters by the
 may stay empty (open end).
 
 - Excel, CSV and DATEV take exactly the filter of the list, so what you see is what is exported. The
-  file name names the range: `rechnungen_2026-08-01_2026-08-31.csv` (`…_ab-…` or `…_bis-…` for an open
+  file name names the range: `invoices_2026-08-01_2026-08-31.csv` (`…_from-…` or `…_to-…` for an open
   end), and the Excel title shows it as well.
 - Exports contain **all** matching invoices (no page limit) in date order and **never a draft** — a draft
   has no number to book. A draft only comes into an export when the status "draft" is asked for.
@@ -582,7 +594,7 @@ so it cannot share the compact process.
 - compliance with the rules that apply to you (e.g. VAT law, GoBD, retention periods, GDPR),
 - regular backups – also outside the adapter – and testing that they can be restored.
 
-This disclaimer is also in [docs/en/disclaimer.md](docs/en/disclaimer.md); the German original is in [docs/de/haftungsausschluss.md](docs/de/haftungsausschluss.md).
+This disclaimer is also in [docs/en/disclaimer.md](docs/en/disclaimer.md); the German original is in [docs/de/disclaimer.md](docs/de/disclaimer.md).
 
 ## Standards and references
 
@@ -616,6 +628,14 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) Review of the ioBroker repository (PR #6894): the download file names are English (`invoices….csv`, `EXTF_outgoing-invoices….csv`, `revenue-by-company…`, `open-items…`, `dunning-suggestions.csv`, `dunning-letters.pdf`, `…_from-…`/`…_to-…` for an open range).
+* (alex) The exports (CSV and Excel lists of invoices, open items, revenue and dunning suggestions) are written in the eleven ioBroker languages: titles, notice and column headers follow the language of the web app, else the instance setting, else the system language, else English. The invoice copy and the DATEV file stay German.
+* (alex) The built-in dunning texts (three levels), the dunning letter PDF and `info.reminderSuggestions` come in the eleven ioBroker languages, chosen by the language of the ioBroker system (English for any other). Texts you changed stay as they are.
+* (alex) Instance settings: the payment terms presets show translated labels in all eleven languages; the stored text stays the German sentence printed on the German invoice.
+* (alex) The validation evidence moved from `docs/validierung/` to `docs/validation/` with English names (`sample-cases/`, `sample-cases.mjs`, `credit-note`, …), the German documentation files to `docs/de/validation.md` and `docs/de/disclaimer.md`. The script prints English messages.
+
 ### 1.2.2 (2026-10-19)
 
 * (alex) When the server gives no answer, the web app shows a banner instead of the browser's "NetworkError": the server cannot be reached; with HTTPS and a self-signed certificate reload the page (or open the address) and accept the security warning again, otherwise check the instance. A *Reload* button is in the banner, which goes away with the next answer of the server. All eleven languages.

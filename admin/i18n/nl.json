@@ -45,7 +45,6 @@
     "Invoice number format":  "Factuurnummerformaat",
     "Invoicing defaults":  "Standaardwaarden facturatie",
     "Own number circle, used only for quotations. Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.":  "Eigen nummerreeks, alleen voor offertes. Tokens: {YYYY} jaar, {EMPLOYEE} medewerkerscode, {SEQ} volgnummer. {SEQ} is verplicht.",
-    "prefilled for new invoices; the wizard offers these as a list plus free text":  "ingevuld bij nieuwe facturen; de wizard biedt deze ook als lijst met vrij tekstveld",
     "Quotation number format":  "Formaat van het offertenummer",
     "Server":  "Server",
     "Storage mount name":  "Naam van opslagmount",
@@ -74,5 +73,10 @@
     "SHA256:… as the server shows it. Empty: the server is not verified, the log shows its fingerprint.":  "SHA256:… zoals de server die toont. Leeg: de server wordt niet gecontroleerd, het logboek toont de vingerafdruk.",
     "Copies to keep on the server":  "Kopieën bewaren op de server",
     "Only automatic copies are deleted, the oldest first; 0 = keep all. Backups made by hand and other files are never deleted.":  "Alleen automatische kopieën worden verwijderd, de oudste eerst; 0 = alles bewaren. Met de hand gemaakte back-ups en andere bestanden worden nooit verwijderd.",
-    "Test connection":  "Verbinding testen"
+    "Test connection":  "Verbinding testen",
+    "No default":  "Geen standaard",
+    "Payable immediately without deduction":  "Direct betaalbaar zonder aftrek",
+    "Payable within 14 days by bank transfer":  "Betaalbaar per overschrijving binnen 14 dagen",
+    "Payable within 30 days of the invoice date without deduction":  "Betaalbaar binnen 30 dagen na factuurdatum zonder aftrek",
+    "Prefilled for new invoices; the wizard offers these as a list plus free text. The text is printed on the invoice in German, because the invoice is German.":  "Vooraf ingevuld voor nieuwe facturen; de wizard biedt ze ook als lijst met vrije tekst aan. De tekst wordt in het Duits op de factuur gedrukt, omdat de factuur Duits is."
 }

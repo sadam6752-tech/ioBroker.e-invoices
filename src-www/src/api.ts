@@ -1,5 +1,5 @@
 /** Typed client for the adapter /api (same origin, served on :8093). */
-import { t } from './i18n';
+import { getLanguage, t } from './i18n';
 
 /** A party (seller, buyer, company or customer) as the API sends it. */
 export interface Party {
@@ -601,6 +601,8 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 	if (token) {
 		headers.authorization = `Bearer ${token}`;
 	}
+	// the exports (CSV, Excel) are written in the language of the page
+	headers['x-e-invoices-language'] = getLanguage();
 	let res: Response;
 	try {
 		res = await fetch(path, { ...init, headers });

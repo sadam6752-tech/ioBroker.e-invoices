@@ -31,6 +31,7 @@ import {
 import { connectSsh2 } from './lib/sftp-ssh2';
 import { isButtonPress } from './lib/control-buttons';
 import { STATE_NAMES } from './lib/state-names';
+import { outputLanguage } from './lib/output-i18n';
 import { createWebServer, decideTls } from './lib/tls';
 import {
 	blankDraft,
@@ -60,6 +61,8 @@ class EInvoices extends utils.Adapter {
 	private backupTimer: ReturnType<EInvoices['setTimeout']> | undefined;
 	/** True once the backup warning was logged, so it is not repeated at every refresh. */
 	private backupWarned = false;
+	/** Language of the ioBroker system (`system.config`), empty until read. */
+	private systemLanguage = '';
 	/** Copies to the external server run one after the other. */
 	private remoteQueue: Promise<unknown> = Promise.resolve();
 
@@ -93,6 +96,7 @@ class EInvoices extends utils.Adapter {
 			this.db.migrate();
 			this.log.info(`Database ready (schema v${this.db.currentVersion()}): ${dbPath}`);
 			this.applyNumberFormats();
+			await this.applySystemLanguage();
 			const defaultTemplate = this.db.ensureDefaultTemplate();
 			this.log.info(`Layout template: ${defaultTemplate.name} v${defaultTemplate.version}`);
 			this.syncCompanyFromConfig();
@@ -611,6 +615,20 @@ class EInvoices extends utils.Adapter {
 		stop: handle => this.clearTimeout(handle as ioBroker.Timeout | undefined),
 	};
 
+	/**
+	 * Takes the language of the ioBroker system for the built-in dunning texts and as the fallback of the exports
+	 * (English when it is none of the eleven).
+	 */
+	private async applySystemLanguage(): Promise<void> {
+		try {
+			const config = await this.getForeignObjectAsync('system.config');
+			this.systemLanguage = (config?.common as { language?: string } | undefined)?.language ?? '';
+		} catch (error) {
+			this.log.debug(`Cannot read the system language: ${(error as Error).message}`);
+		}
+		this.db?.setTextLanguage(outputLanguage(this.systemLanguage));
+	}
+
 	/** The instance settings of the copy to the external server. */
 	private remoteSettings(): RemoteBackupSettings {
 		return {
@@ -841,7 +859,12 @@ class EInvoices extends utils.Adapter {
 		await this.setState(
 			'info.reminderSuggestions',
 			JSON.stringify(
-				buildDunningSuggestions(candidates, this.db.listDunningTexts(), todayIso()).map(item => ({
+				buildDunningSuggestions(
+					candidates,
+					this.db.listDunningTexts(),
+					todayIso(),
+					this.db.getTextLanguage(),
+				).map(item => ({
 					id: item.invoiceId,
 					number: item.number,
 					customer: item.customer,
@@ -923,6 +946,7 @@ class EInvoices extends utils.Adapter {
 					numberFormat: this.db?.effectiveNumberFormat() ?? DEFAULT_NUMBER_FORMAT,
 					quoteNumberFormat: this.db?.effectiveQuoteNumberFormat() ?? DEFAULT_QUOTE_NUMBER_FORMAT,
 					storageMount: this.mountId,
+					systemLanguage: this.systemLanguage,
 					backupIntervalMinutes: Number(this.config.backupIntervalMinutes ?? 0),
 					backupKeep: Number(this.config.backupKeep ?? 0),
 					datev: {

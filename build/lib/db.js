@@ -276,6 +276,8 @@ class InvoiceDatabase {
   numberFormat = import_invoice_model.DEFAULT_NUMBER_FORMAT;
   /** Quotation number format from the instance config (own circle, R8). */
   quoteNumberFormat = import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT;
+  /** Language of the built-in dunning texts: that of the ioBroker system, English until it is set. */
+  textLanguage = "en";
   /**
    * Opens (and creates) the SQLite file.
    *
@@ -1625,11 +1627,24 @@ class InvoiceDatabase {
     }));
   }
   /**
+   * Sets the language of the built-in dunning texts (the adapter takes the language of the ioBroker system).
+   * Texts the user changed stay as they are.
+   *
+   * @param language - One of the eleven languages.
+   */
+  setTextLanguage(language) {
+    this.textLanguage = language;
+  }
+  /** Language of the built-in dunning texts and of the dunning letters. */
+  getTextLanguage() {
+    return this.textLanguage;
+  }
+  /**
    * The three dunning levels: the user's text where one was saved, the built-in one else.
    */
   listDunningTexts() {
     const stored = new Map(this.storedDunningTexts().map((row) => [row.level, row]));
-    return import_dunning.DEFAULT_DUNNING_TEXTS.map((fallback) => {
+    return (0, import_dunning.defaultDunningTexts)(this.textLanguage).map((fallback) => {
       const row = stored.get(fallback.level);
       return row ? { ...row, isDefault: false } : { ...fallback };
     });

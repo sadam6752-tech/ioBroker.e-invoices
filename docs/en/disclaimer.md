@@ -1,6 +1,6 @@
 # Disclaimer
 
-English version of the disclaimer in the README of ioBroker.e-invoices. German original: [docs/de/haftungsausschluss.md](../de/haftungsausschluss.md).
+English version of the disclaimer in the README of ioBroker.e-invoices. German original: [docs/de/disclaimer.md](../de/disclaimer.md).
 
 **Disclaimer.** This software is provided free of charge and "as is", without warranty of any kind and without any assurance of fitness for a particular purpose. It is not tax or legal advice. To the extent permitted by law, liability is excluded; liability for intent and gross negligence, for injury to life, body or health, and under mandatory law remains unaffected. You are responsible for:
 

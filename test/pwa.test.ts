@@ -349,10 +349,10 @@ describe('pwa => liability clause', () => {
 		}
 		// the German original lives in its own document, the README only links to it: the repository checker
 		// wants an English README (E6015) and a German paragraph in it is exactly what it finds
-		expect(readme).to.contain('docs/de/haftungsausschluss.md');
+		expect(readme).to.contain('docs/de/disclaimer.md');
 		expect(readme).to.contain('docs/en/disclaimer.md');
 		expect(readme).to.not.contain('**Haftungsausschluss.**');
-		const german = readFileSync('docs/de/haftungsausschluss.md', 'utf8');
+		const german = readFileSync('docs/de/disclaimer.md', 'utf8');
 		expect(german).to.contain('**Haftungsausschluss.**');
 		for (const duty of ['UStG, GoBD', 'Datensicherungen']) {
 			expect(german, duty).to.contain(duty);
@@ -400,7 +400,7 @@ describe('docs => English documentation (ioBroker review)', () => {
 	});
 
 	it('keeps docs/en and the evidence README free of German words', () => {
-		const files = [...markdownIn('docs/en'), 'docs/validierung/README.md', 'CONTRIBUTING.md', 'CHANGELOG_OLD.md'];
+		const files = [...markdownIn('docs/en'), 'docs/validation/README.md', 'CONTRIBUTING.md', 'CHANGELOG_OLD.md'];
 		// words that are German and not English; "die", "in", "an" are left out because English has them too
 		const german = /\b(und|nicht|oder|wird|werden|für|über|mit dem|ist ein|eine|einen|der Beleg|Rechnung(en)?)\b/;
 		for (const file of files) {

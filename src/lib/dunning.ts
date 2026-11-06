@@ -16,6 +16,8 @@
  */
 import type { ReminderCandidate } from './issue-service';
 import { addDaysIso } from './invoice-model';
+import { DUNNING_DEFAULT_TEXTS } from './dunning-texts';
+import { formatOutputAmount, formatOutputDate, tr, type OutputLanguage } from './output-i18n';
 
 /** Highest dunning level. */
 export const MAX_DUNNING_LEVEL = 3;
@@ -48,50 +50,28 @@ export const DUNNING_PLACEHOLDERS = [
 	'seller',
 ] as const;
 
-/** Built-in texts, used until the user changes a level. */
-export const DEFAULT_DUNNING_TEXTS: readonly DunningText[] = [
-	{
-		level: 1,
-		subject: 'Zahlungserinnerung zur Rechnung {number}',
-		body:
-			'Sehr geehrte Damen und Herren,\n\n' +
-			'zu unserer Rechnung {number} vom {issueDate} über {amount} konnten wir bis heute keinen Zahlungseingang feststellen. ' +
-			'Sie war am {dueDate} fällig.\n\n' +
-			'Bitte überweisen Sie den Betrag bis zum {deadline}. Sollte sich Ihre Zahlung mit diesem Schreiben überschnitten haben, ' +
-			'betrachten Sie es bitte als gegenstandslos.\n\n' +
-			'Mit freundlichen Grüßen\n{seller}',
-		days: 5,
-		deadlineDays: 7,
+/** Overdue days and payment deadline of the three built-in levels. */
+const DEFAULT_SCHEDULE = [
+	{ days: 5, deadlineDays: 7 },
+	{ days: 19, deadlineDays: 7 },
+	{ days: 33, deadlineDays: 5 },
+] as const;
+
+/**
+ * Built-in texts, used until the user changes a level, in the language of the ioBroker system.
+ *
+ * @param language - Language of the texts (`outputLanguage` picks English for an unknown one).
+ */
+export function defaultDunningTexts(language: OutputLanguage): DunningText[] {
+	return DUNNING_DEFAULT_TEXTS[language].map((text, index) => ({
+		level: index + 1,
+		subject: text.subject,
+		body: text.body,
+		days: DEFAULT_SCHEDULE[index].days,
+		deadlineDays: DEFAULT_SCHEDULE[index].deadlineDays,
 		isDefault: true,
-	},
-	{
-		level: 2,
-		subject: '1. Mahnung zur Rechnung {number}',
-		body:
-			'Sehr geehrte Damen und Herren,\n\n' +
-			'trotz unserer Zahlungserinnerung ist die Rechnung {number} vom {issueDate} über {amount} weiterhin offen. ' +
-			'Sie ist seit {days} Tagen überfällig (fällig am {dueDate}).\n\n' +
-			'Wir bitten Sie, den Betrag bis zum {deadline} zu überweisen.\n\n' +
-			'Mit freundlichen Grüßen\n{seller}',
-		days: 19,
-		deadlineDays: 7,
-		isDefault: true,
-	},
-	{
-		level: 3,
-		subject: '2. Mahnung zur Rechnung {number}',
-		body:
-			'Sehr geehrte Damen und Herren,\n\n' +
-			'die Rechnung {number} vom {issueDate} über {amount} ist trotz Erinnerung und Mahnung noch immer nicht bezahlt ' +
-			'(seit {days} Tagen überfällig, fällig am {dueDate}).\n\n' +
-			'Wir fordern Sie auf, den Betrag bis spätestens {deadline} zu überweisen. ' +
-			'Andernfalls behalten wir uns weitere Schritte vor.\n\n' +
-			'Mit freundlichen Grüßen\n{seller}',
-		days: 33,
-		deadlineDays: 5,
-		isDefault: true,
-	},
-];
+	}));
+}
 
 /** Limits of the editable fields. */
 export const DUNNING_LIMITS = { subject: 200, body: 4000, days: 365, deadlineDays: 90 } as const;
@@ -174,16 +154,6 @@ export interface DunningSuggestion {
 }
 
 /**
- * Formats an ISO date German style.
- *
- * @param iso - `YYYY-MM-DD`.
- */
-function de(iso: string): string {
-	const [year, month, day] = iso.slice(0, 10).split('-');
-	return `${day}.${month}.${year}`;
-}
-
-/**
  * Fills the placeholders of a text; unknown placeholders stay as they are.
  *
  * @param template - Text with `{name}` placeholders.
@@ -199,13 +169,16 @@ export function fillPlaceholders(template: string, values: Record<string, string
  * @param candidates - Overdue, unpaid invoices (`collectReminderCandidates`).
  * @param texts - The three levels (`listDunningTexts`).
  * @param today - ISO reference day.
+ * @param language - Language of the dates, the amounts and the cash discount sentence (that of the texts).
  * @returns Suggestions, the longest overdue first.
  */
 export function buildDunningSuggestions(
 	candidates: ReminderCandidate[],
 	texts: readonly DunningText[],
 	today: string,
+	language: OutputLanguage,
 ): DunningSuggestion[] {
+	const date = (iso: string): string => formatOutputDate(iso, language);
 	const out: DunningSuggestion[] = [];
 	for (const candidate of candidates) {
 		const level = candidate.level + 1;
@@ -220,19 +193,27 @@ export function buildDunningSuggestions(
 		const values: Record<string, string> = {
 			number: invoice.number ?? '',
 			customer: invoice.buyer.name,
-			issueDate: de(invoice.issueDate),
-			dueDate: de(invoice.dueDate ?? today),
-			amount: `${invoice.totals.grossTotal.toFixed(2).replace('.', ',')} €`,
+			issueDate: date(invoice.issueDate),
+			dueDate: date(invoice.dueDate ?? today),
+			amount: formatOutputAmount(invoice.totals.grossTotal, language),
 			days: String(candidate.overdueDays),
-			deadline: de(deadline),
+			deadline: date(deadline),
 			seller: invoice.seller.name,
 		};
 		let body = fillPlaceholders(text.body, values);
 		if (candidate.skontoActive && level === 1) {
-			body = body.replace(
-				/\n\nMit freundlichen/,
-				`\n\nBei Zahlung bis zum ${de(invoice.skontoDueDate ?? today)} können Sie noch ${invoice.skontoPercent} % Skonto abziehen.\n\nMit freundlichen`,
+			// the cash discount sentence goes before the closing paragraph, in any language and any own text
+			const sentence = tr(
+				language,
+				'If you pay by {date}, you can still deduct a cash discount of {percent} %.',
+				{
+					date: date(invoice.skontoDueDate ?? today),
+					percent: invoice.skontoPercent ?? 0,
+				},
 			);
+			const paragraphs = body.split('\n\n');
+			paragraphs.splice(Math.max(paragraphs.length - 1, 1), 0, sentence);
+			body = paragraphs.join('\n\n');
 		}
 		out.push({
 			invoiceId: invoice.id,

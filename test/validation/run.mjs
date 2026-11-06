@@ -5,7 +5,7 @@
  *
  * What it does:
  *   1. starts the end-to-end server on a throw-away data directory,
- *   2. lets `docs/validierung/musterfaelle.mjs` issue the sample cases (full invoice with two VAT rates, small
+ *   2. lets `docs/validation/sample-cases.mjs` issue the sample cases (full invoice with two VAT rates, small
  *      amount, credit note, reverse charge, Storno, attachment BG-24, Skonto) and keep XML and PDF,
  *   3. downloads the KoSIT validator and its configuration on the first run (pinned by SHA-256) into
  *      `.validation-tools/`, runs it over the XML files and fails when one of them is rejected.
@@ -30,7 +30,7 @@ const port = Number(process.env.VALIDATION_PORT ?? 8098);
 const java = process.env.JAVA ?? 'java';
 const token = 'validation-token-2026';
 
-/** The tools, pinned: the same files that produced the evidence in `docs/validierung`. */
+/** The tools, pinned: the same files that produced the evidence in `docs/validation`. */
 const VALIDATOR = {
 	file: 'validator-1.6.3-standalone.jar',
 	url: 'https://github.com/itplr-kosit/validator/releases/download/v1.6.3/validator-1.6.3-standalone.jar',
@@ -138,7 +138,7 @@ async function generateSamples() {
 	server.stderr.on('data', chunk => (log += chunk));
 	try {
 		await waitForServer(`http://127.0.0.1:${port}`);
-		const result = spawnSync(process.execPath, [join(repo, 'docs', 'validierung', 'musterfaelle.mjs'), out], {
+		const result = spawnSync(process.execPath, [join(repo, 'docs', 'validation', 'sample-cases.mjs'), out], {
 			env: { ...process.env, API_BASE: `http://127.0.0.1:${port}`, E2E_TOKEN: token },
 			encoding: 'utf8',
 		});

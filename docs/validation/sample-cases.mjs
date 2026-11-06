@@ -8,14 +8,14 @@
  *
  *   $env:E2E_PORT = '8099'; $env:E2E_DATA = 'C:\tmp\e2e-data'
  *   node test/e2e/server.mjs
- *   node docs/validierung/musterfaelle.mjs
+ *   node docs/validation/sample-cases.mjs
  *
  * Environment:
  *   API_BASE   base URL of the server (default `http://127.0.0.1:8099`)
  *   E2E_TOKEN  bearer token the server expects (default `e2e-token-2026`)
  *
  * Usage:
- *   node docs/validierung/musterfaelle.mjs [target-directory]
+ *   node docs/validation/sample-cases.mjs [target-directory]
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const base = process.env.API_BASE ?? 'http://127.0.0.1:8099';
 const token = process.env.E2E_TOKEN ?? 'e2e-token-2026';
-const target = process.argv[2] ?? join(here, 'musterfaelle');
+const target = process.argv[2] ?? join(here, 'sample-cases');
 
 /** Parties every sample case shares. */
 const seller = {
@@ -105,23 +105,23 @@ async function save(slug, invoice, markers, xrechnung = false) {
 	const text = xml.toString('utf8');
 	const missing = markers.filter(marker => !text.includes(marker));
 	if (missing.length) {
-		throw new Error(`${slug}: XML ohne ${missing.join(', ')}`);
+		throw new Error(`${slug}: the XML lacks ${missing.join(', ')}`);
 	}
 	if (xrechnung && /EmbeddedFile|AFRelationship/.test(pdf.toString('latin1'))) {
-		throw new Error(`${slug}: die PDF einer XRechnung darf kein XML enthalten`);
+		throw new Error(`${slug}: the PDF of an XRechnung must not contain XML`);
 	}
 	await writeFile(join(target, `${slug}.xml`), xml);
 	if (!xrechnung) {
 		await writeFile(join(target, `${slug}.pdf`), pdf);
 	}
-	const line = `${slug.padEnd(28)} ${String(invoice.number).padEnd(12)} brutto ${String(invoice.totals.grossTotal).padStart(9)} EUR   xml ${xml.length} B   pdf ${pdf.length} B`;
+	const line = `${slug.padEnd(28)} ${String(invoice.number).padEnd(12)} gross ${String(invoice.totals.grossTotal).padStart(9)} EUR   xml ${xml.length} B   pdf ${pdf.length} B`;
 	console.log(`  ${line}`);
 }
 
 /** The sample cases: draft body plus the markers that prove the case in the XML. */
 const cases = [
 	{
-		slug: 'vollrechnung-zwei-steuersaetze',
+		slug: 'full-invoice-two-vat-rates',
 		body: {
 			lines: [
 				{ description: 'Beratung', quantity: 2, unit: 'Std', unitPriceNet: 100, vatRate: 19 },
@@ -145,7 +145,7 @@ const cases = [
 		],
 	},
 	{
-		slug: 'kleinbetrag-rundung',
+		slug: 'small-amount-rounding',
 		body: {
 			lines: [{ description: 'Kleinbetrag Posten', quantity: 1, unit: 'Stk', unitPriceNet: 0.1, vatRate: 19 }],
 			issueDate: '2026-09-28',
@@ -154,7 +154,7 @@ const cases = [
 		markers: ['<ram:GrandTotalAmount>0.12</ram:GrandTotalAmount>'],
 	},
 	{
-		slug: 'gutschrift',
+		slug: 'credit-note',
 		body: {
 			documentTitle: 'Gutschrift',
 			notes: 'Gutschrift wegen Minderlieferung.',
@@ -165,7 +165,7 @@ const cases = [
 		markers: ['<ram:TypeCode>381</ram:TypeCode>', 'Gutschrift wegen Minderlieferung'],
 	},
 	{
-		slug: 'reverse-charge-befreiung',
+		slug: 'reverse-charge-exemption',
 		// BR-AE-02 wants the buyer's VAT identifier (BT-48) next to the seller's one as soon
 		// as a line carries the category "Reverse charge" — the first run of this case was
 		// rejected by the KoSIT validator for exactly that reason.
@@ -209,12 +209,12 @@ try {
 		issueDate: '2026-09-28',
 		documentTitle: 'Rechnung',
 	});
-	const reversal = await json('POST', `/api/invoices/${original.id}/storno`, { reason: 'Musterfall Storno' });
+	const reversal = await json('POST', `/api/invoices/${original.id}/storno`, { reason: 'Sample case reversal' });
 	const issued = await json('POST', `/api/invoices/${reversal.reversal.id}/issue`);
-	await save('storno-zur-originalrechnung', issued, ['<ram:TypeCode>381</ram:TypeCode>', String(original.number)]);
+	await save('reversal-of-original-invoice', issued, ['<ram:TypeCode>381</ram:TypeCode>', String(original.number)]);
 } catch (error) {
 	failed++;
-	console.error(`  storno-zur-originalrechnung: ${error.message}`);
+	console.error(`  reversal-of-original-invoice: ${error.message}`);
 }
 
 // With an attachment (R4): the file sits in the PDF/A-3 container and, for EN 16931, in the XML
@@ -238,10 +238,10 @@ try {
 		dataBase64: png.toString('base64'),
 	});
 	const issued = await json('POST', `/api/invoices/${draft.id}/issue`);
-	await save('rechnung-mit-anlage-bg24', issued, ['AdditionalReferencedDocument', 'AttachmentBinaryObject']);
+	await save('invoice-with-attachment-bg24', issued, ['AdditionalReferencedDocument', 'AttachmentBinaryObject']);
 } catch (error) {
 	failed++;
-	console.error(`  rechnung-mit-anlage-bg24: ${error.message}`);
+	console.error(`  invoice-with-attachment-bg24: ${error.message}`);
 }
 
 // Skonto and payment terms: the discount shows up in the payment terms of the XML.
@@ -255,10 +255,10 @@ try {
 		skontoDueDate: '2026-10-08',
 		documentTitle: 'Rechnung',
 	});
-	await save('rechnung-mit-skonto', issued, ['SpecifiedTradePaymentTerms']);
+	await save('invoice-with-cash-discount', issued, ['SpecifiedTradePaymentTerms']);
 } catch (error) {
 	failed++;
-	console.error(`  rechnung-mit-skonto: ${error.message}`);
+	console.error(`  invoice-with-cash-discount: ${error.message}`);
 }
 
 // XRechnung (B2G, R6.1): the XML alone with the Leitweg-ID as buyer reference. The seller needs a contact
@@ -324,18 +324,18 @@ try {
 		dataBase64: png.toString('base64'),
 	});
 	const issued = await json('POST', `/api/invoices/${draft.id}/issue`);
-	await save('xrechnung-mit-anlage-bg24', issued, [...xrechnungMarkers, 'AttachmentBinaryObject'], true);
+	await save('xrechnung-with-attachment-bg24', issued, [...xrechnungMarkers, 'AttachmentBinaryObject'], true);
 } catch (error) {
 	failed++;
-	console.error(`  xrechnung-mit-anlage-bg24: ${error.message}`);
+	console.error(`  xrechnung-with-attachment-bg24: ${error.message}`);
 }
 
 // The document types the wizard offers, as XRechnung: the XRechnung rule BR-DE-17 allows fewer type codes than
 // EN 16931 (380 invoice, 381 credit note, 326 partial invoice, 384, 389, 875-877), so each title is checked.
 for (const [slug, title, code] of [
-	['xrechnung-abschlagsrechnung', 'Abschlagsrechnung', '326'],
-	['xrechnung-schlussrechnung', 'Schlussrechnung', '380'],
-	['xrechnung-gutschrift', 'Gutschrift', '381'],
+	['xrechnung-partial-invoice', 'Abschlagsrechnung', '326'],
+	['xrechnung-final-invoice', 'Schlussrechnung', '380'],
+	['xrechnung-credit-note', 'Gutschrift', '381'],
 ]) {
 	try {
 		const issued = await issue({
@@ -365,12 +365,12 @@ try {
 		deliveryDate: '2026-09-27',
 		documentTitle: 'Rechnung',
 	});
-	const reversal = await json('POST', `/api/invoices/${original.id}/storno`, { reason: 'Musterfall Storno' });
+	const reversal = await json('POST', `/api/invoices/${original.id}/storno`, { reason: 'Sample case reversal' });
 	const issued = await json('POST', `/api/invoices/${reversal.reversal.id}/issue`);
-	await save('xrechnung-storno', issued, [...xrechnungMarkers, '<ram:TypeCode>381</ram:TypeCode>'], true);
+	await save('xrechnung-reversal', issued, [...xrechnungMarkers, '<ram:TypeCode>381</ram:TypeCode>'], true);
 } catch (error) {
 	failed++;
-	console.error(`  xrechnung-storno: ${error.message}`);
+	console.error(`  xrechnung-reversal: ${error.message}`);
 }
 
 // Without the Leitweg-ID the server has to refuse the issue, and the draft stays a draft.
@@ -390,15 +390,13 @@ try {
 	});
 	const text = await response.text();
 	if (response.ok || !text.includes('Leitweg-ID') || !text.includes('BR-DE-15')) {
-		throw new Error(`eine XRechnung ohne Leitweg-ID wurde nicht abgelehnt (${response.status}: ${text})`);
+		throw new Error(`an XRechnung without Leitweg-ID was not refused (${response.status}: ${text})`);
 	}
-	console.log('  xrechnung ohne Leitweg-ID    abgelehnt, wie vorgesehen');
+	console.log('  xrechnung without Leitweg-ID refused, as intended');
 } catch (error) {
 	failed++;
-	console.error(`  xrechnung-ohne-leitweg-id: ${error.message}`);
+	console.error(`  xrechnung-without-leitweg-id: ${error.message}`);
 }
 
-console.log(
-	failed ? `\n${failed} Musterfall/Musterfaelle fehlgeschlagen.` : `\nAlle Musterfaelle erzeugt in ${target}.`,
-);
+console.log(failed ? `\n${failed} sample case(s) failed.` : `\nAll sample cases made in ${target}.`);
 process.exit(failed ? 1 : 0);

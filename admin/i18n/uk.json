@@ -45,7 +45,6 @@
     "Invoice number format":  "Формат номера рахунку",
     "Invoicing defaults":  "Типові значення для виставлення рахунків",
     "Own number circle, used only for quotations. Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.":  "Власний ряд номерів, лише для пропозицій. Токени: {YYYY} рік, {EMPLOYEE} код співробітника, {SEQ} послідовність. {SEQ} обов’язковий.",
-    "prefilled for new invoices; the wizard offers these as a list plus free text":  "підставляється для нових рахунків; майстер додатково пропонує список і поле власного тексту",
     "Quotation number format":  "Формат номера пропозиції",
     "Server":  "Сервер",
     "Storage mount name":  "Назва точки зберігання",
@@ -74,5 +73,10 @@
     "SHA256:… as the server shows it. Empty: the server is not verified, the log shows its fingerprint.":  "SHA256:… так, як його показує сервер. Порожньо: сервер не перевіряється, відбиток видно в журналі.",
     "Copies to keep on the server":  "Копій зберігати на сервері",
     "Only automatic copies are deleted, the oldest first; 0 = keep all. Backups made by hand and other files are never deleted.":  "Видаляються лише автоматичні копії, спершу найстаріші; 0 = зберігати всі. Копії, зроблені вручну, та інші файли не видаляються ніколи.",
-    "Test connection":  "Перевірити з'єднання"
+    "Test connection":  "Перевірити з'єднання",
+    "No default":  "Без типового значення",
+    "Payable immediately without deduction":  "Оплата негайно без утримань",
+    "Payable within 14 days by bank transfer":  "Оплата переказом протягом 14 днів",
+    "Payable within 30 days of the invoice date without deduction":  "Оплата протягом 30 днів від дати рахунку без утримань",
+    "Prefilled for new invoices; the wizard offers these as a list plus free text. The text is printed on the invoice in German, because the invoice is German.":  "Підставляється в нові рахунки; майстер пропонує варіанти також списком із полем для власного тексту. Текст друкується в рахунку німецькою, бо рахунок німецький."
 }

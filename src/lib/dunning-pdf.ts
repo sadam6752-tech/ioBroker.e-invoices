@@ -7,30 +7,26 @@
 import PDFDocument from 'pdfkit';
 import type { DunningSuggestion } from './dunning';
 import { FONT_BOLD, FONT_REGULAR, registerFonts } from './fonts';
-
-/**
- * Formats an ISO date German style.
- *
- * @param iso - `YYYY-MM-DD`.
- */
-function de(iso: string): string {
-	const [year, month, day] = iso.slice(0, 10).split('-');
-	return `${day}.${month}.${year}`;
-}
+import { formatOutputDate, tr, type OutputLanguage } from './output-i18n';
 
 /**
  * Renders the letters of all suggestions, one page each.
  *
  * @param suggestions - Suggestions to print (at least one).
  * @param today - ISO date printed as the letter date.
+ * @param language - Language of the letters (that of the dunning texts).
  */
-export function renderDunningPdf(suggestions: DunningSuggestion[], today: string): Promise<Buffer> {
+export function renderDunningPdf(
+	suggestions: DunningSuggestion[],
+	today: string,
+	language: OutputLanguage,
+): Promise<Buffer> {
 	return new Promise<Buffer>((resolve, reject) => {
 		const doc = new PDFDocument({
 			size: 'A4',
 			margins: { top: 60, bottom: 50, left: 60, right: 60 },
 			autoFirstPage: false,
-			info: { Title: 'Zahlungserinnerungen und Mahnungen', Creator: 'ioBroker.e-invoices' },
+			info: { Title: tr(language, 'Payment reminders and dunning notices'), Creator: 'ioBroker.e-invoices' },
 		});
 		const chunks: Buffer[] = [];
 		doc.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -51,14 +47,17 @@ export function renderDunningPdf(suggestions: DunningSuggestion[], today: string
 				.text(item.sender, 60, 100, { width, lineBreak: false });
 			doc.fillColor('#111827').fontSize(11);
 			doc.text(item.recipient.join('\n'), 60, 118, { width: 260 });
-			doc.text(`Datum: ${de(today)}`, 60, 118, { width, align: 'right' });
+			doc.text(tr(language, 'Date: {date}', { date: formatOutputDate(today, language) }), 60, 118, {
+				width,
+				align: 'right',
+			});
 			doc.font(bold).fontSize(13).text(item.subject, 60, 230, { width });
 			doc.moveDown(1);
 			doc.font(regular).fontSize(11).text(item.text, { width, lineGap: 2 });
 		}
 		if (suggestions.length === 0) {
 			doc.addPage();
-			doc.font(regular).fontSize(11).text('Keine Mahnvorschläge.', 60, 100);
+			doc.font(regular).fontSize(11).text(tr(language, 'No dunning suggestions.'), 60, 100);
 		}
 		doc.end();
 	});

@@ -38,6 +38,7 @@ module.exports = __toCommonJS(excel_exports);
 var import_exceljs = __toESM(require("exceljs"));
 var import_invoice_model = require("./invoice-model");
 var import_open_items = require("./open-items");
+var import_output_i18n = require("./output-i18n");
 const EXCEL_COPY_NOTICE = "KOPIE \u2013 kein Steuerdokument. Ma\xDFgeblich ist das eingebettete XML der ZUGFeRD-Rechnung.";
 function safeCellText(value) {
   return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
@@ -151,11 +152,11 @@ async function renderInvoiceWorkbook(invoice) {
   const buffer = await book.xlsx.writeBuffer();
   return Buffer.from(buffer);
 }
-async function renderInvoiceListWorkbook(invoices, title) {
+async function renderInvoiceListWorkbook(invoices, title, language = "en") {
   const book = new import_exceljs.default.Workbook();
   book.creator = "ioBroker.e-invoices";
   book.created = /* @__PURE__ */ new Date();
-  const sheet = book.addWorksheet("\xDCbersicht");
+  const sheet = book.addWorksheet((0, import_output_i18n.tr)(language, "Overview"));
   sheet.columns = [
     { width: 16 },
     { width: 14 },
@@ -167,13 +168,17 @@ async function renderInvoiceListWorkbook(invoices, title) {
   ];
   sheet.getCell("A1").value = title;
   sheet.getCell("A1").font = { bold: true, size: 14 };
-  sheet.getCell("A2").value = EXCEL_COPY_NOTICE;
+  sheet.getCell("A2").value = (0, import_output_i18n.tr)(language, import_output_i18n.COPY_NOTICE);
   sheet.getCell("A2").font = { italic: true, color: { argb: "FFB91C1C" } };
-  headRow(sheet, 4, ["Nummer", "Datum", "K\xE4ufer", "Netto", "USt", "Brutto", "Status"]);
+  headRow(
+    sheet,
+    4,
+    ["Number", "Invoice date", "Buyer", "Net", "VAT", "Gross", "State"].map((label) => (0, import_output_i18n.tr)(language, label))
+  );
   invoices.forEach((invoice, index) => {
     var _a;
     const r = sheet.getRow(5 + index);
-    r.getCell(1).value = safeCellText((_a = invoice.number) != null ? _a : "(Entwurf)");
+    r.getCell(1).value = safeCellText((_a = invoice.number) != null ? _a : (0, import_output_i18n.tr)(language, "(draft)"));
     r.getCell(2).value = invoice.issueDate;
     r.getCell(3).value = safeCellText(invoice.buyer.name);
     r.getCell(4).value = invoice.totals.netTotal;
@@ -188,11 +193,11 @@ async function renderInvoiceListWorkbook(invoices, title) {
   const buffer = await book.xlsx.writeBuffer();
   return Buffer.from(buffer);
 }
-async function renderOpenItemsWorkbook(report) {
+async function renderOpenItemsWorkbook(report, language = "en") {
   const book = new import_exceljs.default.Workbook();
   book.creator = "ioBroker.e-invoices";
   book.created = /* @__PURE__ */ new Date();
-  const sheet = book.addWorksheet("Offene Posten");
+  const sheet = book.addWorksheet((0, import_output_i18n.tr)(language, "Open items"));
   sheet.columns = [
     { width: 16 },
     { width: 30 },
@@ -206,23 +211,27 @@ async function renderOpenItemsWorkbook(report) {
     { width: 10 }
   ];
   sheet.getCell("A1").value = safeCellText(
-    `Offene Posten zum ${report.asOf}${report.onlyOverdue ? " (nur \xFCberf\xE4llige)" : ""}`
+    `${(0, import_output_i18n.tr)(language, "Open items as of {date}", { date: report.asOf })}${report.onlyOverdue ? ` ${(0, import_output_i18n.tr)(language, "(overdue only)")}` : ""}`
   );
   sheet.getCell("A1").font = { bold: true, size: 14 };
-  sheet.getCell("A2").value = EXCEL_COPY_NOTICE;
+  sheet.getCell("A2").value = (0, import_output_i18n.tr)(language, import_output_i18n.COPY_NOTICE);
   sheet.getCell("A2").font = { italic: true, color: { argb: "FFB91C1C" } };
-  headRow(sheet, 4, [
-    "Rechnungsnummer",
-    "Kunde",
-    "Kundennummer",
-    "Rechnungsdatum",
-    "F\xE4llig am",
-    "Tage \xFCberf\xE4llig",
-    "Alterung",
-    "Offener Betrag",
-    "Skonto %",
-    "Mahnstufe"
-  ]);
+  headRow(
+    sheet,
+    4,
+    [
+      "Invoice number",
+      "Customer",
+      "Customer number",
+      "Invoice date",
+      "Due on",
+      "Days overdue",
+      "Age",
+      "Open amount",
+      "Cash discount %",
+      "Dunning level"
+    ].map((label) => (0, import_output_i18n.tr)(language, label))
+  );
   report.items.forEach((item, index) => {
     const r = sheet.getRow(5 + index);
     r.getCell(1).value = safeCellText(item.number);
@@ -231,7 +240,7 @@ async function renderOpenItemsWorkbook(report) {
     r.getCell(4).value = item.issueDate;
     r.getCell(5).value = item.dueDate;
     r.getCell(6).value = item.overdueDays;
-    r.getCell(7).value = import_open_items.AGE_BUCKET_LABELS[item.bucket];
+    r.getCell(7).value = (0, import_output_i18n.tr)(language, import_open_items.AGE_BUCKET_LABELS[item.bucket]);
     r.getCell(8).value = item.amount;
     r.getCell(8).numFmt = '#,##0.00 "EUR"';
     r.getCell(9).value = item.skontoPercent;
@@ -239,19 +248,20 @@ async function renderOpenItemsWorkbook(report) {
     r.commit();
   });
   let row = 5 + report.items.length + 1;
-  headRow(sheet, row, ["Summe", "Alterung", "Anzahl", "", "", "", "", "Betrag"]);
+  const total = (0, import_output_i18n.tr)(language, "Total");
+  headRow(sheet, row, [total, (0, import_output_i18n.tr)(language, "Age"), (0, import_output_i18n.tr)(language, "Count"), "", "", "", "", (0, import_output_i18n.tr)(language, "Amount")]);
   row += 1;
   const sums = [
     ...import_open_items.AGE_BUCKETS.map((bucket) => [
-      import_open_items.AGE_BUCKET_LABELS[bucket],
+      (0, import_output_i18n.tr)(language, import_open_items.AGE_BUCKET_LABELS[bucket]),
       report.buckets[bucket]
     ]),
-    ["gesamt", report.total],
-    ["davon \xFCberf\xE4llig", report.overdue]
+    [(0, import_output_i18n.tr)(language, "all"), report.total],
+    [(0, import_output_i18n.tr)(language, "of which overdue"), report.overdue]
   ];
   for (const [label, sub] of sums) {
     const r = sheet.getRow(row);
-    r.getCell(1).value = "Summe";
+    r.getCell(1).value = total;
     r.getCell(2).value = label;
     r.getCell(3).value = sub.count;
     r.getCell(8).value = sub.amount;
@@ -263,17 +273,22 @@ async function renderOpenItemsWorkbook(report) {
   const buffer = await book.xlsx.writeBuffer();
   return Buffer.from(buffer);
 }
-async function renderRevenueWorkbook(report) {
+async function renderRevenueWorkbook(report, language = "en") {
   const book = new import_exceljs.default.Workbook();
   book.creator = "ioBroker.e-invoices";
   book.created = /* @__PURE__ */ new Date();
-  const sheet = book.addWorksheet("Umsatz je Firma");
+  const title = (0, import_output_i18n.tr)(language, "Revenue by company");
+  const sheet = book.addWorksheet(title);
   sheet.columns = [{ width: 36 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }];
-  sheet.getCell("A1").value = `Umsatz je Firma${report.year === null ? "" : ` ${report.year}`}`;
+  sheet.getCell("A1").value = `${title}${report.year === null ? "" : ` ${report.year}`}`;
   sheet.getCell("A1").font = { bold: true, size: 14 };
-  sheet.getCell("A2").value = EXCEL_COPY_NOTICE;
+  sheet.getCell("A2").value = (0, import_output_i18n.tr)(language, import_output_i18n.COPY_NOTICE);
   sheet.getCell("A2").font = { italic: true, color: { argb: "FFB91C1C" } };
-  headRow(sheet, 4, ["Firma", "Anzahl Rechnungen", "Netto", "USt", "Brutto"]);
+  headRow(
+    sheet,
+    4,
+    ["Company", "Number of invoices", "Net", "VAT", "Gross"].map((label) => (0, import_output_i18n.tr)(language, label))
+  );
   const put = (rowNumber, label, count, net, tax, gross) => {
     const r = sheet.getRow(rowNumber);
     r.getCell(1).value = safeCellText(label);
@@ -288,9 +303,18 @@ async function renderRevenueWorkbook(report) {
     }
     r.commit();
   };
-  report.rows.forEach((row, index) => put(5 + index, row.company, row.count, row.net, row.tax, row.gross));
+  report.rows.forEach(
+    (row, index) => put(
+      5 + index,
+      row.companyId == null ? (0, import_output_i18n.tr)(language, "without company assignment") : row.company,
+      row.count,
+      row.net,
+      row.tax,
+      row.gross
+    )
+  );
   const totalRow = 5 + report.rows.length;
-  put(totalRow, "Summe", report.total.count, report.total.net, report.total.tax, report.total.gross);
+  put(totalRow, (0, import_output_i18n.tr)(language, "Total"), report.total.count, report.total.net, report.total.tax, report.total.gross);
   sheet.getRow(totalRow).font = { bold: true };
   const buffer = await book.xlsx.writeBuffer();
   return Buffer.from(buffer);

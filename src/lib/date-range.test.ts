@@ -47,8 +47,8 @@ describe('date range (0.9.3)', () => {
 		expect(formatDateRange({ to: '2026-08-31' })).to.equal('bis 31.08.2026');
 		expect(formatDateRange({})).to.equal('');
 		expect(dateRangeFileSuffix(both)).to.equal('_2026-08-01_2026-08-31');
-		expect(dateRangeFileSuffix({ from: '2026-08-01' })).to.equal('_ab-2026-08-01');
-		expect(dateRangeFileSuffix({ to: '2026-08-31' })).to.equal('_bis-2026-08-31');
+		expect(dateRangeFileSuffix({ from: '2026-08-01' })).to.equal('_from-2026-08-01');
+		expect(dateRangeFileSuffix({ to: '2026-08-31' })).to.equal('_to-2026-08-31');
 		expect(dateRangeFileSuffix({})).to.equal('');
 	});
 

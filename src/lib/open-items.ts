@@ -29,11 +29,11 @@ export type AgeBucket = (typeof AGE_BUCKETS)[number];
 
 /** German labels of the buckets (CSV and Excel); the web app translates its own. */
 export const AGE_BUCKET_LABELS: Record<AgeBucket, string> = {
-	notDue: 'nicht fällig',
-	d1to30: '1–30 Tage überfällig',
-	d31to60: '31–60 Tage überfällig',
-	d61to90: '61–90 Tage überfällig',
-	over90: 'über 90 Tage überfällig',
+	notDue: 'not due',
+	d1to30: '1–30 days overdue',
+	d31to60: '31–60 days overdue',
+	d61to90: '61–90 days overdue',
+	over90: 'over 90 days overdue',
 };
 
 /** One unpaid invoice with its age. */

@@ -90,7 +90,7 @@ describe('excel => list export', () => {
 	it('lists all invoices with sums', async () => {
 		const { db, invoice } = issueSample();
 		try {
-			const buffer = await renderInvoiceListWorkbook(db.listInvoices(), 'Testübersicht');
+			const buffer = await renderInvoiceListWorkbook(db.listInvoices(), 'Testübersicht', 'de');
 			const book = new ExcelJS.Workbook();
 			await book.xlsx.load(buffer as unknown as Parameters<typeof book.xlsx.load>[0]);
 			const sheet = book.getWorksheet('Übersicht');

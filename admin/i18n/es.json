@@ -45,7 +45,6 @@
     "Invoice number format":  "Formato del número de factura",
     "Invoicing defaults":  "Valores por defecto de facturación",
     "Own number circle, used only for quotations. Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.":  "Serie de numeración propia, solo para ofertas. Marcadores: {YYYY} año, {EMPLOYEE} código de empleado, {SEQ} secuencia. {SEQ} es obligatorio.",
-    "prefilled for new invoices; the wizard offers these as a list plus free text":  "se rellena para facturas nuevas; el asistente ofrece además una lista con campo de texto libre",
     "Quotation number format":  "Formato del número de oferta",
     "Server":  "Servidor",
     "Storage mount name":  "Nombre del punto de almacenamiento",
@@ -74,5 +73,10 @@
     "SHA256:… as the server shows it. Empty: the server is not verified, the log shows its fingerprint.":  "SHA256:… tal como la muestra el servidor. Vacío: el servidor no se verifica, el registro muestra su huella.",
     "Copies to keep on the server":  "Copias que conservar en el servidor",
     "Only automatic copies are deleted, the oldest first; 0 = keep all. Backups made by hand and other files are never deleted.":  "Solo se eliminan copias automáticas, las más antiguas primero; 0 = conservar todas. Las copias hechas a mano y otros archivos nunca se eliminan.",
-    "Test connection":  "Probar la conexión"
+    "Test connection":  "Probar la conexión",
+    "No default":  "Sin valor predeterminado",
+    "Payable immediately without deduction":  "Pagadero de inmediato sin deducción",
+    "Payable within 14 days by bank transfer":  "Pagadero por transferencia en 14 días",
+    "Payable within 30 days of the invoice date without deduction":  "Pagadero en 30 días desde la fecha de factura sin deducción",
+    "Prefilled for new invoices; the wizard offers these as a list plus free text. The text is printed on the invoice in German, because the invoice is German.":  "Se rellena en las facturas nuevas; el asistente las ofrece también como lista con texto libre. El texto se imprime en alemán en la factura, porque la factura es alemana."
 }

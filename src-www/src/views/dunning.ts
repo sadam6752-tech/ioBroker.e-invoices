@@ -96,14 +96,14 @@ export async function dunning(root: HTMLElement): Promise<void> {
 		};
 		root.querySelector('#dn-pdf')?.addEventListener('click', async () => {
 			try {
-				await downloadUrl(api.dunning.pdfUrl(), 'mahnungen.pdf');
+				await downloadUrl(api.dunning.pdfUrl(), 'dunning-letters.pdf');
 			} catch (e) {
 				fail(e);
 			}
 		});
 		root.querySelector('#dn-csv')?.addEventListener('click', async () => {
 			try {
-				await downloadUrl(api.dunning.csvUrl(), 'mahnvorschlaege.csv');
+				await downloadUrl(api.dunning.csvUrl(), 'dunning-suggestions.csv');
 			} catch (e) {
 				fail(e);
 			}

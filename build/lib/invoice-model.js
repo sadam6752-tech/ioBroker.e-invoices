@@ -63,6 +63,7 @@ __export(invoice_model_exports, {
   validateInvoiceForIssue: () => validateInvoiceForIssue
 });
 module.exports = __toCommonJS(invoice_model_exports);
+var import_output_i18n = require("./output-i18n");
 const EXEMPTION_CATEGORIES = ["E", "AE", "K", "G", "O"];
 const DOCUMENT_TYPES = ["invoice", "quote"];
 function normalizeDocumentType(value) {
@@ -485,24 +486,24 @@ function parseDateRange(from, to) {
   }
   return range;
 }
-function formatDateRange(range) {
-  const de = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
+function formatDateRange(range, language = "de") {
+  const date = (iso) => (0, import_output_i18n.formatOutputDate)(iso, language);
   if (range.from && range.to) {
-    return `${de(range.from)}\u2013${de(range.to)}`;
+    return `${date(range.from)}\u2013${date(range.to)}`;
   }
   if (range.from) {
-    return `ab ${de(range.from)}`;
+    return (0, import_output_i18n.tr)(language, "from {date}", { date: date(range.from) });
   }
-  return range.to ? `bis ${de(range.to)}` : "";
+  return range.to ? (0, import_output_i18n.tr)(language, "until {date}", { date: date(range.to) }) : "";
 }
 function dateRangeFileSuffix(range) {
   if (range.from && range.to) {
     return `_${range.from}_${range.to}`;
   }
   if (range.from) {
-    return `_ab-${range.from}`;
+    return `_from-${range.from}`;
   }
-  return range.to ? `_bis-${range.to}` : "";
+  return range.to ? `_to-${range.to}` : "";
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

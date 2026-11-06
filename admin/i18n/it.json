@@ -45,7 +45,6 @@
     "Invoice number format":  "Formato del numero di fattura",
     "Invoicing defaults":  "Valori predefiniti di fatturazione",
     "Own number circle, used only for quotations. Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.":  "Serie di numeri propria, solo per i preventivi. Segnaposto: {YYYY} anno, {EMPLOYEE} codice dipendente, {SEQ} sequenza. {SEQ} è obbligatorio.",
-    "prefilled for new invoices; the wizard offers these as a list plus free text":  "precompilato per le nuove fatture; la procedura offre anche un elenco con campo di testo libero",
     "Quotation number format":  "Formato del numero di preventivo",
     "Server":  "Server",
     "Storage mount name":  "Nome del mount di archiviazione",
@@ -74,5 +73,10 @@
     "SHA256:… as the server shows it. Empty: the server is not verified, the log shows its fingerprint.":  "SHA256:… come la mostra il server. Vuoto: il server non viene verificato, il registro mostra la sua impronta.",
     "Copies to keep on the server":  "Copie da conservare sul server",
     "Only automatic copies are deleted, the oldest first; 0 = keep all. Backups made by hand and other files are never deleted.":  "Vengono eliminate solo le copie automatiche, le più vecchie per prime; 0 = conserva tutte. I backup fatti a mano e gli altri file non vengono mai eliminati.",
-    "Test connection":  "Verifica la connessione"
+    "Test connection":  "Verifica la connessione",
+    "No default":  "Nessuna predefinita",
+    "Payable immediately without deduction":  "Pagabile subito senza detrazioni",
+    "Payable within 14 days by bank transfer":  "Pagabile con bonifico entro 14 giorni",
+    "Payable within 30 days of the invoice date without deduction":  "Pagabile entro 30 giorni dalla data della fattura senza detrazioni",
+    "Prefilled for new invoices; the wizard offers these as a list plus free text. The text is printed on the invoice in German, because the invoice is German.":  "Precompilato per le nuove fatture; la procedura guidata li offre anche come elenco con testo libero. Il testo viene stampato in tedesco sulla fattura, perché la fattura è tedesca."
 }

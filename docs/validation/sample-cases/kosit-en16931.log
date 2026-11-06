@@ -22,7 +22,7 @@ Processing of 7 objects completed in 425ms
 Results:
 ----------------------------------------------------------------------------------------------------------------
 |File                                                        |Schema |Schematron|Acceptance|Error/Description   |
-|[temp]/val-out/gutschrift.xml    |   Y   |    Y     |ACCEPTABLE|                    |
+|[temp]/val-out/credit-note.xml    |   Y   |    Y     |ACCEPTABLE|                    |
 |[temp]/val-out/kleinbetrag-run...|   Y   |    Y     |ACCEPTABLE|                    |
 |g.xml                                                       |       |          |          |                    |
 |[temp]/val-out/rechnung-mit-an...|   Y   |    Y     |ACCEPTABLE|                    |

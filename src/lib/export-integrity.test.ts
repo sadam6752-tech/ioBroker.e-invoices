@@ -226,9 +226,9 @@ describe('export integrity => Excel copy equals record and XML (R5.1)', function
 		try {
 			const first = issue(db, multiRate);
 			const second = issue(db, simple);
-			const sheet = (await load(await renderInvoiceListWorkbook(db.listInvoices(), 'Übersicht'))).getWorksheet(
-				'Übersicht',
-			)!;
+			const sheet = (
+				await load(await renderInvoiceListWorkbook(db.listInvoices(), 'Übersicht', 'de'))
+			).getWorksheet('Übersicht')!;
 
 			const rows = new Map<string, { net: number; tax: number; gross: number }>();
 			sheet.eachRow(row => {

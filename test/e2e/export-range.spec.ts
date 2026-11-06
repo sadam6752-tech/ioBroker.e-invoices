@@ -72,7 +72,7 @@ test('narrows the list to a range and exports exactly that range', async ({ page
 	await expect(page.locator('#list')).not.toContainText('Zeitraum Nachher AG');
 
 	const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#f-csv').click()]);
-	expect(download.suggestedFilename()).toBe('rechnungen_2031-08-01_2031-08-31.csv');
+	expect(download.suggestedFilename()).toBe('invoices_2031-08-01_2031-08-31.csv');
 	const csv = readFileSync(await download.path(), 'utf8');
 	expect(csv).toContain('Zeitraum Erster AG');
 	expect(csv).toContain('Zeitraum Letzter AG');

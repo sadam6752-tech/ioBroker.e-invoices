@@ -45,7 +45,6 @@
     "Invoice number format":  "Format der Rechnungsnummer",
     "Invoicing defaults":  "Rechnungs-Voreinstellungen",
     "Own number circle, used only for quotations. Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.":  "Eigener Nummernkreis, nur für Angebote. Platzhalter: {YYYY} Jahr, {EMPLOYEE} Mitarbeiter-Kürzel, {SEQ} Sequenz. {SEQ} ist Pflicht.",
-    "prefilled for new invoices; the wizard offers these as a list plus free text":  "wird für neue Rechnungen vorausgefüllt; der Wizard bietet die Auswahl zusätzlich als Liste mit Freitextfeld an",
     "Quotation number format":  "Format der Angebotsnummer",
     "Server":  "Server",
     "Storage mount name":  "Name des Ablage-Mounts",
@@ -74,5 +73,10 @@
     "SHA256:… as the server shows it. Empty: the server is not verified, the log shows its fingerprint.":  "SHA256:… so, wie ihn der Server anzeigt. Leer: der Server wird nicht geprüft, das Log zeigt seinen Fingerabdruck.",
     "Copies to keep on the server":  "Kopien auf dem Server behalten",
     "Only automatic copies are deleted, the oldest first; 0 = keep all. Backups made by hand and other files are never deleted.":  "Es werden nur automatische Kopien gelöscht, die ältesten zuerst; 0 = alle behalten. Von Hand erstellte Backups und andere Dateien werden nie gelöscht.",
-    "Test connection":  "Verbindung testen"
+    "Test connection":  "Verbindung testen",
+    "No default":  "Keine Vorgabe",
+    "Payable immediately without deduction":  "Sofort ohne Abzug fällig",
+    "Payable within 14 days by bank transfer":  "Überweisung innerhalb von 14 Tagen",
+    "Payable within 30 days of the invoice date without deduction":  "Zahlbar innerhalb von 30 Tagen nach Rechnungsdatum ohne Abzug",
+    "Prefilled for new invoices; the wizard offers these as a list plus free text. The text is printed on the invoice in German, because the invoice is German.":  "Wird für neue Rechnungen vorausgefüllt; der Wizard bietet die Auswahl zusätzlich als Liste mit Freitextfeld an. Der Text wird auf Deutsch auf die Rechnung gedruckt, weil die Rechnung deutsch ist."
 }

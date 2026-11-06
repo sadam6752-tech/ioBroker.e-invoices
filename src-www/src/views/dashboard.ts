@@ -342,14 +342,14 @@ ${t('Achtung: {n} davon tragen ein Datum aus einem früheren Jahr; sie setzen di
 	});
 	root.querySelector('#f-csv')?.addEventListener('click', async () => {
 		try {
-			await downloadUrl(api.csvUrl(exportParams()), 'rechnungen.csv');
+			await downloadUrl(api.csvUrl(exportParams()), 'invoices.csv');
 		} catch (e) {
 			fail(e);
 		}
 	});
 	root.querySelector('#f-datev')?.addEventListener('click', async () => {
 		try {
-			await downloadUrl(api.datevUrl(exportParams()), 'EXTF_Rechnungsausgang.csv');
+			await downloadUrl(api.datevUrl(exportParams()), 'EXTF_outgoing-invoices.csv');
 		} catch (e) {
 			fail(e);
 		}

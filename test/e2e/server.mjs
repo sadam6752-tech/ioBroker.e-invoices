@@ -55,6 +55,9 @@ function artifactPath(rel) {
 const db = new InvoiceDatabase(join(dataDir, 'e-invoices.sqlite'));
 db.migrate();
 
+// the browser tests describe a German ioBroker system: German dunning texts and letters
+db.setTextLanguage(process.env.E2E_SYSTEM_LANGUAGE ?? 'de');
+
 const app = createApiServer({
 	db,
 	// the same two functions the adapter passes in (main.ts): real files on disk

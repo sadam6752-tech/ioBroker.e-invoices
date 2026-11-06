@@ -31,6 +31,7 @@ var import_remote_backup = require("./lib/remote-backup");
 var import_sftp_ssh2 = require("./lib/sftp-ssh2");
 var import_control_buttons = require("./lib/control-buttons");
 var import_state_names = require("./lib/state-names");
+var import_output_i18n = require("./lib/output-i18n");
 var import_tls = require("./lib/tls");
 var import_invoice_model = require("./lib/invoice-model");
 var import_dunning = require("./lib/dunning");
@@ -49,6 +50,8 @@ class EInvoices extends utils.Adapter {
   backupTimer;
   /** True once the backup warning was logged, so it is not repeated at every refresh. */
   backupWarned = false;
+  /** Language of the ioBroker system (`system.config`), empty until read. */
+  systemLanguage = "";
   /** Copies to the external server run one after the other. */
   remoteQueue = Promise.resolve();
   /** Pending automatic dunning check, cancelled on unload. */
@@ -77,6 +80,7 @@ class EInvoices extends utils.Adapter {
       this.db.migrate();
       this.log.info(`Database ready (schema v${this.db.currentVersion()}): ${dbPath}`);
       this.applyNumberFormats();
+      await this.applySystemLanguage();
       const defaultTemplate = this.db.ensureDefaultTemplate();
       this.log.info(`Layout template: ${defaultTemplate.name} v${defaultTemplate.version}`);
       this.syncCompanyFromConfig();
@@ -573,6 +577,20 @@ class EInvoices extends utils.Adapter {
     start: (callback, ms) => this.setTimeout(callback, ms),
     stop: (handle) => this.clearTimeout(handle)
   };
+  /**
+   * Takes the language of the ioBroker system for the built-in dunning texts and as the fallback of the exports
+   * (English when it is none of the eleven).
+   */
+  async applySystemLanguage() {
+    var _a, _b, _c;
+    try {
+      const config = await this.getForeignObjectAsync("system.config");
+      this.systemLanguage = (_b = (_a = config == null ? void 0 : config.common) == null ? void 0 : _a.language) != null ? _b : "";
+    } catch (error) {
+      this.log.debug(`Cannot read the system language: ${error.message}`);
+    }
+    (_c = this.db) == null ? void 0 : _c.setTextLanguage((0, import_output_i18n.outputLanguage)(this.systemLanguage));
+  }
   /** The instance settings of the copy to the external server. */
   remoteSettings() {
     var _a;
@@ -782,7 +800,12 @@ class EInvoices extends utils.Adapter {
     await this.setState(
       "info.reminderSuggestions",
       JSON.stringify(
-        (0, import_dunning.buildDunningSuggestions)(candidates, this.db.listDunningTexts(), (0, import_invoice_model.todayIso)()).map((item) => ({
+        (0, import_dunning.buildDunningSuggestions)(
+          candidates,
+          this.db.listDunningTexts(),
+          (0, import_invoice_model.todayIso)(),
+          this.db.getTextLanguage()
+        ).map((item) => ({
           id: item.invoiceId,
           number: item.number,
           customer: item.customer,
@@ -857,6 +880,7 @@ class EInvoices extends utils.Adapter {
           numberFormat: (_f = (_e = this.db) == null ? void 0 : _e.effectiveNumberFormat()) != null ? _f : import_invoice_model.DEFAULT_NUMBER_FORMAT,
           quoteNumberFormat: (_h = (_g = this.db) == null ? void 0 : _g.effectiveQuoteNumberFormat()) != null ? _h : import_invoice_model.DEFAULT_QUOTE_NUMBER_FORMAT,
           storageMount: this.mountId,
+          systemLanguage: this.systemLanguage,
           backupIntervalMinutes: Number((_i = this.config.backupIntervalMinutes) != null ? _i : 0),
           backupKeep: Number((_j = this.config.backupKeep) != null ? _j : 0),
           datev: {

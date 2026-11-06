@@ -1,7 +1,0 @@
-PASS [temp]\val-out\gutschrift.pdf 3b
-PASS [temp]\val-out\kleinbetrag-rundung.pdf 3b
-PASS [temp]\val-out\rechnung-mit-anlage-bg24.pdf 3b
-PASS [temp]\val-out\rechnung-mit-skonto.pdf 3b
-PASS [temp]\val-out\reverse-charge-befreiung.pdf 3b
-PASS [temp]\val-out\storno-zur-originalrechnung.pdf 3b
-PASS [temp]\val-out\vollrechnung-zwei-steuersaetze.pdf 3b

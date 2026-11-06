@@ -243,7 +243,7 @@ describe('api => invoices', function () {
 		expect(Math.round(sum * 100) / 100).to.equal(report.total.gross);
 
 		const csv = await request(app).get('/api/reports/revenue-by-company.csv?year=2026').buffer(true).expect(200);
-		expect(String(csv.headers['content-disposition'])).to.contain('umsatz-je-firma.csv');
+		expect(String(csv.headers['content-disposition'])).to.contain('revenue-by-company.csv');
 		expect(csv.text).to.contain('Bericht GmbH;2;140,00;26,60;166,60');
 		await request(app)
 			.get('/api/reports/revenue-by-company.xlsx')
@@ -273,7 +273,8 @@ describe('api => invoices', function () {
 		}[];
 		const mine = list.find(item => item.invoiceId === created.body.id)!;
 		expect(mine.level).to.equal(1);
-		expect(mine.subject).to.contain('Zahlungserinnerung');
+		// the system language is not set here, so the built-in texts are English
+		expect(mine.subject).to.contain('Payment reminder');
 		expect(mine.text).to.not.match(/\{\w+\}/);
 		// looking changes nothing
 		expect((await request(app).get(`/api/invoices/${created.body.id}`).expect(200)).body.reminderLevel).to.equal(0);
@@ -357,7 +358,7 @@ describe('api => invoices', function () {
 
 		// the CSV: the three issued invoices of August, the draft stays out, named after the range
 		const csv = await request(app).get(`/api/invoices/export.csv?${base}`).buffer(true).expect(200);
-		expect(String(csv.headers['content-disposition'])).to.contain('rechnungen_2026-08-01_2026-08-31.csv');
+		expect(String(csv.headers['content-disposition'])).to.contain('invoices_2026-08-01_2026-08-31.csv');
 		const days = ['2026-08-01', '2026-08-15', '2026-08-31'];
 		for (const day of days) {
 			expect(csv.text, day).to.contain(day);
@@ -369,11 +370,11 @@ describe('api => invoices', function () {
 		const from = await request(app)
 			.get(`/api/invoices/export.csv?companyId=${companyId}&from=2026-08-31`)
 			.expect(200);
-		expect(String(from.headers['content-disposition'])).to.contain('rechnungen_ab-2026-08-31.csv');
+		expect(String(from.headers['content-disposition'])).to.contain('invoices_from-2026-08-31.csv');
 		const to = await request(app)
 			.get(`/api/invoices/export.datev?companyId=${companyId}&to=2026-08-01`)
 			.expect(200);
-		expect(String(to.headers['content-disposition'])).to.contain('EXTF_Rechnungsausgang_bis-2026-08-01.csv');
+		expect(String(to.headers['content-disposition'])).to.contain('EXTF_outgoing-invoices_to-2026-08-01.csv');
 		const xlsx = await request(app)
 			.get(`/api/invoices/export.xlsx?${base}`)
 			.buffer(true)
@@ -515,8 +516,16 @@ describe('api => invoices', function () {
 		// with "Invoice not found".
 		const csv = await request(app).get('/api/invoices/export.csv').expect(200);
 		expect(csv.headers['content-type']).to.contain('text/csv');
-		expect(csv.headers['content-disposition']).to.contain('rechnungen.csv');
-		expect(csv.text).to.contain('Rechnungsnummer');
+		expect(csv.headers['content-disposition']).to.contain('invoices.csv');
+		expect(csv.text).to.contain('Invoice number');
+		// the web app sends its language: the export follows it
+		const german = await request(app)
+			.get('/api/invoices/export.csv')
+			.set('x-e-invoices-language', 'de')
+			.expect(200);
+		expect(german.text).to.contain('Rechnungsnummer').and.to.contain('KOPIE – kein Steuerdokument');
+		const russian = await request(app).get('/api/invoices/export.csv?lang=ru').expect(200);
+		expect(russian.text).to.contain('Номер счёта');
 
 		// the invoices of this file span several years; DATEV takes one fiscal year per file
 		const spanning = await request(app).get('/api/invoices/export.datev').expect(400);
@@ -525,7 +534,7 @@ describe('api => invoices', function () {
 			.get('/api/invoices/export.datev?from=2026-01-01&to=2026-12-31')
 			.buffer(true)
 			.expect(200);
-		expect(datev.headers['content-disposition']).to.contain('EXTF_Rechnungsausgang_2026-01-01_2026-12-31.csv');
+		expect(datev.headers['content-disposition']).to.contain('EXTF_outgoing-invoices_2026-01-01_2026-12-31.csv');
 		expect(datev.headers['content-type']).to.contain('windows-1252');
 		expect(datev.text).to.contain('"EXTF";700;21;"Buchungsstapel"');
 	});
@@ -1065,9 +1074,13 @@ describe('api => open items (R6.2)', function () {
 	it('carries the same sums in the JSON, the CSV and the Excel list', async () => {
 		const json = (await request(app).get(`/api/open-items?asOf=${AS_OF}`).expect(200)).body;
 
-		const csv = await request(app).get(`/api/open-items.csv?asOf=${AS_OF}`).buffer(true).expect(200);
+		const csv = await request(app)
+			.get(`/api/open-items.csv?asOf=${AS_OF}`)
+			.set('x-e-invoices-language', 'de')
+			.buffer(true)
+			.expect(200);
 		expect(String(csv.headers['content-type'])).to.contain('text/csv');
-		expect(String(csv.headers['content-disposition'])).to.contain('offene-posten.csv');
+		expect(String(csv.headers['content-disposition'])).to.contain('open-items.csv');
 		const lines = csv.text.split('\r\n');
 		const csvRow = (label: string): string[] =>
 			lines.map(line => line.split(';')).find(cols => cols[0] === 'Summe' && cols[1] === label)!;
@@ -1089,6 +1102,7 @@ describe('api => open items (R6.2)', function () {
 
 		const xlsx = await request(app)
 			.get(`/api/open-items.xlsx?asOf=${AS_OF}`)
+			.set('x-e-invoices-language', 'de')
 			.buffer(true)
 			.parse((res, callback) => {
 				const chunks: Buffer[] = [];

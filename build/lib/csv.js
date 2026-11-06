@@ -27,7 +27,8 @@ __export(csv_exports, {
 });
 module.exports = __toCommonJS(csv_exports);
 var import_open_items = require("./open-items");
-const CSV_COPY_NOTICE = "KOPIE \u2013 kein Steuerdokument. Ma\xDFgeblich ist das eingebettete XML der ZUGFeRD-Rechnung.";
+var import_output_i18n = require("./output-i18n");
+const CSV_COPY_NOTICE = import_output_i18n.COPY_NOTICE;
 const UTF8_BOM = String.fromCharCode(65279);
 function csvField(value) {
   let text = value === null || value === void 0 ? "" : String(value);
@@ -63,29 +64,29 @@ function toCsvRow(invoice) {
   };
 }
 const HEADERS = [
-  ["number", "Rechnungsnummer"],
-  ["issueDate", "Rechnungsdatum"],
-  ["documentTitle", "Belegart"],
-  ["status", "Status"],
-  ["dueDate", "Faelligkeit"],
-  ["sentAt", "Versendet am"],
-  ["paidAt", "Bezahlt am"],
-  ["createdAt", "Erstellt am"],
-  ["customerNumber", "Kundennummer"],
-  ["customerName", "Kunde"],
-  ["customerCity", "Ort"],
-  ["vatId", "USt-IdNr"],
-  ["net", "Netto EUR"],
-  ["tax", "USt EUR"],
-  ["gross", "Brutto EUR"],
-  ["skontoPercent", "Skonto Prozent"],
-  ["retainUntil", "Aufbewahren bis"],
-  ["pdfPath", "PDF-Datei"]
+  ["number", "Invoice number"],
+  ["issueDate", "Invoice date"],
+  ["documentTitle", "Document type"],
+  ["status", "State"],
+  ["dueDate", "Due date"],
+  ["sentAt", "Sent on"],
+  ["paidAt", "Paid on"],
+  ["createdAt", "Created on"],
+  ["customerNumber", "Customer number"],
+  ["customerName", "Customer"],
+  ["customerCity", "City"],
+  ["vatId", "VAT ID"],
+  ["net", "Net EUR"],
+  ["tax", "VAT EUR"],
+  ["gross", "Gross EUR"],
+  ["skontoPercent", "Cash discount percent"],
+  ["retainUntil", "Keep until"],
+  ["pdfPath", "PDF file"]
 ];
-function renderInvoiceListCsv(invoices) {
+function renderInvoiceListCsv(invoices, language = "en") {
   const lines = [];
-  lines.push(csvField(CSV_COPY_NOTICE));
-  lines.push(HEADERS.map(([, label]) => csvField(label)).join(";"));
+  lines.push(csvField((0, import_output_i18n.tr)(language, CSV_COPY_NOTICE)));
+  lines.push(HEADERS.map(([, label]) => csvField((0, import_output_i18n.tr)(language, label))).join(";"));
   for (const invoice of invoices) {
     const row = toCsvRow(invoice);
     lines.push(
@@ -98,23 +99,27 @@ function renderInvoiceListCsv(invoices) {
   return `${UTF8_BOM}${lines.join("\r\n")}\r
 `;
 }
-function renderOpenItemsCsv(report) {
+function renderOpenItemsCsv(report, language = "en") {
   const lines = [];
-  lines.push(csvField(CSV_COPY_NOTICE));
-  lines.push(csvField(`Offene Posten zum ${report.asOf}${report.onlyOverdue ? " (nur \xFCberf\xE4llige)" : ""}`));
+  lines.push(csvField((0, import_output_i18n.tr)(language, CSV_COPY_NOTICE)));
+  lines.push(
+    csvField(
+      `${(0, import_output_i18n.tr)(language, "Open items as of {date}", { date: (0, import_output_i18n.formatOutputDate)(report.asOf, language) })}${report.onlyOverdue ? ` ${(0, import_output_i18n.tr)(language, "(overdue only)")}` : ""}`
+    )
+  );
   lines.push(
     [
-      "Rechnungsnummer",
-      "Kunde",
-      "Kundennummer",
-      "Rechnungsdatum",
-      "Faellig am",
-      "Tage ueberfaellig",
-      "Alterung",
-      "Offener Betrag EUR",
-      "Skonto Prozent",
-      "Mahnstufe"
-    ].map(csvField).join(";")
+      "Invoice number",
+      "Customer",
+      "Customer number",
+      "Invoice date",
+      "Due on",
+      "Days overdue",
+      "Age",
+      "Open amount EUR",
+      "Cash discount percent",
+      "Dunning level"
+    ].map((label) => csvField((0, import_output_i18n.tr)(language, label))).join(";")
   );
   for (const item of report.items) {
     lines.push(
@@ -125,7 +130,7 @@ function renderOpenItemsCsv(report) {
         item.issueDate,
         item.dueDate,
         String(item.overdueDays),
-        import_open_items.AGE_BUCKET_LABELS[item.bucket],
+        (0, import_output_i18n.tr)(language, import_open_items.AGE_BUCKET_LABELS[item.bucket]),
         de(item.amount),
         de(item.skontoPercent),
         String(item.reminderLevel)
@@ -133,45 +138,55 @@ function renderOpenItemsCsv(report) {
     );
   }
   lines.push("");
+  const total = (0, import_output_i18n.tr)(language, "Total");
   for (const bucket of import_open_items.AGE_BUCKETS) {
     const sub = report.buckets[bucket];
-    lines.push(["Summe", import_open_items.AGE_BUCKET_LABELS[bucket], String(sub.count), de(sub.amount)].map(csvField).join(";"));
+    lines.push(
+      [total, (0, import_output_i18n.tr)(language, import_open_items.AGE_BUCKET_LABELS[bucket]), String(sub.count), de(sub.amount)].map(csvField).join(";")
+    );
   }
-  lines.push(["Summe", "gesamt", String(report.total.count), de(report.total.amount)].map(csvField).join(";"));
   lines.push(
-    ["Summe", "davon \xFCberf\xE4llig", String(report.overdue.count), de(report.overdue.amount)].map(csvField).join(";")
+    [total, (0, import_output_i18n.tr)(language, "all"), String(report.total.count), de(report.total.amount)].map(csvField).join(";")
+  );
+  lines.push(
+    [total, (0, import_output_i18n.tr)(language, "of which overdue"), String(report.overdue.count), de(report.overdue.amount)].map(csvField).join(";")
   );
   return `${UTF8_BOM}${lines.join("\r\n")}\r
 `;
 }
-function renderRevenueCsv(report) {
+function renderRevenueCsv(report, language = "en") {
   const lines = [];
-  lines.push(csvField(CSV_COPY_NOTICE));
-  lines.push(csvField(`Umsatz je Firma${report.year === null ? "" : ` ${report.year}`}`));
-  lines.push(["Firma", "Anzahl Rechnungen", "Netto EUR", "USt EUR", "Brutto EUR"].map(csvField).join(";"));
+  lines.push(csvField((0, import_output_i18n.tr)(language, CSV_COPY_NOTICE)));
+  lines.push(csvField(`${(0, import_output_i18n.tr)(language, "Revenue by company")}${report.year === null ? "" : ` ${report.year}`}`));
+  lines.push(
+    ["Company", "Number of invoices", "Net EUR", "VAT EUR", "Gross EUR"].map((label) => csvField((0, import_output_i18n.tr)(language, label))).join(";")
+  );
   for (const row of report.rows) {
-    lines.push([row.company, String(row.count), de(row.net), de(row.tax), de(row.gross)].map(csvField).join(";"));
+    const company = row.companyId == null ? (0, import_output_i18n.tr)(language, "without company assignment") : row.company;
+    lines.push([company, String(row.count), de(row.net), de(row.tax), de(row.gross)].map(csvField).join(";"));
   }
   const total = report.total;
-  lines.push(["Summe", String(total.count), de(total.net), de(total.tax), de(total.gross)].map(csvField).join(";"));
+  lines.push(
+    [(0, import_output_i18n.tr)(language, "Total"), String(total.count), de(total.net), de(total.tax), de(total.gross)].map(csvField).join(";")
+  );
   return `${UTF8_BOM}${lines.join("\r\n")}\r
 `;
 }
-function renderDunningCsv(suggestions, today) {
+function renderDunningCsv(suggestions, today, language = "en") {
   const lines = [];
-  lines.push(csvField(CSV_COPY_NOTICE));
-  lines.push(csvField(`Mahnvorschl\xE4ge zum ${today}`));
+  lines.push(csvField((0, import_output_i18n.tr)(language, CSV_COPY_NOTICE)));
+  lines.push(csvField((0, import_output_i18n.tr)(language, "Dunning suggestions as of {date}", { date: (0, import_output_i18n.formatOutputDate)(today, language) })));
   lines.push(
     [
-      "Rechnungsnummer",
-      "Kunde",
-      "E-Mail",
-      "Stufe",
-      "Tage ueberfaellig",
-      "Faellig am",
-      "Zahlungsziel",
-      "Offener Betrag EUR"
-    ].map(csvField).join(";")
+      "Invoice number",
+      "Customer",
+      "E-mail",
+      "Level",
+      "Days overdue",
+      "Due on",
+      "Payment deadline",
+      "Open amount EUR"
+    ].map((label) => csvField((0, import_output_i18n.tr)(language, label))).join(";")
   );
   let sum = 0;
   for (const item of suggestions) {
@@ -190,7 +205,9 @@ function renderDunningCsv(suggestions, today) {
     );
   }
   lines.push("");
-  lines.push(["Summe", String(suggestions.length), de(Math.round(sum * 100) / 100)].map(csvField).join(";"));
+  lines.push(
+    [(0, import_output_i18n.tr)(language, "Total"), String(suggestions.length), de(Math.round(sum * 100) / 100)].map(csvField).join(";")
+  );
   return `${UTF8_BOM}${lines.join("\r\n")}\r
 `;
 }

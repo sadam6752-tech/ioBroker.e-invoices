@@ -1,6 +1,6 @@
 # Nachweis: EN 16931 (CII) und PDF/A-3b
 
-> Deutsche Fassung (Stand 4. Oktober 2026, danach nicht mehr nachgeführt). Maßgeblich und aktuell ist die englische Fassung: [docs/en/validation.md](../en/validation.md). Die Nachweisdateien liegen in [docs/validierung/](../validierung/).
+> Deutsche Fassung (Stand 4. Oktober 2026, danach nicht mehr nachgeführt). Maßgeblich und aktuell ist die englische Fassung: [docs/en/validation.md](../en/validation.md). Die Nachweisdateien liegen in [docs/validation/](../validation/).
 
 Stand **30.09.2026 (abends)**. Beleg zu Roadmap-Punkt **R2 (Konformitätsnachweis)**: Die
 erzeugten Rechnungen werden mit **zwei unabhängigen Werkzeugen** geprüft — das CII-XML gegen
@@ -22,15 +22,15 @@ gleicher SHA-256), die XMLs wurden zusätzlich über `GET /api/invoices/:id.xml`
 (15/16 byte-identisch mit den Store-XMLs; die Ausnahme `2026-0001` ist dort ein älterer
 Stand desselben Generators — ebenfalls `rep:accept`).
 
-`musterfaelle/` enthält die frisch erzeugten Belege mit ihren Berichten, der Wurzelordner
-den Lauf über den Belegbestand (`2026-*-report.xml`, `alle-belege.verapdf-3b.txt`).
+`sample-cases/` enthält die frisch erzeugten Belege mit ihren Berichten, der Wurzelordner
+den Lauf über den Belegbestand (`2026-*-report.xml`, `all-vouchers.verapdf-3b.txt`).
 
 ## Automatischer Lauf (M6)
 
 Der manuelle Nachweis ist automatisiert, damit eine Änderung am XML- oder PDF-Code nicht unbemerkt nicht-konforme Belege erzeugt:
 
 - **`npm run validate`** (nach `npm run build`): startet den End-to-End-Server auf einem Wegwerf-Datenverzeichnis, lässt
-  `musterfaelle.mjs` die sieben Musterfälle ausstellen und prüft jedes XML mit dem KoSIT-Validator 1.6.3 (EN 16931, CII). Die
+  `sample-cases.mjs` die sieben Musterfälle ausstellen und prüft jedes XML mit dem KoSIT-Validator 1.6.3 (EN 16931, CII). Die
   Werkzeuge werden beim ersten Lauf nach `.validation-tools/` geladen und gegen die oben genannten **SHA-256-Prüfsummen** geprüft
   (vollständig im Skript `test/validation/run.mjs`); Java muss im `PATH` liegen (oder `JAVA=` setzen). Ausgabe nach
   `.validation-out/` (XML, PDF, Berichte, `kosit.log`). Exit-Code 1, sobald ein Beleg abgelehnt wird.
@@ -73,7 +73,7 @@ curl -H "Authorization: Bearer <token>" http://127.0.0.1:8093/api/invoices/<uuid
 # 1) Musterfälle erzeugen (echter API-Stack, throwaway-Datenverzeichnis)
 $env:E2E_PORT = '8099'; $env:E2E_DATA = '<data-dir>'
 node test/e2e/server.mjs
-node docs/validierung/musterfaelle.mjs docs/validierung/musterfaelle
+node docs/validation/sample-cases.mjs docs/validation/sample-cases
 
 # 2) XML gegen EN 16931 (nur das Szenario "EN16931 (CII)", also ohne XRechnung-CIUS)
 java -jar validator-1.6.3-standalone.jar -s <config>/scenarios.xml -r <config> -o <ziel> -p <dateien>.xml
@@ -93,7 +93,7 @@ bei veraPDF das `PASS`/`FAIL` der Textausgabe.
 
 ## Musterfälle (frisch erzeugt 30.09.2026, Nachlauf 04.10.2026)
 
-**Nachlauf 04.10.2026 auf dem Stand 0.8.8** (Schema v15: Anlagen, Angebote, eingefrorenes Layout, Firmenbindung, Mahnwesen): sieben Fälle über den echten API-Stack neu erzeugt (`musterfaelle.mjs` kennt jetzt zusätzlich *Rechnung mit Anlage (BG-24)* und *Rechnung mit Skonto*), KoSIT-Validator 1.6.3 mit der Konfiguration „EN16931 (CII)“ (CEN 1.3.16): **7 von 7 akzeptabel, 0 Fehler** (`*-report.xml`, `kosit-en16931.log`); veraPDF 1.30.2, Profil PDF/A-3b: **7 von 7 PASS** (`verapdf-3b.txt`). Die Dateien in `musterfaelle/` sind die Läufe dieses Nachlaufs.
+**Nachlauf 04.10.2026 auf dem Stand 0.8.8** (Schema v15: Anlagen, Angebote, eingefrorenes Layout, Firmenbindung, Mahnwesen): sieben Fälle über den echten API-Stack neu erzeugt (`sample-cases.mjs` kennt jetzt zusätzlich *Rechnung mit Anlage (BG-24)* und *Rechnung mit Skonto*), KoSIT-Validator 1.6.3 mit der Konfiguration „EN16931 (CII)“ (CEN 1.3.16): **7 von 7 akzeptabel, 0 Fehler** (`*-report.xml`, `kosit-en16931.log`); veraPDF 1.30.2, Profil PDF/A-3b: **7 von 7 PASS** (`verapdf-3b.txt`). Die Dateien in `sample-cases/` sind die Läufe dieses Nachlaufs.
 
 _Hinweis zum Aufruf:_ der KoSIT-Validator prüft beim Start, ob Daten über stdin kommen, und scheitert mit `Unzulässige Funktion`, wenn stdin kein Terminal und keine Pipe ist (z. B. `NUL` oder ein Hintergrundprozess). Aus einer Skript-Umgebung deshalb mit leerer Pipe starten: `type NUL | java -jar validator-1.6.3-standalone.jar …` (cmd).
 
@@ -118,7 +118,7 @@ _Hinweis zum Aufruf:_ der KoSIT-Validator prüft beim Start, ob Daten über stdi
 - **Altbestände vom 28./29.09.2026 — behoben am 30.09.2026.** Das Symptom: PDF/A-3b
   scheiterte an `ISO 19005-3:2012 §6.2.11.4.1` (Schriften nicht eingebettet: `Helvetica`,
   `Helvetica-Bold`) und `§6.2.4.3` (`DeviceRGB` ohne RGB-Output-Intent);
-  Beispielbericht `_legacy-beispiel.2026-01-001.verapdf-3b.xml` (144 Regeln bestanden,
+  Beispielbericht `_legacy-example.2026-01-001.verapdf-3b.xml` (144 Regeln bestanden,
   2 fehlgeschlagen, 160 Checks) — Ursache war der Stand **vor** dem PDF/A-3b-Fix. Abhilfe
   ohne Datenverlust ist `POST /api/invoices/:id/rerender`, das Original wird dabei als
   `.orig-N.pdf` archiviert.
@@ -149,13 +149,13 @@ _Hinweis zum Aufruf:_ der KoSIT-Validator prüft beim Start, ob Daten über stdi
 ## XRechnung (R6.1, 06.10.2026)
 
 Zwei zusätzliche Musterfälle mit dem Format `XRECHNUNG` (B2G): `xrechnung-b2g` (zwei Steuersätze,
-Leitweg-ID als BT-10) und `xrechnung-mit-anlage-bg24` (eine Anlage als BG-24 im XML). Beide gehen über
-den echten API-Stack (`npm run validate`), das XML liegt unter `musterfaelle/`, der Prüfbericht daneben.
+Leitweg-ID als BT-10) und `xrechnung-with-attachment-bg24` (eine Anlage als BG-24 im XML). Beide gehen über
+den echten API-Stack (`npm run validate`), das XML liegt unter `sample-cases/`, der Prüfbericht daneben.
 
 - KoSIT-Validator 1.6.3, Konfiguration XRechnung 3.0.2 (2026-08-31): Szenario
   **„EN16931 XRechnung (CII)"**, Ergebnis `rep:accept`, keine Fehler und keine Warnungen.
 - Die PDFs dieser Fälle sind bewusst **nicht** Teil der PDF/A-3b-Prüfung: Eine XRechnung ist reines
-  XML, die PDF ist eine Ansicht ohne eingebettetes XML. `musterfaelle.mjs` prüft stattdessen, dass die
+  XML, die PDF ist eine Ansicht ohne eingebettetes XML. `sample-cases.mjs` prüft stattdessen, dass die
   PDF weder `EmbeddedFile` noch `AFRelationship` enthält.
 - Ein Beleg **ohne Leitweg-ID** wird beim Ausstellen abgelehnt (Meldung mit BR-DE-15), der Entwurf bleibt
   ein Entwurf und es wird keine Nummer verbraucht (Test im selben Lauf).
@@ -179,6 +179,6 @@ ist nichts an den Berichten geändert. Wer einen neuen Lauf hier ablegt, ersetzt
   XRechnung-Kennung im XML selbst wählt.
 - Regelstand ist CEN 1.3.16 (2026-04-13). Ein neues CEN- oder Factur-X-Release verlangt
   einen erneuten Lauf mit dem dann gültigen Konfigurationspaket.
-- Das Ergebnis gilt für den **geprüften Stand**: `alle-belege.verapdf-3b.txt` nennt die
+- Das Ergebnis gilt für den **geprüften Stand**: `all-vouchers.verapdf-3b.txt` nennt die
   geprüften Pfade. Werden Belege danach erneut gerendert, ist der Lauf zu wiederholen
   (Rerender ersetzt die Datei und legt dafür `.orig-1.pdf` an).

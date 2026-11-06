@@ -9,9 +9,10 @@ import type { StoredInvoice } from './db';
 import { AGE_BUCKET_LABELS, AGE_BUCKETS, type OpenItemsReport } from './open-items';
 import type { DunningSuggestion } from './dunning';
 import type { RevenueReport } from './revenue-report';
+import { COPY_NOTICE, formatOutputDate, tr, type OutputLanguage } from './output-i18n';
 
-/** Notice printed as the first comment line of every CSV export. */
-export const CSV_COPY_NOTICE = 'KOPIE – kein Steuerdokument. Maßgeblich ist das eingebettete XML der ZUGFeRD-Rechnung.';
+/** Notice printed as the first comment line of every CSV export (translated with `tr`). */
+export const CSV_COPY_NOTICE = COPY_NOTICE;
 
 /** UTF-8 byte order mark, so Excel detects the encoding without a dialog. */
 const UTF8_BOM = String.fromCharCode(0xfeff);
@@ -124,24 +125,24 @@ export function toCsvRow(invoice: StoredInvoice): CsvRow {
 }
 
 const HEADERS: [keyof CsvRow, string][] = [
-	['number', 'Rechnungsnummer'],
-	['issueDate', 'Rechnungsdatum'],
-	['documentTitle', 'Belegart'],
-	['status', 'Status'],
-	['dueDate', 'Faelligkeit'],
-	['sentAt', 'Versendet am'],
-	['paidAt', 'Bezahlt am'],
-	['createdAt', 'Erstellt am'],
-	['customerNumber', 'Kundennummer'],
-	['customerName', 'Kunde'],
-	['customerCity', 'Ort'],
-	['vatId', 'USt-IdNr'],
-	['net', 'Netto EUR'],
-	['tax', 'USt EUR'],
-	['gross', 'Brutto EUR'],
-	['skontoPercent', 'Skonto Prozent'],
-	['retainUntil', 'Aufbewahren bis'],
-	['pdfPath', 'PDF-Datei'],
+	['number', 'Invoice number'],
+	['issueDate', 'Invoice date'],
+	['documentTitle', 'Document type'],
+	['status', 'State'],
+	['dueDate', 'Due date'],
+	['sentAt', 'Sent on'],
+	['paidAt', 'Paid on'],
+	['createdAt', 'Created on'],
+	['customerNumber', 'Customer number'],
+	['customerName', 'Customer'],
+	['customerCity', 'City'],
+	['vatId', 'VAT ID'],
+	['net', 'Net EUR'],
+	['tax', 'VAT EUR'],
+	['gross', 'Gross EUR'],
+	['skontoPercent', 'Cash discount percent'],
+	['retainUntil', 'Keep until'],
+	['pdfPath', 'PDF file'],
 ];
 
 /**
@@ -151,14 +152,15 @@ const HEADERS: [keyof CsvRow, string][] = [
  * opens as a spreadsheet by double click.
  *
  * @param invoices - Invoices to export.
+ * @param language - Language of the notice and the column headers.
  * @returns CSV text including the BOM.
  */
-export function renderInvoiceListCsv(invoices: StoredInvoice[]): string {
+export function renderInvoiceListCsv(invoices: StoredInvoice[], language: OutputLanguage = 'en'): string {
 	const lines: string[] = [];
 	// A leading comment line keeps the "this is not a tax document" notice
 	// visible in the file itself, not only in the documentation.
-	lines.push(csvField(CSV_COPY_NOTICE));
-	lines.push(HEADERS.map(([, label]) => csvField(label)).join(';'));
+	lines.push(csvField(tr(language, CSV_COPY_NOTICE)));
+	lines.push(HEADERS.map(([, label]) => csvField(tr(language, label))).join(';'));
 	for (const invoice of invoices) {
 		const row = toCsvRow(invoice);
 		lines.push(
@@ -181,26 +183,33 @@ export function renderInvoiceListCsv(invoices: StoredInvoice[]): string {
  * three formats show the same sums by construction.
  *
  * @param report - Result of `evaluateOpenItems`.
+ * @param language - Language of the titles and the column headers.
  * @returns CSV text including the BOM.
  */
-export function renderOpenItemsCsv(report: OpenItemsReport): string {
+export function renderOpenItemsCsv(report: OpenItemsReport, language: OutputLanguage = 'en'): string {
 	const lines: string[] = [];
-	lines.push(csvField(CSV_COPY_NOTICE));
-	lines.push(csvField(`Offene Posten zum ${report.asOf}${report.onlyOverdue ? ' (nur überfällige)' : ''}`));
+	lines.push(csvField(tr(language, CSV_COPY_NOTICE)));
+	lines.push(
+		csvField(
+			`${tr(language, 'Open items as of {date}', { date: formatOutputDate(report.asOf, language) })}${
+				report.onlyOverdue ? ` ${tr(language, '(overdue only)')}` : ''
+			}`,
+		),
+	);
 	lines.push(
 		[
-			'Rechnungsnummer',
-			'Kunde',
-			'Kundennummer',
-			'Rechnungsdatum',
-			'Faellig am',
-			'Tage ueberfaellig',
-			'Alterung',
-			'Offener Betrag EUR',
-			'Skonto Prozent',
-			'Mahnstufe',
+			'Invoice number',
+			'Customer',
+			'Customer number',
+			'Invoice date',
+			'Due on',
+			'Days overdue',
+			'Age',
+			'Open amount EUR',
+			'Cash discount percent',
+			'Dunning level',
 		]
-			.map(csvField)
+			.map(label => csvField(tr(language, label)))
 			.join(';'),
 	);
 	for (const item of report.items) {
@@ -212,7 +221,7 @@ export function renderOpenItemsCsv(report: OpenItemsReport): string {
 				item.issueDate,
 				item.dueDate,
 				String(item.overdueDays),
-				AGE_BUCKET_LABELS[item.bucket],
+				tr(language, AGE_BUCKET_LABELS[item.bucket]),
 				de(item.amount),
 				de(item.skontoPercent),
 				String(item.reminderLevel),
@@ -222,59 +231,81 @@ export function renderOpenItemsCsv(report: OpenItemsReport): string {
 		);
 	}
 	lines.push('');
+	const total = tr(language, 'Total');
 	for (const bucket of AGE_BUCKETS) {
 		const sub = report.buckets[bucket];
-		lines.push(['Summe', AGE_BUCKET_LABELS[bucket], String(sub.count), de(sub.amount)].map(csvField).join(';'));
+		lines.push(
+			[total, tr(language, AGE_BUCKET_LABELS[bucket]), String(sub.count), de(sub.amount)].map(csvField).join(';'),
+		);
 	}
-	lines.push(['Summe', 'gesamt', String(report.total.count), de(report.total.amount)].map(csvField).join(';'));
 	lines.push(
-		['Summe', 'davon überfällig', String(report.overdue.count), de(report.overdue.amount)].map(csvField).join(';'),
+		[total, tr(language, 'all'), String(report.total.count), de(report.total.amount)].map(csvField).join(';'),
+	);
+	lines.push(
+		[total, tr(language, 'of which overdue'), String(report.overdue.count), de(report.overdue.amount)]
+			.map(csvField)
+			.join(';'),
 	);
 	return `${UTF8_BOM}${lines.join('\r\n')}\r\n`;
 }
 
 /**
- * Revenue per company as a semicolon CSV (R6.3).
+ * Renders the revenue per company (R6.3) as a semicolon-separated CSV.
  *
  * @param report - Result of `evaluateRevenueByCompany`.
+ * @param language - Language of the title and the column headers.
  * @returns CSV text including the BOM.
  */
-export function renderRevenueCsv(report: RevenueReport): string {
+export function renderRevenueCsv(report: RevenueReport, language: OutputLanguage = 'en'): string {
 	const lines: string[] = [];
-	lines.push(csvField(CSV_COPY_NOTICE));
-	lines.push(csvField(`Umsatz je Firma${report.year === null ? '' : ` ${report.year}`}`));
-	lines.push(['Firma', 'Anzahl Rechnungen', 'Netto EUR', 'USt EUR', 'Brutto EUR'].map(csvField).join(';'));
+	lines.push(csvField(tr(language, CSV_COPY_NOTICE)));
+	lines.push(csvField(`${tr(language, 'Revenue by company')}${report.year === null ? '' : ` ${report.year}`}`));
+	lines.push(
+		['Company', 'Number of invoices', 'Net EUR', 'VAT EUR', 'Gross EUR']
+			.map(label => csvField(tr(language, label)))
+			.join(';'),
+	);
 	for (const row of report.rows) {
-		lines.push([row.company, String(row.count), de(row.net), de(row.tax), de(row.gross)].map(csvField).join(';'));
+		const company = row.companyId == null ? tr(language, 'without company assignment') : row.company;
+		lines.push([company, String(row.count), de(row.net), de(row.tax), de(row.gross)].map(csvField).join(';'));
 	}
 	const total = report.total;
-	lines.push(['Summe', String(total.count), de(total.net), de(total.tax), de(total.gross)].map(csvField).join(';'));
+	lines.push(
+		[tr(language, 'Total'), String(total.count), de(total.net), de(total.tax), de(total.gross)]
+			.map(csvField)
+			.join(';'),
+	);
 	return `${UTF8_BOM}${lines.join('\r\n')}\r\n`;
 }
 
 /**
- * The dunning suggestions as a semicolon CSV (R6.4).
+ * Renders the dunning suggestions (R6.4) as a semicolon-separated CSV.
  *
  * @param suggestions - Result of `buildDunningSuggestions`.
  * @param today - ISO reference day.
+ * @param language - Language of the title and the column headers.
  * @returns CSV text including the BOM.
  */
-export function renderDunningCsv(suggestions: DunningSuggestion[], today: string): string {
+export function renderDunningCsv(
+	suggestions: DunningSuggestion[],
+	today: string,
+	language: OutputLanguage = 'en',
+): string {
 	const lines: string[] = [];
-	lines.push(csvField(CSV_COPY_NOTICE));
-	lines.push(csvField(`Mahnvorschläge zum ${today}`));
+	lines.push(csvField(tr(language, CSV_COPY_NOTICE)));
+	lines.push(csvField(tr(language, 'Dunning suggestions as of {date}', { date: formatOutputDate(today, language) })));
 	lines.push(
 		[
-			'Rechnungsnummer',
-			'Kunde',
-			'E-Mail',
-			'Stufe',
-			'Tage ueberfaellig',
-			'Faellig am',
-			'Zahlungsziel',
-			'Offener Betrag EUR',
+			'Invoice number',
+			'Customer',
+			'E-mail',
+			'Level',
+			'Days overdue',
+			'Due on',
+			'Payment deadline',
+			'Open amount EUR',
 		]
-			.map(csvField)
+			.map(label => csvField(tr(language, label)))
 			.join(';'),
 	);
 	let sum = 0;
@@ -296,6 +327,8 @@ export function renderDunningCsv(suggestions: DunningSuggestion[], today: string
 		);
 	}
 	lines.push('');
-	lines.push(['Summe', String(suggestions.length), de(Math.round(sum * 100) / 100)].map(csvField).join(';'));
+	lines.push(
+		[tr(language, 'Total'), String(suggestions.length), de(Math.round(sum * 100) / 100)].map(csvField).join(';'),
+	);
 	return `${UTF8_BOM}${lines.join('\r\n')}\r\n`;
 }

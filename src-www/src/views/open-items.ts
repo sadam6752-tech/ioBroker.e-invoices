@@ -129,14 +129,14 @@ export async function openItems(root: HTMLElement): Promise<void> {
 		};
 		root.querySelector('#op-xlsx')?.addEventListener('click', async () => {
 			try {
-				await downloadUrl(api.openItemsXlsxUrl(params()), 'offene-posten.xlsx');
+				await downloadUrl(api.openItemsXlsxUrl(params()), 'open-items.xlsx');
 			} catch (e) {
 				fail(e);
 			}
 		});
 		root.querySelector('#op-csv')?.addEventListener('click', async () => {
 			try {
-				await downloadUrl(api.openItemsCsvUrl(params()), 'offene-posten.csv');
+				await downloadUrl(api.openItemsCsvUrl(params()), 'open-items.csv');
 			} catch (e) {
 				fail(e);
 			}

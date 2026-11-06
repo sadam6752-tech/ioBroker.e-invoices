@@ -33,17 +33,14 @@ __export(dunning_pdf_exports, {
 module.exports = __toCommonJS(dunning_pdf_exports);
 var import_pdfkit = __toESM(require("pdfkit"));
 var import_fonts = require("./fonts");
-function de(iso) {
-  const [year, month, day] = iso.slice(0, 10).split("-");
-  return `${day}.${month}.${year}`;
-}
-function renderDunningPdf(suggestions, today) {
+var import_output_i18n = require("./output-i18n");
+function renderDunningPdf(suggestions, today, language) {
   return new Promise((resolve, reject) => {
     const doc = new import_pdfkit.default({
       size: "A4",
       margins: { top: 60, bottom: 50, left: 60, right: 60 },
       autoFirstPage: false,
-      info: { Title: "Zahlungserinnerungen und Mahnungen", Creator: "ioBroker.e-invoices" }
+      info: { Title: (0, import_output_i18n.tr)(language, "Payment reminders and dunning notices"), Creator: "ioBroker.e-invoices" }
     });
     const chunks = [];
     doc.on("data", (chunk) => chunks.push(chunk));
@@ -59,14 +56,17 @@ function renderDunningPdf(suggestions, today) {
       doc.font(regular).fontSize(7.5).fillColor("#555555").text(item.sender, 60, 100, { width, lineBreak: false });
       doc.fillColor("#111827").fontSize(11);
       doc.text(item.recipient.join("\n"), 60, 118, { width: 260 });
-      doc.text(`Datum: ${de(today)}`, 60, 118, { width, align: "right" });
+      doc.text((0, import_output_i18n.tr)(language, "Date: {date}", { date: (0, import_output_i18n.formatOutputDate)(today, language) }), 60, 118, {
+        width,
+        align: "right"
+      });
       doc.font(bold).fontSize(13).text(item.subject, 60, 230, { width });
       doc.moveDown(1);
       doc.font(regular).fontSize(11).text(item.text, { width, lineGap: 2 });
     }
     if (suggestions.length === 0) {
       doc.addPage();
-      doc.font(regular).fontSize(11).text("Keine Mahnvorschl\xE4ge.", 60, 100);
+      doc.font(regular).fontSize(11).text((0, import_output_i18n.tr)(language, "No dunning suggestions."), 60, 100);
     }
     doc.end();
   });

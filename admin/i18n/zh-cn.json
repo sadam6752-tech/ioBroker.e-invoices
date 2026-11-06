@@ -45,7 +45,6 @@
     "Invoice number format":  "发票编号格式",
     "Invoicing defaults":  "开票默认值",
     "Own number circle, used only for quotations. Tokens: {YYYY} year, {EMPLOYEE} employee code, {SEQ} sequence. {SEQ} is required.":  "报价单专用独立编号序列。占位符：{YYYY} 年、{EMPLOYEE} 员工代码、{SEQ} 序号。{SEQ} 为必填。",
-    "prefilled for new invoices; the wizard offers these as a list plus free text":  "为新发票预填；向导另提供下拉列表和自由文本输入框",
     "Quotation number format":  "报价单编号格式",
     "Server":  "服务器",
     "Storage mount name":  "存储挂载名称",
@@ -74,5 +73,10 @@
     "SHA256:… as the server shows it. Empty: the server is not verified, the log shows its fingerprint.":  "SHA256:… 与服务器显示的一致。留空：不验证服务器，日志会显示其指纹。",
     "Copies to keep on the server":  "在服务器上保留的副本数",
     "Only automatic copies are deleted, the oldest first; 0 = keep all. Backups made by hand and other files are never deleted.":  "只删除自动副本，最旧的优先；0 = 全部保留。手动创建的备份和其他文件永远不会被删除。",
-    "Test connection":  "测试连接"
+    "Test connection":  "测试连接",
+    "No default":  "无默认值",
+    "Payable immediately without deduction":  "立即付款，不得扣减",
+    "Payable within 14 days by bank transfer":  "14 天内银行转账付款",
+    "Payable within 30 days of the invoice date without deduction":  "自发票日期起 30 天内付款，不得扣减",
+    "Prefilled for new invoices; the wizard offers these as a list plus free text. The text is printed on the invoice in German, because the invoice is German.":  "新发票会预先填入；向导还以列表加自由文本的形式提供这些选项。该文本以德语印在发票上，因为发票是德语的。"
 }

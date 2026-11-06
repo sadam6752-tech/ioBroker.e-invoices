@@ -25,7 +25,7 @@ __export(revenue_report_exports, {
 });
 module.exports = __toCommonJS(revenue_report_exports);
 var import_invoice_model = require("./invoice-model");
-const NO_COMPANY_LABEL = "ohne Firmenzuordnung";
+const NO_COMPANY_LABEL = "without company assignment";
 function cents(value) {
   return Math.round(value * 100) / 100;
 }

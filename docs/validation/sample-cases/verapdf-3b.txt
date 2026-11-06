@@ -1,0 +1,7 @@
+PASS [temp]\val-out\credit-note.pdf 3b
+PASS [temp]\val-out\small-amount-rounding.pdf 3b
+PASS [temp]\val-out\invoice-with-attachment-bg24.pdf 3b
+PASS [temp]\val-out\invoice-with-cash-discount.pdf 3b
+PASS [temp]\val-out\reverse-charge-exemption.pdf 3b
+PASS [temp]\val-out\reversal-of-original-invoice.pdf 3b
+PASS [temp]\val-out\full-invoice-two-vat-rates.pdf 3b

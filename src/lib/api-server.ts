@@ -62,6 +62,7 @@ import { evaluateRevenueByCompany, type RevenueReport } from './revenue-report';
 import { isPreviewSample, PREVIEW_SAMPLES, previewSampleDraft } from './preview-samples';
 import { buildDunningSuggestions } from './dunning';
 import { renderDunningPdf } from './dunning-pdf';
+import { formatOutputDate, outputLanguage, tr, type OutputLanguage } from './output-i18n';
 import { paymentCheckDuty } from './invoice-model';
 import { renderInvoicePdf } from './pdf';
 import { validateTemplate, type LayoutTemplate } from './templates';
@@ -205,6 +206,8 @@ export interface ApiServerDeps {
 		backupKeep?: number;
 		/** DATEV settings: advisor and client number, chart of accounts, accounts. */
 		datev?: DatevConfig;
+		/** Language of the ioBroker system: the fallback language of the exports. */
+		systemLanguage?: string;
 	};
 }
 
@@ -504,6 +507,20 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		backupIntervalMinutes: Math.max(0, Math.round(Number(deps.settings?.backupIntervalMinutes) || 0)),
 		backupKeep: Math.max(0, Math.round(Number(deps.settings?.backupKeep) || 0)),
 	};
+
+	/**
+	 * Language of an export (CSV, Excel): that of the web app, which sends it with every request, else the
+	 * language chosen for the web app in the instance, else the language of the ioBroker system, else English.
+	 *
+	 * @param req - The request.
+	 */
+	const exportLanguage = (req: Request): OutputLanguage =>
+		outputLanguage(
+			req.get('x-e-invoices-language'),
+			req.query.lang,
+			settings.pwaLanguage === 'auto' ? undefined : settings.pwaLanguage,
+			deps.settings?.systemLanguage,
+		);
 	const limits = {
 		api: Math.max(1, Math.round(deps.limits?.api ?? 600)),
 		restore: Math.max(1, Math.round(deps.limits?.restore ?? 10)),
@@ -769,8 +786,8 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			return;
 		}
 		res.type('text/csv; charset=utf-8');
-		res.set('Content-Disposition', attachmentDisposition(`rechnungen${dateRangeFileSuffix(range)}.csv`));
-		res.send(renderInvoiceListCsv(filteredInvoices(db, req.query, 'invoice', range, true)));
+		res.set('Content-Disposition', attachmentDisposition(`invoices${dateRangeFileSuffix(range)}.csv`));
+		res.send(renderInvoiceListCsv(filteredInvoices(db, req.query, 'invoice', range, true), exportLanguage(req)));
 	});
 
 	// DATEV Buchungsstapel (EXTF 700): only with advisor and client number from the instance settings — every user
@@ -797,7 +814,10 @@ export function createApiServer(deps: ApiServerDeps): Express {
 			return;
 		}
 		res.type('text/csv; charset=windows-1252');
-		res.set('Content-Disposition', attachmentDisposition(`EXTF_Rechnungsausgang${dateRangeFileSuffix(range)}.csv`));
+		res.set(
+			'Content-Disposition',
+			attachmentDisposition(`EXTF_outgoing-invoices${dateRangeFileSuffix(range)}.csv`),
+		);
 		res.send(toWindows1252(content));
 	});
 
@@ -809,8 +829,10 @@ export function createApiServer(deps: ApiServerDeps): Express {
 		}
 		const invoices = filteredInvoices(db, req.query, 'invoice', range, true);
 		const stamp = todayIso();
-		const period = formatDateRange(range);
-		void renderInvoiceListWorkbook(invoices, `Rechnungsübersicht ${stamp}${period ? ` (${period})` : ''}`).then(
+		const language = exportLanguage(req);
+		const period = formatDateRange(range, language);
+		const title = tr(language, 'Invoice overview {date}', { date: formatOutputDate(stamp, language) });
+		void renderInvoiceListWorkbook(invoices, `${title}${period ? ` (${period})` : ''}`, language).then(
 			buffer => {
 				res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 				res.set(
@@ -877,8 +899,8 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				return;
 			}
 			res.type('text/csv; charset=utf-8');
-			res.set('Content-Disposition', attachmentDisposition('umsatz-je-firma.csv'));
-			res.send(renderRevenueCsv(report));
+			res.set('Content-Disposition', attachmentDisposition('revenue-by-company.csv'));
+			res.send(renderRevenueCsv(report, exportLanguage(req)));
 		}),
 	);
 
@@ -890,9 +912,9 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				res.status(400).json({ error: report });
 				return;
 			}
-			const buffer = await renderRevenueWorkbook(report);
+			const buffer = await renderRevenueWorkbook(report, exportLanguage(req));
 			res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-			res.set('Content-Disposition', attachmentDisposition('umsatz-je-firma.xlsx'));
+			res.set('Content-Disposition', attachmentDisposition('revenue-by-company.xlsx'));
 			res.send(buffer);
 		}),
 	);
@@ -920,8 +942,8 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				return;
 			}
 			res.type('text/csv; charset=utf-8');
-			res.set('Content-Disposition', attachmentDisposition('offene-posten.csv'));
-			res.send(renderOpenItemsCsv(evaluateOpenItems(db.allInvoices(), options)));
+			res.set('Content-Disposition', attachmentDisposition('open-items.csv'));
+			res.send(renderOpenItemsCsv(evaluateOpenItems(db.allInvoices(), options), exportLanguage(req)));
 		}),
 	);
 
@@ -933,9 +955,12 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				res.status(400).json({ error: options });
 				return;
 			}
-			const buffer = await renderOpenItemsWorkbook(evaluateOpenItems(db.allInvoices(), options));
+			const buffer = await renderOpenItemsWorkbook(
+				evaluateOpenItems(db.allInvoices(), options),
+				exportLanguage(req),
+			);
 			res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-			res.set('Content-Disposition', attachmentDisposition('offene-posten.xlsx'));
+			res.set('Content-Disposition', attachmentDisposition('open-items.xlsx'));
 			res.send(buffer);
 		}),
 	);
@@ -1403,7 +1428,12 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	);
 
 	const dunningSuggestions = (): ReturnType<typeof buildDunningSuggestions> => {
-		return buildDunningSuggestions(collectReminderCandidates(db), db.listDunningTexts(), todayIso());
+		return buildDunningSuggestions(
+			collectReminderCandidates(db),
+			db.listDunningTexts(),
+			todayIso(),
+			db.getTextLanguage(),
+		);
 	};
 
 	app.get(
@@ -1415,19 +1445,20 @@ export function createApiServer(deps: ApiServerDeps): Express {
 
 	app.get(
 		'/api/dunning/suggestions.csv',
-		route((_req, res) => {
+		route((req, res) => {
 			res.type('text/csv; charset=utf-8');
-			res.set('Content-Disposition', attachmentDisposition('mahnvorschlaege.csv'));
-			res.send(renderDunningCsv(dunningSuggestions(), todayIso()));
+			res.set('Content-Disposition', attachmentDisposition('dunning-suggestions.csv'));
+			res.send(renderDunningCsv(dunningSuggestions(), todayIso(), exportLanguage(req)));
 		}),
 	);
 
 	app.get(
 		'/api/dunning/suggestions.pdf',
 		route(async (_req, res) => {
-			const buffer = await renderDunningPdf(dunningSuggestions(), todayIso());
+			// the letters go to customers: they speak the language of the dunning texts, not that of the screen
+			const buffer = await renderDunningPdf(dunningSuggestions(), todayIso(), db.getTextLanguage());
 			res.type('application/pdf');
-			res.set('Content-Disposition', attachmentDisposition('mahnungen.pdf'));
+			res.set('Content-Disposition', attachmentDisposition('dunning-letters.pdf'));
 			res.send(buffer);
 		}),
 	);

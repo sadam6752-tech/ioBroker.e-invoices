@@ -355,12 +355,12 @@
 				"defaultPaymentTerms": {
 					"type": "select",
 					"label": "Default payment terms",
-					"help": "prefilled for new invoices; the wizard offers these as a list plus free text",
+					"help": "Prefilled for new invoices; the wizard offers these as a list plus free text. The text is printed on the invoice in German, because the invoice is German.",
 					"options": [
-						{ "label": "none", "value": "" },
-						{ "label": "Der Rechnungsbetrag ist sofort ohne Abzug fällig.", "value": "Der Rechnungsbetrag ist sofort ohne Abzug fällig." },
-						{ "label": "Bitte überweisen Sie den o.g. Betrag innerhalb von 14 Tagen auf unser Konto.", "value": "Bitte überweisen Sie den o.g. Betrag innerhalb von 14 Tagen auf unser Konto." },
-						{ "label": "Zahlbar innerhalb von 30 Tagen nach Rechnungsdatum ohne Abzug.", "value": "Zahlbar innerhalb von 30 Tagen nach Rechnungsdatum ohne Abzug." }
+						{ "label": "No default", "value": "" },
+						{ "label": "Payable immediately without deduction", "value": "Der Rechnungsbetrag ist sofort ohne Abzug fällig." },
+						{ "label": "Payable within 14 days by bank transfer", "value": "Bitte überweisen Sie den o.g. Betrag innerhalb von 14 Tagen auf unser Konto." },
+						{ "label": "Payable within 30 days of the invoice date without deduction", "value": "Zahlbar innerhalb von 30 Tagen nach Rechnungsdatum ohne Abzug." }
 					],
 					"default": "",
 					"newLine": true,
