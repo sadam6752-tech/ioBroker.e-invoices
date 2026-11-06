@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.2.2",
+    "version": "1.3.0",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.3.0": {
+        "en": "Exports (CSV, Excel) and dunning letters in the eleven ioBroker languages: exports follow the web app, dunning texts the system language. Download file names in English. Payment term labels translated in the instance settings. Validation documents moved to docs/validation.",
+        "de": "Exporte (CSV, Excel) und Mahnschreiben in den elf ioBroker-Sprachen: Exporte folgen der Web-App, Mahntexte der Systemsprache. Dateinamen der Downloads auf Englisch. Bezeichnungen der Zahlungsbedingungen in den Instanzeinstellungen übersetzt. Validierungsunterlagen nach docs/validation verschoben.",
+        "ru": "Выгрузки (CSV, Excel) и письма-напоминания на одиннадцати языках ioBroker: выгрузки следуют языку веб-приложения, тексты напоминаний — языку системы. Имена скачиваемых файлов на английском. Подписи условий оплаты в настройках экземпляра переведены. Документы валидации перенесены в docs/validation.",
+        "pt": "Exportações (CSV, Excel) e cartas de cobrança nas onze línguas do ioBroker: as exportações seguem a aplicação web, os textos de cobrança a língua do sistema. Nomes dos ficheiros descarregados em inglês. Rótulos das condições de pagamento traduzidos nas definições da instância. Documentos de validação movidos para docs/validation.",
+        "nl": "Exports (CSV, Excel) en aanmaningsbrieven in de elf ioBroker-talen: exports volgen de web-app, aanmaningsteksten de systeemtaal. Bestandsnamen van downloads in het Engels. Labels van de betalingsvoorwaarden in de instantie-instellingen vertaald. Validatiedocumenten verplaatst naar docs/validation.",
+        "fr": "Exports (CSV, Excel) et lettres de relance dans les onze langues d'ioBroker : les exports suivent l'application web, les textes de relance la langue du système. Noms des fichiers téléchargés en anglais. Libellés des conditions de paiement traduits dans les paramètres de l'instance. Documents de validation déplacés vers docs/validation.",
+        "it": "Esportazioni (CSV, Excel) e lettere di sollecito nelle undici lingue di ioBroker: le esportazioni seguono l'app web, i testi di sollecito la lingua di sistema. Nomi dei file scaricati in inglese. Etichette delle condizioni di pagamento tradotte nelle impostazioni dell'istanza. Documenti di validazione spostati in docs/validation.",
+        "es": "Exportaciones (CSV, Excel) y cartas de reclamación en los once idiomas de ioBroker: las exportaciones siguen la aplicación web, los textos de reclamación el idioma del sistema. Nombres de los archivos descargados en inglés. Etiquetas de las condiciones de pago traducidas en los ajustes de la instancia. Documentos de validación movidos a docs/validation.",
+        "pl": "Eksporty (CSV, Excel) i monity w jedenastu językach ioBroker: eksporty podążają za aplikacją internetową, teksty monitów za językiem systemu. Nazwy pobieranych plików po angielsku. Etykiety warunków płatności przetłumaczone w ustawieniach instancji. Dokumenty walidacji przeniesione do docs/validation.",
+        "uk": "Вивантаження (CSV, Excel) і листи-нагадування одинадцятьма мовами ioBroker: вивантаження слідують мові вебзастосунку, тексти нагадувань — мові системи. Імена завантажуваних файлів англійською. Підписи умов оплати в налаштуваннях екземпляра перекладено. Документи валідації перенесено в docs/validation.",
+        "zh-cn": "导出（CSV、Excel）和催款函支持 ioBroker 的十一种语言：导出跟随网页应用的语言，催款文本跟随系统语言。下载文件名改为英文。实例设置中的付款条件标签已翻译。验证文档移至 docs/validation。"
+      },
       "1.2.2": {
         "en": "When the server gives no answer (for example a self-signed certificate the browser no longer accepts), the web app explains what to do and offers a Reload button instead of a bare \"NetworkError\".",
         "de": "Antwortet der Server nicht (zum Beispiel bei einem selbst signierten Zertifikat, das der Browser nicht mehr akzeptiert), erklärt die Web-App, was zu tun ist, und bietet einen Knopf \"Neu laden\" statt eines bloßen \"NetworkError\".",
@@ -101,19 +114,6 @@
         "pl": "Aplikacja internetowa mówi we wszystkich jedenastu językach ioBroker (nowe: rosyjski, portugalski, niderlandzki, francuski, włoski, hiszpański, polski, ukraiński, chiński); ustawienie instancji oferuje je wszystkie. Nazwy obiektów w jedenastu językach. Przyciski sterujące reagują tylko na true.",
         "uk": "Вебзастосунок розмовляє всіма одинадцятьма мовами ioBroker (нові: російська, португальська, нідерландська, французька, італійська, іспанська, польська, українська, китайська); налаштування екземпляра пропонує їх усі. Назви об'єктів одинадцятьма мовами. Кнопки керування реагують лише на true.",
         "zh-cn": "网页应用支持 ioBroker 的全部十一种语言（新增：俄语、葡萄牙语、荷兰语、法语、意大利语、西班牙语、波兰语、乌克兰语、中文）；实例设置提供全部选项。对象名称提供十一种语言。控制按钮仅对 true 作出反应。"
-      },
-      "1.1.2": {
-        "en": "Documentation in English: the documents of the repository are now in docs/en, the German originals in docs/de, as the ioBroker reviewers ask for.",
-        "de": "Dokumentation auf Englisch: Die Dokumente des Repositorys liegen jetzt in docs/en, die deutschen Originale in docs/de, wie es die ioBroker-Reviewer verlangen.",
-        "ru": "Документация на английском: документы репозитория теперь находятся в docs/en, немецкие оригиналы — в docs/de, как просят рецензенты ioBroker.",
-        "pt": "Documentação em inglês: os documentos do repositório estão agora em docs/en e os originais em alemão em docs/de, como pedem os revisores do ioBroker.",
-        "nl": "Documentatie in het Engels: de documenten van de repository staan nu in docs/en en de Duitse originelen in docs/de, zoals de ioBroker-reviewers vragen.",
-        "fr": "Documentation en anglais : les documents du dépôt se trouvent désormais dans docs/en et les originaux allemands dans docs/de, comme le demandent les relecteurs d'ioBroker.",
-        "it": "Documentazione in inglese: i documenti del repository si trovano ora in docs/en e gli originali tedeschi in docs/de, come chiedono i revisori di ioBroker.",
-        "es": "Documentación en inglés: los documentos del repositorio están ahora en docs/en y los originales en alemán en docs/de, como piden los revisores de ioBroker.",
-        "pl": "Dokumentacja po angielsku: dokumenty repozytorium znajdują się teraz w docs/en, a niemieckie oryginały w docs/de, zgodnie z prośbą recenzentów ioBroker.",
-        "uk": "Документація англійською: документи репозиторію тепер у docs/en, німецькі оригінали — у docs/de, як просять рецензенти ioBroker.",
-        "zh-cn": "英文文档：仓库的文档现在位于 docs/en，德语原文位于 docs/de，符合 ioBroker 审核人员的要求。"
       }
     },
     "titleLang": {

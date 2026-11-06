@@ -628,7 +628,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.3.0 (2026-11-06)
 
 * (alex) Review of the ioBroker repository (PR #6894): the download file names are English (`invoices….csv`, `EXTF_outgoing-invoices….csv`, `revenue-by-company…`, `open-items…`, `dunning-suggestions.csv`, `dunning-letters.pdf`, `…_from-…`/`…_to-…` for an open range).
 * (alex) The exports (CSV and Excel lists of invoices, open items, revenue and dunning suggestions) are written in the eleven ioBroker languages: titles, notice and column headers follow the language of the web app, else the instance setting, else the system language, else English. The invoice copy and the DATEV file stay German.
@@ -660,10 +660,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 
 * (alex) The invoice view of an issued invoice shows the earliest deletion date ("Keep until") with a note: the adapter cautiously counts ten years, the law needs at least eight for invoices and ten for some records; in doubt ask the tax advisor. The note is available in all eleven languages.
 * (alex) The backup keeps the attachments as own ZIP entries (`attachments/<id>`, each with its SHA-256 in the manifest) instead of base64 inside `dump.json`: about a third smaller, less memory while it is made, and the restore checks every attachment on its own. Backup format 2; backups of older versions (format 1) can still be restored.
-
-### 1.1.4 (2026-10-11)
-
-* (alex) fix: the backup no longer logs the error "Backup skips unreadable file ... .xml: Not exists" for every quotation. A quotation is no e-invoice and has no XML file, so the backup does not look for one any more (a missing file of a real invoice is still reported).
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
