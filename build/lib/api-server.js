@@ -31,6 +31,7 @@ __export(api_server_exports, {
   attachStatic: () => attachStatic,
   createApiServer: () => createApiServer,
   previewInvoice: () => previewInvoice,
+  releaseApiServer: () => releaseApiServer,
   routeParam: () => routeParam,
   storedToDraft: () => storedToDraft
 });
@@ -274,6 +275,12 @@ function secretEquals(provided, expected) {
   return (0, import_node_crypto.timingSafeEqual)(a, b);
 }
 const PWA_LANGUAGES = ["de", "en", "ru", "pt", "nl", "fr", "it", "es", "pl", "uk", "zh-cn"];
+const RELEASES = /* @__PURE__ */ new WeakMap();
+function releaseApiServer(app) {
+  var _a;
+  (_a = RELEASES.get(app)) == null ? void 0 : _a();
+  RELEASES.delete(app);
+}
 function createApiServer(deps) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
   const { db, storage, log, version, authToken } = deps;
@@ -353,17 +360,28 @@ function createApiServer(deps) {
     })
   );
   app.use(import_express.default.json({ limit: "25mb" }));
-  const limiter = (limit, scope) => (0, import_express_rate_limit.rateLimit)({
-    windowMs: 6e4,
-    limit,
-    standardHeaders: "draft-7",
-    legacyHeaders: false,
-    handler: (req, res) => {
-      var _a2;
-      (_a2 = log.warn) == null ? void 0 : _a2.call(log, `Rate limit hit (${scope}): ${req.method} ${req.path}`);
-      res.status(429).json({ error: "Too many requests" });
+  const stores = [];
+  RELEASES.set(app, () => {
+    for (const store of stores.splice(0)) {
+      store.shutdown();
     }
   });
+  const limiter = (limit, scope) => {
+    const store = new import_express_rate_limit.MemoryStore();
+    stores.push(store);
+    return (0, import_express_rate_limit.rateLimit)({
+      store,
+      windowMs: 6e4,
+      limit,
+      standardHeaders: "draft-7",
+      legacyHeaders: false,
+      handler: (req, res) => {
+        var _a2;
+        (_a2 = log.warn) == null ? void 0 : _a2.call(log, `Rate limit hit (${scope}): ${req.method} ${req.path}`);
+        res.status(429).json({ error: "Too many requests" });
+      }
+    });
+  };
   app.use("/api", limiter(limits.api, "api"));
   app.use("/api/restore", limiter(limits.restore, "restore"));
   if (deps.onChange) {
@@ -1807,6 +1825,7 @@ function attachStatic(app, dir) {
   attachStatic,
   createApiServer,
   previewInvoice,
+  releaseApiServer,
   routeParam,
   storedToDraft
 });

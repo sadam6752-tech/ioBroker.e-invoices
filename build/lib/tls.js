@@ -19,7 +19,8 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var tls_exports = {};
 __export(tls_exports, {
   createWebServer: () => createWebServer,
-  decideTls: () => decideTls
+  decideTls: () => decideTls,
+  stopWebServer: () => stopWebServer
 });
 module.exports = __toCommonJS(tls_exports);
 var import_node_http = require("node:http");
@@ -53,9 +54,14 @@ async function decideTls(config, load) {
 function createWebServer(listener, tls) {
   return tls ? (0, import_node_https.createServer)({ key: tls.key, cert: tls.cert, ca: tls.ca }, listener) : (0, import_node_http.createServer)(listener);
 }
+function stopWebServer(server) {
+  server.close();
+  server.closeAllConnections();
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   createWebServer,
-  decideTls
+  decideTls,
+  stopWebServer
 });
 //# sourceMappingURL=tls.js.map

@@ -46,6 +46,8 @@ class EInvoices extends utils.Adapter {
   mountId = "";
   filesAvailable = false;
   server = null;
+  /** The API app, so its background timers can be stopped on unload. */
+  app = null;
   /** Pending automatic backup, cancelled on unload. */
   backupTimer;
   /** True once the backup warning was logged, so it is not repeated at every refresh. */
@@ -904,6 +906,7 @@ class EInvoices extends utils.Adapter {
       }
       const port = this.config.port || DEFAULT_API_PORT;
       const bind = this.config.bind || DEFAULT_API_BIND;
+      this.app = app;
       this.server = (0, import_tls.createWebServer)(app, tls);
       this.server.on("error", (error) => {
         this.log.error(`API server error (port ${port}): ${error.message}`);
@@ -932,7 +935,7 @@ class EInvoices extends utils.Adapter {
    * @param callback - Callback function
    */
   onUnload(callback) {
-    var _a, _b;
+    var _a;
     try {
       this.stopBackupTimer();
       this.stopReminderTimer();
@@ -941,18 +944,24 @@ class EInvoices extends utils.Adapter {
         this.statsTimer = void 0;
       }
       try {
-        (_a = this.server) == null ? void 0 : _a.close();
+        if (this.server) {
+          (0, import_tls.stopWebServer)(this.server);
+        }
+        if (this.app) {
+          (0, import_api_server.releaseApiServer)(this.app);
+        }
       } catch (error) {
         this.log.error(`Error stopping API server: ${error.message}`);
       }
       this.server = null;
+      this.app = null;
       try {
-        (_b = this.db) == null ? void 0 : _b.close();
+        (_a = this.db) == null ? void 0 : _a.close();
       } catch (error) {
         this.log.error(`Error closing database: ${error.message}`);
       }
       this.db = null;
-      void this.setState("info.connection", false, true);
+      this.setState("info.connection", false, true).catch(() => void 0);
       callback();
     } catch (error) {
       this.log.error(`Error during unloading: ${error.message}`);
@@ -981,7 +990,7 @@ class EInvoices extends utils.Adapter {
    */
   onStateChange(id, state) {
     if ((0, import_control_buttons.isButtonPress)(this.namespace, id, state)) {
-      void this.handleCommand(id);
+      this.handleCommand(id).catch((error) => this.log.error(`Command ${id} failed: ${error.message}`));
     }
   }
   /**
@@ -999,7 +1008,7 @@ class EInvoices extends utils.Adapter {
       (_a = obj.message) != null ? _a : {},
       this.remoteSettings()
     );
-    void (0, import_remote_backup.testRemoteConnection)(import_sftp_ssh2.connectSsh2, settings, this.remoteTimers).then((result) => {
+    (0, import_remote_backup.testRemoteConnection)(import_sftp_ssh2.connectSsh2, settings, this.remoteTimers).then((result) => {
       var _a2;
       if (!obj.callback) {
         return;
@@ -1011,7 +1020,7 @@ class EInvoices extends utils.Adapter {
         result.ok ? { result: `OK: ${result.message}.${hint}` } : { error: result.message },
         obj.callback
       );
-    });
+    }).catch((error) => this.log.error(`Connection test failed: ${error.message}`));
   }
 }
 if (require.main !== module) {

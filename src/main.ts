@@ -7,10 +7,11 @@
 // you need to create an adapter
 import * as utils from '@iobroker/adapter-core';
 import { join } from 'node:path';
+import type { Express } from 'express';
 import type { Server as HttpServer } from 'node:http';
 import type { Server as HttpsServer } from 'node:https';
 import { version as adapterVersion } from '../package.json';
-import { attachStatic, createApiServer } from './lib/api-server';
+import { attachStatic, createApiServer, releaseApiServer } from './lib/api-server';
 import {
 	AUTO_BACKUP_PREFIX,
 	backupStatus,
@@ -32,7 +33,7 @@ import { connectSsh2 } from './lib/sftp-ssh2';
 import { isButtonPress } from './lib/control-buttons';
 import { STATE_NAMES } from './lib/state-names';
 import { outputLanguage } from './lib/output-i18n';
-import { createWebServer, decideTls } from './lib/tls';
+import { createWebServer, decideTls, stopWebServer } from './lib/tls';
 import {
 	blankDraft,
 	DEFAULT_NUMBER_FORMAT,
@@ -57,6 +58,8 @@ class EInvoices extends utils.Adapter {
 	private mountId = '';
 	private filesAvailable = false;
 	private server: HttpServer | HttpsServer | null = null;
+	/** The API app, so its background timers can be stopped on unload. */
+	private app: Express | null = null;
 	/** Pending automatic backup, cancelled on unload. */
 	private backupTimer: ReturnType<EInvoices['setTimeout']> | undefined;
 	/** True once the backup warning was logged, so it is not repeated at every refresh. */
@@ -970,6 +973,7 @@ class EInvoices extends utils.Adapter {
 			}
 			const port = this.config.port || DEFAULT_API_PORT;
 			const bind = this.config.bind || DEFAULT_API_BIND;
+			this.app = app;
 			this.server = createWebServer(app, tls);
 			this.server.on('error', (error: Error) => {
 				this.log.error(`API server error (port ${port}): ${error.message}`);
@@ -1007,18 +1011,25 @@ class EInvoices extends utils.Adapter {
 				this.statsTimer = undefined;
 			}
 			try {
-				this.server?.close();
+				if (this.server) {
+					stopWebServer(this.server);
+				}
+				if (this.app) {
+					releaseApiServer(this.app);
+				}
 			} catch (error) {
 				this.log.error(`Error stopping API server: ${(error as Error).message}`);
 			}
 			this.server = null;
+			this.app = null;
 			try {
 				this.db?.close();
 			} catch (error) {
 				this.log.error(`Error closing database: ${(error as Error).message}`);
 			}
 			this.db = null;
-			void this.setState('info.connection', false, true);
+			// in compact mode a failed promise could take the shared process down: never leave one unhandled
+			this.setState('info.connection', false, true).catch(() => undefined);
 
 			callback();
 		} catch (error) {
@@ -1050,7 +1061,7 @@ class EInvoices extends utils.Adapter {
 	 */
 	private onStateChange(id: string, state: ioBroker.State | null | undefined): void {
 		if (isButtonPress(this.namespace, id, state)) {
-			void this.handleCommand(id);
+			this.handleCommand(id).catch((error: Error) => this.log.error(`Command ${id} failed: ${error.message}`));
 		}
 	}
 	/**
@@ -1068,21 +1079,23 @@ class EInvoices extends utils.Adapter {
 			(obj.message ?? {}) as Record<string, unknown>,
 			this.remoteSettings(),
 		);
-		void testRemoteConnection(connectSsh2, settings, this.remoteTimers).then(result => {
-			if (!obj.callback) {
-				return;
-			}
-			const hint =
-				result.ok && !settings.hostKey?.trim() && result.fingerprint
-					? ` Fingerprint of the server (enter it to trust only this server): ${result.fingerprint}`
-					: '';
-			this.sendTo(
-				obj.from,
-				obj.command,
-				result.ok ? { result: `OK: ${result.message}.${hint}` } : { error: result.message },
-				obj.callback,
-			);
-		});
+		testRemoteConnection(connectSsh2, settings, this.remoteTimers)
+			.then(result => {
+				if (!obj.callback) {
+					return;
+				}
+				const hint =
+					result.ok && !settings.hostKey?.trim() && result.fingerprint
+						? ` Fingerprint of the server (enter it to trust only this server): ${result.fingerprint}`
+						: '';
+				this.sendTo(
+					obj.from,
+					obj.command,
+					result.ok ? { result: `OK: ${result.message}.${hint}` } : { error: result.message },
+					obj.callback,
+				);
+			})
+			.catch((error: Error) => this.log.error(`Connection test failed: ${error.message}`));
 	}
 }
 if (require.main !== module) {

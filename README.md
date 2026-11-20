@@ -564,11 +564,19 @@ duty to **issue** them for B2B grows in stages. An e-invoice is a structured XML
   The attachments are own entries of the ZIP (`attachments/<id>`), so a backup with Anlagen is about as large as
   the raw files.
 
-## Why compact mode is off (W5049)
+## Compact mode
 
-This adapter sets `common.compact` to `false` on purpose: it keeps its own
-SQLite database file and serves the PWA plus JSON API on its own TCP port,
-so it cannot share the compact process.
+The adapter supports the compact mode of ioBroker (`common.compact: true`, since 1.4.0): when it is switched on in
+the system settings, the instance runs in one process together with other adapters and saves the memory of its
+own Node.js process. Its own SQLite file and its own web port work there as well. What a shared process needs, the
+adapter does on stop: it closes the web server **and** the open connections of the web app, stops the clean-up
+timers of its rate limiters and its own timers, and closes the database — nothing of a stopped instance keeps
+running, and a new start finds the port free.
+
+Issuing, the backup and the restore work on the whole database and on ZIP files of up to several hundred MB, in
+memory. With many documents or large attachments, give the instance a **compact group of its own** (instance
+settings in expert mode, column *Compact group*), so a large backup does not slow down the other adapters of the
+group.
 
 ## Limitations
 
@@ -628,6 +636,10 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (alex) Compact mode: the adapter can run in the shared process of ioBroker (`common.compact: true`). On stop it now also closes the open connections of the web app and stops the timers of its rate limiters, and no promise is left without error handling; see *Compact mode* in the README.
+
 ### 1.3.0 (2026-11-06)
 
 * (alex) Review of the ioBroker repository (PR #6894): the download file names are English (`invoices….csv`, `EXTF_outgoing-invoices….csv`, `revenue-by-company…`, `open-items…`, `dunning-suggestions.csv`, `dunning-letters.pdf`, `…_from-…`/`…_to-…` for an open range).

@@ -167,7 +167,7 @@
     "tier": 3,
     "mode": "daemon",
     "type": "utility",
-    "compact": false,
+    "compact": true,
     "connectionType": "local",
     "dataSource": "push",
     "adminUI": {

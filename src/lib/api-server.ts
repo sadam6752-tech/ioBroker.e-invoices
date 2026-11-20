@@ -11,7 +11,7 @@ import express, { type Express, type Request, type Response } from 'express';
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import helmet from 'helmet';
-import { rateLimit, type RateLimitRequestHandler } from 'express-rate-limit';
+import { MemoryStore, rateLimit, type RateLimitRequestHandler } from 'express-rate-limit';
 import type {
 	InvoiceDatabase,
 	NewProduct,
@@ -481,6 +481,20 @@ function secretEquals(provided: string, expected: string): boolean {
 /** The languages the web app ships (the admin offers exactly these plus `auto`). */
 const PWA_LANGUAGES = ['de', 'en', 'ru', 'pt', 'nl', 'fr', 'it', 'es', 'pl', 'uk', 'zh-cn'];
 
+/** What `releaseApiServer` has to stop for an app (its rate-limit stores). */
+const RELEASES = new WeakMap<Express, () => void>();
+
+/**
+ * Stops what an API app keeps running in the background (the clean-up intervals of its rate limiters). Called when
+ * the adapter stops: in compact mode the process lives on, and nothing of the stopped instance may stay behind.
+ *
+ * @param app - App from `createApiServer`.
+ */
+export function releaseApiServer(app: Express): void {
+	RELEASES.get(app)?.();
+	RELEASES.delete(app);
+}
+
 /**
  * Creates the Express API app (no listen — main.ts owns the socket).
  *
@@ -579,8 +593,19 @@ export function createApiServer(deps: ApiServerDeps): Express {
 	app.use(express.json({ limit: '25mb' }));
 	// Rate limits (R3): the API is reachable from the LAN, and a restore replaces
 	// the whole database — so restore gets a much smaller budget than the rest.
-	const limiter = (limit: number, scope: string): RateLimitRequestHandler =>
-		rateLimit({
+	// own stores: each runs a clean-up interval, and in compact mode (one process for several adapters) that
+	// interval would outlive the stopped adapter — `releaseApiServer` stops them
+	const stores: MemoryStore[] = [];
+	RELEASES.set(app, () => {
+		for (const store of stores.splice(0)) {
+			store.shutdown();
+		}
+	});
+	const limiter = (limit: number, scope: string): RateLimitRequestHandler => {
+		const store = new MemoryStore();
+		stores.push(store);
+		return rateLimit({
+			store,
 			windowMs: 60_000,
 			limit,
 			standardHeaders: 'draft-7',
@@ -591,6 +616,7 @@ export function createApiServer(deps: ApiServerDeps): Express {
 				res.status(429).json({ error: 'Too many requests' });
 			},
 		});
+	};
 	app.use('/api', limiter(limits.api, 'api'));
 	app.use('/api/restore', limiter(limits.restore, 'restore'));
 	if (deps.onChange) {

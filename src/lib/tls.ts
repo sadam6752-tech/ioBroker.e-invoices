@@ -88,3 +88,15 @@ export async function decideTls(config: TlsConfig, load: CertificateLoader): Pro
 export function createWebServer(listener: RequestListener, tls?: TlsOptions): HttpServer | HttpsServer {
 	return tls ? createHttpsServer({ key: tls.key, cert: tls.cert, ca: tls.ca }, listener) : createHttpServer(listener);
 }
+
+/**
+ * Stops the web server for good: no new connections, and the open ones (the web app keeps its connections alive)
+ * are closed too. Otherwise a stopped instance would go on answering on them — in compact mode the process, and
+ * with it those connections, outlives the adapter.
+ *
+ * @param server - Server from `createWebServer`.
+ */
+export function stopWebServer(server: HttpServer | HttpsServer): void {
+	server.close();
+	server.closeAllConnections();
+}
