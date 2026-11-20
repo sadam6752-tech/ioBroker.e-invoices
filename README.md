@@ -636,7 +636,7 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.4.0 (2026-11-20)
 
 * (alex) Compact mode: the adapter can run in the shared process of ioBroker (`common.compact: true`). On stop it now also closes the open connections of the web app and stops the timers of its rate limiters, and no promise is left without error handling; see *Compact mode* in the README.
 
@@ -667,11 +667,6 @@ validation and hybrid embedding, `pdfkit`, `exceljs`, `jszip`,
 * (alex) **Copy of the backups to an external server over SFTP:** the new tab *External backup* in the instance settings copies every backup (automatic and by hand) to another computer, for example a Synology NAS. Pure SFTP without mount, `sudo` or shell command; password stored encrypted; optional host key fingerprint; *Test connection* button; a failed copy never touches the local backup and is shown in the log, in `info.remoteBackupError` and on the backup page. Optionally the oldest automatic copies on the server are deleted (only files of this adapter).
 * (alex) The web app asks "Really sign out?" before it signs out (menu link and login page).
 * (alex) The unused translation key `e-invoices adapter settings` was removed from `admin/i18n`.
-
-### 1.1.5 (2026-10-12)
-
-* (alex) The invoice view of an issued invoice shows the earliest deletion date ("Keep until") with a note: the adapter cautiously counts ten years, the law needs at least eight for invoices and ten for some records; in doubt ask the tax advisor. The note is available in all eleven languages.
-* (alex) The backup keeps the attachments as own ZIP entries (`attachments/<id>`, each with its SHA-256 in the manifest) instead of base64 inside `dump.json`: about a third smaller, less memory while it is made, and the restore checks every attachment on its own. Backup format 2; backups of older versions (format 1) can still be restored.
 
 Older changes: see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

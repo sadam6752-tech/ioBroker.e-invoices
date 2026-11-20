@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "e-invoices",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "localLinks": {
       "_default": {
         "link": "%protocol%://%bind%:%port%",
@@ -24,6 +24,19 @@
       }
     },
     "news": {
+      "1.4.0": {
+        "en": "Compact mode: the adapter can run in the shared process of ioBroker. On stop it closes the open connections of the web app and stops all its timers. With large backups, give it a compact group of its own.",
+        "de": "Compact-Modus: Der Adapter kann im gemeinsamen Prozess von ioBroker laufen. Beim Stoppen schließt er die offenen Verbindungen der Web-App und beendet alle seine Timer. Bei großen Backups eine eigene Compact-Gruppe wählen.",
+        "ru": "Compact-режим: адаптер может работать в общем процессе ioBroker. При остановке он закрывает открытые соединения веб-приложения и останавливает все свои таймеры. При больших резервных копиях выделите ему отдельную compact-группу.",
+        "pt": "Modo compacto: o adaptador pode correr no processo partilhado do ioBroker. Ao parar, fecha as ligações abertas da aplicação web e termina todos os seus temporizadores. Com cópias de segurança grandes, atribua-lhe um grupo compacto próprio.",
+        "nl": "Compacte modus: de adapter kan in het gedeelde proces van ioBroker draaien. Bij het stoppen sluit hij de open verbindingen van de web-app en stopt hij al zijn timers. Geef hem bij grote back-ups een eigen compacte groep.",
+        "fr": "Mode compact : l'adaptateur peut fonctionner dans le processus partagé d'ioBroker. À l'arrêt, il ferme les connexions ouvertes de l'application web et arrête tous ses minuteurs. Avec de grosses sauvegardes, donnez-lui son propre groupe compact.",
+        "it": "Modalità compatta: l'adattatore può funzionare nel processo condiviso di ioBroker. All'arresto chiude le connessioni aperte dell'app web e ferma tutti i suoi timer. Con backup di grandi dimensioni assegnategli un gruppo compatto proprio.",
+        "es": "Modo compacto: el adaptador puede ejecutarse en el proceso compartido de ioBroker. Al detenerse, cierra las conexiones abiertas de la aplicación web y detiene todos sus temporizadores. Con copias de seguridad grandes, asígnele un grupo compacto propio.",
+        "pl": "Tryb kompaktowy: adapter może działać we wspólnym procesie ioBroker. Przy zatrzymaniu zamyka otwarte połączenia aplikacji internetowej i zatrzymuje wszystkie swoje timery. Przy dużych kopiach zapasowych przydziel mu osobną grupę kompaktową.",
+        "uk": "Compact-режим: адаптер може працювати в спільному процесі ioBroker. Під час зупинки він закриває відкриті з'єднання вебзастосунку і зупиняє всі свої таймери. Для великих резервних копій виділіть йому окрему compact-групу.",
+        "zh-cn": "紧凑模式：适配器可以在 ioBroker 的共享进程中运行。停止时会关闭网页应用的已打开连接并停止其所有计时器。备份较大时，请为其分配单独的紧凑组。"
+      },
       "1.3.0": {
         "en": "Exports (CSV, Excel) and dunning letters in the eleven ioBroker languages: exports follow the web app, dunning texts the system language. Download file names in English. Payment term labels translated in the instance settings. Validation documents moved to docs/validation.",
         "de": "Exporte (CSV, Excel) und Mahnschreiben in den elf ioBroker-Sprachen: Exporte folgen der Web-App, Mahntexte der Systemsprache. Dateinamen der Downloads auf Englisch. Bezeichnungen der Zahlungsbedingungen in den Instanzeinstellungen übersetzt. Validierungsunterlagen nach docs/validation verschoben.",
@@ -101,19 +114,6 @@
         "pl": "Poprawka: kopia zapasowa nie zapisuje już błędu o brakującym pliku XML dla każdej oferty (oferty nie mają XML).",
         "uk": "Виправлення: резервна копія більше не записує помилку про відсутній XML-файл для кожної пропозиції (пропозиції не мають XML).",
         "zh-cn": "修复：备份不再为每张报价单记录缺少 XML 文件的错误（报价单没有 XML）。"
-      },
-      "1.1.3": {
-        "en": "The web app speaks all eleven ioBroker languages (new: Russian, Portuguese, Dutch, French, Italian, Spanish, Polish, Ukrainian, Chinese); the instance setting offers all of them. Object names in eleven languages. The control buttons act on true only.",
-        "de": "Die Web-App spricht alle elf ioBroker-Sprachen (neu: Russisch, Portugiesisch, Niederländisch, Französisch, Italienisch, Spanisch, Polnisch, Ukrainisch, Chinesisch); die Instanz-Einstellung bietet alle zur Auswahl. Objektnamen in elf Sprachen. Die Steuer-Knöpfe reagieren nur auf true.",
-        "ru": "Веб-приложение теперь на всех одиннадцати языках ioBroker (новые: русский, португальский, нидерландский, французский, итальянский, испанский, польский, украинский, китайский); в настройках экземпляра можно выбрать любой. Названия объектов на одиннадцати языках. Кнопки управления реагируют только на true.",
-        "pt": "A aplicação web fala os onze idiomas do ioBroker (novos: russo, português, neerlandês, francês, italiano, espanhol, polaco, ucraniano, chinês); a definição da instância oferece todos. Nomes de objetos em onze idiomas. Os botões de controlo só reagem a true.",
-        "nl": "De web-app spreekt alle elf ioBroker-talen (nieuw: Russisch, Portugees, Nederlands, Frans, Italiaans, Spaans, Pools, Oekraïens, Chinees); de instantie-instelling biedt ze allemaal aan. Objectnamen in elf talen. De besturingsknoppen reageren alleen op true.",
-        "fr": "L'application web parle les onze langues d'ioBroker (nouveau : russe, portugais, néerlandais, français, italien, espagnol, polonais, ukrainien, chinois) ; le paramètre de l'instance les propose toutes. Noms d'objets en onze langues. Les boutons de commande n'agissent que sur true.",
-        "it": "L'app web parla tutte e undici le lingue di ioBroker (nuove: russo, portoghese, olandese, francese, italiano, spagnolo, polacco, ucraino, cinese); l'impostazione dell'istanza le offre tutte. Nomi degli oggetti in undici lingue. I pulsanti di controllo agiscono solo su true.",
-        "es": "La aplicación web habla los once idiomas de ioBroker (nuevos: ruso, portugués, neerlandés, francés, italiano, español, polaco, ucraniano, chino); el ajuste de la instancia los ofrece todos. Nombres de objetos en once idiomas. Los botones de control solo actúan con true.",
-        "pl": "Aplikacja internetowa mówi we wszystkich jedenastu językach ioBroker (nowe: rosyjski, portugalski, niderlandzki, francuski, włoski, hiszpański, polski, ukraiński, chiński); ustawienie instancji oferuje je wszystkie. Nazwy obiektów w jedenastu językach. Przyciski sterujące reagują tylko na true.",
-        "uk": "Вебзастосунок розмовляє всіма одинадцятьма мовами ioBroker (нові: російська, португальська, нідерландська, французька, італійська, іспанська, польська, українська, китайська); налаштування екземпляра пропонує їх усі. Назви об'єктів одинадцятьма мовами. Кнопки керування реагують лише на true.",
-        "zh-cn": "网页应用支持 ioBroker 的全部十一种语言（新增：俄语、葡萄牙语、荷兰语、法语、意大利语、西班牙语、波兰语、乌克兰语、中文）；实例设置提供全部选项。对象名称提供十一种语言。控制按钮仅对 true 作出反应。"
       }
     },
     "titleLang": {

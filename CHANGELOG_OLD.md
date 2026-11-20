@@ -228,6 +228,11 @@ that came out of the tag pipeline (npm provenance via Trusted Publishing) is
 * (alex) initial release
 * (alex) `build:pwa` clears `www/` first; the adapter now logs its own warning
   when the sRGB profile for PDF/A-3 is missing
+## 1.1.5 (2026-10-12)
+
+* (alex) The invoice view of an issued invoice shows the earliest deletion date ("Keep until") with a note: the adapter cautiously counts ten years, the law needs at least eight for invoices and ten for some records; in doubt ask the tax advisor. The note is available in all eleven languages.
+* (alex) The backup keeps the attachments as own ZIP entries (`attachments/<id>`, each with its SHA-256 in the manifest) instead of base64 inside `dump.json`: about a third smaller, less memory while it is made, and the restore checks every attachment on its own. Backup format 2; backups of older versions (format 1) can still be restored.
+
 ## 1.1.4 (2026-10-11)
 
 * (alex) fix: the backup no longer logs the error "Backup skips unreadable file ... .xml: Not exists" for every quotation. A quotation is no e-invoice and has no XML file, so the backup does not look for one any more (a missing file of a real invoice is still reported).
